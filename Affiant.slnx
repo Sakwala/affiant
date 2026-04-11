@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Affiant.Abstractions/Affiant.Abstractions.csproj" />
+    <Project Path="src/Affiant.Core/Affiant.Core.csproj" />
+  </Folder>
+</Solution>
