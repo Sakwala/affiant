@@ -1,0 +1,31 @@
+<Project>
+  <!--
+    Packaging NFR gate (NFR3, NFR4, NFR5).
+    Runs before every `dotnet pack` on a packable framework project and asserts:
+      - Version == 1.0.0-alpha.1   (NFR3: all packages share one version)
+      - PackageId == MSBuildProjectName   (NFR4: PackageId matches directory/project name)
+      - RepositoryUrl == the canonical GitHub URL   (NFR5: correct repo metadata)
+
+    Condition skips test projects and any non-packable scaffolding.
+  -->
+  <Target Name="ValidatePackagingNfrs"
+          BeforeTargets="GenerateNuspec;Pack"
+          Condition="'$(IsPackable)' == 'true'">
+
+    <Message Text="ValidatePackagingNfrs: checking $(MSBuildProjectName) (Version=$(Version), PackageId=$(PackageId))"
+             Importance="normal" />
+
+    <Error
+      Text="Version mismatch in $(MSBuildProjectFullPath): expected 1.0.0-alpha.1, got '$(Version)'. All framework packages must share the same version. Update packages/Directory.Build.props to fix."
+      Condition="'$(Version)' != '1.0.0-alpha.1'" />
+
+    <Error
+      Text="PackageId mismatch in $(MSBuildProjectFullPath): expected '$(MSBuildProjectName)' (directory name), got '$(PackageId)'. PackageId must match the project directory name exactly."
+      Condition="'$(PackageId)' != '$(MSBuildProjectName)'" />
+
+    <Error
+      Text="RepositoryUrl mismatch in $(MSBuildProjectFullPath): expected 'https://github.com/affiant-dev/affiant', got '$(RepositoryUrl)'. Update the csproj or packages/Directory.Build.props."
+      Condition="'$(RepositoryUrl)' != 'https://github.com/affiant-dev/affiant'" />
+
+  </Target>
+</Project>

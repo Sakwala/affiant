@@ -3,4 +3,7 @@
     <Project Path="src/Affiant.Abstractions/Affiant.Abstractions.csproj" />
     <Project Path="src/Affiant.Core/Affiant.Core.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Affiant.TestInfrastructure/Affiant.TestInfrastructure.csproj" />
+  </Folder>
 </Solution>
