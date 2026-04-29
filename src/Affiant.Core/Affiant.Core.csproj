@@ -1,13 +1,17 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
+    <PackageId>Affiant.Core</PackageId>
+    <Description>Affiant Framework — Concrete services for context extraction, review gating, and telemetry. Includes ContextFabric, ReviewGate, DeterministicShortCircuit, base ContextExtractor, TaskInferenceStep, and AffiantTelemetry.</Description>
+    <RepositoryType>git</RepositoryType>
   </PropertyGroup>
 
+  <!-- Framework layering: Core depends on Abstractions only -->
   <ItemGroup>
     <ProjectReference Include="..\Affiant.Abstractions\Affiant.Abstractions.csproj" />
   </ItemGroup>
+
+  <!-- Zero references to adapter packages or host apps -->
 
 </Project>
