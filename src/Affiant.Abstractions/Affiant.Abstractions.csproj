@@ -7,6 +7,9 @@
     <RepositoryType>git</RepositoryType>
   </PropertyGroup>
 
-  <!-- Zero Affiant package references — enforced by static analysis test in Story 6.3 -->
+  <!-- Zero Affiant package references — enforced by static analysis test in Story 6.11 -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SemanticKernel" Version="1.74.0" />
+  </ItemGroup>
 
 </Project>
