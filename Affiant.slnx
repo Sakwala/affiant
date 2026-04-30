@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/Affiant.Abstractions/Affiant.Abstractions.csproj" />
     <Project Path="src/Affiant.Core/Affiant.Core.csproj" />
+    <Project Path="src/Affiant.Transport.SignalR/Affiant.Transport.SignalR.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Affiant.TestInfrastructure/Affiant.TestInfrastructure.csproj" />

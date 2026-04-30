@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <PackageId>Affiant.Transport.SignalR</PackageId>
+    <Description>Affiant Framework — SignalR transport adapter. Provides AffiantHub abstract base class for subclassable SignalR hubs and SignalRStreamingTransport implementing IStreamingTransport with in-process reviewer-confirmation routing.</Description>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <!-- SignalR Hub/IHubContext types ship in the ASP.NET Core shared framework. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <!-- Adapter layer: depends on Abstractions (transitively via Core) and Core. -->
+  <ItemGroup>
+    <ProjectReference Include="../Affiant.Abstractions/Affiant.Abstractions.csproj" />
+    <ProjectReference Include="../Affiant.Core/Affiant.Core.csproj" />
+  </ItemGroup>
+
+</Project>
