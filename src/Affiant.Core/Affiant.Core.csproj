@@ -12,6 +12,10 @@
     <ProjectReference Include="..\Affiant.Abstractions\Affiant.Abstractions.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SemanticKernel" Version="1.74.0" />
+  </ItemGroup>
+
   <!-- Zero references to adapter packages or host apps -->
 
 </Project>
