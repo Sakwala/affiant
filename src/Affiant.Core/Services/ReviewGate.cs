@@ -6,17 +6,14 @@ using Affiant.Abstractions.Transport;
 using Microsoft.Extensions.Logging;
 
 /// <summary>
-/// Orchestrates the review state machine: file a <see cref="DocketEntry"/>,
+/// Single source of truth for the review state machine: file a <see cref="DocketEntry"/>,
 /// evaluate the approval policy, optionally send an <see cref="EvidenceCardRequest"/>
 /// and await the reviewer's response, then update the final status.
-///
-/// Parallel implementation alongside ChatHub's existing logic (Story 6.6).
-/// Cut-over to single source of truth happens in Story 6.7.
 /// </summary>
 public sealed class ReviewGate(
     IStreamingTransport transport,
     IDocketStore docketStore,
-    IApprovalPolicy approvalPolicy,
+    IApprovalPolicyEvaluator evaluator,
     ILogger<ReviewGate> logger)
 {
     private const int DocketTimeoutMinutes = 10;
@@ -52,6 +49,10 @@ public sealed class ReviewGate(
             // 2. File a new entry if one does not already exist.
             if (existing is null)
             {
+                var amendments = context.Amendments is { Count: > 0 }
+                    ? context.Amendments.ToDictionary(kv => kv.Key, kv => kv.Value)
+                    : null;
+
                 var entry = new DocketEntry(
                     EntryId: entryId,
                     SessionId: context.SessionId,
@@ -63,14 +64,14 @@ public sealed class ReviewGate(
                     Status: ReviewStatus.Pending,
                     CreatedAt: DateTimeOffset.UtcNow,
                     ExpiresAt: expiresAt,
-                    Amendments: null);
+                    Amendments: amendments);
                 await docketStore.FileDocketEntryAsync(entry, cancellationToken);
                 logger.LogInformation(
                     "Filed DocketEntry {EntryId} for tool {ToolName}", entryId, proposal.ToolName);
             }
 
-            // 3. Evaluate the approval policy before involving the reviewer.
-            var requirement = await approvalPolicy.EvaluateAsync(context, cancellationToken);
+            // 3. Evaluate the approval policy pipeline before involving the reviewer.
+            var requirement = await evaluator.EvaluateAsync(context.Affidavit, cancellationToken);
 
             // 4a. StandingOrder: auto-approve without client interaction.
             if (requirement == ReviewRequirement.StandingOrder)
@@ -144,6 +145,88 @@ public sealed class ReviewGate(
             logger.LogWarning("FileReviewAsync cancelled for tool {ToolName}", proposal.ToolName);
             throw;
         }
+    }
+
+    /// <summary>
+    /// Routes a human decision to the appropriate handling path.
+    /// If a <see cref="FileReviewAsync"/> task is currently awaiting a response for
+    /// <paramref name="entryId"/>, the decision is delivered directly and this method
+    /// returns <c>(null, null)</c> — the awaiting caller owns the outcome and completion.
+    /// If no waiter exists (e.g. the host was restarted), the decision is replayed
+    /// through the docket store and the outcome plus the entry's creation time are returned.
+    /// </summary>
+    public async Task<(ReviewOutcome? Outcome, DateTimeOffset? EntryCreatedAt)> HandleDecisionAsync(
+        Guid entryId,
+        ApprovalDecision decision,
+        CancellationToken cancellationToken = default)
+    {
+        // Live path: a FileReviewAsync call is awaiting — deliver and let it own the outcome.
+        if (transport.TryDeliverResponse(entryId, new EvidenceCardResponse(entryId, decision)))
+            return (null, null);
+
+        // Restart path: no live waiter — replay through the docket store.
+        var entry = await docketStore.GetDocketEntryAsync(entryId, cancellationToken);
+        if (entry is null || entry.Status != ReviewStatus.Pending || entry.ExpiresAt < DateTimeOffset.UtcNow)
+        {
+            logger.LogWarning(
+                "HandleDecisionAsync: DocketEntry {EntryId} not found, not pending, or expired", entryId);
+            return (new ReviewOutcome.Expired(entryId), null);
+        }
+
+        var createdAt = entry.CreatedAt;
+        var newStatus = decision == ApprovalDecision.Approved ? ReviewStatus.Approved : ReviewStatus.Rejected;
+        var rowsAffected = await docketStore.UpdateReviewStatusAsync(entryId, newStatus, cancellationToken);
+        if (rowsAffected == 0)
+        {
+            var current = await docketStore.GetDocketEntryAsync(entryId, cancellationToken);
+            return current is null
+                ? (new ReviewOutcome.Expired(entryId), null)
+                : (MapStatusToOutcome(current.Status, entryId), createdAt);
+        }
+
+        ReviewOutcome outcome = decision == ApprovalDecision.Approved
+            ? new ReviewOutcome.Approved(entryId)
+            : new ReviewOutcome.Rejected(entryId);
+        logger.LogInformation(
+            "HandleDecisionAsync: DocketEntry {EntryId} {Decision} (restart path)", entryId, decision);
+        return (outcome, createdAt);
+    }
+
+    /// <summary>
+    /// Processes an approval or rejection decision directly from the docket store —
+    /// used when no <see cref="FileReviewAsync"/> task is currently awaiting a response
+    /// (e.g. the host process was restarted between the Evidence Card being filed and
+    /// the reviewer clicking Approve/Reject).
+    /// </summary>
+    public async Task<ReviewOutcome> ReplayApprovalAsync(
+        Guid entryId,
+        ApprovalDecision decision,
+        CancellationToken cancellationToken = default)
+    {
+        var entry = await docketStore.GetDocketEntryAsync(entryId, cancellationToken);
+        if (entry is null || entry.Status != ReviewStatus.Pending || entry.ExpiresAt < DateTimeOffset.UtcNow)
+        {
+            logger.LogWarning(
+                "ReplayApprovalAsync: DocketEntry {EntryId} not found, not pending, or expired", entryId);
+            return new ReviewOutcome.Expired(entryId);
+        }
+
+        var newStatus = decision == ApprovalDecision.Approved
+            ? ReviewStatus.Approved
+            : ReviewStatus.Rejected;
+
+        var rowsAffected = await docketStore.UpdateReviewStatusAsync(entryId, newStatus, cancellationToken);
+        if (rowsAffected == 0)
+        {
+            var current = await docketStore.GetDocketEntryAsync(entryId, cancellationToken);
+            return current is null
+                ? new ReviewOutcome.Expired(entryId)
+                : MapStatusToOutcome(current.Status, entryId);
+        }
+
+        return decision == ApprovalDecision.Approved
+            ? new ReviewOutcome.Approved(entryId)
+            : new ReviewOutcome.Rejected(entryId);
     }
 
     private static ReviewOutcome MapStatusToOutcome(ReviewStatus status, Guid docketId) =>

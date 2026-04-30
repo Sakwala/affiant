@@ -116,9 +116,9 @@ public class ReviewGateTests
         }
     }
 
-    private sealed class FakeApprovalPolicy(ReviewRequirement requirement) : IApprovalPolicy
+    private sealed class FakeApprovalPolicyEvaluator(ReviewRequirement requirement) : IApprovalPolicyEvaluator
     {
-        public Task<ReviewRequirement> EvaluateAsync(ReviewContext context, CancellationToken ct = default)
+        public Task<ReviewRequirement> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
             => Task.FromResult(requirement);
     }
 
@@ -129,8 +129,8 @@ public class ReviewGateTests
     {
         var transport = new FakeStreamingTransport();
         var store = new InMemoryDocketStore();
-        var policy = new FakeApprovalPolicy(reviewRequirement);
-        var gate = new ReviewGate(transport, store, policy, NullLogger<ReviewGate>.Instance);
+        var evaluator = new FakeApprovalPolicyEvaluator(reviewRequirement);
+        var gate = new ReviewGate(transport, store, evaluator, NullLogger<ReviewGate>.Instance);
         return (gate, transport, store);
     }
 

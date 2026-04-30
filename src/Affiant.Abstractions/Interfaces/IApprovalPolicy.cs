@@ -5,11 +5,12 @@ using Affiant.Abstractions.Models;
 public interface IApprovalPolicy
 {
     /// <summary>
-    /// Evaluate the approval requirement for the given review context.
-    /// The <see cref="ReviewContext.Affidavit"/> contains the proposed mutation;
-    /// the <see cref="ReviewContext"/> supplies session, tenant, and user identity.
+    /// Evaluate the approval requirement for the proposed mutation described by <paramref name="affidavit"/>.
+    /// Return <c>null</c> to defer to the next policy in the evaluation chain.
+    /// Return a <see cref="ReviewRequirement"/> to terminate the chain with that value.
+    /// Implementations must be deterministic and stateless (no mutable fields).
     /// </summary>
-    Task<ReviewRequirement> EvaluateAsync(ReviewContext context, CancellationToken ct = default);
+    Task<ReviewRequirement?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default);
 }
 
 public enum ReviewRequirement

@@ -15,4 +15,12 @@ public interface IStreamingTransport
     /// cancellation or an internal timeout, depending on the token source).
     /// </summary>
     Task<T> AwaitEventAsync<T>(string sessionGroupId, Guid docketId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Routes a reviewer's decision to the <see cref="AwaitEventAsync{T}"/> call blocking on
+    /// <paramref name="docketId"/>. Returns <c>true</c> if a live waiter was found and unblocked;
+    /// <c>false</c> if no waiter exists (caller should use the docket-replay path instead).
+    /// The default returns <c>false</c> — override in transports that maintain an in-process waiter registry.
+    /// </summary>
+    bool TryDeliverResponse(Guid docketId, EvidenceCardResponse response) => false;
 }
