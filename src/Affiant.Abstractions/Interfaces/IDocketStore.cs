@@ -25,10 +25,25 @@ public interface IDocketStore
 
     /// <summary>
     /// Transition a DocketEntry's review status.
-    /// Implementations must enforce optimistic concurrency: only entries currently
-    /// in Pending status may be transitioned; racing writers must detect the conflict.
     /// </summary>
-    Task UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct);
+    /// <returns>
+    /// The number of rows affected (1 on success, 0 if the entry was not in
+    /// <see cref="ReviewStatus.Pending"/> state — see remarks for the double-submit contract).
+    /// </returns>
+    /// <remarks>
+    /// <para><strong>Double-Submit Prevention Contract:</strong></para>
+    /// <para>
+    /// Implementations MUST enforce atomic read-before-write semantics.
+    /// The update MUST include a guard condition equivalent to <c>WHERE Status = 'Pending'</c>
+    /// so that a second update attempt on the same <paramref name="entryId"/> (already
+    /// approved/rejected/expired) results in 0 rows affected rather than a second transition.
+    /// </para>
+    /// <para>
+    /// <c>ReviewGate</c> relies on this invariant: if <c>UpdateReviewStatusAsync</c> returns
+    /// 0, the entry is no longer pending and the gate handles it idempotently.
+    /// </para>
+    /// </remarks>
+    Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct);
 
     Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct);
 }

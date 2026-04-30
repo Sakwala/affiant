@@ -4,7 +4,12 @@ using Affiant.Abstractions.Models;
 
 public interface IApprovalPolicy
 {
-    Task<ReviewRequirement> EvaluateAsync(Affidavit envelope, ConversationIdentity identity);
+    /// <summary>
+    /// Evaluate the approval requirement for the given review context.
+    /// The <see cref="ReviewContext.Affidavit"/> contains the proposed mutation;
+    /// the <see cref="ReviewContext"/> supplies session, tenant, and user identity.
+    /// </summary>
+    Task<ReviewRequirement> EvaluateAsync(ReviewContext context, CancellationToken ct = default);
 }
 
 public enum ReviewRequirement
