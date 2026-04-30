@@ -7,5 +7,6 @@
   <Folder Name="/tests/">
     <Project Path="tests/Affiant.TestInfrastructure/Affiant.TestInfrastructure.csproj" />
     <Project Path="tests/Affiant.Core.Tests/Affiant.Core.Tests.csproj" />
+    <Project Path="tests/Affiant.Transport.SignalR.Tests/Affiant.Transport.SignalR.Tests.csproj" />
   </Folder>
 </Solution>
