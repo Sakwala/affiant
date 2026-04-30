@@ -1,0 +1,37 @@
+namespace Affiant.Core.Extensions;
+
+/// <summary>
+/// Options for <see cref="ServiceCollectionExtensions.AddAffiantCore"/>.
+/// Configures framework behavior at DI registration time.
+/// </summary>
+public sealed class AffiantCoreOptions
+{
+    /// <summary>
+    /// Primary LLM provider name (e.g., "AzureOpenAI", "OpenAI").
+    /// Passed to the SK kernel for automatic provider selection.
+    /// Default: null (host must configure manually before use).
+    /// </summary>
+    public string? PrimaryProvider { get; set; }
+
+    /// <summary>
+    /// Fallback LLM provider name if the primary is unavailable.
+    /// Per framework spec §5, DeterministicShortCircuit routes to fallback
+    /// when primary fails. Default: null (no fallback).
+    /// </summary>
+    public string? FallbackProvider { get; set; }
+
+    /// <summary>
+    /// Default TTL for DocketEntry records before automatic expiry.
+    /// Enforced by DocketExpiryService (registered separately in Affiant.Docket).
+    /// Default: TimeSpan.FromMinutes(30).
+    /// </summary>
+    public TimeSpan DefaultDocketTtl { get; set; } = TimeSpan.FromMinutes(30);
+
+    /// <summary>
+    /// Whether to initialize AffiantTelemetry (ActivitySource + Meter).
+    /// If true, <see cref="Affiant.Core.Observability.AffiantTelemetry.AffiantActivitySource"/>
+    /// and <see cref="Affiant.Core.Observability.AffiantTelemetry.AffiantMeter"/> are available
+    /// for tracing and metrics collection. Default: true.
+    /// </summary>
+    public bool EnableObservability { get; set; } = true;
+}

@@ -133,6 +133,19 @@ public sealed class TaskInferenceStep
             FieldsInLlmResponse: llmStructuredOutput.EnumerateObject().Count(),
             MergedFields: mergedFields));
     }
+
+    /// <summary>
+    /// Returns the winning tag between <paramref name="a"/> and <paramref name="b"/>
+    /// using the framework spec §2.3 merge rule: higher confidence wins;
+    /// ties break by <see cref="ProvenanceSource"/> ordinal (lower = more deterministic).
+    /// </summary>
+    public static ProvenanceTag ResolveByConfidence(ProvenanceTag a, ProvenanceTag b)
+    {
+        var bWins =
+            b.Confidence > a.Confidence ||
+            (b.Confidence == a.Confidence && (int)b.Source < (int)a.Source);
+        return bWins ? b : a;
+    }
 }
 
 /// <summary>Summary of a TaskInferenceStep execution.</summary>

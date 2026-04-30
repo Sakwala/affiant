@@ -52,4 +52,19 @@ public sealed record ProvenanceChain(
         updatedPrior.AddRange(Prior);
         return new ProvenanceChain(Current, updatedPrior);
     }
+
+    /// <summary>
+    /// Appends all tags from <paramref name="other"/> after this chain's tags.
+    /// <paramref name="other"/>'s <see cref="Current"/> becomes the new Current;
+    /// <paramref name="other"/>'s Prior + this chain's tags form the new Prior,
+    /// preserving newest-first ordering.
+    /// </summary>
+    public ProvenanceChain AppendChain(ProvenanceChain other)
+    {
+        var newPrior = new List<ProvenanceTag>(other.Prior.Count + 1 + Prior.Count);
+        newPrior.AddRange(other.Prior);
+        newPrior.Add(Current);
+        newPrior.AddRange(Prior);
+        return new ProvenanceChain(other.Current, newPrior);
+    }
 }
