@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Affiant.Abstractions\Affiant.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\Affiant.Core\Affiant.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>
