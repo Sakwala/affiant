@@ -3,6 +3,9 @@
     <Project Path="src/Affiant.Abstractions/Affiant.Abstractions.csproj" />
     <Project Path="src/Affiant.Core/Affiant.Core.csproj" />
     <Project Path="src/Affiant.Transport.SignalR/Affiant.Transport.SignalR.csproj" />
+    <Project Path="src/Affiant.EntityFramework/Affiant.EntityFramework.csproj" />
+    <Project Path="src/Affiant.Docket/Affiant.Docket.csproj" />
+    <Project Path="src/Affiant.Policies/Affiant.Policies.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Affiant.TestInfrastructure/Affiant.TestInfrastructure.csproj" />

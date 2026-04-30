@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Affiant.Docket</RootNamespace>
+    <AssemblyName>Affiant.Docket</AssemblyName>
+    <PackageId>Affiant.Docket</PackageId>
+    <Description>Durable review queue for Affiant, providing persistence and expiry semantics for review workflows across multiple database backends.</Description>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Affiant.Abstractions/Affiant.Abstractions.csproj" />
+    <ProjectReference Include="../Affiant.Core/Affiant.Core.csproj" />
+    <ProjectReference Include="../Affiant.EntityFramework/Affiant.EntityFramework.csproj" />
+  </ItemGroup>
+
+</Project>

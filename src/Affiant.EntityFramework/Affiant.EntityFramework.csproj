@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Affiant.EntityFramework</RootNamespace>
+    <AssemblyName>Affiant.EntityFramework</AssemblyName>
+    <PackageId>Affiant.EntityFramework</PackageId>
+    <Description>EntityFramework Core persistence adapter for Affiant, providing the shared AffiantDbContext with schema isolation support.</Description>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Affiant.Abstractions/Affiant.Abstractions.csproj" />
+    <ProjectReference Include="../Affiant.Core/Affiant.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.5" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.5" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.5" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
+  </ItemGroup>
+
+</Project>
