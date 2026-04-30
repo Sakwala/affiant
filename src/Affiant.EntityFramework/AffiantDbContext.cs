@@ -1,26 +1,49 @@
-namespace Affiant.EntityFramework;
-
+using Affiant.EntityFramework.Models;
 using Microsoft.EntityFrameworkCore;
 
-public class AffiantDbContext(DbContextOptions<AffiantDbContext> options, string schemaName = "affiant")
-    : DbContext(options)
+namespace Affiant.EntityFramework;
+
+public class AffiantDbContext(DbContextOptions<AffiantDbContext> options) : DbContext(options)
 {
-    private readonly string _schemaName = schemaName;
+    public const string DefaultSchema = "affiant";
+    private const string _schemaName = DefaultSchema;
+
+    public DbSet<ChatSessionEntity> ChatSessions => Set<ChatSessionEntity>();
+    public DbSet<ChatMessageEntity> ChatMessages => Set<ChatMessageEntity>();
+    public DbSet<ConversationContextEntity> ConversationContexts => Set<ConversationContextEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
 
-        // Discovers IEntityTypeConfiguration<T> implementations in this assembly.
-        // Affiant.Docket ships its own configurations that are registered here
-        // when the host calls ApplyConfigurationsFromAssembly for the Docket assembly.
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AffiantDbContext).Assembly);
 
-        // Apply the injected schema name to all entity types so that multi-host
-        // shared-database deployments can coexist in one Postgres database
-        // (e.g., "affiant_meridian" vs "affiant_hrportal").
-        // TODO (Story 8.3): Move schema ownership into each IEntityTypeConfiguration<T>
-        // so configurations call ToTable(name, schemaName) with the injected name.
+        // Postgres-specific column types for JSON columns.
+        // Using jsonb gives GIN-indexable binary JSON on Postgres; other providers
+        // (SQLite) fall back to the default text mapping via EnsureCreated.
+        if (Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL")
+        {
+            modelBuilder.Entity<ChatMessageEntity>()
+                .Property(e => e.ArgumentsJson)
+                .HasColumnType("jsonb");
+
+            modelBuilder.Entity<ChatMessageEntity>()
+                .Property(e => e.MetadataJson)
+                .HasColumnType("jsonb");
+
+            modelBuilder.Entity<ConversationContextEntity>()
+                .Property(e => e.EntitiesJson)
+                .HasColumnType("jsonb");
+
+            modelBuilder.Entity<ConversationContextEntity>()
+                .Property(e => e.FieldValuesJson)
+                .HasColumnType("jsonb");
+
+            modelBuilder.Entity<ConversationContextEntity>()
+                .Property(e => e.ProvenanceChainsJson)
+                .HasColumnType("jsonb");
+        }
+
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
             entityType.SetSchema(_schemaName);
