@@ -11,6 +11,7 @@ public class AffiantDbContext(DbContextOptions<AffiantDbContext> options) : DbCo
     public DbSet<ChatSessionEntity> ChatSessions => Set<ChatSessionEntity>();
     public DbSet<ChatMessageEntity> ChatMessages => Set<ChatMessageEntity>();
     public DbSet<ConversationContextEntity> ConversationContexts => Set<ConversationContextEntity>();
+    public DbSet<DocketEntryEntity> Docket => Set<DocketEntryEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -42,6 +43,21 @@ public class AffiantDbContext(DbContextOptions<AffiantDbContext> options) : DbCo
             modelBuilder.Entity<ConversationContextEntity>()
                 .Property(e => e.ProvenanceChainsJson)
                 .HasColumnType("jsonb");
+
+            modelBuilder.Entity<DocketEntryEntity>()
+                .Property(e => e.AffidavitJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("Affidavit");
+
+            modelBuilder.Entity<DocketEntryEntity>()
+                .Property(e => e.ProvenanceChainsJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("ProvenanceChains");
+
+            modelBuilder.Entity<DocketEntryEntity>()
+                .Property(e => e.AmendmentsJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("Amendments");
         }
 
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())

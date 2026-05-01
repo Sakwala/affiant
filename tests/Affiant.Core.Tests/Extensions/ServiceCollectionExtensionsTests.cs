@@ -115,6 +115,9 @@ public class ServiceCollectionExtensionsTests
         public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct) => Task.FromResult(0);
         public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct) =>
             Task.FromResult<IReadOnlyList<DocketEntry>>(Array.Empty<DocketEntry>());
+        public Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(DateTimeOffset expiresBeforeUtc, CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<DocketEntry>>(Array.Empty<DocketEntry>());
+        public Task MarkExpiredAsync(IEnumerable<Guid> entryIds, CancellationToken ct) => Task.CompletedTask;
     }
 
     private sealed class StubChatSessionStore : IChatSessionStore

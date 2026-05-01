@@ -46,6 +46,20 @@ public interface IDocketStore
     Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct);
 
     Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct);
+
+    /// <summary>
+    /// Returns all pending entries whose <see cref="DocketEntry.ExpiresAt"/> is on or before
+    /// <paramref name="expiresBeforeUtc"/>. Used by <c>DocketExpiryService</c> to identify
+    /// rows to bulk-expire each tick.
+    /// </summary>
+    Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(DateTimeOffset expiresBeforeUtc, CancellationToken ct);
+
+    /// <summary>
+    /// Bulk-transitions the specified entries from <see cref="ReviewStatus.Pending"/> to
+    /// <see cref="ReviewStatus.Expired"/>. Idempotent — entries that are no longer Pending
+    /// are silently skipped (the <c>WHERE Status = 'Pending'</c> guard applies).
+    /// </summary>
+    Task MarkExpiredAsync(IEnumerable<Guid> entryIds, CancellationToken ct);
 }
 
 /// <summary>

@@ -3,6 +3,7 @@ using System;
 using Affiant.EntityFramework;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Affiant.EntityFramework.Migrations
 {
     [DbContext(typeof(AffiantDbContext))]
-    partial class AffiantDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260430200000_AddDocketEntries")]
+    partial class AddDocketEntries
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

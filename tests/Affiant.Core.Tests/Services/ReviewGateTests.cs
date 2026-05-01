@@ -114,6 +114,27 @@ public class ReviewGateTests
                 .ToList();
             return Task.FromResult(results);
         }
+
+        public Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(DateTimeOffset expiresBeforeUtc, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            IReadOnlyList<DocketEntry> results = _entries.Values
+                .Where(e => e.Status == ReviewStatus.Pending && e.ExpiresAt <= expiresBeforeUtc)
+                .ToList();
+            return Task.FromResult(results);
+        }
+
+        public Task MarkExpiredAsync(IEnumerable<Guid> entryIds, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            var ids = entryIds.ToHashSet();
+            foreach (var id in ids)
+            {
+                if (_entries.TryGetValue(id, out var entry) && entry.Status == ReviewStatus.Pending)
+                    _entries[id] = entry with { Status = ReviewStatus.Expired };
+            }
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakeApprovalPolicyEvaluator(ReviewRequirement requirement) : IApprovalPolicyEvaluator
