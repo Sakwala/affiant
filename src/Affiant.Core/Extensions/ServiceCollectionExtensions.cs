@@ -3,7 +3,6 @@ namespace Affiant.Core.Extensions;
 using Affiant.Abstractions.Interfaces;
 using Affiant.Core.Filters;
 using Affiant.Core.Observability;
-using Affiant.Core.Policies;
 using Affiant.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -26,10 +25,11 @@ public static class ServiceCollectionExtensions
     /// <item><c>ContextFabric</c> — entity state tracking</item>
     /// <item><c>TaskInferenceStep</c> — confidence-based merge logic (requires <c>ITaskInferenceStrategy</c>)</item>
     /// <item><c>ApprovalPolicyEvaluator</c> / <c>IApprovalPolicyEvaluator</c> — policy pipeline</item>
-    /// <item><c>ReviewerConfirmationPolicy</c> as <c>IApprovalPolicy</c> — default policy</item>
     /// <item><c>DeterministicShortCircuit</c> as <c>IFunctionInvocationFilter</c> — pre-LLM interception</item>
     /// <item><c>ToolErrorFilter</c> as <c>IFunctionInvocationFilter</c> — error handling with retry</item>
     /// </list>
+    /// No <c>IApprovalPolicy</c> is registered by default. Hosts must call
+    /// <c>AddAffiantPolicies()</c> from Affiant.Policies to declare their policy graph.
     /// Services whose lifetimes depend on host-scoped adapter registrations
     /// (<c>ReviewGate</c>, <c>SessionRehydrator</c>, <c>TaskInferenceFilter</c>, <c>UiGuidanceBridge</c>)
     /// are intentionally omitted and must be registered directly by the host with the appropriate lifetime.
@@ -63,9 +63,9 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IApprovalPolicyEvaluator>(
             sp => sp.GetRequiredService<ApprovalPolicyEvaluator>());
 
-        // Step 7: Default approval policy
-        services.TryAddEnumerable(
-            ServiceDescriptor.Singleton<IApprovalPolicy, ReviewerConfirmationPolicy>());
+        // No default IApprovalPolicy registered here — hosts declare their policy graph
+        // via AddAffiantPolicies() in Affiant.Policies. The evaluator's built-in fallback
+        // returns ReviewerConfirmation when no policy matches.
 
         // Step 8: Pre-LLM intent interception
         services.TryAddSingleton<DeterministicShortCircuit>();

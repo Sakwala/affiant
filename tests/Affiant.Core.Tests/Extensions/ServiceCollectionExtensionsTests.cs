@@ -5,7 +5,6 @@ using Affiant.Abstractions.Models;
 using Affiant.Abstractions.Transport;
 using Affiant.Core.Extensions;
 using Affiant.Core.Filters;
-using Affiant.Core.Policies;
 using Affiant.Core.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -49,12 +48,14 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddAffiantCore_registers_default_approval_policy()
+    public void AddAffiantCore_does_not_register_default_approval_policy()
     {
+        // Hosts declare their policy graph via AddAffiantPolicies() in Affiant.Policies.
+        // The evaluator's built-in fallback returns ReviewerConfirmation when no policy matches.
         var sp = BuildWithStubs().BuildServiceProvider();
 
-        var policy = sp.GetRequiredService<IApprovalPolicy>();
-        Assert.IsType<ReviewerConfirmationPolicy>(policy);
+        var policies = sp.GetServices<IApprovalPolicy>().ToList();
+        Assert.Empty(policies);
     }
 
     [Fact]
@@ -72,7 +73,7 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddAffiantCore_does_not_duplicate_policy_when_called_on_populated_collection()
+    public void AddAffiantCore_preserves_host_registered_policies()
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -90,10 +91,9 @@ public class ServiceCollectionExtensionsTests
         var sp = services.BuildServiceProvider();
         var policies = sp.GetServices<IApprovalPolicy>().ToList();
 
-        // Custom policy + default ReviewerConfirmationPolicy
-        Assert.Equal(2, policies.Count);
+        // Only the custom policy — Core no longer injects a default.
+        Assert.Single(policies);
         Assert.Contains(policies, p => p is StubApprovalPolicy);
-        Assert.Contains(policies, p => p is ReviewerConfirmationPolicy);
     }
 
     // --- Stubs for adapter interfaces ---
