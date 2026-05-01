@@ -34,4 +34,11 @@ public sealed class AffiantCoreOptions
     /// for tracing and metrics collection. Default: true.
     /// </summary>
     public bool EnableObservability { get; set; } = true;
+
+    /// <summary>
+    /// Host-specific system prompt passed to the LLM on the first turn.
+    /// Immutable after framework initialization (Normative Rule 1).
+    /// Set by the host application via AddAffiantCore(). Default: null (no system prompt injected).
+    /// </summary>
+    public string? SystemPrompt { get; set; }
 }
