@@ -15,5 +15,6 @@
     <Project Path="tests/Affiant.EntityFramework.Tests/Affiant.EntityFramework.Tests.csproj" />
     <Project Path="tests/Affiant.Docket.Tests/Affiant.Docket.Tests.csproj" />
     <Project Path="tests/Affiant.Policies.Tests/Affiant.Policies.Tests.csproj" />
+    <Project Path="tests/Affiant.SemanticKernel.Tests/Affiant.SemanticKernel.Tests.csproj" />
   </Folder>
 </Solution>
