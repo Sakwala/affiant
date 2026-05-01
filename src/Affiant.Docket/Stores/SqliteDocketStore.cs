@@ -116,12 +116,18 @@ public sealed class SqliteDocketStore(
     {
         ct.ThrowIfCancellationRequested();
 
+        // SQLite has no native DateTimeOffset type; the EF provider stores them as ISO-8601 text
+        // and cannot translate a DateTimeOffset inequality into SQL. Load all Pending rows and
+        // filter in memory — acceptable because the expiry set is small and time-bounded.
         var entities = await db.Docket
             .AsNoTracking()
-            .Where(d => d.Status == ReviewStatus.Pending.ToString() && d.ExpiresAt <= expiresBeforeUtc)
+            .Where(d => d.Status == ReviewStatus.Pending.ToString())
             .ToListAsync(ct);
 
-        return entities.Select(ToDomainEntry).ToList();
+        return entities
+            .Where(d => d.ExpiresAt <= expiresBeforeUtc)
+            .Select(ToDomainEntry)
+            .ToList();
     }
 
     public async Task MarkExpiredAsync(IEnumerable<Guid> entryIds, CancellationToken ct)
