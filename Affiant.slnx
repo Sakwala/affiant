@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/Affiant.Abstractions/Affiant.Abstractions.csproj" />
     <Project Path="src/Affiant.Core/Affiant.Core.csproj" />
+    <Project Path="src/Affiant.SemanticKernel/Affiant.SemanticKernel.csproj" />
     <Project Path="src/Affiant.Transport.SignalR/Affiant.Transport.SignalR.csproj" />
     <Project Path="src/Affiant.EntityFramework/Affiant.EntityFramework.csproj" />
     <Project Path="src/Affiant.Docket/Affiant.Docket.csproj" />
