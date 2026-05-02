@@ -44,6 +44,7 @@ public class ServiceCollectionExtensionsTests
         Assert.NotNull(sp.GetRequiredService<IApprovalPolicyEvaluator>());
         Assert.NotNull(sp.GetRequiredService<DeterministicShortCircuit>());
         Assert.NotNull(sp.GetRequiredService<ToolErrorFilter>());
+        Assert.NotNull(sp.GetRequiredService<ToolTracingFilter>());
         Assert.NotNull(sp.GetRequiredService<AffiantCoreOptions>());
     }
 
