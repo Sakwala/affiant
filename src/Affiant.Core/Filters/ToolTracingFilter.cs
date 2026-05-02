@@ -1,8 +1,8 @@
-namespace Affiant.Core.Filters;
-
 using System.Diagnostics;
 using Affiant.Core.Observability;
 using Microsoft.SemanticKernel;
+
+namespace Affiant.Core.Filters;
 
 /// <summary>
 /// Framework filter that creates a single <c>execute_tool</c> span for every SK function
