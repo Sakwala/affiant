@@ -19,9 +19,14 @@
     <PackageReference Include="xunit" Version="2.9.3" />
   </ItemGroup>
 
-  <ItemGroup>
+  <ItemGroup Condition="'$(UseAffiantPackages)' != 'true'">
     <ProjectReference Include="..\..\src\Affiant.Abstractions\Affiant.Abstractions.csproj" />
     <ProjectReference Include="..\..\src\Affiant.Core\Affiant.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(UseAffiantPackages)' == 'true'">
+    <PackageReference Include="Affiant.Abstractions" Version="1.0.0-alpha.1" />
+    <PackageReference Include="Affiant.Core" Version="1.0.0-alpha.1" />
   </ItemGroup>
 
 </Project>
