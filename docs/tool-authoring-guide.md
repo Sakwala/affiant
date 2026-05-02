@@ -1,19 +1,22 @@
 ---
 title: Tool Authoring Guide — Affiant Framework
-version: 1.0-alpha
+version: 1.1-alpha
 date: 2026-05-02
+status: v1.1 — incorporates Story 13.2 unfamiliar-developer feedback
 scope: Framework developers writing plugins for Affiant
 audience: Developers unfamiliar with Affiant; estimated 30-minute read for understanding all six patterns
 related:
   - packages/docs/affiant-framework-specification.md (full spec, sections 1–6 provide context)
   - packages/docs/affiant-framework-specification.md §7 (this guide extracts §7 standalone)
-  - apps/HRPortal/src/HRPortal.Api/Agent/Plugins/ (read and write plugin examples)
-  - apps/HRPortal/src/HRPortal.Api/Agent/Extractors/ (context extractor examples)
-  - apps/HRPortal/src/HRPortal.Api/Agent/FieldMappers/ (field mapper examples)
+  - apps/HRPortal/src/HRPortal.Api/Plugins/ (read and write plugin examples)
+  - apps/HRPortal/src/HRPortal.Api/Filters/ (context extractor examples)
+  - apps/HRPortal/src/HRPortal.Api/FieldMappers/ (field mapper examples)
   - apps/HRPortal/src/HRPortal.Api/Agent/Services/ (write executor examples)
 note: >
-  Examples reference Meridian and HR Portal code from the Affiant monorepo.
+  Examples reference HR Portal code from the Affiant monorepo.
   After Phase 3 (OSS split), community examples from fictional domains will replace them.
+  Host folder conventions (Plugins vs Agent/Plugins, Filters vs Agent/Extractors, FieldMappers vs Agent/FieldMappers)
+  are host decisions — Affiant enforces only DI registration, not folder structure.
 ---
 
 # Tool Authoring Guide — Affiant Framework
@@ -25,6 +28,9 @@ note: >
 3. [Write Tool Pattern](#3-write-tool-pattern)
 4. [Context Extraction](#4-context-extraction)
 5. [Field Mapping and Write Execution](#5-field-mapping-and-write-execution)
+   - 5.1 [IFieldMapper\<T\>](#51-ifield-mapperlttgt)
+   - 5.2 [IWriteExecutor](#52-iwriteexecutor)
+   - 5.3 [Adding a new entity type to an existing IWriteExecutor](#53-adding-a-new-entity-type-to-an-existing-iwriteexecutor)
 6. [Error Handling](#6-error-handling)
 7. [Testing](#7-testing)
 8. [Appendix: Quick Reference](#8-appendix-quick-reference)
@@ -395,6 +401,25 @@ The `ContextExtractor` base class wires `IFunctionInvocationFilter`, calling `aw
 builder.Services.AddScoped<IFunctionInvocationFilter, EmployeeSearchExtractor>();
 ```
 
+**Host folder convention:** The base class lives in the `Affiant.Core.Filters` namespace, which makes `Filters/` a natural folder name in your host project. Some hosts use `Agent/Extractors/` instead. Both are valid — DI registration determines behavior, not folder structure. When adding a new extractor, use whatever convention your host already has; if starting fresh, `Filters/` matches the framework namespace.
+
+**Testability:** For simple extractors that only call `EmitEntity` (like `ExpenseReportSearchExtractor`), direct unit testing is typically unnecessary — the read plugin integration test that verifies `EntityRef[]` output covers the meaningful behaviour. For extractors that tag individual fields with typed provenance chains, expose a `public ProcessEntity(EntityRef entity)` method so tests can call it directly without wiring the full SK filter pipeline:
+
+```csharp
+// Extractor exposes ProcessEntity for direct test access
+public void ProcessEntity(EntityRef entity)
+{
+    EmitEntity(entity); // base class — calls ContextFabric.Upsert()
+    // tag individual fields with External/Computed provenance if needed
+}
+
+// In the test:
+var fabric = new ContextFabric();
+var extractor = new MyEntityExtractor(fabric, NullLogger<MyEntityExtractor>.Instance);
+extractor.ProcessEntity(entityRef);
+Assert.True(fabric.Snapshot().ContainsKey(entityRef.EntityId));
+```
+
 **What happens in the background:** `EmitEntity` calls `ContextFabric.Upsert(entityRef)`, which stores the entity in a conversation-scoped `ConversationContext`. On session rehydration, the Docket restores this context so the LLM has access to previously-fetched entities without re-querying.
 
 **When to use:** Implement a `ContextExtractor` for every read tool that returns structured `EntityRef[]` that the LLM might reference in future turns. Simple lookups (e.g., date/time queries) that return no entities do not need one.
@@ -507,6 +532,15 @@ public class LeaveRequestFieldMapper(ILogger<LeaveRequestFieldMapper> logger) : 
 - Handle null and type mismatch explicitly — raise a domain-meaningful exception rather than letting a `NullReferenceException` propagate
 - Domain constraints belong here: date ordering, required fields, enum membership
 
+**Marker interface note:** `ILeaveRequestFieldMapper` is a host-specific marker interface that extends `IFieldMapper<LeaveRequest>`. Marker interfaces are optional — they are useful when a host has multiple mappers and needs to differentiate them in constructor injection. If your executor accepts `IFieldMapper<T>` directly (as `HRWriteExecutor` does for `ExpenseReport`), skip the marker interface and register against the generic type:
+
+```csharp
+// No marker interface required — IFieldMapper<T> is sufficient
+services.AddScoped<IFieldMapper<ExpenseReport>, ExpenseReportFieldMapper>();
+```
+
+Use a host-specific interface only if the same `IWriteExecutor` injects multiple mappers that the compiler cannot distinguish by `IFieldMapper<T>` alone (e.g., two mappers for the same `T`).
+
 ### 5.2 IWriteExecutor
 
 **Worked example — write executor with entity-type dispatch:**
@@ -609,6 +643,67 @@ WriteExecutor calls IFieldMapper<T>.MapFromAffidavit(affidavit)
 WriteExecutor persists domain model via DbContext.SaveChangesAsync()
     ↓
 WriteResult entity ID returned; Docket Evidence Card updated
+```
+
+### 5.3 Adding a new entity type to an existing IWriteExecutor
+
+If your host already has a write executor handling other entity types, follow this three-step pattern. The key constraint: existing tests that construct the executor directly will break if you simply append a new required parameter to the primary constructor.
+
+**Step 1 — add the new field mapper dependency to the primary constructor:**
+
+```csharp
+// From: apps/HRPortal/src/HRPortal.Api/Agent/Services/HRWriteExecutor.cs
+public class HRWriteExecutor(
+    HRPortalDbContext dbContext,
+    ILeaveRequestFieldMapper leaveRequestMapper,
+    IPersonalInfoFieldMapper personalInfoMapper,
+    IFieldMapper<ExpenseReport> expenseReportMapper,   // ← new dependency
+    ILogger<HRWriteExecutor> logger) : IWriteExecutor
+```
+
+**Step 2 — add a backward-compatible overload for tests that construct the executor directly:**
+
+```csharp
+// Overload preserves the previous constructor signature.
+// Tests that call new HRWriteExecutor(db, leaveMapper, personalMapper, logger) still compile.
+public HRWriteExecutor(
+    HRPortalDbContext dbContext,
+    ILeaveRequestFieldMapper leaveRequestMapper,
+    IPersonalInfoFieldMapper personalInfoMapper,
+    ILogger<HRWriteExecutor> logger)
+    : this(dbContext, leaveRequestMapper, personalInfoMapper,
+           new ExpenseReportFieldMapper(NullLogger<ExpenseReportFieldMapper>.Instance),
+           logger)
+{
+}
+```
+
+**Step 3 — add the new entity type case to the dispatch switch:**
+
+```csharp
+return affidavit.EntityType switch
+{
+    "LeaveRequest"       => await ExecuteLeaveRequestAsync(affidavit, amendments, ct),
+    "PersonalInfoUpdate" => await ExecutePersonalInfoUpdateAsync(affidavit, amendments, ct),
+    "ExpenseReport"      => await ExecuteExpenseReportAsync(affidavit, amendments, ct), // ← new
+    _ => throw new NotImplementedException(
+             $"Write executor does not support entity type '{affidavit.EntityType}'")
+};
+```
+
+**EF migration:** After adding the new entity's `DbSet<T>` to `DbContext`, generate a migration before running the host:
+
+```bash
+dotnet ef migrations add Add<EntityType> --project apps/YourHost/src/YourHost.Api
+```
+
+EF's model snapshot accumulates all pending model changes. If the generated migration includes unexpected columns or tables beyond your new entity, review the output carefully — the snapshot may contain drift from earlier uncommitted model edits. Apply only the diff you expect; do not hand-edit EF-generated designer files.
+
+**DI registration for the new mapper:**
+
+```csharp
+// Register the new mapper; the executor is already registered via IWriteExecutor
+services.AddScoped<IFieldMapper<ExpenseReport>, ExpenseReportFieldMapper>();
 ```
 
 ---
@@ -798,9 +893,23 @@ public class RequestLeavePluginTests : IAsyncLifetime
 
 **For read tool tests**, the pattern is identical — deserialize to `ReadResult`, verify `Entities` count, field names, and markdown content.
 
-**Testing with the full pipeline (ContextExtractor + ContextFabric):**
+**Testing a ContextExtractor in isolation:**
 
-Full pipeline testing requires wiring a `Kernel`, registering the filter, and invoking via SK's function-invocation pipeline. That setup is demonstrated end-to-end in Story 13.2. For unit testing your extractor in isolation, instantiate it directly, construct a `FunctionInvocationContext` with a serialized `ReadResult`, and call `OnFunctionInvocationAsync` with a no-op `next` delegate.
+For extractors that only call `EmitEntity` (the common case), the read plugin integration test is sufficient. For extractors that also record field-level provenance via `ContextFabric.SetFieldChain`, expose a `public ProcessEntity(EntityRef entity)` method (see Section 4, *Testability*) and call it directly:
+
+```csharp
+// From: apps/HRPortal/tests/HRPortal.Api.Tests/Agent/Integration/LeaveBalanceExtractorTests.cs
+var fabric    = new ContextFabric();
+var extractor = new LeaveBalanceExtractor(fabric, NullLogger<LeaveBalanceExtractor>.Instance);
+
+var result = GetReadResult(await _plugin.GetLeaveBalance(employeeId: 1));
+extractor.ProcessEntity(result.Entities[0]);
+
+Assert.Equal("Employee", fabric.Snapshot()["1"].EntityType);
+Assert.Equal(ProvenanceSource.Computed, fabric.GetFieldChain("Employee:1:AnnualRemainingDays")!.Current.Source);
+```
+
+Full SK pipeline wiring (registering the filter with a `Kernel` and calling via `OnFunctionInvocationAsync`) is needed only when testing that `MatchesTool` correctly skips other tools' results.
 
 ---
 
@@ -982,4 +1091,6 @@ return new ToolError(toolName, DateTimeOffset.UtcNow,
 
 ---
 
-*Prose: ~9 pages (~2,300 words). Code: ~600 lines (~10 pages at 60 lines/page). Total with code: ~19 pages, within the 30-page limit. Prose alone is digestible in 30 minutes.*
+*Prose: ~11 pages (~2,800 words). Code: ~700 lines (~12 pages at 60 lines/page). Total with code: ~23 pages, within the 30-page limit. Prose alone is digestible in 30 minutes.*
+
+*v1.1 additions (Story 13.2 feedback): host folder convention note (§4), extractor testability pattern (§4), marker interface clarification (§5.1), extending an existing IWriteExecutor walkthrough (§5.3), EF migration guidance (§5.3), ContextExtractor isolation test example (§7).*
