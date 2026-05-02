@@ -27,6 +27,7 @@ public static class ServiceCollectionExtensions
     /// <item><c>ApprovalPolicyEvaluator</c> / <c>IApprovalPolicyEvaluator</c> — policy pipeline</item>
     /// <item><c>DeterministicShortCircuit</c> as <c>IFunctionInvocationFilter</c> — pre-LLM interception</item>
     /// <item><c>ToolErrorFilter</c> as <c>IFunctionInvocationFilter</c> — error handling with retry</item>
+    /// <item><c>ToolTracingFilter</c> as <c>IFunctionInvocationFilter</c> — per-tool <c>execute_tool</c> OTel span</item>
     /// </list>
     /// No <c>IApprovalPolicy</c> is registered by default. Hosts must call
     /// <c>AddAffiantPolicies()</c> from Affiant.Policies to declare their policy graph.
@@ -72,10 +73,15 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IFunctionInvocationFilter, DeterministicShortCircuit>());
 
-        // Step 9: Error-handling filter
+        // Step 9: Error-handling filter (outermost in inner pipeline — wraps ToolTracingFilter)
         services.TryAddSingleton<ToolErrorFilter>();
         services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IFunctionInvocationFilter, ToolErrorFilter>());
+
+        // Step 10: Per-tool OTel span — creates execute_tool span for all hosts automatically
+        services.TryAddSingleton<ToolTracingFilter>();
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IFunctionInvocationFilter, ToolTracingFilter>());
 
         // Step 13: Telemetry infrastructure (idempotent static initialisation)
         if (options.EnableObservability)

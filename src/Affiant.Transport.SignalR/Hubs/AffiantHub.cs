@@ -1,6 +1,8 @@
 namespace Affiant.Transport.SignalR.Hubs;
 
+using System.Diagnostics;
 using Affiant.Abstractions.Interfaces;
+using Affiant.Core.Observability;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.SemanticKernel;
 
@@ -53,6 +55,26 @@ public abstract class AffiantHub(IChatSessionStore chatSessionStore) : Hub
         return data is null
             ? group.SendAsync(method, cancellationToken)
             : group.SendAsync(method, data, cancellationToken);
+    }
+
+    /// <summary>
+    /// Opens a canonical <c>invoke_agent</c> span on the <c>Affiant.Framework</c> activity source
+    /// and returns it. The caller is responsible for disposing the returned activity (typically
+    /// via a <c>using</c> declaration) when the agent turn completes.
+    ///
+    /// Call this at the top of every hub method that triggers an agent invocation (e.g.,
+    /// <c>SendMessage</c>). All <c>execute_tool</c> spans emitted by <c>ToolTracingFilter</c>
+    /// during the turn will be children of this span.
+    /// </summary>
+    /// <param name="conversationId">The session / conversation identifier. Recorded as <c>gen_ai.conversation.id</c>.</param>
+    /// <param name="userIntent">Optional: the raw user message. Truncated to 256 chars for the <c>affiant.user.intent</c> tag.</param>
+    protected static Activity? BeginAgentTurn(string conversationId, string? userIntent = null)
+    {
+        var activity = AffiantTelemetry.AffiantActivitySource.StartActivity("invoke_agent", ActivityKind.Internal);
+        activity?.SetTag("gen_ai.conversation.id", conversationId);
+        if (userIntent is not null)
+            activity?.SetTag("affiant.user.intent", userIntent.Length > 256 ? userIntent[..256] : userIntent);
+        return activity;
     }
 
     /// <summary>
