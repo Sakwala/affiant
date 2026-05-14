@@ -69,7 +69,14 @@ public class TaskInferenceOrchestratorAffidavitParityTests
     private const string FakeWriteProposalReturn =
         """{"$type":"WriteProposal","ToolName":"CreateThing","EntityType":"Thing","Proposed":{}}""";
 
-    [Fact]
+    [Fact(Skip =
+        "Phase-3 Track A — Epic A1 Task 7.1 ATDD red gate. Green when Epic 16 " +
+        "(formerly Epic A2) lands InferenceTriggerFilter + SchemaDrivenAffidavitProjection. " +
+        "Re-enable by deleting this Skip argument as part of Epic 16's merge; the test " +
+        "must pass on the same commit SHA that closes L2-AT-001 in the traceability " +
+        "matrix at docs/implementation-artifacts/track-a/g1-a1-atdd-7.1-handoff.md. " +
+        "Failing-state SHA recorded in docs/implementation-artifacts/track-a/" +
+        "g1-l2-prd-approval.md is 3679c0f.")]
     public async Task Affidavit_BuiltFromContextFabric_HasPopulatedFieldsAndNonEmptyProvenance_ForRealisticUserTurn()
     {
         // ── Arrange: today's pipeline (no pre-tool inference; only the buggy post-tool filter)
