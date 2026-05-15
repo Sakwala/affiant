@@ -375,6 +375,160 @@ public interface ITaskInferenceStrategy
 }
 ```
 
+### 3.11 Tool Descriptor Registry
+
+> Added 2026-05-14 as part of Phase 3 Track A Epic 15 (stories 15.1–15.7). Closes the empty-Affidavit regression identified at commit `b72c1fa` (2026-04-30) and recorded in [`docs/proposals/affiant-validator-handoff.md`](../docs/proposals/affiant-validator-handoff.md).
+
+Every tool the framework orchestrates is described by an `AffiantToolDescriptor` record. The descriptor is the contract that the framework's L2 pipeline (§3.10 Task Inference Strategy) reads when classifying a tool invocation, and the input to the startup validator (§3.11.5 below) that ensures the descriptor registry is exhaustive at every host boot.
+
+**External dependencies this section presumes:**
+
+- `Microsoft.SemanticKernel.Kernel` — the SK kernel whose `Plugins` collection is cross-checked at startup.
+- `Microsoft.Extensions.Hosting.IHostedService` — the hosting abstraction the startup validator implements.
+- `Microsoft.Extensions.DependencyInjection.IServiceProvider` — used to resolve `InferenceStrategy` types at startup (Check B).
+
+**Glossary for this section:**
+
+- *Affidavit* — the framework's field-level provenance record attached to every write operation. Defined in §2.6 of this document.
+- *Empty-Affidavit regression* — the class of bug where a write tool is misclassified as a read tool (or classified without an `InferenceStrategy`), causing the framework to produce Affidavits with all fields at `ProvenanceSource.Empty`. The 2026-04-30 regression at commit `b72c1fa` was the motivating incident.
+- *ITaskInferenceStrategy* — the strategy interface (§3.10 above) responsible for inferring structured task context before a write tool executes. Implementations are host-supplied.
+- *Startup validator* — `AffiantStartupValidator` in `Affiant.SemanticKernel`; implements `IHostedService` and runs at host boot.
+
+#### 3.11.1 The `Operation` Open Record
+
+`Operation` is an open record (NOT a closed enum), defined as:
+
+```csharp
+namespace Affiant.Abstractions.Models;
+
+public sealed record Operation(string Kind)
+{
+    public static readonly Operation ReadQuery    = new("ReadQuery");
+    public static readonly Operation WriteCreate  = new("WriteCreate");
+    public static readonly Operation WriteUpdate  = new("WriteUpdate");
+    public static readonly Operation WriteDelete  = new("WriteDelete");
+}
+```
+
+Four well-known static factories ship with the framework. A host needing a fifth kind constructs `new Operation("WriteUpsert")` or `new Operation("MyDomainKind")` without forcing a framework version bump. The framework's filters pattern-match on the four well-known instances; host-defined kinds pass through transparently.
+
+**Why open record, not enum?** A closed enum forces every host to wait for a framework release cadence to introduce a new operation kind. The open-record contract decouples host extensibility from framework release tempo. (Decision D27, documented in [`docs/proposals/affiant-validator-handoff.md`](../docs/proposals/affiant-validator-handoff.md) §10 — D27 reads: "Operation as open record, not enum, to permit host-defined operation kinds without a framework version bump.")
+
+#### 3.11.2 The `AffiantToolDescriptor` Field Set
+
+```csharp
+namespace Affiant.Abstractions.Models;
+
+public sealed record AffiantToolDescriptor(
+    string FunctionName,
+    string? PluginName,
+    Operation Operation,
+    string? EntityType,
+    Type? InferenceStrategy);
+```
+
+| Field | Required | Purpose |
+|---|---|---|
+| `FunctionName` | yes | Matches `KernelFunction.Name`. Together with `PluginName` forms the registry's lookup key. |
+| `PluginName` | no | Disambiguates tools with the same name across plugins. `null` matches any plugin (host opt-in unique-name discipline). |
+| `Operation` | yes | The operation classification. Framework filters pattern-match on `WriteCreate` / `WriteUpdate` / `WriteDelete` to decide whether pre-tool inference orchestration is required. |
+| `EntityType` | no | Domain entity name (host-specific string, e.g. `"WorkOrder"`, `"LeaveRequest"`). Semantically required for `WriteCreate` / `WriteUpdate` operations; `null` for read tools and delete operations. |
+| `InferenceStrategy` | no | `Type` implementing `ITaskInferenceStrategy` (§3.10). Semantically required for `WriteCreate` / `WriteUpdate`; `null` for read or delete operations. Resolved from `IServiceProvider` at orchestration time. |
+
+The table's "Required" column reflects record-level type nullability only — it is NOT a semantic contract. The descriptor does not enforce semantic constraints at the C# type level (e.g., "WriteCreate must carry `InferenceStrategy`"). Semantic validation is enforced by the startup validator at runtime (§3.11.5).
+
+#### 3.11.3 The `IAffiantToolRegistry` Contract
+
+```csharp
+namespace Affiant.Abstractions.Interfaces;
+
+public interface IAffiantToolRegistry
+{
+    void Register(AffiantToolDescriptor descriptor);
+    AffiantToolDescriptor? Find(string functionName, string? pluginName = null);
+    IReadOnlyList<AffiantToolDescriptor> All { get; }
+}
+```
+
+- `Register` is idempotent on `(FunctionName, PluginName)` — double-registration throws `InvalidOperationException` naming both descriptors.
+- `Find` resolves by `(FunctionName, PluginName)` first; if `PluginName` is `null` and multiple plugins expose the same `FunctionName`, `Find` throws rather than picking arbitrarily.
+- `All` enumerates every registered descriptor and is used by the startup validator's Check B.
+
+The default implementation (`AffiantToolRegistry` in `Affiant.Core`) is a thread-safe in-memory store. Hosts that prefer an alternate backing store may supply their own implementation via DI, provided it honors the `Register` idempotency and `Find` ambiguity-throws contracts.
+
+#### 3.11.4 The `[AffiantWriteTool]` Attribute
+
+```csharp
+namespace Affiant.Abstractions.Attributes;
+
+[AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
+public sealed class AffiantWriteToolAttribute : Attribute
+{
+    public string Operation         { get; }
+    public string EntityType        { get; }
+    public Type   InferenceStrategy { get; }
+
+    public AffiantWriteToolAttribute(string operation, string entityType, Type inferenceStrategy)
+    {
+        Operation         = operation;
+        EntityType        = entityType;
+        InferenceStrategy = inferenceStrategy;
+    }
+}
+```
+
+**Constructor parameter table:**
+
+| Parameter | Type | Purpose |
+|---|---|---|
+| `operation` | `string` | The operation kind string (use `Operation.WriteCreate.Kind` etc. for readability, or pass the string literal `"WriteCreate"` directly). |
+| `entityType` | `string` | Domain entity name (host-specific, e.g. `"WorkOrder"`). |
+| `inferenceStrategy` | `Type` | The `ITaskInferenceStrategy` implementation type, passed as `typeof(TStrategy)`. |
+
+**Usage example:**
+
+```csharp
+[KernelFunction, Description("Creates a new work order for the given aircraft.")]
+[AffiantWriteTool("WriteCreate", "WorkOrder", typeof(WorkOrderCreateStrategy))]
+public async Task<string> CreateWorkOrderAsync(...)
+```
+
+`AllowMultiple = false` is enforced — applying the attribute twice to the same method is a compile-time error. The attribute name, namespace, constructor parameter order, and `AllowMultiple` value are part of the public API contract ratified at HIL gate G0 (2026-05-14, [`docs/implementation-artifacts/track-a/g0-descriptor-contract-approval.md`](../../docs/implementation-artifacts/track-a/g0-descriptor-contract-approval.md) Item 4).
+
+#### 3.11.5 Hard Startup-Failure Semantics
+
+The framework's `AffiantStartupValidator` (in `Affiant.SemanticKernel`) implements `IHostedService` and runs at host boot, before any user-traffic-serving code begins. It performs two checks:
+
+**Check A — Registry-vs-kernel cross-check.** For every `KernelFunction` in `Kernel.Plugins`, look up `(function.Name, plugin.Name)` in the registry. If absent, the validator throws `AffiantStartupException` naming every unregistered pair:
+
+> The following `[KernelFunction]` methods are not registered as Affiant tool descriptors:
+> - `{pluginName}.{functionName}`
+>
+> Fix: apply `[AffiantWriteTool(operation, entityType, typeof(TStrategy))]` to the method, or call `services.AddAffiantTool<TStrategy>("FunctionName", Operation.WriteCreate, "EntityType")` during DI setup. For read tools, use `services.AddAffiantReadTool("FunctionName")`.
+
+**Check B — Strategy resolvability.** For every descriptor with non-null `InferenceStrategy`, resolve the type from `IServiceProvider`. If `null` is returned, the validator throws `AffiantStartupException` naming every unresolvable strategy:
+
+> The following Affiant tool descriptors name an inference strategy that cannot be resolved from `IServiceProvider`:
+> - `{functionName}` → `{InferenceStrategy.FullName}`
+>
+> Fix: register the strategy via `services.AddSingleton<TStrategy>()`, or use `AddAffiantTool<TStrategy>(...)` which registers automatically.
+
+**No WARN-and-continue.** Misconfiguration is a hard failure, not a warning log line. There is no `enableValidation: false` switch and there will not be one.
+
+The structural reason: before the validator existed, the framework silently produced empty Affidavits when a write tool was misclassified. An Affidavit with all fields at `ProvenanceSource.Empty` is indistinguishable from a read tool's correct provenance — the error was invisible at runtime and surfaced only in audit reviews. The 2026-04-30 regression at commit `b72c1fa` demonstrated that a warning-and-continue approach does not protect against this class of misconfiguration. The validator is the load-bearing fix. See also: PRD Task 6 preamble in [`docs/architecture/phase-3-prd-a0-tool-descriptor-registry.md`](../../docs/architecture/phase-3-prd-a0-tool-descriptor-registry.md).
+
+Both error-message shapes were ratified as part of the public API contract at HIL gate G0 (2026-05-14, [`docs/implementation-artifacts/track-a/g0-descriptor-contract-approval.md`](../../docs/implementation-artifacts/track-a/g0-descriptor-contract-approval.md) Item 5).
+
+#### 3.11.6 Adopter Integration Paths
+
+A host has exactly two supported paths to register a tool. Both are equivalent and may be mixed within a single host.
+
+**(a) Attribute-driven.** Decorate the `[KernelFunction]` method with `[AffiantWriteTool(operation, entityType, typeof(TStrategy))]`, then call `kernelBuilder.AddAffiantPluginsFromAssembly(typeof(SomeHostType).Assembly, pluginName: "…")`. The walker registers descriptors for every `[KernelFunction]` in the assembly: writes by attribute presence, reads by attribute absence. The strategy type must still be registered separately in DI (e.g., `services.AddSingleton<TStrategy>()`) so Check B passes.
+
+**(b) Explicit DI.** Call `services.AddAffiantTool<TStrategy>("FunctionName", Operation.WriteCreate, "EntityType")` for each write tool, or `services.AddAffiantReadTool("FunctionName")` for each read tool. This path registers both the strategy and the descriptor atomically — no separate `AddSingleton` call required.
+
+The registry's idempotency contract (double-registration throws `InvalidOperationException`) catches accidental overlap when both paths are used in the same host for the same tool.
+
 ---
 
 ## 4. Six-Layer Dependency Graph
@@ -768,6 +922,10 @@ Use this checklist during code review and plugin development.
 - [ ] `[Description]` attributes use user-intent language (Tool authoring)
 - [ ] `ContextExtractor` is registered for each read tool with entity-rich results (Tool authoring)
 - [ ] Docket double-submit is prevented by `WHERE Status = 'Pending'` guard (Persistence)
+- [ ] Every `[KernelFunction]` is registered as an `AffiantToolDescriptor` (via attribute or `AddAffiantTool<TStrategy>`) (Tool Descriptor Registry)
+- [ ] `Operation.WriteCreate` / `WriteUpdate` descriptors specify both `EntityType` and `InferenceStrategy` (Tool Descriptor Registry)
+- [ ] `InferenceStrategy` types are resolvable from `IServiceProvider` (Tool Descriptor Registry)
+- [ ] Application startup throws `AffiantStartupException` for any unregistered or unresolvable tool (Tool Descriptor Registry)
 
 ---
 
