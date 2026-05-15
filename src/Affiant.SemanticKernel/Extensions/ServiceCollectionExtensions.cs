@@ -3,8 +3,10 @@ namespace Affiant.SemanticKernel.Extensions;
 using Affiant.Core.Services;
 using Affiant.SemanticKernel.Connectors;
 using Affiant.SemanticKernel.Filters;
+using Affiant.SemanticKernel.Validation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 
 /// <summary>
 /// DI extension for the Affiant.SemanticKernel adapter.
@@ -50,6 +52,9 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         Action<SemanticKernelOptions>? configure = null)
     {
+        // Insert at the front so the validator runs before any host-registered IHostedService.
+        services.Insert(0, ServiceDescriptor.Singleton<IHostedService, AffiantStartupValidator>());
+
         var options = new SemanticKernelOptions();
         configure?.Invoke(options);
         services.AddSingleton(options);
