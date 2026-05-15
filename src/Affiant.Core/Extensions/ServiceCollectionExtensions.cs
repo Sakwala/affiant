@@ -57,6 +57,9 @@ public static class ServiceCollectionExtensions
         // Tool descriptor registry — always present once framework DI is added
         services.TryAddSingleton<IAffiantToolRegistry, AffiantToolRegistry>();
 
+        // Default in-process observability channel — always registered; hosts override before AddAffiantCore().
+        services.TryAddSingleton<IObservabilityEventStream<AffidavitEmittedEvent>, InMemoryObservabilityEventStream<AffidavitEmittedEvent>>();
+
         // Step 1: Entity state tracking
         services.TryAddSingleton<ContextFabric>();
 
@@ -142,6 +145,43 @@ public static class ServiceCollectionExtensions
         var registry = ResolveRegistry(services);
         registry.Register(new AffiantToolDescriptor(
             functionName, pluginName, Operation.ReadQuery, entityType, InferenceStrategy: null));
+        return services;
+    }
+
+    /// <summary>
+    /// Registers a schema-driven affidavit projection in DI. Multiple distinct projections
+    /// (one per entity type) may be registered; all resolve via <c>GetServices&lt;IAffidavitProjection&gt;()</c>.
+    /// Calling with the same <typeparamref name="TProjection"/> twice is a no-op.
+    /// </summary>
+    public static IServiceCollection AddAffidavitProjection<TProjection>(
+        this IServiceCollection services)
+        where TProjection : class, IAffidavitProjection
+    {
+        // Idempotency guard: skip if TProjection was already registered.
+        if (services.Any(d => d.ServiceType == typeof(TProjection)))
+            return services;
+
+        services.AddSingleton<TProjection>();
+        // Factory keeps IAffidavitProjection and TProjection sharing the same singleton instance.
+        services.AddSingleton<IAffidavitProjection>(sp => sp.GetRequiredService<TProjection>());
+        return services;
+    }
+
+    /// <summary>
+    /// Registers a deterministic field source in DI. Multiple sources may be registered for
+    /// the same or different field names; all resolve via <c>GetServices&lt;IDeterministicFieldSource&gt;()</c>.
+    /// Calling with the same <typeparamref name="TSource"/> twice is a no-op.
+    /// </summary>
+    public static IServiceCollection AddDeterministicFieldSource<TSource>(
+        this IServiceCollection services)
+        where TSource : class, IDeterministicFieldSource
+    {
+        // Idempotency guard: skip if TSource was already registered.
+        if (services.Any(d => d.ServiceType == typeof(TSource)))
+            return services;
+
+        services.AddSingleton<TSource>();
+        services.AddSingleton<IDeterministicFieldSource>(sp => sp.GetRequiredService<TSource>());
         return services;
     }
 
