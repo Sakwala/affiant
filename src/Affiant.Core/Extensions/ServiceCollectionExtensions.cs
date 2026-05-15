@@ -53,6 +53,9 @@ public static class ServiceCollectionExtensions
         var options = new AffiantCoreOptions();
         configure?.Invoke(options);
 
+        // Tool descriptor registry — always present once framework DI is added
+        services.TryAddSingleton<IAffiantToolRegistry, AffiantToolRegistry>();
+
         // Step 1: Entity state tracking
         services.TryAddSingleton<ContextFabric>();
 
