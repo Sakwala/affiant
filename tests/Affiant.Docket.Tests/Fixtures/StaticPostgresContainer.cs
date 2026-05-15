@@ -25,7 +25,19 @@ internal static class StaticPostgresContainer
             .WithPassword("test")
             .Build();
 
-        container.StartAsync().GetAwaiter().GetResult();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        try
+        {
+            container.StartAsync(cts.Token).GetAwaiter().GetResult();
+        }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
+        {
+            throw new InvalidOperationException(
+                "Postgres testcontainer did not start within 60s. " +
+                "Confirm Docker is running and the postgres:16-alpine image is pullable, " +
+                "or set POSTGRES_CONNECTION_STRING to bypass the Testcontainers path.");
+        }
+
         return container.GetConnectionString();
     }
 }
