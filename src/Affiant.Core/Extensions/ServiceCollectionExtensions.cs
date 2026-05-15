@@ -1,6 +1,7 @@
 namespace Affiant.Core.Extensions;
 
 using Affiant.Abstractions.Interfaces;
+using Affiant.Abstractions.Models;
 using Affiant.Core.Filters;
 using Affiant.Core.Observability;
 using Affiant.Core.Services;
@@ -96,5 +97,79 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(options);
 
         return services;
+    }
+
+    /// <summary>
+    /// Registers a write-intent tool's strategy in DI and a matching descriptor in the registry — atomically.
+    /// Call <c>services.AddAffiantCore()</c> first.
+    /// </summary>
+    /// <remarks>
+    /// Uses <c>TryAddSingleton</c> for the strategy so a host's prior registration wins.
+    /// If <paramref name="operation"/> is <see cref="Operation.ReadQuery"/>, throws <see cref="ArgumentException"/>;
+    /// use <see cref="AddAffiantReadTool"/> for read tools instead.
+    /// </remarks>
+    public static IServiceCollection AddAffiantTool<TStrategy>(
+        this IServiceCollection services,
+        string functionName,
+        Operation operation,
+        string entityType,
+        string? pluginName = null)
+        where TStrategy : class, ITaskInferenceStrategy
+    {
+        if (operation == Operation.ReadQuery)
+            throw new ArgumentException(
+                $"AddAffiantTool<{typeof(TStrategy).Name}>(): Operation.ReadQuery is not a valid write operation. " +
+                "Use AddAffiantReadTool() for read tools.",
+                nameof(operation));
+
+        var registry = ResolveRegistry(services);
+        services.TryAddSingleton<TStrategy>();
+        registry.Register(new AffiantToolDescriptor(
+            functionName, pluginName, operation, entityType, typeof(TStrategy)));
+        return services;
+    }
+
+    /// <summary>
+    /// Registers a read-only tool descriptor in the registry. No strategy DI registration occurs.
+    /// Call <c>services.AddAffiantCore()</c> first.
+    /// </summary>
+    public static IServiceCollection AddAffiantReadTool(
+        this IServiceCollection services,
+        string functionName,
+        string? entityType = null,
+        string? pluginName = null)
+    {
+        var registry = ResolveRegistry(services);
+        registry.Register(new AffiantToolDescriptor(
+            functionName, pluginName, Operation.ReadQuery, entityType, InferenceStrategy: null));
+        return services;
+    }
+
+    private static IAffiantToolRegistry ResolveRegistry(IServiceCollection services)
+    {
+        var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IAffiantToolRegistry))
+            ?? throw new InvalidOperationException(
+                "IAffiantToolRegistry is not registered. " +
+                "Call services.AddAffiantCore() before services.AddAffiantTool<>() or services.AddAffiantReadTool().");
+
+        if (descriptor.ImplementationInstance is IAffiantToolRegistry existingInstance)
+            return existingInstance;
+
+        if (descriptor.ImplementationType is not null)
+        {
+            var fresh = Activator.CreateInstance(descriptor.ImplementationType) as IAffiantToolRegistry
+                ?? throw new InvalidOperationException(
+                    $"Activator.CreateInstance({descriptor.ImplementationType.Name}) did not produce an IAffiantToolRegistry.");
+
+            // Pin the instance so the built ServiceProvider returns the same singleton already filled here.
+            services.Remove(descriptor);
+            services.AddSingleton<IAffiantToolRegistry>(fresh);
+            return fresh;
+        }
+
+        throw new InvalidOperationException(
+            "IAffiantToolRegistry is registered with a factory delegate, which is not supported by " +
+            "AddAffiantTool or AddAffiantReadTool. Use a type registration (TryAddSingleton<IAffiantToolRegistry, TImpl>()) " +
+            "or an instance registration (AddSingleton<IAffiantToolRegistry>(instance)).");
     }
 }
