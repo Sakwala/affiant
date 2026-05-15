@@ -1,5 +1,6 @@
 namespace Affiant.Core.Services;
 
+using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
 
 /// <summary>
@@ -9,7 +10,7 @@ using Affiant.Abstractions.Models;
 /// Field-level ProvenanceChain tracking supports the confidence-based merge rule
 /// in TaskInferenceStep: higher confidence wins; ties break by ProvenanceSource ordinal.
 /// </summary>
-public sealed class ContextFabric
+public sealed class ContextFabric : IContextFabric
 {
     private readonly Dictionary<string, EntityRef> _entities = new();
     private readonly Dictionary<string, ProvenanceChain> _fieldChains = new();
