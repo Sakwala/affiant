@@ -1,5 +1,6 @@
 namespace Affiant.SemanticKernel.Tests.Integration;
 
+using System.Diagnostics;
 using System.Text.Json;
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
@@ -31,6 +32,16 @@ using OpenTelemetry.Trace;
 /// </summary>
 internal static class IntegrationTestPipelineFactory
 {
+    /// <summary>
+    /// ActivitySource for test root spans. Registered with the TracerProvider so that
+    /// activities started on this source are captured and establish a TraceId that all
+    /// child activities (SK function invocations) inherit. Tests use this TraceId to
+    /// filter ExportedActivities to their own invocations, excluding emissions from
+    /// other test assemblies running concurrently on the shared Affiant.TaskInference source.
+    /// </summary>
+    internal static readonly ActivitySource TestActivitySource =
+        new("Affiant.SemanticKernel.Tests.Integration");
+
     public static (Kernel Kernel, InMemoryExporterHelper Exporter, RecordingInferencePort Port) BuildPipeline(
         Func<InferenceCompletionRequest, CancellationToken, Task<JsonElement>> portImpl,
         IEnumerable<IInferenceTrigger>? additionalTriggers = null,
@@ -73,7 +84,8 @@ internal static class IntegrationTestPipelineFactory
         services.AddOpenTelemetry()
             .WithTracing(builder => builder
                 .AddSource(AffiantTelemetry.AffiantActivitySource.Name)
-                .AddSource(AffiantTelemetry.AffiantTaskInferenceActivitySource.Name));
+                .AddSource(AffiantTelemetry.AffiantTaskInferenceActivitySource.Name)
+                .AddSource(TestActivitySource.Name));
 
         // Register Kernel in DI so filters resolve through the same ServiceProvider as the rest.
         services.AddKernel();
