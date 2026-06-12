@@ -1,58 +1,38 @@
 namespace Affiant.Core.Tests.Filters;
 
 using System.Linq;
+using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
-using Affiant.Core.Filters;
-using Affiant.Core.Services;
-using Microsoft.Extensions.Logging.Abstractions;
+using Affiant.Core.Extensions;
+using Affiant.SemanticKernel.Extensions;
+using Affiant.SemanticKernel.Filters;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Xunit;
 
 /// <summary>
 /// Phase-3 Track A Epic A1 — L2 ATDD acceptance test per PRD §7.1.
-/// Source: docs/architecture/phase-3-prd-l2-inference-orchestration.md §7.1.
+/// CLOSED 2026-06-12 by Story 16.8 (Epic 16 closure).
 ///
 /// Contract under test (PRD §7.1): for a realistic user turn that triggers a
-/// `WriteCreate` tool, the framework MUST produce an Affidavit whose Fields[] is
-/// non-empty and whose per-field <see cref="ProvenanceChain.Current"/> Source is
-/// one of { <see cref="ProvenanceSource.Inferred"/>, <see cref="ProvenanceSource.UserStated"/> } —
-/// never <see cref="ProvenanceSource.Empty"/>. This is the L2 architectural
-/// invariant; satisfying it is the green light for closing Epic A2.
+/// WriteCreate tool, the framework MUST produce an Affidavit whose Fields[] is
+/// non-empty and whose per-field ProvenanceChain.Current.Source is one of
+/// { Inferred, UserStated } — never Empty. This is the L2 architectural invariant.
 ///
-/// Why this test fails against today's `main` (the design intent — see PRD §7.1
-/// last paragraph): the current generic <see cref="TaskInferenceMergeFilter"/> (formerly TaskInferenceFilter, renamed in Story 16.4) is a
-/// post-tool <see cref="IAutoFunctionInvocationFilter"/>. It parses the *tool's
-/// return value* for structured-output JSON of shape `{FieldName:{value,confidence}}`
-/// and forwards a matching shape to <see cref="TaskInferenceStep"/>. Realistic
-/// write tools return a <c>WriteProposal</c> envelope, not that shape, so the
-/// merge is a silent no-op. <see cref="ContextFabric"/> stays empty for the
-/// strategy's fields, the projection emits <see cref="ProvenanceTag.Empty"/>
-/// for each, and the assertions below trip.
+/// L2 lands in Epic 16 (Stories 16.1–16.7); this test ratifies the contract end-to-end
+/// via the real IAffidavitProjection (SchemaDrivenAffidavitProjection) and the pre-tool
+/// InferenceTriggerFilter.
 ///
-/// Implementation deviations from PRD §7.1's literal code — Seevali approved
-/// (handoff at docs/implementation-artifacts/track-a/g1-a1-atdd-7.1-handoff.md):
-///   • PRD references the A0 attribute `[AffiantWriteTool("WriteCreate", "Thing",
-///     typeof(FakeThingStrategy))]` — A0 is not yet implemented on main, so the
-///     fake tool is registered as a plain `[KernelFunction]` here.
-///   • PRD references the A2 port `IInferenceCompletionPort` for the recorded
-///     mock — A2 is not yet implemented, so today's path has *no* pre-tool
-///     inference at all (the bug). The recorded JSON in PRD §7.1 has nowhere
-///     to be consumed today; that absence IS the failure mode this test
-///     ratifies.
-///   • PRD says "Capture the resulting Affidavit from the test's ReviewGate
-///     mock." The framework has no `IAffidavitProjection` today; the test
-///     builds the Affidavit through <see cref="ProjectAffidavitFromFabric"/>,
-///     which is the moral equivalent of the A2 `SchemaDrivenAffidavitProjection`
-///     (PRD §2.4). When A2 lands, replace this helper with
-///     `serviceProvider.GetRequiredService&lt;IAffidavitProjection&gt;().Project(...)`
-///     and wire `IInferenceCompletionPort` instead of the synthesized auto-context.
+/// Originally committed in a failing state at 3679c0f (2026-05-14). Wrapped in
+/// [Fact(Skip = "…")] at 57507f4 (2026-05-14) to make Epic-15 CI tolerant.
+/// Skip removed and re-authored to use the real L2 surface by Story 16.8.
 ///
-/// Traceability matrix row: L2-AT-001 (see docs/implementation-artifacts/track-a/
-/// traceability-matrix.md). Closes when this test AND the Tier-1 Validator
-/// scenario for `INV-AFFIDAVIT-NONEMPTY` pass on the same commit SHA.
+/// Traceability matrix row: L2-AT-001 (passing-state SHA backfilled to
+/// docs/implementation-artifacts/track-a/g1-a1-atdd-7.1-handoff.md).
 /// </summary>
 public class TaskInferenceOrchestratorAffidavitParityTests
 {
@@ -60,149 +40,112 @@ public class TaskInferenceOrchestratorAffidavitParityTests
         "Please create a high-priority work order to investigate the left engine "
         + "hydraulic leak on thing-7.";
 
-    /// <summary>
-    /// Realistic write-tool return value. A WriteProposal-shaped envelope — not
-    /// `{FieldName:{value,confidence}}` JSON. Today's post-tool TaskInferenceMergeFilter
-    /// (formerly TaskInferenceFilter, renamed in Story 16.4) parses this, finds no fields
-    /// matching the strategy's schema, and silently no-ops the merge. ContextFabric stays empty.
-    /// </summary>
-    private const string FakeWriteProposalReturn =
-        """{"$type":"WriteProposal","ToolName":"CreateThing","EntityType":"Thing","Proposed":{}}""";
+    // PRD §7.1's literal recorded JSON for the mock port. Values must not be altered.
+    private const string PrdSection71JsonLiteral = """
+        {
+          "Title":     { "value": "Investigate left engine hydraulic leak", "confidence": 0.92 },
+          "Priority":  { "value": "High", "confidence": 0.85 },
+          "EntityRef": { "value": "thing-7", "confidence": 0.78 }
+        }
+        """;
 
-    [Fact(Skip =
-        "Phase-3 Track A — Epic A1 Task 7.1 ATDD red gate. Green when Epic 16 " +
-        "(formerly Epic A2) lands InferenceTriggerFilter + SchemaDrivenAffidavitProjection. " +
-        "Re-enable by deleting this Skip argument as part of Epic 16's merge; the test " +
-        "must pass on the same commit SHA that closes L2-AT-001 in the traceability " +
-        "matrix at docs/implementation-artifacts/track-a/g1-a1-atdd-7.1-handoff.md. " +
-        "Failing-state SHA recorded in docs/implementation-artifacts/track-a/" +
-        "g1-l2-prd-approval.md is 3679c0f.")]
+    [Fact]
     public async Task Affidavit_BuiltFromContextFabric_HasPopulatedFieldsAndNonEmptyProvenance_ForRealisticUserTurn()
     {
-        // ── Arrange: today's pipeline (no pre-tool inference; only the buggy post-tool filter)
-        var strategy = new FakeThingStrategy();
-        var fabric = new ContextFabric();
-        var step = new TaskInferenceStep(strategy, fabric, NullLogger<TaskInferenceStep>.Instance);
-        var taskInferenceFilter = new TaskInferenceMergeFilter(step, NullLogger<TaskInferenceMergeFilter>.Instance);
+        // ── Arrange: real L2 pipeline via AddAffiantInferenceOrchestration + AddKernel ──
 
-        var kernel = Kernel.CreateBuilder().Build();
-        kernel.AutoFunctionInvocationFilters.Add(taskInferenceFilter);
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddAffiantCore();
+
+        // Register the recorded-mock port BEFORE AddAffiantInferenceOrchestration so
+        // TryAddScoped<IInferenceCompletionPort> is a no-op and the singleton mock wins.
+        services.AddSingleton<IInferenceCompletionPort>(new RecordingInferencePort(
+            (_, _) => Task.FromResult(JsonDocument.Parse(PrdSection71JsonLiteral).RootElement.Clone())));
+
+        services.AddAffiantInferenceOrchestration();
+        services.AddAffiantSkFilters();
+
+        // Register strategy + descriptor. pluginName must match the kernel plugin name below.
+        services.AddAffiantTool<FakeThingStrategy>("CreateThing", Operation.WriteCreate, "Thing",
+            pluginName: "ThingPlugin");
+
+        // TaskInferenceStep (Singleton, registered by AddAffiantCore) requires ITaskInferenceStrategy.
+        // Wire FakeThingStrategy as the singleton strategy explicitly.
+        services.AddSingleton<ITaskInferenceStrategy>(sp => sp.GetRequiredService<FakeThingStrategy>());
+
+        // Register Kernel in DI so filters resolve through the same ServiceProvider.
+        services.AddKernel();
+
+        var sp = services.BuildServiceProvider();
+
+        // Use a scope so Scoped services (InferenceTriggerFilter, TaskInferenceRunner, etc.)
+        // resolve with a consistent per-request lifetime alongside the Kernel.
+        var scope = sp.CreateScope();
+        var kernel = scope.ServiceProvider.GetRequiredService<Kernel>();
+
+        // Register the test plugin (CreateThing returns a WriteProposal envelope).
         kernel.Plugins.Add(KernelPluginFactory.CreateFromFunctions(
             "ThingPlugin",
             [KernelFunctionFactory.CreateFromMethod(() => FakeWriteProposalReturn, "CreateThing")]));
 
-        // ── Act: simulate a realistic auto-invoked tool call.
-        //
-        // We drive the IAutoFunctionInvocationFilter chain directly with a synthesized
-        // AutoFunctionInvocationContext (per the pattern in
-        // Affiant.SemanticKernel.Tests/Filters/DualProviderFilterChainTests). SK 1.74's
-        // real auto-invocation loop needs provider-specific FinishReason / ModelId
-        // metadata that a bare IChatCompletionService stub cannot supply, so this
-        // synthesized path is the deterministic equivalent. The user's prompt
-        // intent is carried via the ChatHistory.
-        var function = kernel.Plugins["ThingPlugin"]["CreateThing"];
-        var fnResult = await kernel.InvokeAsync("ThingPlugin", "CreateThing");
+        // Host-contract keys per 16.3's InferenceTriggerFilter expectations.
         var chatHistory = new ChatHistory();
         chatHistory.AddUserMessage(SyntheticUserTurn);
-        var assistantToolCallMessage = new ChatMessageContent(AuthorRole.Assistant, string.Empty);
-        var autoCtx = new AutoFunctionInvocationContext(
-            kernel, function, fnResult, chatHistory, assistantToolCallMessage);
+        kernel.Data["ChatHistory"] = chatHistory;
+        kernel.Data["ConversationId"] = "test-conv-7-1";
+        kernel.Data["AffiantTurnNumber"] = 0;
 
-        Func<AutoFunctionInvocationContext, Task> terminal = _ => Task.CompletedTask;
-        foreach (var f in kernel.AutoFunctionInvocationFilters.Reverse())
-        {
-            var captured = f;
-            var next = terminal;
-            terminal = ctx => captured.OnAutoFunctionInvocationAsync(ctx, next);
-        }
-        await terminal(autoCtx);
+        // ── Act: drive the real L2 pipeline via kernel.InvokeAsync ──
+        // The pre-tool InferenceTriggerFilter (16.3) fires, calls TaskInferenceRunner (16.2),
+        // the recorded port returns the PRD §7.1 JSON, TaskInferenceStep merges it into
+        // ContextFabric. ContextFabric is a Singleton — all filter resolution paths share it.
+        await kernel.InvokeAsync("ThingPlugin", "CreateThing");
 
-        // Project an Affidavit the way A2's SchemaDrivenAffidavitProjection will:
-        // walk strategy.Fields, pull each chain from ContextFabric, emit
-        // ProvenanceTag.Empty for fields absent from the fabric.
-        var affidavit = ProjectAffidavitFromFabric(strategy, fabric, operationType: "WriteCreate");
+        // ── Project the Affidavit via the framework's real IAffidavitProjection ──
+        // ContextFabric is Singleton → same instance the filter wrote into.
+        var fabric = scope.ServiceProvider.GetRequiredService<Affiant.Core.Services.ContextFabric>();
+        var projection = scope.ServiceProvider
+            .GetServices<IAffidavitProjection>()
+            .First(p => p.EntityType == "Thing");
+        var affidavit = projection.Project(fabric, operationType: "WriteCreate",
+            warnings: Array.Empty<string>());
 
-        // ── Assert: PRD §7.1 acceptance contract
+        // ── Assert: PRD §7.1 acceptance contract (UNCHANGED from G1 ratification) ──
         Assert.True(
             affidavit.Fields.Length >= 3,
-            $"Expected affidavit.Fields.Length >= 3 (one per strategy field); got "
-            + $"{affidavit.Fields.Length}. The strategy declares Title / Priority / EntityRef; "
-            + "the projection must emit a field per strategy slot even when the fabric is empty.");
+            $"Expected affidavit.Fields.Length >= 3; got {affidavit.Fields.Length}.");
 
         Assert.True(
             affidavit.AggregateConfidence > 0.5f,
-            $"Expected affidavit.AggregateConfidence > 0.5; got {affidavit.AggregateConfidence}. "
-            + "AggregateConfidence is 0.0 when every field carries ProvenanceTag.Empty — the "
-            + "shape of the empty-Affidavit regression. L2 (Epic A2) fixes this by running "
-            + "pre-tool inference and merging into the fabric before projection.");
+            $"Expected affidavit.AggregateConfidence > 0.5; got {affidavit.AggregateConfidence}.");
 
         foreach (var field in affidavit.Fields)
         {
             var source = field.Provenance.Current.Source;
             Assert.True(
                 source is ProvenanceSource.Inferred or ProvenanceSource.UserStated,
-                $"Field '{field.Name}' has ProvenanceSource.{source}; expected Inferred or "
-                + "UserStated (PRD §7.1). Today's pipeline emits ProvenanceSource.Empty for "
-                + "every field because no pre-tool inference populates the fabric — violates "
-                + "framework spec normative rule 7 ('Every Affidavit field carries provenance, "
-                + "no exceptions'). L2 (Epic A2) fixes this.");
+                $"Field '{field.Name}' has ProvenanceSource.{source}; expected Inferred or UserStated.");
         }
     }
 
-    /// <summary>
-    /// Test-only schema-driven projection. Walks <see cref="ITaskInferenceStrategy.Fields"/>,
-    /// pulls each field's chain from <see cref="ContextFabric"/>, falls back to
-    /// <see cref="ProvenanceTag.Empty"/> when no chain is present. Aggregate confidence is
-    /// the mean of per-field confidences over non-empty fields (matches PRD §2.4
-    /// and today's host-side `AffidavitMapper.BuildFromWorkOrderFormData`).
-    ///
-    /// Replace at A2 merge with `IAffidavitProjection.Project(...)` resolved from DI.
-    /// </summary>
-    private static Affidavit ProjectAffidavitFromFabric(
-        ITaskInferenceStrategy strategy,
-        ContextFabric fabric,
-        string operationType)
+    // WriteProposal-shaped return value — the post-tool TaskInferenceMergeFilter (IAutoFunctionInvocationFilter)
+    // would parse this and find no matching field keys, silently no-oping the merge. That's correct because
+    // the pre-tool InferenceTriggerFilter already populated the fabric via the port before this returns.
+    private const string FakeWriteProposalReturn =
+        """{"$type":"WriteProposal","ToolName":"CreateThing","EntityType":"Thing","Proposed":{}}""";
+
+    private sealed class RecordingInferencePort : IInferenceCompletionPort
     {
-        var entity = fabric.GetByKey(strategy.EntityName);
-
-        var fields = strategy.Fields
-            .Select(f =>
-            {
-                var chain = fabric.GetFieldChain(f.Name) ?? ProvenanceChain.From(ProvenanceTag.Empty);
-                object? value = null;
-                if (chain.Current.Source != ProvenanceSource.Empty
-                    && entity is not null
-                    && entity.Fields.TryGetValue(f.Name, out var v))
-                {
-                    value = v;
-                }
-                return new AffidavitField(
-                    Name: f.Name,
-                    Value: value,
-                    PreviousValue: null,
-                    Provenance: chain);
-            })
-            .ToArray();
-
-        var nonEmpty = fields.Where(f => f.Provenance.Current.Source != ProvenanceSource.Empty).ToArray();
-        var aggregateConfidence = nonEmpty.Length == 0
-            ? 0f
-            : nonEmpty.Average(f => f.Provenance.Current.Confidence);
-
-        return new Affidavit(
-            OperationType: operationType,
-            EntityType: strategy.EntityName,
-            EntityId: null,
-            Fields: fields,
-            AggregateConfidence: aggregateConfidence,
-            Warnings: Array.Empty<string>(),
-            RequiresConfirmation: true);
+        private readonly Func<InferenceCompletionRequest, CancellationToken, Task<JsonElement>> _impl;
+        public RecordingInferencePort(Func<InferenceCompletionRequest, CancellationToken, Task<JsonElement>> impl)
+            => _impl = impl;
+        public Task<JsonElement> CompleteStructuredAsync(InferenceCompletionRequest request, CancellationToken cancellationToken = default)
+            => _impl(request, cancellationToken);
     }
 
     /// <summary>
-    /// Test fake strategy matching the PRD §7.1 setup: three fields (Title, Priority,
-    /// EntityRef). When A2 lands and tests use the real attribute-driven registration,
-    /// the strategy class itself stays; only the registration surface changes.
+    /// PRD §7.1 strategy: three fields (Title, Priority, EntityRef).
     /// </summary>
     private sealed class FakeThingStrategy : ITaskInferenceStrategy
     {

@@ -9,6 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Affiant.Abstractions\Affiant.Abstractions.csproj" />
     <ProjectReference Include="..\..\src\Affiant.Core\Affiant.Core.csproj" />
+    <ProjectReference Include="..\..\src\Affiant.SemanticKernel\Affiant.SemanticKernel.csproj" />
   </ItemGroup>
 
   <ItemGroup>
