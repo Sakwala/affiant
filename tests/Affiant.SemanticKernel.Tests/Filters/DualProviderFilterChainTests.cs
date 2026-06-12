@@ -29,7 +29,7 @@ public class DualProviderFilterChainTests
     // ── OpenAI auto path ─────────────────────────────────────────────────────
 
     /// <summary>
-    /// TaskInferenceStep (the core of TaskInferenceFilter) merges structured-output JSON
+    /// TaskInferenceStep (the core of TaskInferenceMergeFilter) merges structured-output JSON
     /// into ContextFabric correctly on the auto-invocation path.
     /// This validates the OpenAI path end-to-end at the filter component level.
     /// </summary>
@@ -165,7 +165,7 @@ public class DualProviderFilterChainTests
         }
         else
         {
-            // OpenAI path: direct kernel invocation (simulates result returned to TaskInferenceFilter)
+            // OpenAI path: direct kernel invocation (simulates result returned to TaskInferenceMergeFilter)
             var fnResult = await kernel.InvokeAsync("StatusPlugin", "GetStatus");
             actualResult = fnResult.GetValue<string>() ?? string.Empty;
         }
@@ -221,7 +221,7 @@ public class DualProviderFilterChainTests
             string? capturedResult = null;
             services.AddScoped<IAutoFunctionInvocationFilter>(_ =>
                 new TracingAutoFunctionInvocationFilter(
-                    tracer, "TaskInferenceFilter", "StatusPlugin.GetStatus",
+                    tracer, "TaskInferenceMergeFilter", "StatusPlugin.GetStatus",
                     r => capturedResult = r));
             services.AddKernel();
 

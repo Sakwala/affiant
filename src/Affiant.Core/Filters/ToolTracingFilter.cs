@@ -10,7 +10,7 @@ namespace Affiant.Core.Filters;
 ///
 /// The span carries <c>gen_ai.tool.name</c> (the SK function name) and <c>tool_status</c>
 /// (<c>"ok"</c>, <c>"empty"</c>, or <c>"error"</c>). It remains active throughout the full inner
-/// filter chain (host <c>ContextExtractor</c> subclasses, <c>TaskInferenceFilter</c>, and the plugin),
+/// filter chain (host <c>ContextExtractor</c> subclasses, <c>TaskInferenceMergeFilter</c>, and the plugin),
 /// so all inner events and attributes are automatically attached to this span.
 ///
 /// Placed inside <c>ToolErrorFilter</c> in the SK pipeline. When a plugin throws, this filter

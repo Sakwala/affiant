@@ -79,13 +79,13 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddAffiantSemanticKernel_RegistersTaskInferenceFilter_AsAutoFunctionInvocationFilter()
+    public void AddAffiantSemanticKernel_RegistersTaskInferenceMergeFilter_AsAutoFunctionInvocationFilter()
     {
         var sp = BuildProviderWithInferenceStack();
         using var scope = sp.CreateScope();
         var filters = scope.ServiceProvider.GetServices<IAutoFunctionInvocationFilter>().ToList();
         Assert.NotEmpty(filters);
-        Assert.Single(filters, f => f is TaskInferenceFilter);
+        Assert.Single(filters, f => f is TaskInferenceMergeFilter);
     }
 
     [Fact]
@@ -99,21 +99,21 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddAffiantSemanticKernel_FilterPipeline_TaskInferenceBeforeReviewGate()
+    public void AddAffiantSemanticKernel_FilterPipeline_TaskInferenceMergeBeforeReviewGate()
     {
-        // The pipeline position contract: TaskInferenceFilter (pos 4) must appear before
-        // ReviewGateFilter (pos 5) in the registered enumerable — SK invokes in order.
+        // The pipeline position contract: TaskInferenceMergeFilter (pos 6) must appear before
+        // ReviewGateFilter (pos 7) in the registered enumerable — SK invokes in order.
         var sp = BuildProviderWithInferenceStack();
         using var scope = sp.CreateScope();
         var filters = scope.ServiceProvider.GetServices<IAutoFunctionInvocationFilter>().ToList();
 
-        var taskInferenceIdx = filters.FindIndex(f => f is TaskInferenceFilter);
+        var taskInferenceIdx = filters.FindIndex(f => f is TaskInferenceMergeFilter);
         var reviewGateIdx = filters.FindIndex(f => f is ReviewGateFilter);
 
-        Assert.True(taskInferenceIdx >= 0, "TaskInferenceFilter must be registered");
+        Assert.True(taskInferenceIdx >= 0, "TaskInferenceMergeFilter must be registered");
         Assert.True(reviewGateIdx >= 0, "ReviewGateFilter must be registered");
         Assert.True(taskInferenceIdx < reviewGateIdx,
-            "TaskInferenceFilter (pos 4) must precede ReviewGateFilter (pos 5)");
+            "TaskInferenceMergeFilter (pos 6) must precede ReviewGateFilter (pos 7)");
     }
 
     [Fact]

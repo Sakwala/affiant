@@ -26,11 +26,13 @@ public static class ServiceCollectionExtensions
     ///   <c>SemanticKernelOptions</c> — framework-level SK configuration singleton.
     /// </item>
     /// <item>
-    ///   SK auto-function invocation filter pipeline — positions 4 and 5 per framework spec §6.
+    ///   SK auto-function invocation filter pipeline — post-tool positions 6 and 7 per L2 PRD §"Task 4".
     ///   (Positions 1–2 are <c>ToolErrorFilter</c> and <c>DeterministicShortCircuit</c>
     ///   registered by <c>AddAffiantCore()</c>. Position 3 is host-provided
-    ///   <c>ContextExtractor</c> subclasses. Position 4 is <c>TaskInferenceFilter</c>;
-    ///   position 5 is <c>ReviewGateFilter</c> — both registered here.)
+    ///   <c>ContextExtractor</c> subclasses. Positions 4–5 are the pre-tool L2 filters
+    ///   registered by <c>AddAffiantInferenceOrchestration()</c>. Position 6 is
+    ///   <c>TaskInferenceMergeFilter</c>; position 7 is <c>ReviewGateFilter</c> — both
+    ///   registered here.)
     /// </item>
     /// <item>
     ///   <c>CapabilityRegistry</c> — resolves <c>IConnectorCapabilities</c> by provider name.
@@ -45,6 +47,16 @@ public static class ServiceCollectionExtensions
     /// Domain-specific <c>ContextExtractor</c> subclasses must be registered separately by the host.
     /// To enable write-proposal review routing, also register <c>IReviewContextProvider</c>
     /// and the full <c>ReviewGate</c> infrastructure (<c>IDocketStore</c>, <c>IStreamingTransport</c>).
+    ///
+    /// <remarks>
+    /// For L2 inference orchestration (Epic 16 / Story 16.3+), hosts should call
+    /// <see cref="AddAffiantInferenceOrchestration"/> separately, typically
+    /// immediately after <see cref="AddAffiantSemanticKernel"/>. The two extensions
+    /// are independent — <see cref="AddAffiantSemanticKernel"/> wires the startup
+    /// validator + the post-tool merge + review-gate filters; <see
+    /// cref="AddAffiantInferenceOrchestration"/> wires the pre-tool inference filters
+    /// and the SK inference port. Both are required for full L2 behavior.
+    /// </remarks>
     /// </summary>
     /// <param name="services">The service collection to extend.</param>
     /// <param name="configure">
@@ -63,8 +75,8 @@ public static class ServiceCollectionExtensions
         configure?.Invoke(options);
         services.AddSingleton(options);
 
-        // Filter pipeline: positions 4 and 5 per framework spec §6
-        // (TaskInferenceFilter + ReviewGateFilter). See AffiantFilterPipeline for full order.
+        // Filter pipeline: post-tool positions 6 and 7 per L2 PRD §"Task 4"
+        // (TaskInferenceMergeFilter + ReviewGateFilter). See AffiantFilterPipeline for full order.
         services.AddAffiantSkFilters();
 
         // Connector capability registry — maps provider names to IConnectorCapabilities.

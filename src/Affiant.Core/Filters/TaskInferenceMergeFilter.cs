@@ -6,19 +6,20 @@ using Microsoft.SemanticKernel;
 
 /// <summary>
 /// Thin IAutoFunctionInvocationFilter adapter that delegates to TaskInferenceStep.
+/// Renamed from TaskInferenceFilter in Story 16.4 (2026-05-16) — see L2 PRD §10.4 — to disambiguate from the new pre-tool InferenceTriggerFilter (16.3).
 /// Fires after each auto-invoked function during LLM chat completion. If the function
 /// result is a JSON object containing field values with "value"/"confidence" properties,
 /// the result is forwarded to TaskInferenceStep for confidence-based merging.
 /// Non-JSON results are silently skipped so the filter is safe to register globally.
 /// </summary>
-public sealed class TaskInferenceFilter : IAutoFunctionInvocationFilter
+public sealed class TaskInferenceMergeFilter : IAutoFunctionInvocationFilter
 {
     private readonly TaskInferenceStep _step;
-    private readonly ILogger<TaskInferenceFilter> _logger;
+    private readonly ILogger<TaskInferenceMergeFilter> _logger;
 
-    public TaskInferenceFilter(
+    public TaskInferenceMergeFilter(
         TaskInferenceStep step,
-        ILogger<TaskInferenceFilter> logger)
+        ILogger<TaskInferenceMergeFilter> logger)
     {
         _step = step ?? throw new ArgumentNullException(nameof(step));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));

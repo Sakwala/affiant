@@ -23,7 +23,7 @@ using Xunit;
 /// invariant; satisfying it is the green light for closing Epic A2.
 ///
 /// Why this test fails against today's `main` (the design intent — see PRD §7.1
-/// last paragraph): the current generic <see cref="TaskInferenceFilter"/> is a
+/// last paragraph): the current generic <see cref="TaskInferenceMergeFilter"/> (formerly TaskInferenceFilter, renamed in Story 16.4) is a
 /// post-tool <see cref="IAutoFunctionInvocationFilter"/>. It parses the *tool's
 /// return value* for structured-output JSON of shape `{FieldName:{value,confidence}}`
 /// and forwards a matching shape to <see cref="TaskInferenceStep"/>. Realistic
@@ -62,9 +62,9 @@ public class TaskInferenceOrchestratorAffidavitParityTests
 
     /// <summary>
     /// Realistic write-tool return value. A WriteProposal-shaped envelope — not
-    /// `{FieldName:{value,confidence}}` JSON. Today's post-tool TaskInferenceFilter
-    /// parses this, finds no fields matching the strategy's schema, and silently
-    /// no-ops the merge. ContextFabric stays empty.
+    /// `{FieldName:{value,confidence}}` JSON. Today's post-tool TaskInferenceMergeFilter
+    /// (formerly TaskInferenceFilter, renamed in Story 16.4) parses this, finds no fields
+    /// matching the strategy's schema, and silently no-ops the merge. ContextFabric stays empty.
     /// </summary>
     private const string FakeWriteProposalReturn =
         """{"$type":"WriteProposal","ToolName":"CreateThing","EntityType":"Thing","Proposed":{}}""";
@@ -83,7 +83,7 @@ public class TaskInferenceOrchestratorAffidavitParityTests
         var strategy = new FakeThingStrategy();
         var fabric = new ContextFabric();
         var step = new TaskInferenceStep(strategy, fabric, NullLogger<TaskInferenceStep>.Instance);
-        var taskInferenceFilter = new TaskInferenceFilter(step, NullLogger<TaskInferenceFilter>.Instance);
+        var taskInferenceFilter = new TaskInferenceMergeFilter(step, NullLogger<TaskInferenceMergeFilter>.Instance);
 
         var kernel = Kernel.CreateBuilder().Build();
         kernel.AutoFunctionInvocationFilters.Add(taskInferenceFilter);

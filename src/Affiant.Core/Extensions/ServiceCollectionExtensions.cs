@@ -33,7 +33,7 @@ public static class ServiceCollectionExtensions
     /// No <c>IApprovalPolicy</c> is registered by default. Hosts must call
     /// <c>AddAffiantPolicies()</c> from Affiant.Policies to declare their policy graph.
     /// Services whose lifetimes depend on host-scoped adapter registrations
-    /// (<c>ReviewGate</c>, <c>SessionRehydrator</c>, <c>TaskInferenceFilter</c>, <c>UiGuidanceBridge</c>)
+    /// (<c>ReviewGate</c>, <c>SessionRehydrator</c>, <c>TaskInferenceMergeFilter</c>, <c>UiGuidanceBridge</c>)
     /// are intentionally omitted and must be registered directly by the host with the appropriate lifetime.
     /// </remarks>
     /// <example>

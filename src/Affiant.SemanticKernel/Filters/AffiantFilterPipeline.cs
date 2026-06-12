@@ -8,16 +8,26 @@ using Microsoft.SemanticKernel;
 /// Registration helper for the Affiant Semantic Kernel filter pipeline.
 /// Consumed by <c>AddAffiantSemanticKernel()</c>.
 ///
-/// Full pipeline execution order (non-negotiable per framework spec §6):
-///   1. ToolErrorFilter           — IFunctionInvocationFilter; registered by AddAffiantCore()
-///   2. DeterministicShortCircuit — IFunctionInvocationFilter; registered by AddAffiantCore()
-///   3. ContextExtractor subclasses — IFunctionInvocationFilter; host-registered domain extractors
-///   4. TaskInferenceFilter       — IAutoFunctionInvocationFilter; registered by AddAffiantSkFilters()
-///   5. ReviewGateFilter          — IAutoFunctionInvocationFilter; registered by AddAffiantSkFilters()
+/// Full pipeline execution order (non-negotiable per framework spec §6 and L2 PRD §"Task 4"):
 ///
-/// Positions 1 and 2 are satisfied by calling <c>AddAffiantCore()</c> before this helper.
+///  Pre-tool (IFunctionInvocationFilter) — runs in DI registration order
+///    before the function executes:
+///    1. ToolErrorFilter                  — AddAffiantCore() (Step 9)
+///    2. DeterministicShortCircuit         — AddAffiantCore() (Step 8)
+///    3. ContextExtractor* subclasses      — host-registered, post-tool ctx extractors
+///    4. ToolArgumentCaptureFilter         — AddAffiantInferenceOrchestration() (Story 16.3)
+///    5. InferenceTriggerFilter            — AddAffiantInferenceOrchestration() (Story 16.3)
+///
+///  Post-tool (IAutoFunctionInvocationFilter) — runs in DI registration order
+///    after the function returns:
+///    6. TaskInferenceMergeFilter          — this helper (was TaskInferenceFilter pre-16.4)
+///    7. ReviewGateFilter                  — this helper
+///
+/// Positions 1, 2 are satisfied by calling AddAffiantCore() before this helper.
 /// Position 3 is satisfied by host apps registering their ContextExtractor subclasses.
-/// This helper satisfies positions 4 and 5.
+/// Positions 4, 5 are satisfied by hosts calling AddAffiantInferenceOrchestration()
+///   (from Story 16.3) before this helper.
+/// Positions 6, 7 are satisfied by this helper.
 /// </summary>
 public static class AffiantFilterPipeline
 {
@@ -28,11 +38,13 @@ public static class AffiantFilterPipeline
     /// </summary>
     public static IServiceCollection AddAffiantSkFilters(this IServiceCollection services)
     {
-        // Position 4: Task inference — fires after each LLM auto-invoked function.
-        // Merges structured output with field/confidence pairs into ContextFabric
-        // using TaskInferenceStep's confidence-based merge rule (framework spec §2.3).
+        // Position 6: TaskInferenceMergeFilter (was TaskInferenceFilter pre-16.4) — fires after
+        // each LLM auto-invoked function. Merges structured output with field/confidence pairs
+        // into ContextFabric using TaskInferenceStep's confidence-based merge rule (framework
+        // spec §2.3). Pre-tool inference (positions 4, 5) is registered separately by
+        // AddAffiantInferenceOrchestration (Story 16.3).
         // Scoped lifetime required: TaskInferenceStep captures ContextFabric (Scoped in most hosts).
-        services.AddScoped<IAutoFunctionInvocationFilter, TaskInferenceFilter>();
+        services.AddScoped<IAutoFunctionInvocationFilter, TaskInferenceMergeFilter>();
 
         // Position 5: ReviewGate adapter — detects WriteProposal results and routes them through
         // ReviewGate.FileReviewAsync using a fresh per-invocation scope. No-op if
