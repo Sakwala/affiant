@@ -1,9 +1,11 @@
 namespace Affiant.Core.Services;
 
+using System.Diagnostics;
 using System.Text.Json;
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
 using Affiant.Core.Filters;
+using Affiant.Core.Observability;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel.ChatCompletion;
 
@@ -43,14 +45,54 @@ public sealed class TaskInferenceRunner
         {
             var request = new InferenceCompletionRequest(history, strategy, functionName, arguments);
             var json = await _port.CompleteStructuredAsync(request, cancellationToken).ConfigureAwait(false);
-            return await _mergeStep.ExecuteAsync(json, cancellationToken).ConfigureAwait(false);
+            var result = await _mergeStep.ExecuteAsync(json, cancellationToken).ConfigureAwait(false);
+
+            Activity.Current?.AddEvent(new ActivityEvent(
+                "inference.completed",
+                tags: new ActivityTagsCollection
+                {
+                    { L2TelemetryKeys.FieldsMerged, result.MergedFields.Count(kv => kv.Value.Merged) },
+                    { L2TelemetryKeys.FieldsInResponse, result.FieldsInLlmResponse },
+                    { L2TelemetryKeys.FieldsInSchema, result.TotalFieldsInSchema },
+                }));
+
+            return result;
         }
         catch (OperationCanceledException)
         {
+            Activity.Current?.AddEvent(new ActivityEvent(
+                "inference.failed",
+                tags: new ActivityTagsCollection
+                {
+                    { L2TelemetryKeys.FunctionName, functionName },
+                    { L2TelemetryKeys.ErrorKind, "cancelled" },
+                }));
             throw;
+        }
+        catch (JsonException ex)
+        {
+            Activity.Current?.AddEvent(new ActivityEvent(
+                "inference.failed",
+                tags: new ActivityTagsCollection
+                {
+                    { L2TelemetryKeys.FunctionName, functionName },
+                    { L2TelemetryKeys.ErrorKind, "json_parse" },
+                }));
+            _logger.LogWarning(ex, "TaskInferenceRunner: inference failed for {FunctionName}; returning empty result", functionName);
+            return new TaskInferenceResult(
+                TotalFieldsInSchema: strategy.Fields.Count,
+                FieldsInLlmResponse: 0,
+                MergedFields: new Dictionary<string, TaskInferenceMergeOutcome>());
         }
         catch (Exception ex)
         {
+            Activity.Current?.AddEvent(new ActivityEvent(
+                "inference.failed",
+                tags: new ActivityTagsCollection
+                {
+                    { L2TelemetryKeys.FunctionName, functionName },
+                    { L2TelemetryKeys.ErrorKind, "provider_outage" },
+                }));
             _logger.LogWarning(ex, "TaskInferenceRunner: inference failed for {FunctionName}; returning empty result", functionName);
             return new TaskInferenceResult(
                 TotalFieldsInSchema: strategy.Fields.Count,

@@ -1,9 +1,11 @@
 namespace Affiant.SemanticKernel.Adapters;
 
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
+using Affiant.Core.Observability;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
@@ -36,6 +38,14 @@ public sealed class SemanticKernelInferenceCompletionPort : IInferenceCompletion
         InferenceCompletionRequest request,
         CancellationToken cancellationToken = default)
     {
+        // Optional span for trace-readability: distinguishes "framework inference" from
+        // "raw SK chat-completion call". StartActivity returns null when no listener subscribes
+        // to Affiant.TaskInference, making this a zero-cost no-op in production without OTel.
+        using var llmSpan = AffiantTelemetry.AffiantTaskInferenceActivitySource
+            .StartActivity("inference.llm_call", ActivityKind.Client);
+        llmSpan?.SetTag(L2TelemetryKeys.FunctionName, request.FunctionName);
+        llmSpan?.SetTag(L2TelemetryKeys.StrategyType, request.Strategy.GetType().FullName ?? string.Empty);
+
         try
         {
             var chatCompletion = _services.GetRequiredService<IChatCompletionService>();

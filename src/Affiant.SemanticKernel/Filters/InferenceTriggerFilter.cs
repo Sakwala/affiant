@@ -1,9 +1,11 @@
 namespace Affiant.SemanticKernel.Filters;
 
+using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
+using Affiant.Core.Observability;
 using Affiant.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -83,6 +85,19 @@ public sealed class InferenceTriggerFilter : IFunctionInvocationFilter
 
         if (!shouldRun)
         {
+            // Emit inference.skipped when a descriptor exists so the host knows the filter
+            // evaluated this function and chose not to run inference.
+            var skipDescriptor = _registry.Find(context.Function.Name, context.Function.PluginName);
+            if (skipDescriptor is not null)
+            {
+                Activity.Current?.AddEvent(new ActivityEvent(
+                    "inference.skipped",
+                    tags: new ActivityTagsCollection
+                    {
+                        { L2TelemetryKeys.FunctionName, context.Function.Name },
+                        { L2TelemetryKeys.SkipReason, "not_a_write_tool" },
+                    }));
+            }
             await next(context);
             return;
         }
@@ -102,14 +117,41 @@ public sealed class InferenceTriggerFilter : IFunctionInvocationFilter
 
         // Step 3: Strategy resolution via registry + service provider.
         var descriptor = _registry.Find(context.Function.Name, context.Function.PluginName);
-        if (descriptor is null || descriptor.InferenceStrategy is null)
+        if (descriptor is null)
         {
             _logger.LogWarning(
-                "InferenceTriggerFilter: no descriptor or strategy for {FunctionName}/{PluginName}; skipping inference",
+                "InferenceTriggerFilter: no descriptor for {FunctionName}/{PluginName}; skipping inference",
                 context.Function.Name, context.Function.PluginName);
             await next(context);
             return;
         }
+
+        if (descriptor.InferenceStrategy is null)
+        {
+            Activity.Current?.AddEvent(new ActivityEvent(
+                "inference.skipped",
+                tags: new ActivityTagsCollection
+                {
+                    { L2TelemetryKeys.FunctionName, context.Function.Name },
+                    { L2TelemetryKeys.SkipReason, "no_strategy_registered" },
+                }));
+            _logger.LogWarning(
+                "InferenceTriggerFilter: no strategy registered for {FunctionName}/{PluginName}; skipping inference",
+                context.Function.Name, context.Function.PluginName);
+            await next(context);
+            return;
+        }
+
+        // Descriptor exists and has a strategy — emit inference.triggered before DI strategy resolution.
+        Activity.Current?.AddEvent(new ActivityEvent(
+            "inference.triggered",
+            tags: new ActivityTagsCollection
+            {
+                { L2TelemetryKeys.FunctionName, context.Function.Name },
+                { L2TelemetryKeys.PluginName, context.Function.PluginName ?? string.Empty },
+                { L2TelemetryKeys.EntityType, descriptor.EntityType ?? string.Empty },
+                { L2TelemetryKeys.StrategyType, descriptor.InferenceStrategy.FullName ?? string.Empty },
+            }));
 
         ITaskInferenceStrategy? strategy;
         try

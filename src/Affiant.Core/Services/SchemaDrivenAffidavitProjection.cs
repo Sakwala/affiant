@@ -1,7 +1,9 @@
 namespace Affiant.Core.Services;
 
+using System.Diagnostics;
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
+using Affiant.Core.Observability;
 using Microsoft.Extensions.Logging;
 
 /// <summary>
@@ -13,15 +15,18 @@ public sealed class SchemaDrivenAffidavitProjection : IAffidavitProjection
     private readonly ITaskInferenceStrategy _strategy;
     private readonly IEnumerable<IDeterministicFieldSource> _deterministicSources;
     private readonly ILogger<SchemaDrivenAffidavitProjection> _logger;
+    private readonly IObservabilityEventStream<AffidavitEmittedEvent> _eventStream;
 
     public SchemaDrivenAffidavitProjection(
         ITaskInferenceStrategy strategy,
         IEnumerable<IDeterministicFieldSource> deterministicSources,
-        ILogger<SchemaDrivenAffidavitProjection> logger)
+        ILogger<SchemaDrivenAffidavitProjection> logger,
+        IObservabilityEventStream<AffidavitEmittedEvent> eventStream)
     {
         _strategy = strategy ?? throw new ArgumentNullException(nameof(strategy));
         _deterministicSources = deterministicSources ?? throw new ArgumentNullException(nameof(deterministicSources));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _eventStream = eventStream ?? throw new ArgumentNullException(nameof(eventStream));
     }
 
     public string EntityType => _strategy.EntityName;
@@ -83,7 +88,7 @@ public sealed class SchemaDrivenAffidavitProjection : IAffidavitProjection
             ? 0f
             : nonEmpty.Average(f => f.Provenance.Current.Confidence);
 
-        return new Affidavit(
+        var affidavit = new Affidavit(
             operationType,
             _strategy.EntityName,
             EntityId: null,
@@ -91,5 +96,44 @@ public sealed class SchemaDrivenAffidavitProjection : IAffidavitProjection
             AggregateConfidence: aggregateConfidence,
             Warnings: warnings.ToArray(),
             RequiresConfirmation: true);
+
+        // Compute summary metrics for telemetry.
+        var populatedFieldCount = affidavit.Fields.Count(
+            f => f.Value is not null && (f.Value is not string s || !string.IsNullOrEmpty(s)));
+        var emptyProvenanceFieldCount = affidavit.Fields.Count(
+            f => f.Provenance.Current.Source == ProvenanceSource.Empty);
+
+        // Emit affidavit.projected span event with per-projection summary attributes.
+        Activity.Current?.AddEvent(new ActivityEvent(
+            "affidavit.projected",
+            tags: new ActivityTagsCollection
+            {
+                { L2TelemetryKeys.AffidavitPopulatedFieldCount, populatedFieldCount },
+                { L2TelemetryKeys.AffidavitAggregateConfidence, affidavit.AggregateConfidence },
+                { L2TelemetryKeys.AffidavitEmptyProvenanceFieldCount, emptyProvenanceFieldCount },
+            }));
+
+        // Also set the summary tag on the current span for query-friendly lookup (PRD §6.3).
+        // Activity.Current is typically a descendant of the invoke_agent root span;
+        // OTel queries traverse the tree so this satisfies the root-span intent pragmatically.
+        Activity.Current?.SetTag(L2TelemetryKeys.AffidavitPopulatedFieldCount, populatedFieldCount);
+
+        // Publish typed event for Validator / host subscribers (PRD §6.4).
+        // ConversationId: read from fabric via convention key, fall back to OTel baggage, then empty.
+        // If the host does not set this key, the published event carries an empty ConversationId.
+        var conversationId = fabric.GetByKey("__conversation__")?.EntityId
+            ?? Activity.Current?.GetBaggageItem("conversationId")
+            ?? string.Empty;
+
+        _eventStream.Publish(new AffidavitEmittedEvent(
+            ConversationId: conversationId,
+            AffidavitId: Guid.NewGuid(),
+            OperationType: operationType,
+            EntityType: _strategy.EntityName,
+            PopulatedFieldCount: populatedFieldCount,
+            AggregateConfidence: affidavit.AggregateConfidence,
+            EmptyProvenanceFieldCount: emptyProvenanceFieldCount));
+
+        return affidavit;
     }
 }

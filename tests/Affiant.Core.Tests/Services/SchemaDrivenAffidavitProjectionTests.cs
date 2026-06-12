@@ -2,6 +2,7 @@ namespace Affiant.Core.Tests.Services;
 
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
+using Affiant.Core.Observability;
 using Affiant.Core.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -42,7 +43,8 @@ public class SchemaDrivenAffidavitProjectionTests
         strategy ??= new TwoFieldStrategy();
         sources ??= [];
         return new SchemaDrivenAffidavitProjection(
-            strategy, sources, NullLogger<SchemaDrivenAffidavitProjection>.Instance);
+            strategy, sources, NullLogger<SchemaDrivenAffidavitProjection>.Instance,
+            new InMemoryObservabilityEventStream<AffidavitEmittedEvent>());
     }
 
     // --- Test 1: all-empty fabric → every field is Empty, AggregateConfidence == 0f ---
@@ -198,6 +200,8 @@ public class SchemaDrivenAffidavitProjectionTests
     public void Constructor_NullStrategy_Throws()
     {
         Assert.Throws<ArgumentNullException>(() =>
-            new SchemaDrivenAffidavitProjection(null!, [], NullLogger<SchemaDrivenAffidavitProjection>.Instance));
+            new SchemaDrivenAffidavitProjection(
+                null!, [], NullLogger<SchemaDrivenAffidavitProjection>.Instance,
+                new InMemoryObservabilityEventStream<AffidavitEmittedEvent>()));
     }
 }
