@@ -75,6 +75,66 @@ public static class KernelBuilderExtensions
             "or an instance registration (AddSingleton<IAffiantToolRegistry>(instance)).");
     }
 
+    /// <summary>
+    /// Registers Affiant descriptors for all [KernelFunction] methods in a single plugin type,
+    /// defaulting the plugin name to <c>typeof(T).Name</c> — matching SK's own convention for
+    /// <c>kernelBuilder.Plugins.AddFromType&lt;T&gt;()</c>.
+    /// </summary>
+    /// <remarks>
+    /// Sibling overload of <see cref="AddAffiantPluginsFromAssembly"/>, scoped to one type.
+    /// Useful when an assembly contains multiple plugin classes with distinct SK plugin names
+    /// (e.g., Meridian's FleetPlugin, WorkOrderPlugin, InventoryPlugin, UiGuidancePlugin).
+    ///
+    /// Write tools are identified by the presence of <c>[AffiantWriteTool]</c>; all other
+    /// [KernelFunction] methods are classified as read tools (Operation.ReadQuery, EntityType: null).
+    /// Methods without [KernelFunction] are silently skipped.
+    /// </remarks>
+    /// <param name="builder">The kernel builder.</param>
+    /// <param name="pluginName">
+    /// Plugin name applied to all descriptors. Defaults to <c>typeof(T).Name</c> when null.
+    /// </param>
+    /// <returns>The kernel builder for chaining.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown if <see cref="IAffiantToolRegistry"/> is not found — call services.AddAffiantCore() first.
+    /// </exception>
+    public static IKernelBuilder AddAffiantPluginsFromType<T>(
+        this IKernelBuilder builder,
+        string? pluginName = null) where T : class
+    {
+        pluginName ??= typeof(T).Name;
+
+        var registryDescriptor = builder.Services.FirstOrDefault(
+            d => d.ServiceType == typeof(IAffiantToolRegistry))
+            ?? throw new InvalidOperationException(
+                "IAffiantToolRegistry is not registered in IKernelBuilder.Services. " +
+                "Call services.AddAffiantCore() before kernelBuilder.AddAffiantPluginsFromType().");
+
+        var registry = ResolveOrCreateRegistry(builder.Services, registryDescriptor);
+
+        foreach (var method in typeof(T).GetMethods(BindingFlags.Public | BindingFlags.Instance))
+        {
+            if (method.IsGenericMethodDefinition) continue;
+
+            var kf = method.GetCustomAttribute<KernelFunctionAttribute>();
+            if (kf is null) continue;
+
+            var functionName = string.IsNullOrEmpty(kf.Name) ? method.Name : kf.Name;
+            var write = method.GetCustomAttribute<AffiantWriteToolAttribute>();
+
+            var descriptor = write is null
+                ? new AffiantToolDescriptor(functionName, pluginName, Operation.ReadQuery, null, null)
+                : new AffiantToolDescriptor(
+                    functionName, pluginName,
+                    new Operation(write.Operation),
+                    write.EntityType,
+                    write.InferenceStrategy);
+
+            registry.Register(descriptor);
+        }
+
+        return builder;
+    }
+
     // Best-effort — startup validator (15.5) is the load-bearing failure point, not the walker.
     private static IEnumerable<Type> TryGetTypes(Assembly assembly)
     {
