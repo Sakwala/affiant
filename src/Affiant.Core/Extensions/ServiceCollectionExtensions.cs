@@ -62,6 +62,8 @@ public static class ServiceCollectionExtensions
 
         // Step 1: Entity state tracking
         services.TryAddSingleton<ContextFabric>();
+        // IContextFabric alias — resolved as the same singleton so adapters can depend on the abstraction.
+        services.TryAddSingleton<IContextFabric>(sp => sp.GetRequiredService<ContextFabric>());
 
         // Step 3: Structured-output merge logic
         services.TryAddSingleton<TaskInferenceStep>();

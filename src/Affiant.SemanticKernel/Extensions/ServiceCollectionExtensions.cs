@@ -1,12 +1,16 @@
 namespace Affiant.SemanticKernel.Extensions;
 
+using Affiant.Abstractions.Interfaces;
 using Affiant.Core.Services;
+using Affiant.Core.Triggers;
+using Affiant.SemanticKernel.Adapters;
 using Affiant.SemanticKernel.Connectors;
 using Affiant.SemanticKernel.Filters;
 using Affiant.SemanticKernel.Validation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.SemanticKernel;
 
 /// <summary>
 /// DI extension for the Affiant.SemanticKernel adapter.
@@ -71,6 +75,70 @@ public static class ServiceCollectionExtensions
         // identically to SK's auto-invocation path, enabling provider-agnostic filter coverage.
         // Scoped because Kernel (and its scoped services) may be resolved per request.
         services.TryAddScoped<IManualToolInvoker, ManualToolInvoker>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers the complete Affiant L2 inference-orchestration stack in one call.
+    ///
+    /// Registers (all with TryAdd semantics — host can override before calling this):
+    /// <list type="bullet">
+    ///   <item><c>IInferenceCompletionPort</c> → <c>SemanticKernelInferenceCompletionPort</c> (Scoped)</item>
+    ///   <item><c>TaskInferenceRunner</c> (Scoped)</item>
+    ///   <item><c>IInferenceTrigger</c> enumerable entry → <c>WriteIntentInferenceTrigger</c> (Singleton)</item>
+    ///   <item><c>IAffidavitProjection</c> enumerable entry → <c>SchemaDrivenAffidavitProjection</c> (Scoped)</item>
+    ///   <item><c>IFunctionInvocationFilter</c> enumerable entry → <c>ToolArgumentCaptureFilter</c> (Scoped)</item>
+    ///   <item><c>IFunctionInvocationFilter</c> enumerable entry → <c>InferenceTriggerFilter</c> (Scoped)</item>
+    /// </list>
+    ///
+    /// Host contracts (must be populated before inference fires):
+    /// <list type="bullet">
+    ///   <item><c>kernel.Data["ChatHistory"]</c> — <c>ChatHistory</c> for the current conversation turn.
+    ///         InferenceTriggerFilter reads this to build the inference prompt; falls back to empty ChatHistory.</item>
+    ///   <item><c>kernel.Data["ConversationId"]</c> — string conversation identifier for idempotency bookkeeping.
+    ///         Falls back to the ContextFabric instance hash if absent.</item>
+    ///   <item><c>kernel.Data["AffiantTurnNumber"]</c> — int turn counter for idempotency bookkeeping.
+    ///         Falls back to 0 if absent (more conservative: deduplicates across turns for the same function).</item>
+    /// </list>
+    ///
+    /// Prerequisites: call <c>AddAffiantCore()</c> before this method. Calling without prior
+    /// <c>AddAffiantCore()</c> produces a runtime DI resolution failure (no <c>IAffiantToolRegistry</c>,
+    /// no <c>IContextFabric</c>, no <c>TaskInferenceStep</c>). Does NOT call <c>AddAffiantSemanticKernel()</c>
+    /// or <c>AddAffiantCore()</c> internally — those are independent extensions hosts wire separately.
+    ///
+    /// Pipeline ordering is NOT established here — that is Story 16.4's territory.
+    /// The two new pre-tool filters land in DI's IFunctionInvocationFilter enumerable;
+    /// 16.4's AffiantFilterPipeline edit locks the execution order.
+    /// </summary>
+    /// <param name="services">The service collection to extend.</param>
+    /// <returns>The <paramref name="services"/> for chaining.</returns>
+    public static IServiceCollection AddAffiantInferenceOrchestration(
+        this IServiceCollection services)
+    {
+        // Port: SK-side IInferenceCompletionPort — wraps IChatCompletionService with
+        // FunctionChoiceBehavior.None() and structured-output prompt construction.
+        services.TryAddScoped<IInferenceCompletionPort, SemanticKernelInferenceCompletionPort>();
+
+        // Runner: stateless orchestrator from Affiant.Core (16.2).
+        services.TryAddScoped<TaskInferenceRunner>();
+
+        // Default trigger: WriteIntentInferenceTrigger fires inference when the tool is a
+        // registered write-intent operation (WriteCreate/WriteUpdate). Singleton — stateless.
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IInferenceTrigger, WriteIntentInferenceTrigger>());
+
+        // Default projection slot: SchemaDrivenAffidavitProjection driven by ITaskInferenceStrategy.
+        // Requires ITaskInferenceStrategy to be registered by the host via AddAffiantTool<TStrategy>.
+        services.TryAddEnumerable(
+            ServiceDescriptor.Scoped<IAffidavitProjection, SchemaDrivenAffidavitProjection>());
+
+        // Pre-tool filter pair (pipeline ordering is 16.4's job — registered into the
+        // IFunctionInvocationFilter enumerable that SK pulls from when building FunctionInvocationFilters).
+        services.TryAddEnumerable(
+            ServiceDescriptor.Scoped<IFunctionInvocationFilter, ToolArgumentCaptureFilter>());
+        services.TryAddEnumerable(
+            ServiceDescriptor.Scoped<IFunctionInvocationFilter, InferenceTriggerFilter>());
 
         return services;
     }
