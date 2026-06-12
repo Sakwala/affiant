@@ -531,6 +531,145 @@ The registry's idempotency contract (double-registration throws `InvalidOperatio
 
 ---
 
+### 3.12 Inference Orchestration & Affidavit Projection
+
+> Added 2026-06-12 as part of Phase 3 Track A Epic 16 (stories 16.1–16.6), ratified 2026-05-05. Addresses the empty-Affidavit regression identified at commit `b72c1fa` (2026-04-30) and recorded in [`docs/proposals/affiant-validator-handoff.md`](../../docs/proposals/affiant-validator-handoff.md).
+
+The L2 inference orchestration layer centralizes two responsibilities that were previously scattered across host implementations: (1) running structured-output inference *before* a write tool executes (pre-tool), so the LLM's intent is captured while the conversation history still reflects the user's unmodified request; and (2) building the resulting `Affidavit` directly from the `ContextFabric` — rather than from per-tool form-data structs that hosts previously had to maintain. The 2026-04-30 regression at commit `b72c1fa` demonstrated why both matters: when inference was decomposed into a post-tool filter, structured-output JSON was parsed from the tool's *return value* where it never existed, and every Affidavit produced was silently fully `ProvenanceSource.Empty`. L2 restores pre-tool inference as a framework concern, preventing the regression class entirely. The architecture was ratified 2026-05-05 (decision D21 — L2 over L1/L3 alternatives; see `docs/proposals/affiant-validator-handoff.md` §10 for the decision rationale).
+
+**Glossary for this section:**
+
+- *Affidavit* — the framework's field-level provenance record attached to every write operation. Each field carries a `ProvenanceChain`. `ProvenanceSource.Empty` marks fields whose origin could not be determined (Rule 7 — see §6).
+- *ContextFabric* — the framework's per-session in-memory entity accumulation store. Read tools extract entities into it via `ContextExtractor<TTool>` filters; L2 inference reads from it to build Affidavit fields.
+- *`[AffiantWriteTool]`* — the attribute that marks a `[KernelFunction]` as a write-intent tool and associates it with an `InferenceStrategy` type and an `EntityType` string (§3.11.4 above).
+- *`ITaskInferenceStrategy`* — the host-supplied strategy interface that declares which fields the framework should infer for a given entity type (§3.10 Task Inference Strategy).
+- *`IAffiantToolRegistry`* — the registry that maps `(FunctionName, PluginName)` pairs to `AffiantToolDescriptor` records, including the associated `InferenceStrategy` type (§3.11.3 above).
+
+**External dependencies this section presumes:**
+
+- `Microsoft.SemanticKernel` — the SK kernel's `IFunctionInvocationFilter` and `IAutoFunctionInvocationFilter` pipeline that hosts the L2 filters.
+- `System.Diagnostics.ActivitySource` — the .NET OTel instrumentation primitive used by the `Affiant.TaskInference` ActivitySource.
+- `Microsoft.Extensions.DependencyInjection` — used to resolve `ITaskInferenceStrategy` implementations from `IServiceProvider` at orchestration time.
+
+#### 3.12.1 The Three New Contracts
+
+L2 introduces three new abstractions in `Affiant.Abstractions.Interfaces`, each with a default implementation in `Affiant.Core` or `Affiant.SemanticKernel`.
+
+**`IInferenceCompletionPort`** is the port through which the framework sends a structured-output inference request to an LLM. Its single method, `CompleteStructuredAsync(InferenceCompletionRequest) → JsonElement`, accepts a request bundle (conversation history, the active `ITaskInferenceStrategy`, the function name, and the current tool arguments) and returns a `JsonElement` whose schema matches the strategy's declared fields. The framework ships one default implementation: `SemanticKernelInferenceCompletionPort` in `Affiant.SemanticKernel`. Hosts that want to route inference through a different LLM provider — or stub it in tests — replace the port via DI without touching any other L2 component.
+
+**`IInferenceTrigger`** decides, per tool invocation, whether inference should run. Its single method, `ShouldRun(InferenceTriggerContext) → bool`, receives the function name, plugin name, current tool arguments, the active `ContextFabric`, and the invocation phase (`PreTool`). The framework registers one default trigger: `WriteIntentInferenceTrigger`, which returns `true` for any tool whose `AffiantToolDescriptor` has `Operation.Kind` equal to `"WriteCreate"` or `"WriteUpdate"`. Hosts may register additional triggers via DI; `InferenceTriggerFilter` short-circuits on the first trigger that returns `true`.
+
+**`IAffidavitProjection`** constructs the Affidavit for a given entity type after inference results are merged into the `ContextFabric`. Its `Project(IContextFabric, operationType, warnings) → Affidavit` method reads fields from the fabric, applies `IDeterministicFieldSource` overrides (see below), and falls back to `ProvenanceTag.Empty` for any field the fabric cannot satisfy (Rule 7). The default implementation is `SchemaDrivenAffidavitProjection` in `Affiant.Core`.
+
+**`IDeterministicFieldSource`** is an augmentation surface for fields that should always come from a deterministic source (e.g., a system clock, a session-authenticated user ID) rather than from LLM inference. `SchemaDrivenAffidavitProjection` checks registered `IDeterministicFieldSource` implementations per field before consulting the fabric; the first non-null resolution wins.
+
+*Source files:* `packages/src/Affiant.Abstractions/Interfaces/IInferenceCompletionPort.cs`, `packages/src/Affiant.Abstractions/Interfaces/IInferenceTrigger.cs`, `packages/src/Affiant.Abstractions/Interfaces/IAffidavitProjection.cs`, `packages/src/Affiant.Abstractions/Interfaces/IDeterministicFieldSource.cs`
+
+#### 3.12.2 Default Services
+
+Three default service implementations ship with the framework. Hosts that accept the defaults need only call `AddAffiantInferenceOrchestration()` (§3.12.3) during DI setup.
+
+**`TaskInferenceRunner`** (in `Affiant.Core.Services`) is the stateless orchestrator that bridges `IInferenceCompletionPort` and the merge step. It builds an `InferenceCompletionRequest`, calls the port, forwards the resulting `JsonElement` to `TaskInferenceStep` for confidence-based merge into the `ContextFabric`, and emits the `inference.completed` span event. On any non-cancellation exception it emits `inference.failed`, logs a warning at `LogWarning` level, and returns an empty `TaskInferenceResult` — the fail-safe contract (§3.12.7).
+
+**`WriteIntentInferenceTrigger`** (in `Affiant.Core.Triggers`) is the default `IInferenceTrigger` registered by `AddAffiantInferenceOrchestration()`. It fires inference for any tool whose registered `AffiantToolDescriptor` has `Operation.Kind` of `"WriteCreate"` or `"WriteUpdate"`.
+
+**`SchemaDrivenAffidavitProjection`** (in `Affiant.Core.Services`) is the default `IAffidavitProjection`. It iterates the fields declared by the active `ITaskInferenceStrategy`, applies `IDeterministicFieldSource` overrides first, then reads from the `ContextFabric`, and falls back to `ProvenanceTag.Empty` for any unresolved field (Rule 7). After projection it emits the `affidavit.projected` span event and publishes a typed `AffidavitEmittedEvent` through `IObservabilityEventStream<AffidavitEmittedEvent>` for downstream subscribers.
+
+**`FunctionNameInferenceTrigger`** (in `Affiant.Core.Triggers`) is a soft-deprecated `IInferenceTrigger` that fires by explicit function-name allowlist rather than registry classification. It exists to support hosts adopted before the Tool Descriptor Registry (§3.11) was available, carries an `[Obsolete]` attribute, and will be removed before v1.0.0. Hosts should migrate to `WriteIntentInferenceTrigger` with `[AffiantWriteTool]` decoration.
+
+*Source files:* `packages/src/Affiant.Core/Services/TaskInferenceRunner.cs`, `packages/src/Affiant.Core/Triggers/WriteIntentInferenceTrigger.cs`, `packages/src/Affiant.Core/Services/SchemaDrivenAffidavitProjection.cs`, `packages/src/Affiant.Core/Triggers/FunctionNameInferenceTrigger.cs`
+
+#### 3.12.3 SK Adapter Surface
+
+The L2 SK-specific components live in `Affiant.SemanticKernel`, keeping the `Microsoft.SemanticKernel` PackageReference isolated to that package. `Affiant.Core` reaches SK behaviour only through `Affiant.Abstractions`'s interface contracts — this is the L2 AC #4 architectural constraint ratified 2026-05-05: Core must not take a direct SK dependency.
+
+**`SemanticKernelInferenceCompletionPort`** (in `Affiant.SemanticKernel.Adapters`) implements `IInferenceCompletionPort` using SK's `IChatCompletionService` with structured-output mode. It converts the `InferenceCompletionRequest` into a `ChatHistory` with a system prompt derived from the strategy's field schema, calls the completion service, and parses the response into a `JsonElement`.
+
+**`InferenceTriggerFilter`** (in `Affiant.SemanticKernel.Filters`) implements SK's `IFunctionInvocationFilter` (pre-tool). It iterates registered `IInferenceTrigger` instances, enforces once-per-`(ConversationId, FunctionName, TurnNumber)` idempotency via `ContextFabric` bookkeeping, resolves the `ITaskInferenceStrategy` from `IAffiantToolRegistry` and `IServiceProvider`, and delegates to `TaskInferenceRunner`. Inference failure is absorbed (fail-safe per §3.12.7); the tool call always proceeds.
+
+**`ToolArgumentCaptureFilter`** (in `Affiant.SemanticKernel.Filters`) implements `IFunctionInvocationFilter` (pre-tool). It runs before `InferenceTriggerFilter` in the pipeline order (§3.12.4) and captures tool arguments into the `ContextFabric` so that `IAffidavitProjection` implementations can incorporate argument-sourced provenance.
+
+**`AddAffiantInferenceOrchestration()`** is the `IServiceCollection` extension method in `Affiant.SemanticKernel.Extensions.ServiceCollectionExtensions` that registers all L2 components with a single call: `SemanticKernelInferenceCompletionPort`, `TaskInferenceRunner`, `WriteIntentInferenceTrigger`, `InferenceTriggerFilter`, `ToolArgumentCaptureFilter`, `SchemaDrivenAffidavitProjection` (keyed per registered tool), and the SK-adapter startup validator extension.
+
+*Source files:* `packages/src/Affiant.SemanticKernel/Adapters/SemanticKernelInferenceCompletionPort.cs`, `packages/src/Affiant.SemanticKernel/Filters/InferenceTriggerFilter.cs`, `packages/src/Affiant.SemanticKernel/Filters/ToolArgumentCaptureFilter.cs`, `packages/src/Affiant.SemanticKernel/Extensions/ServiceCollectionExtensions.cs`
+
+#### 3.12.4 Pipeline Order
+
+The canonical 7-step filter pipeline order — locked by `AffiantFilterPipelineOrderTests` (`packages/tests/Affiant.SemanticKernel.Tests/Filters/AffiantFilterPipelineOrderTests.cs`, landed in Story 16.4) — is:
+
+```
+Pre-tool (IFunctionInvocationFilter):
+  1. ToolErrorFilter
+  2. DeterministicShortCircuit
+  3. ContextExtractor* (host-registered)
+  4. ToolArgumentCaptureFilter
+  5. InferenceTriggerFilter
+[tool invokes]
+Post-tool (IAutoFunctionInvocationFilter):
+  6. TaskInferenceMergeFilter
+  7. ReviewGateFilter
+```
+
+Steps 4 and 5 are the L2 additions. `ToolArgumentCaptureFilter` (step 4) must precede `InferenceTriggerFilter` (step 5) so that captured arguments are available to `ITaskInferenceStrategy` implementations during inference. `TaskInferenceMergeFilter` (step 6) is a post-tool `IAutoFunctionInvocationFilter` that merges deferred inference results from the `ContextFabric` into the final Affidavit via `IAffidavitProjection`; it runs before `ReviewGateFilter` (step 7) so the Affidavit is fully populated before the reviewer sees it. Steps 1–3 and 7 were part of the L1 pipeline; see §3.10 Task Inference Strategy and §7 Tool Authoring Guide for their documentation.
+
+*Source files:* `packages/src/Affiant.SemanticKernel/Filters/AffiantFilterPipeline.cs`, `packages/src/Affiant.SemanticKernel/Filters/InferenceTriggerFilter.cs`, `packages/src/Affiant.SemanticKernel/Filters/ToolArgumentCaptureFilter.cs`, `packages/src/Affiant.Core/Filters/TaskInferenceMergeFilter.cs`
+
+#### 3.12.5 Observability Contract
+
+The framework emits L2 inference telemetry through the `Affiant.TaskInference` ActivitySource (registered as `AffiantTelemetry.AffiantTaskInferenceActivitySource` in `Affiant.Core.Observability`), separately from the main `Affiant.Framework` ActivitySource. Consumers that want only inference events can subscribe to `Affiant.TaskInference` alone; the Phase 3.5 Validator service will subscribe to this source to monitor inference quality without being coupled to the full-pipeline trace.
+
+**Five span events** are emitted as `ActivityEvent` instances to the current OTel Activity:
+
+| Event | Emitter | Attribute keys |
+|---|---|---|
+| `inference.triggered` | `InferenceTriggerFilter` | `affiant.function.name`, `affiant.plugin.name`, `affiant.entity.type`, `affiant.strategy.type` |
+| `inference.skipped` | `InferenceTriggerFilter` | `affiant.function.name`, `affiant.skip.reason` (`"not_a_write_tool"` or `"no_strategy_registered"`) |
+| `inference.completed` | `TaskInferenceRunner` | `affiant.fields.merged`, `affiant.fields.in_response`, `affiant.fields.in_schema` |
+| `inference.failed` | `TaskInferenceRunner` | `affiant.function.name`, `affiant.error.kind` (`"cancelled"`, `"json_parse"`, or `"provider_outage"`) |
+| `affidavit.projected` | `SchemaDrivenAffidavitProjection` | `affiant.affidavit.populated_field_count`, `affiant.affidavit.aggregate_confidence`, `affiant.affidavit.empty_provenance_field_count` |
+
+All 12 attribute key strings are constants in `Affiant.Core.Observability.L2TelemetryKeys`. They are part of the public observability API at v1.0.0 — renaming or removing any key requires a v2.0.0 major-version bump.
+
+**Typed event publication.** After projection, `SchemaDrivenAffidavitProjection` publishes a typed `AffidavitEmittedEvent` record through `IObservabilityEventStream<AffidavitEmittedEvent>`. The event carries `ConversationId`, `AffidavitId`, `OperationType`, `EntityType`, `PopulatedFieldCount`, `AggregateConfidence`, and `EmptyProvenanceFieldCount`. The Phase 3.5 Validator subscribes to this stream to perform quality audits without coupling to OTel infrastructure; hosts that want dashboard-level monitoring subscribe to the OTel span events instead.
+
+*Source files:* `packages/src/Affiant.Core/Observability/AffiantTelemetry.cs`, `packages/src/Affiant.Abstractions/Models/AffidavitEmittedEvent.cs`, `packages/src/Affiant.Core/Services/TaskInferenceRunner.cs`, `packages/src/Affiant.Core/Services/SchemaDrivenAffidavitProjection.cs`
+
+#### 3.12.6 Adopter Pattern
+
+A host enabling L2 inference on a write tool needs three things:
+
+1. **Decorate the `[KernelFunction]` method** with `[AffiantWriteTool]` (§3.11.4), specifying the operation kind, entity type, and strategy type — e.g., `[AffiantWriteTool("WriteCreate", "WorkOrder", typeof(WorkOrderCreateStrategy))]`.
+2. **Implement `ITaskInferenceStrategy`** (§3.10 Task Inference Strategy). The strategy's `Fields` list declares which entity fields the framework should infer and their confidence thresholds. A typical 5-field entity strategy is approximately 30 lines.
+3. **Call `AddAffiantInferenceOrchestration()`** once in DI setup. The extension registers all L2 components.
+
+Optionally, a host may register `IDeterministicFieldSource` implementations for fields that have authoritative non-LLM sources (e.g., the authenticated user ID). These are registered with `services.AddSingleton<IDeterministicFieldSource, YourFieldSource>()` and are automatically picked up by `SchemaDrivenAffidavitProjection`.
+
+The contrast with the pre-L2 pattern is significant: before L2, each write tool required approximately 350 lines across a per-tool inference filter, a per-tool form-data struct, a per-tool Affidavit mapper, and per-field provenance assignments — all host-maintained and all outside the framework's guarantees. With L2, the same coverage requires the `[AffiantWriteTool]` decoration, the strategy declaration (~30 lines), and the one-line DI registration.
+
+*Source files:* `packages/src/Affiant.SemanticKernel/Extensions/ServiceCollectionExtensions.cs`, `packages/src/Affiant.Abstractions/Attributes/AffiantWriteToolAttribute.cs`
+
+#### 3.12.7 Fail-Safe Semantics
+
+Inference failure never breaks the agent turn. The fail-safe contract, enforced jointly by `InferenceTriggerFilter` and `TaskInferenceRunner`, is: any `Exception` other than `OperationCanceledException` thrown during inference is caught, an `inference.failed` span event is emitted with `affiant.error.kind` populated, a warning is logged at `LogWarning` level, and the tool call proceeds via `next(context)`. The agent receives a tool return and produces a non-null response.
+
+`OperationCanceledException` is deliberately re-thrown — cancellation is user- or host-initiated and must propagate normally.
+
+The fail-safe contract is asserted end-to-end by `InferenceFailSafeIntegrationTests` (`packages/tests/Affiant.SemanticKernel.Tests/Integration/InferenceFailSafeIntegrationTests.cs`, landed in Story 16.6).
+
+*Source files:* `packages/src/Affiant.SemanticKernel/Filters/InferenceTriggerFilter.cs`, `packages/src/Affiant.Core/Services/TaskInferenceRunner.cs`
+
+#### 3.12.8 Idempotency Semantics
+
+Inference runs at most once per `(ConversationId, FunctionName, TurnNumber)` tuple within a single agent turn, even when multiple `IInferenceTrigger` instances are registered and more than one returns `true`. Idempotency is enforced by `InferenceTriggerFilter` via a bookkeeping entity maintained in the `ContextFabric` under the reserved key `"inference_idempotency"`. When the filter evaluates a tool call and finds the tuple already marked, it skips inference and proceeds directly to `next(context)`.
+
+`ConversationId` is read from `kernel.Data["ConversationId"]`; `TurnNumber` from `kernel.Data["AffiantTurnNumber"]`. If either is absent the filter falls back to a stable per-fabric-instance hash (`ConversationId`) or zero (`TurnNumber`) — a conservative fallback that may coalesce tuples across conversations on the same fabric instance, but never double-infers within a single conversation turn.
+
+The idempotency contract is asserted end-to-end by `InferenceIdempotencyIntegrationTests` (`packages/tests/Affiant.SemanticKernel.Tests/Integration/InferenceIdempotencyIntegrationTests.cs`, landed in Story 16.6).
+
+*Source files:* `packages/src/Affiant.SemanticKernel/Filters/InferenceTriggerFilter.cs`
+
+---
+
 ## 4. Six-Layer Dependency Graph
 
 The architecture separates into six layers forming a directed acyclic graph, with one intentional async cycle between the `ReviewGate` and the transport layer (mediated by event passing, not synchronous dependency — mirroring the Durable Functions `WaitForExternalEvent` pattern).
@@ -636,6 +775,8 @@ These rules are non-negotiable. Every implementation, code review, and plugin au
 **Rule 3: Write tools never write.** Write-intent tools produce `WriteProposal` envelopes containing the *proposed* Affidavit with full provenance. The actual write happens only after the `ReviewGate` receives reviewer confirmation and invokes the host's `IWriteExecutor`. *Rationale*: This is the entire point of the framework — deterministic, auditable, reversible-before-commit mutations. *Anti-pattern*: A "write" tool that calls `dbContext.SaveChanges()` inside the `[KernelFunction]` method.
 
 **Rule 4: Filters over prompts for determinism.** Context extraction, task inference, and review gating happen in SK filters, not in prompt engineering. Prompts request tool calls; filters process the results deterministically. *Rationale*: Prompt-based context extraction is non-deterministic, non-auditable, and varies by model. Filter-based extraction produces identical results regardless of which LLM provider is active. *Anti-pattern*: Adding "After calling the tool, extract the customer's email from the result" to the system prompt.
+
+**L2 example (Story 16.3, 2026-05-16):** The empty-Affidavit regression of 2026-04-30 (commit `b72c1fa`) decomposed Meridian's host-side pre-tool inference filter into a generic post-tool framework filter that ran after every auto-invoked tool. The decomposition was behaviorally lossy: structured-output JSON from the LLM's *intent* (pre-tool) ended up parsed from the tool's *return value* (post-tool), where it never existed. The L2 fix (Story 16.3) restored pre-tool inference as a framework filter — `InferenceTriggerFilter` — which decides per-tool whether to run inference and forwards through `TaskInferenceRunner` to a host-specified `ITaskInferenceStrategy`. The fix is faithful to Rule 4: pre-tool decision logic stays in a filter, never in a prompt. Hosts cannot "ask the LLM to fill in fields" by string concatenation; they declare a strategy and the framework's filter handles the rest. See §3.12 Inference Orchestration & Affidavit Projection for the full surface.
 
 **Rule 5: Graceful degradation on provider failure.** When the primary LLM provider fails, the framework falls back to a secondary provider or enters degraded mode where only deterministic operations (read tools, keyword-matched intents) are available. *Rationale*: Enterprise applications cannot show users a blank screen when an LLM API has an outage. *Anti-pattern*: Throwing an unhandled exception when `IChatCompletionService.GetChatMessageContentsAsync` fails.
 
@@ -926,6 +1067,10 @@ Use this checklist during code review and plugin development.
 - [ ] `Operation.WriteCreate` / `WriteUpdate` descriptors specify both `EntityType` and `InferenceStrategy` (Tool Descriptor Registry)
 - [ ] `InferenceStrategy` types are resolvable from `IServiceProvider` (Tool Descriptor Registry)
 - [ ] Application startup throws `AffiantStartupException` for any unregistered or unresolvable tool (Tool Descriptor Registry)
+- [ ] Every `[AffiantWriteTool]`-decorated `[KernelFunction]` triggers framework-owned pre-tool inference via `InferenceTriggerFilter`; no host-side inference filters (Inference Orchestration)
+- [ ] Affidavits are built by `IAffidavitProjection` implementations (default: `SchemaDrivenAffidavitProjection`); never by host-side mapper types reading per-tool form-data structs (Inference Orchestration)
+- [ ] The framework's `Affiant.TaskInference` ActivitySource emits one `inference.completed` (or `inference.failed`) event per `(ConversationId, FunctionName, TurnNumber)` tuple (Inference Orchestration)
+- [ ] Inference failure never propagates as an exception from the chat loop; `inference.failed` is emitted on the active span and the agent turn completes (Inference Orchestration)
 
 ---
 
