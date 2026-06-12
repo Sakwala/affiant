@@ -8,12 +8,13 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Affiant.SemanticKernel\Affiant.SemanticKernel.csproj" />
+    <ProjectReference Include="..\Affiant.TestInfrastructure\Affiant.TestInfrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.4" />
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.4" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.4" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.5" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.5" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.5" />
     <PackageReference Include="Microsoft.SemanticKernel" Version="1.74.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.4.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
