@@ -82,8 +82,8 @@ public static class KernelBuilderExtensions
     /// </summary>
     /// <remarks>
     /// Sibling overload of <see cref="AddAffiantPluginsFromAssembly"/>, scoped to one type.
-    /// Useful when an assembly contains multiple plugin classes with distinct SK plugin names
-    /// (e.g., Meridian's FleetPlugin, WorkOrderPlugin, InventoryPlugin, UiGuidancePlugin).
+    /// Useful when an assembly contains multiple plugin classes each registered under a distinct
+    /// SK plugin name — call once per type rather than once per assembly.
     ///
     /// Write tools are identified by the presence of <c>[AffiantWriteTool]</c>; all other
     /// [KernelFunction] methods are classified as read tools (Operation.ReadQuery, EntityType: null).

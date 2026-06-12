@@ -119,9 +119,11 @@ public sealed class SchemaDrivenAffidavitProjection : IAffidavitProjection
         Activity.Current?.SetTag(L2TelemetryKeys.AffidavitPopulatedFieldCount, populatedFieldCount);
 
         // Publish typed event for Validator / host subscribers (PRD §6.4).
-        // ConversationId: read from fabric via convention key, fall back to OTel baggage, then empty.
-        // If the host does not set this key, the published event carries an empty ConversationId.
-        var conversationId = fabric.GetByKey("__conversation__")?.EntityId
+        // Design Note 2, Epic 17: ConversationId must come from a named field on the marker entity,
+        // not the EntityId — the fabric keys entities by EntityId, so GetByKey("__conversation__")?.EntityId
+        // would return the literal string "__conversation__" rather than the actual conversation id.
+        // The host seeds this marker via RehydrateFabric in AgentRunner, storing the real id in Fields["ConversationId"].
+        var conversationId = (fabric.GetByKey("__conversation__")?.Fields.GetValueOrDefault("ConversationId") as string)
             ?? Activity.Current?.GetBaggageItem("conversationId")
             ?? string.Empty;
 
