@@ -31,7 +31,7 @@ public static class KernelBuilderExtensions
                 var kf = method.GetCustomAttribute<KernelFunctionAttribute>();
                 if (kf is null) continue;
 
-                var functionName = string.IsNullOrEmpty(kf.Name) ? method.Name : kf.Name;
+                var functionName = string.IsNullOrEmpty(kf.Name) ? StripAsyncSuffix(method.Name) : kf.Name;
                 var write = method.GetCustomAttribute<AffiantWriteToolAttribute>();
 
                 var descriptor = write is null
@@ -118,7 +118,7 @@ public static class KernelBuilderExtensions
             var kf = method.GetCustomAttribute<KernelFunctionAttribute>();
             if (kf is null) continue;
 
-            var functionName = string.IsNullOrEmpty(kf.Name) ? method.Name : kf.Name;
+            var functionName = string.IsNullOrEmpty(kf.Name) ? StripAsyncSuffix(method.Name) : kf.Name;
             var write = method.GetCustomAttribute<AffiantWriteToolAttribute>();
 
             var descriptor = write is null
@@ -134,6 +134,13 @@ public static class KernelBuilderExtensions
 
         return builder;
     }
+
+    // Strips a single trailing "Async" from a method name, matching SK's naming convention.
+    // Applied only when [KernelFunction] carries no explicit Name (the fallback path).
+    private static string StripAsyncSuffix(string methodName) =>
+        methodName.EndsWith("Async", StringComparison.Ordinal)
+            ? methodName[..^5]
+            : methodName;
 
     // Best-effort — startup validator (15.5) is the load-bearing failure point, not the walker.
     private static IEnumerable<Type> TryGetTypes(Assembly assembly)

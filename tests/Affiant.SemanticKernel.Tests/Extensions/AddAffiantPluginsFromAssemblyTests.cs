@@ -112,6 +112,33 @@ public class AddAffiantPluginsFromAssemblyTests
         Assert.Equal(typeof(FakeStrategy), descriptor.InferenceStrategy);
     }
 
+    [Fact]
+    public void AddAffiantPluginsFromAssembly_StripsTrailingAsync_FromFallbackFunctionName()
+    {
+        // FakePluginWithBareBareAsyncMethod has bare [KernelFunction] and method name ending in Async.
+        // The walker's fallback must strip the suffix to match SK's own convention.
+        var sp = BuildHost(TestAssembly, "AsyncTestPlugin");
+        var registry = sp.GetRequiredService<IAffiantToolRegistry>();
+
+        var descriptor = registry.Find("FindSomething", "AsyncTestPlugin");
+
+        Assert.NotNull(descriptor);
+        Assert.Equal("FindSomething", descriptor.FunctionName);
+    }
+
+    [Fact]
+    public void AddAffiantPluginsFromAssembly_DoesNotStrip_WhenNoAsyncSuffix()
+    {
+        var sp = BuildHost(TestAssembly, "TestPlugin");
+        var registry = sp.GetRequiredService<IAffiantToolRegistry>();
+
+        // FindThings has [KernelFunction("FindThings")] — explicit name; unchanged.
+        var descriptor = registry.Find("FindThings", "TestPlugin");
+
+        Assert.NotNull(descriptor);
+        Assert.Equal("FindThings", descriptor.FunctionName);
+    }
+
     private static readonly Assembly TestAssembly = typeof(AddAffiantPluginsFromAssemblyTests).Assembly;
 
     // Fresh provider per call — registry accumulates; reuse would cause duplicate-key failures.
@@ -162,5 +189,13 @@ public class AddAffiantPluginsFromAssemblyTests
         public string EntityName => "Thing";
         public IReadOnlyList<TaskInferenceField> Fields => Array.Empty<TaskInferenceField>();
         public double? MinimumConfidenceThreshold => null;
+    }
+
+    // Fixture: bare [KernelFunction] with Async-suffixed method name — no explicit Name.
+    // Used by the Async-suffix stripping tests above.
+    private sealed class FakePluginWithBareBareAsyncMethod
+    {
+        [KernelFunction]
+        public Task<string> FindSomethingAsync() => Task.FromResult("[]");
     }
 }

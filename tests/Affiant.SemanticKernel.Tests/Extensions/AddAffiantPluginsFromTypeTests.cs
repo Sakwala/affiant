@@ -22,6 +22,18 @@ public class AddAffiantPluginsFromTypeTests
         public string NotAPlugin() => "not registered";
     }
 
+    private sealed class TestPluginWithAsyncMethods
+    {
+        [KernelFunction]
+        public Task<string> SubmitExpenseReportAsync() => Task.FromResult("{}");
+
+        [KernelFunction]
+        public Task<string> SearchExpenseReportsAsync() => Task.FromResult("[]");
+
+        [KernelFunction("explicit_name")]
+        public Task<string> ExplicitNameAsync() => Task.FromResult("{}");
+    }
+
     private sealed class TestPluginWithWrite
     {
         [KernelFunction]
@@ -148,5 +160,42 @@ public class AddAffiantPluginsFromTypeTests
         var registry = sp.GetRequiredService<IAffiantToolRegistry>();
 
         Assert.Empty(registry.All);
+    }
+
+    [Fact]
+    public void StripsTrailingAsync_FromBareKernelFunctionFallback()
+    {
+        var sp = BuildServiceProvider<TestPluginWithAsyncMethods>();
+        var registry = sp.GetRequiredService<IAffiantToolRegistry>();
+
+        var submit = registry.Find("SubmitExpenseReport", "TestPluginWithAsyncMethods");
+        var search = registry.Find("SearchExpenseReports", "TestPluginWithAsyncMethods");
+
+        Assert.NotNull(submit);
+        Assert.Equal("SubmitExpenseReport", submit.FunctionName);
+        Assert.NotNull(search);
+        Assert.Equal("SearchExpenseReports", search.FunctionName);
+    }
+
+    [Fact]
+    public void DoesNotStrip_WhenExplicitKernelFunctionName()
+    {
+        // ExplicitNameAsync has [KernelFunction("explicit_name")] — the explicit name is used as-is.
+        var sp = BuildServiceProvider<TestPluginWithAsyncMethods>();
+        var registry = sp.GetRequiredService<IAffiantToolRegistry>();
+
+        var descriptor = registry.Find("explicit_name", "TestPluginWithAsyncMethods");
+
+        Assert.NotNull(descriptor);
+        Assert.Equal("explicit_name", descriptor.FunctionName);
+    }
+
+    [Fact]
+    public void AsyncStrip_ProducesThreeDescriptors_ForThreeMethods()
+    {
+        var sp = BuildServiceProvider<TestPluginWithAsyncMethods>();
+        var registry = sp.GetRequiredService<IAffiantToolRegistry>();
+
+        Assert.Equal(3, registry.All.Count());
     }
 }
