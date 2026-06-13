@@ -3,9 +3,14 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <PackageId>Affiant.Testing.ComplianceHarness</PackageId>
-    <Description>Testing and compliance verification harness for Affiant framework — validates strategy correctness via fixture-case assertions and strict-mode discoverability.</Description>
+    <Description>Test helper package for verifying compliance of Affiant.Core task inference strategies against their specifications. Validates strategy correctness via fixture-case assertions and strict-mode discoverability.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryType>git</RepositoryType>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Affiant.Core\Affiant.Core.csproj" />
