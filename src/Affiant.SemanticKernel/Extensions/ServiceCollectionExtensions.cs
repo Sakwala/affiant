@@ -140,10 +140,17 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IInferenceTrigger, WriteIntentInferenceTrigger>());
 
-        // Default projection slot: SchemaDrivenAffidavitProjection driven by ITaskInferenceStrategy.
-        // Requires ITaskInferenceStrategy to be registered by the host via AddAffiantTool<TStrategy>.
-        services.TryAddEnumerable(
-            ServiceDescriptor.Scoped<IAffidavitProjection, SchemaDrivenAffidavitProjection>());
+        // Only register the default projection if the host hasn't already registered custom projection(s).
+        // Multi-strategy hosts call AddSchemaDrivenProjection<TStrategy>() once per write-tool domain before
+        // AddAffiantInferenceOrchestration(); that populates the IAffidavitProjection enumerable and this check
+        // skips the sealed default. Single-strategy hosts call neither, so the default applies.
+        if (!services.Any(sd => sd.ServiceType == typeof(IAffidavitProjection)))
+        {
+            // Default projection slot: SchemaDrivenAffidavitProjection driven by ITaskInferenceStrategy.
+            // Requires ITaskInferenceStrategy to be registered by the host via AddAffiantTool<TStrategy>.
+            services.TryAddEnumerable(
+                ServiceDescriptor.Scoped<IAffidavitProjection, SchemaDrivenAffidavitProjection>());
+        }
 
         // Pre-tool filter pair (pipeline ordering is 16.4's job — registered into the
         // IFunctionInvocationFilter enumerable that SK pulls from when building FunctionInvocationFilters).

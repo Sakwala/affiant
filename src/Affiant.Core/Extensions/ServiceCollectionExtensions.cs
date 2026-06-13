@@ -187,6 +187,29 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Factory-registers an <see cref="IAffidavitProjection"/> bound to a specific <see cref="ITaskInferenceStrategy"/>
+    /// concrete type. Designed for multi-strategy hosts (e.g., a portal with several write-tool domains).
+    /// Each call registers an independent projection instance targeting one strategy's EntityName.
+    /// Call before <see cref="Affiant.SemanticKernel.Extensions.ServiceCollectionExtensions.AddAffiantInferenceOrchestration"/>
+    /// so the conditional-default check in that method finds the host-registered projections and skips the default.
+    /// </summary>
+    /// <typeparam name="TStrategy">The concrete <see cref="ITaskInferenceStrategy"/> to bind the projection to.</typeparam>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddSchemaDrivenProjection<TStrategy>(this IServiceCollection services)
+        where TStrategy : class, ITaskInferenceStrategy
+    {
+        // Uses AddSingleton (not TryAddSingleton) so each strategy gets its own projection instance in the
+        // enumerable — multiple calls with different TStrategy types add independently, which is the intent.
+        // ActivatorUtilities resolves the remaining constructor parameters (deterministic sources, logger,
+        // event stream) from the service provider, binding the passed TStrategy instance to the strategy slot.
+        services.AddSingleton<IAffidavitProjection>(sp =>
+            ActivatorUtilities.CreateInstance<SchemaDrivenAffidavitProjection>(
+                sp, sp.GetRequiredService<TStrategy>()));
+        return services;
+    }
+
     private static IAffiantToolRegistry ResolveRegistry(IServiceCollection services)
     {
         var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IAffiantToolRegistry))
