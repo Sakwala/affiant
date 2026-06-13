@@ -7,6 +7,7 @@
     <Project Path="src/Affiant.EntityFramework/Affiant.EntityFramework.csproj" />
     <Project Path="src/Affiant.Docket/Affiant.Docket.csproj" />
     <Project Path="src/Affiant.Policies/Affiant.Policies.csproj" />
+    <Project Path="src/Affiant.Testing.ComplianceHarness/Affiant.Testing.ComplianceHarness.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Affiant.TestInfrastructure/Affiant.TestInfrastructure.csproj" />
@@ -17,5 +18,6 @@
     <Project Path="tests/Affiant.Docket.Tests/Affiant.Docket.Tests.csproj" />
     <Project Path="tests/Affiant.Policies.Tests/Affiant.Policies.Tests.csproj" />
     <Project Path="tests/Affiant.SemanticKernel.Tests/Affiant.SemanticKernel.Tests.csproj" />
+    <Project Path="tests/Affiant.Testing.ComplianceHarness.Tests/Affiant.Testing.ComplianceHarness.Tests.csproj" />
   </Folder>
 </Solution>
