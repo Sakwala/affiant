@@ -24,7 +24,7 @@ public static class ServiceCollectionExtensions
     /// The following services are registered as Singletons by this method:
     /// <list type="bullet">
     /// <item><c>ContextFabric</c> — entity state tracking</item>
-    /// <item><c>TaskInferenceStep</c> — confidence-based merge logic (requires <c>ITaskInferenceStrategy</c>)</item>
+    /// <item><c>TaskInferenceStep</c> — confidence-based merge logic (strategy passed per-invocation, not via DI)</item>
     /// <item><c>ApprovalPolicyEvaluator</c> / <c>IApprovalPolicyEvaluator</c> — policy pipeline</item>
     /// <item><c>DeterministicShortCircuit</c> as <c>IFunctionInvocationFilter</c> — pre-LLM interception</item>
     /// <item><c>ToolErrorFilter</c> as <c>IFunctionInvocationFilter</c> — error handling with retry</item>

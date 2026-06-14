@@ -16,38 +16,44 @@ using Microsoft.Extensions.Logging;
 /// Merge rule (framework spec §2.3): higher confidence wins; ties break by ProvenanceSource
 /// ordinal (lower ordinal = more deterministic, e.g. UserStated=0 beats External=1).
 ///
+/// The strategy is accepted as a parameter to ExecuteAsync (not a constructor dependency),
+/// enabling multi-write hosts where each write tool uses its own strategy without a
+/// single-strategy DI fallback binding.
+///
 /// This class has no SK dependency and is testable without a kernel.
 /// </summary>
 public sealed class TaskInferenceStep
 {
-    private readonly ITaskInferenceStrategy _strategy;
     private readonly ContextFabric _contextFabric;
     private readonly ILogger<TaskInferenceStep> _logger;
 
     public TaskInferenceStep(
-        ITaskInferenceStrategy strategy,
         ContextFabric contextFabric,
         ILogger<TaskInferenceStep> logger)
     {
-        _strategy = strategy ?? throw new ArgumentNullException(nameof(strategy));
         _contextFabric = contextFabric ?? throw new ArgumentNullException(nameof(contextFabric));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     /// <summary>
-    /// Merges the LLM's structured-output response into the ContextFabric.
+    /// Merges the LLM's structured-output response into the ContextFabric using the
+    /// provided strategy's field schema. The strategy is passed per-invocation so
+    /// multi-write hosts can route each tool call to its own strategy without a
+    /// singleton DI binding.
+    ///
     /// The JSON element must be an object where each property matches a field name from
-    /// ITaskInferenceStrategy.Fields, with "value" (string) and "confidence" (float or string)
+    /// <paramref name="strategy"/>.Fields, with "value" (string) and "confidence" (float or string)
     /// sub-properties. Fields absent from the JSON or below the threshold are skipped.
     /// </summary>
     public Task<TaskInferenceResult> ExecuteAsync(
+        ITaskInferenceStrategy strategy,
         JsonElement llmStructuredOutput,
         CancellationToken cancellationToken = default)
     {
         var mergedFields = new Dictionary<string, TaskInferenceMergeOutcome>();
         var winningValues = new Dictionary<string, object>();
 
-        foreach (var field in _strategy.Fields)
+        foreach (var field in strategy.Fields)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -68,11 +74,11 @@ public sealed class TaskInferenceStep
             else if (!float.TryParse(confEl.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out newConfidence))
                 continue;
 
-            if (_strategy.MinimumConfidenceThreshold.HasValue &&
-                newConfidence < (float)_strategy.MinimumConfidenceThreshold.Value)
+            if (strategy.MinimumConfidenceThreshold.HasValue &&
+                newConfidence < (float)strategy.MinimumConfidenceThreshold.Value)
             {
                 mergedFields[field.Name] = new TaskInferenceMergeOutcome(field.Name, false,
-                    $"Confidence {newConfidence} below threshold {_strategy.MinimumConfidenceThreshold}");
+                    $"Confidence {newConfidence} below threshold {strategy.MinimumConfidenceThreshold}");
                 continue;
             }
 
@@ -110,7 +116,7 @@ public sealed class TaskInferenceStep
 
         if (winningValues.Count > 0)
         {
-            var existing = _contextFabric.GetByKey(_strategy.EntityName);
+            var existing = _contextFabric.GetByKey(strategy.EntityName);
             var fields = existing != null
                 ? new Dictionary<string, object>(existing.Fields)
                 : new Dictionary<string, object>();
@@ -118,18 +124,18 @@ public sealed class TaskInferenceStep
                 fields[k] = v;
 
             _contextFabric.Upsert(new EntityRef(
-                EntityType: _strategy.EntityName,
-                EntityId: _strategy.EntityName,
-                DisplayName: $"Inferred {_strategy.EntityName}",
+                EntityType: strategy.EntityName,
+                EntityId: strategy.EntityName,
+                DisplayName: $"Inferred {strategy.EntityName}",
                 Fields: fields));
 
             _logger.LogDebug(
                 "TaskInferenceStep merged {WinCount} field(s) into {EntityName}",
-                winningValues.Count, _strategy.EntityName);
+                winningValues.Count, strategy.EntityName);
         }
 
         return Task.FromResult(new TaskInferenceResult(
-            TotalFieldsInSchema: _strategy.Fields.Count,
+            TotalFieldsInSchema: strategy.Fields.Count,
             FieldsInLlmResponse: llmStructuredOutput.EnumerateObject().Count(),
             MergedFields: mergedFields));
     }

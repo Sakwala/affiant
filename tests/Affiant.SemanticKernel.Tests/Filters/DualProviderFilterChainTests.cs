@@ -36,11 +36,11 @@ public class DualProviderFilterChainTests
     [Fact]
     public async Task OpenAiAutoPath_TaskInferenceStep_MergesFieldsIntoContextFabric()
     {
-        var (step, fabric) = BuildTaskInferenceStack();
+        var (step, fabric, strategy) = BuildTaskInferenceStack();
 
         var json = """{"itemStatus": {"value": "active", "confidence": 0.95}}""";
         using var doc = JsonDocument.Parse(json);
-        var result = await step.ExecuteAsync(doc.RootElement);
+        var result = await step.ExecuteAsync(strategy, doc.RootElement);
 
         Assert.True(result.MergedFields.ContainsKey("itemStatus"));
         Assert.True(result.MergedFields["itemStatus"].Merged);
@@ -53,11 +53,11 @@ public class DualProviderFilterChainTests
     [Fact]
     public async Task OpenAiAutoPath_TaskInferenceStep_SkipsFieldsBelowThreshold()
     {
-        var (step, fabric) = BuildTaskInferenceStack(minimumConfidence: 0.8);
+        var (step, fabric, strategy) = BuildTaskInferenceStack(minimumConfidence: 0.8);
 
         var json = """{"itemStatus": {"value": "draft", "confidence": 0.5}}""";
         using var doc = JsonDocument.Parse(json);
-        var result = await step.ExecuteAsync(doc.RootElement);
+        var result = await step.ExecuteAsync(strategy, doc.RootElement);
 
         Assert.True(result.MergedFields.ContainsKey("itemStatus"));
         Assert.False(result.MergedFields["itemStatus"].Merged);
@@ -67,12 +67,12 @@ public class DualProviderFilterChainTests
     [Fact]
     public async Task OpenAiAutoPath_TaskInferenceStep_IgnoresEmptyJson()
     {
-        var (step, fabric) = BuildTaskInferenceStack();
+        var (step, fabric, strategy) = BuildTaskInferenceStack();
 
         // JSON with no matching field names — step must be a no-op
         var json = """{"unrelatedField": {"value": "x", "confidence": 0.9}}""";
         using var doc = JsonDocument.Parse(json);
-        var result = await step.ExecuteAsync(doc.RootElement);
+        var result = await step.ExecuteAsync(strategy, doc.RootElement);
 
         Assert.Empty(result.MergedFields);
         Assert.Null(fabric.GetByKey("TestEntity"));
@@ -95,7 +95,6 @@ public class DualProviderFilterChainTests
         services.AddLogging();
         var capture = new FilterExecutionCapture();
         services.AddSingleton(capture);
-        services.AddSingleton<ITaskInferenceStrategy, InferenceStrategyWithStatusField>();
         services.AddScoped<ContextFabric>();
         services.AddScoped<TaskInferenceStep>();
         services.AddAffiantSemanticKernel();
@@ -212,7 +211,6 @@ public class DualProviderFilterChainTests
             services.AddLogging();
             var capture = new FilterExecutionCapture();
             services.AddSingleton(capture);
-            services.AddSingleton<ITaskInferenceStrategy, InferenceStrategyWithStatusField>();
             services.AddScoped<ContextFabric>();
             services.AddScoped<TaskInferenceStep>();
             services.AddAffiantSemanticKernel();
@@ -333,7 +331,6 @@ public class DualProviderFilterChainTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddSingleton<ITaskInferenceStrategy, InferenceStrategyWithStatusField>();
         services.AddScoped<ContextFabric>();
         services.AddScoped<TaskInferenceStep>();
         services.AddAffiantSemanticKernel(opts =>
@@ -358,13 +355,13 @@ public class DualProviderFilterChainTests
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
-    private static (TaskInferenceStep Step, ContextFabric Fabric) BuildTaskInferenceStack(
-        double? minimumConfidence = null)
+    private static (TaskInferenceStep Step, ContextFabric Fabric, InferenceStrategyWithStatusField Strategy)
+        BuildTaskInferenceStack(double? minimumConfidence = null)
     {
         var fabric = new ContextFabric();
         var strategy = new InferenceStrategyWithStatusField(minimumConfidence);
-        var step = new TaskInferenceStep(strategy, fabric, NullLogger<TaskInferenceStep>.Instance);
-        return (step, fabric);
+        var step = new TaskInferenceStep(fabric, NullLogger<TaskInferenceStep>.Instance);
+        return (step, fabric, strategy);
     }
 
     private static Kernel BuildKernelWithToolErrorFilter()

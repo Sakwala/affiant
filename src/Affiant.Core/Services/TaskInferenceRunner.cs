@@ -45,7 +45,7 @@ public sealed class TaskInferenceRunner
         {
             var request = new InferenceCompletionRequest(history, strategy, functionName, arguments);
             var json = await _port.CompleteStructuredAsync(request, cancellationToken).ConfigureAwait(false);
-            var result = await _mergeStep.ExecuteAsync(json, cancellationToken).ConfigureAwait(false);
+            var result = await _mergeStep.ExecuteAsync(strategy, json, cancellationToken).ConfigureAwait(false);
 
             Activity.Current?.AddEvent(new ActivityEvent(
                 "inference.completed",

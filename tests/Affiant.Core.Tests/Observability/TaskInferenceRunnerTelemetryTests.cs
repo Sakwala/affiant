@@ -193,8 +193,7 @@ public class TaskInferenceRunnerTelemetryTests
     private static (TaskInferenceRunner Runner, ContextFabric Fabric) BuildRunner(FakePort port)
     {
         var fabric = new ContextFabric();
-        var strategy = new ThreeFieldStrategy();
-        var step = new TaskInferenceStep(strategy, fabric, NullLogger<TaskInferenceStep>.Instance);
+        var step = new TaskInferenceStep(fabric, NullLogger<TaskInferenceStep>.Instance);
         var runner = new TaskInferenceRunner(port, fabric, step, NullLogger<TaskInferenceRunner>.Instance);
         return (runner, fabric);
     }

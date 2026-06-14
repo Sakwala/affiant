@@ -171,6 +171,7 @@ public class ServiceCollectionExtensionsTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton<ITaskInferenceStrategy, StubTaskInferenceStrategy>();
+        services.AddSingleton<IAffiantToolRegistry>(new AffiantToolRegistry());
         services.AddScoped<ContextFabric>();
         services.AddScoped<TaskInferenceStep>();
         services.AddAffiantSemanticKernel();

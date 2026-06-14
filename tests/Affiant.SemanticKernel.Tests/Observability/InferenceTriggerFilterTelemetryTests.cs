@@ -170,7 +170,7 @@ public class InferenceTriggerFilterTelemetryTests
     {
         var fabric = new ContextFabric();
         var strategy = new StubStrategy();
-        var step = new TaskInferenceStep(strategy, fabric, NullLogger<TaskInferenceStep>.Instance);
+        var step = new TaskInferenceStep(fabric, NullLogger<TaskInferenceStep>.Instance);
         var port = new NoOpPort();
         var runner = new TaskInferenceRunner(port, fabric, step, NullLogger<TaskInferenceRunner>.Instance);
 

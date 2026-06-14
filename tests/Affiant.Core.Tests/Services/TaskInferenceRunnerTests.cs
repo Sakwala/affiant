@@ -46,8 +46,7 @@ public class TaskInferenceRunnerTests
     private static (TaskInferenceRunner runner, ContextFabric fabric) BuildRunner(FakePort port)
     {
         var fabric = new ContextFabric();
-        var strategy = new ThreeFieldStrategy();
-        var step = new TaskInferenceStep(strategy, fabric, NullLogger<TaskInferenceStep>.Instance);
+        var step = new TaskInferenceStep(fabric, NullLogger<TaskInferenceStep>.Instance);
         var runner = new TaskInferenceRunner(port, fabric, step, NullLogger<TaskInferenceRunner>.Instance);
         return (runner, fabric);
     }
@@ -138,8 +137,7 @@ public class TaskInferenceRunnerTests
     public void Constructor_NullPort_Throws()
     {
         var fabric = new ContextFabric();
-        var strategy = new ThreeFieldStrategy();
-        var step = new TaskInferenceStep(strategy, fabric, NullLogger<TaskInferenceStep>.Instance);
+        var step = new TaskInferenceStep(fabric, NullLogger<TaskInferenceStep>.Instance);
 
         Assert.Throws<ArgumentNullException>(() =>
             new TaskInferenceRunner(null!, fabric, step, NullLogger<TaskInferenceRunner>.Instance));
@@ -148,9 +146,8 @@ public class TaskInferenceRunnerTests
     [Fact]
     public void Constructor_NullFabric_Throws()
     {
-        var strategy = new ThreeFieldStrategy();
         var fabric = new ContextFabric();
-        var step = new TaskInferenceStep(strategy, fabric, NullLogger<TaskInferenceStep>.Instance);
+        var step = new TaskInferenceStep(fabric, NullLogger<TaskInferenceStep>.Instance);
         var port = PortReturning(default);
 
         Assert.Throws<ArgumentNullException>(() =>

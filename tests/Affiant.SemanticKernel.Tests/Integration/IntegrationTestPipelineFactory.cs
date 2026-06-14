@@ -67,7 +67,9 @@ internal static class IntegrationTestPipelineFactory
         if (registerSecondTool)
             services.AddAffiantTool<FakeOtherThingStrategy>("CreateOtherThing", Operation.WriteCreate, "OtherThing", pluginName: "ThingPlugin");
 
-        // TaskInferenceStep (singleton) requires ITaskInferenceStrategy to construct.
+        // Story 20.3: TaskInferenceStep no longer takes ITaskInferenceStrategy in its constructor.
+        // This registration is kept for tests that resolve ITaskInferenceStrategy from DI directly
+        // (e.g. pipeline-order assertions), but is not required for TaskInferenceStep itself.
         services.AddSingleton<ITaskInferenceStrategy>(sp => sp.GetRequiredService<FakeThingStrategy>());
 
         // Additional triggers: tests that register extra IInferenceTrigger instances (e.g. AlwaysTrueTrigger)

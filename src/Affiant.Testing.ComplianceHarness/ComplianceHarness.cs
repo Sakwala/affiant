@@ -88,7 +88,6 @@ public static class ComplianceHarness
             // Create isolated fabric for this case — each case must be independent.
             var fabric = new ContextFabric();
             var step = new TaskInferenceStep(
-                strategy,
                 fabric,
                 loggerFactory.CreateLogger<TaskInferenceStep>());
             var runner = new TaskInferenceRunner(

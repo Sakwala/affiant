@@ -67,12 +67,13 @@ public class TaskInferenceOrchestratorAffidavitParityTests
         services.AddAffiantSkFilters();
 
         // Register strategy + descriptor. pluginName must match the kernel plugin name below.
+        // AddAffiantTool registers FakeThingStrategy as a concrete type via TryAddSingleton<TStrategy>().
+        // InferenceTriggerFilter resolves by concrete type. SchemaDrivenAffidavitProjection (default slot)
+        // resolves via ITaskInferenceStrategy — single-strategy hosts bind the interface, multi-strategy hosts
+        // use AddSchemaDrivenProjection<TStrategy>() instead and bypass this interface binding entirely.
+        services.AddSingleton<ITaskInferenceStrategy, FakeThingStrategy>();
         services.AddAffiantTool<FakeThingStrategy>("CreateThing", Operation.WriteCreate, "Thing",
             pluginName: "ThingPlugin");
-
-        // TaskInferenceStep (Singleton, registered by AddAffiantCore) requires ITaskInferenceStrategy.
-        // Wire FakeThingStrategy as the singleton strategy explicitly.
-        services.AddSingleton<ITaskInferenceStrategy>(sp => sp.GetRequiredService<FakeThingStrategy>());
 
         // Register Kernel in DI so filters resolve through the same ServiceProvider.
         services.AddKernel();

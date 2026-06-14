@@ -103,7 +103,7 @@ public sealed class AffidavitInvariantsTests
         var deterministicSources = provider.GetServices<IDeterministicFieldSource>();
 
         var fabric = new ContextFabric();
-        var step = new TaskInferenceStep(strategy, fabric, NullLogger<TaskInferenceStep>.Instance);
+        var step = new TaskInferenceStep(fabric, NullLogger<TaskInferenceStep>.Instance);
         var runner = new TaskInferenceRunner(port, fabric, step, NullLogger<TaskInferenceRunner>.Instance);
 
         runner.RunAsync(strategy, fixtureCase.History, descriptor.FunctionName, fixtureCase.Arguments)

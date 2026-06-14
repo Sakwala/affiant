@@ -211,8 +211,7 @@ public class InferenceTriggerFilterTests
             """{"title": {"value": "inferred", "confidence": 0.8}}""");
 
         var fabric = new ContextFabric();
-        var strategy = new StubStrategy();
-        var step = new TaskInferenceStep(strategy, fabric, NullLogger<TaskInferenceStep>.Instance);
+        var step = new TaskInferenceStep(fabric, NullLogger<TaskInferenceStep>.Instance);
         var runner = new TaskInferenceRunner(capturePort, fabric, step,
             NullLogger<TaskInferenceRunner>.Instance);
 
@@ -227,6 +226,7 @@ public class InferenceTriggerFilterTests
         // StubStrategy is registered both as ITaskInferenceStrategy AND as its concrete type,
         // because InferenceTriggerFilter calls GetRequiredService(descriptor.InferenceStrategy)
         // where InferenceStrategy is typeof(StubStrategy) — the concrete type key.
+        var strategy = new StubStrategy();
         var services = new ServiceCollection();
         services.AddSingleton<IContextFabric>(fabric);
         services.AddSingleton<ITaskInferenceStrategy>(strategy);
