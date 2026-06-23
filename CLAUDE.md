@@ -69,7 +69,7 @@ Grep `packages/` for `WorkOrder`, `Aircraft`, `Meridian`, `HRPortal`, `LeaveRequ
 - **Records** for all DTOs, models, and immutable value types. Classes only for services with behavior and mutable state. `readonly record struct` for small value types that benefit from stack allocation.
 - **Primary constructors** on services where all dependencies are captured by DI.
 - **`[JsonDerivedType]`** on `ToolEnvelope` for polymorphic serialization, using the `type` discriminator. Matches SK's own `KernelContent` pattern.
-- **Package IDs** must match the reserved names on nuget.org exactly: `Affiant.Core`, `Affiant.Abstractions`, `Affiant.SemanticKernel`, `Affiant.Docket`, `Affiant.EntityFramework`, `Affiant.Policies`, `Affiant.Transport.SignalR`. Version is shared across all packages via `packages/Directory.Build.props`.
+- **Package IDs** must match the reserved names on nuget.org exactly: `Affiant.Core`, `Affiant.Abstractions`, `Affiant.SemanticKernel`, `Affiant.Docket`, `Affiant.EntityFramework`, `Affiant.Policies`, `Affiant.Transport.SignalR`, `Affiant.Testing.ComplianceHarness` (eight packages total). Version is shared across all packages via `packages/Directory.Build.props`.
 
 ## Build, pack, test
 
