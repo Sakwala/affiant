@@ -42,8 +42,9 @@ public sealed class TaskInferenceStep
     /// singleton DI binding.
     ///
     /// The JSON element must be an object where each property matches a field name from
-    /// <paramref name="strategy"/>.Fields, with "value" (string) and "confidence" (float or string)
-    /// sub-properties. Fields absent from the JSON or below the threshold are skipped.
+    /// <paramref name="strategy"/>.Fields, with "value" (any JSON scalar — string, number, or
+    /// boolean) and "confidence" (float or string) sub-properties. Fields absent from the JSON,
+    /// carrying a non-scalar value, or below the threshold are skipped.
     /// </summary>
     public Task<TaskInferenceResult> ExecuteAsync(
         ITaskInferenceStrategy strategy,
@@ -64,7 +65,7 @@ public sealed class TaskInferenceStep
                 !fieldEl.TryGetProperty("confidence", out var confEl))
                 continue;
 
-            var newValue = valueEl.GetString();
+            var newValue = ReadScalarValue(valueEl);
             if (string.IsNullOrEmpty(newValue))
                 continue;
 
@@ -139,6 +140,20 @@ public sealed class TaskInferenceStep
             FieldsInLlmResponse: llmStructuredOutput.EnumerateObject().Count(),
             MergedFields: mergedFields));
     }
+
+    /// <summary>
+    /// Reads a field's "value" as a string regardless of the JSON scalar kind the LLM emitted.
+    /// Structured-output models frequently return numeric or boolean fields as native JSON
+    /// numbers/booleans (e.g. <c>"EstimatedHours": { "value": 4 }</c>) rather than strings, so
+    /// calling <see cref="JsonElement.GetString"/> unconditionally throws and aborts the whole
+    /// merge. Non-scalar kinds (object, array, null) return null and the field is skipped.
+    /// </summary>
+    private static string? ReadScalarValue(JsonElement valueEl) => valueEl.ValueKind switch
+    {
+        JsonValueKind.String => valueEl.GetString(),
+        JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False => valueEl.GetRawText(),
+        _ => null,
+    };
 
     /// <summary>
     /// Returns the winning tag between <paramref name="a"/> and <paramref name="b"/>
