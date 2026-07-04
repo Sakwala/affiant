@@ -7,23 +7,22 @@ namespace Affiant.Abstractions.Tests.Spec;
 
 // Enforces parity between the §3.11 spec table and the live source records.
 // Spec drift becomes a CI failure rather than a manual review burden.
-// After Phase 3 filter-repo split: update ResolveSpecPath to look for Affiant.slnx
-// adjacent to docs/ in the new repo root instead of under packages/.
 public sealed class DescriptorSpecSyncTests
 {
-    // Walks up from the test assembly directory until packages/Affiant.slnx is found.
+    // Walks up from the test assembly directory until the repo-root Affiant.slnx is found,
+    // then returns the framework spec adjacent to it under docs/.
     // Robust to: dotnet test from any directory, IDE test runners, CI with arbitrary working-directory.
     private static string ResolveSpecPath()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null)
         {
-            if (File.Exists(Path.Combine(dir.FullName, "packages", "Affiant.slnx")))
-                return Path.Combine(dir.FullName, "packages", "docs", "affiant-framework-specification.md");
+            if (File.Exists(Path.Combine(dir.FullName, "Affiant.slnx")))
+                return Path.Combine(dir.FullName, "docs", "affiant-framework-specification.md");
             dir = dir.Parent;
         }
         throw new InvalidOperationException(
-            "Could not find packages/Affiant.slnx anchor walking up from AppContext.BaseDirectory. " +
+            "Could not find the Affiant.slnx anchor walking up from AppContext.BaseDirectory. " +
             "Test cannot locate the framework spec. Check your working directory or CI configuration.");
     }
 
@@ -137,7 +136,7 @@ public sealed class DescriptorSpecSyncTests
             var row = table.FirstOrDefault(r => r.Field == prop.Name);
             Assert.True(row.Field is not null,
                 $"Spec §3.11.2 table has no row for AffiantToolDescriptor.{prop.Name}. " +
-                "Add the missing row to packages/docs/affiant-framework-specification.md §3.11.2.");
+                "Add the missing row to docs/affiant-framework-specification.md §3.11.2.");
 
             var expectedRequired = prop.IsNullable ? "no" : "yes";
             Assert.True(
@@ -174,7 +173,7 @@ public sealed class DescriptorSpecSyncTests
             Assert.True(
                 subsection.Contains(paramName, StringComparison.OrdinalIgnoreCase),
                 $"Spec §3.11.4 attribute table does not mention constructor parameter '{paramName}'. " +
-                "Add it to the parameter table in packages/docs/affiant-framework-specification.md §3.11.4.");
+                "Add it to the parameter table in docs/affiant-framework-specification.md §3.11.4.");
         }
     }
 
@@ -196,7 +195,7 @@ public sealed class DescriptorSpecSyncTests
             Assert.True(
                 spec.Contains(sub, StringComparison.Ordinal),
                 $"Framework spec is missing subsection header '{sub}'. " +
-                "Verify packages/docs/affiant-framework-specification.md §3.11 is intact.");
+                "Verify docs/affiant-framework-specification.md §3.11 is intact.");
         }
     }
 

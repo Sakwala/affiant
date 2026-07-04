@@ -2,18 +2,19 @@
 
 ## What this is
 
-`packages/` is the Affiant framework — the future open-source NuGet release. It provides "sworn provenance for every AI write": a Semantic Kernel-based layer with a two-filter context fabric, field-level provenance tracking, and a durable review queue (the Docket) with Evidence Cards and Referrals. Everything in this subtree must be reusable across any host application. Nothing in this subtree is allowed to reference anything under `apps/`.
+This repository is the Affiant framework — the open-source .NET package set published to nuget.org. It provides "sworn provenance for every AI write": a Semantic Kernel-based layer with a two-filter context fabric, field-level provenance tracking, and a durable review queue (the Docket) with Evidence Cards and Referrals. Everything here must be reusable across any host application and must stay domain-agnostic.
 
-When Phase 3 arrives, this directory is extracted via `git filter-repo --subdirectory-filter packages` into its own repo with full history preserved. Every decision made here — layering, naming, dependencies, test boundaries — should be one that still holds after that split.
+The framework ships as eight NuGet packages, all sharing one version via the root `Directory.Build.props`:
+`Affiant.Abstractions`, `Affiant.Core`, `Affiant.SemanticKernel`, `Affiant.Docket`, `Affiant.EntityFramework`, `Affiant.Policies`, `Affiant.Transport.SignalR`, `Affiant.Testing.ComplianceHarness`.
+
+Host applications that consume this framework (e.g. the Meridian aviation-MRO copilot and the HR Portal) live in the separate private `affiant-dev/affiant-host-apps` repository, which attaches this repo as a submodule at `./packages`. Nothing in this repo may reference host code.
 
 ## Source of truth
 
-Read these before changing anything non-trivial. They are the specification; this file only captures the invariants Claude Code must not break while working inside `packages/`.
+Read these before changing anything non-trivial. They are the specification; this file only captures the invariants that must not break.
 
-- `packages/docs/affiant-framework-specification.md` — full spec: layers, primitive types, interfaces, the seven normative rules (§6), the tool authoring guide (§7). Lives under `packages/` because it ships with the framework in the Phase 3 OSS split.
-- `docs/architecture/phase-2-prd-affiant-framework-extraction.md` — the task-by-task extraction sequence from Meridian into framework packages (monorepo-level planning, stays at root)
-- `docs/architecture/affiant-repo-architecture.md` — repo topology, the `packages/` vs `apps/` split, the conditional `ProjectReference`/`PackageReference` pattern, CI layout (monorepo-level, stays at root)
-- `docs/architecture/phase-1-prd-production-ready-meridian.md` — what Meridian needed to become production-ready; useful context for understanding what's being extracted (monorepo-level, stays at root)
+- `docs/affiant-framework-specification.md` — full spec: layers, primitive types, interfaces, the seven normative rules (§6), the tool descriptor registry (§3.11), and the tool authoring guide (§7).
+- `docs/tool-authoring-guide.md` — standalone extract of §7: the six plugin/filter/field-mapper/write-executor authoring patterns.
 
 ## The Seven Normative Rules
 
@@ -40,84 +41,52 @@ Affiant.SemanticKernel, Affiant.Docket, Affiant.EntityFramework,
 Affiant.Policies, Affiant.Transport.SignalR
 ```
 
-- **`Affiant.Abstractions`** holds all domain-agnostic primitive types (`ToolEnvelope`, `Affidavit`, `ProvenanceTag`, `ProvenanceChain`, `DocketEntry`, `TransportEvent`, etc.) AND all framework interfaces (`IChatSessionStore`, `IDocketStore`, `IStreamingTransport`, `IApprovalPolicy`, `IFieldMapper<T>`, `IWriteExecutor`, `IRouteRegistry`, `IIntentInterceptor`, etc.). It must never reference any other Affiant package. A host app that only needs to implement a contract should be able to reference this package alone.
-- **`Affiant.Core`** holds concrete services (`ContextFabric`, `ReviewGate`, `ContextExtractor<T>` base class, `TaskInferenceStep`, `DeterministicShortCircuit`, `UiGuidanceBridge`, `AffiantTelemetry`) and references `Affiant.Abstractions`. Core never references any adapter package (no `ProjectReference` to `Affiant.Docket`, `Affiant.EntityFramework`, etc.) — it consumes them through interfaces injected via DI.
+- **`Affiant.Abstractions`** holds all domain-agnostic primitive types (`ToolEnvelope`, `Affidavit`, `ProvenanceTag`, `ProvenanceChain`, `DocketEntry`, `TransportEvent`, etc.) AND all framework interfaces (`IChatSessionStore`, `IDocketStore`, `IStreamingTransport`, `IApprovalPolicy`, `IFieldMapper<T>`, `IWriteExecutor`, `IRouteRegistry`, `IIntentInterceptor`, etc.). It must never reference any other Affiant package. A host that only needs to implement a contract should be able to reference this package alone.
+- **`Affiant.Core`** holds concrete services (`ContextFabric`, `ReviewGate`, `ContextExtractor<T>` base class, `TaskInferenceStep`, `DeterministicShortCircuit`, `UiGuidanceBridge`, `AffiantTelemetry`) and references `Affiant.Abstractions`. Core never references any adapter package — it consumes them through interfaces injected via DI.
 - **Adapter packages** (`Affiant.SemanticKernel`, `Affiant.Docket`, `Affiant.EntityFramework`, `Affiant.Policies`, `Affiant.Transport.SignalR`) reference `Affiant.Core` (which transitively pulls in `Abstractions`). None of them may reference each other.
 
-If you find yourself wanting to add a `ProjectReference` that inverts this DAG, stop. Surface the coupling to the user and ask how to resolve it — don't paper over it.
-
-This matches the standard `Microsoft.Extensions.*.Abstractions` / `Microsoft.Extensions.*` layering.
+If you find yourself wanting to add a `ProjectReference` that inverts this DAG, stop. Surface the coupling to the user and ask how to resolve it — don't paper over it. This matches the standard `Microsoft.Extensions.*.Abstractions` / `Microsoft.Extensions.*` layering.
 
 ## Domain-agnostic code only
 
-Nothing in `packages/` may reference Meridian's aviation domain (no `WorkOrder`, `Aircraft`, `Customer`, `FleetStatus`, etc.) or HR Portal's HR domain (no `LeaveRequest`, `Employee`, etc.). The `Affidavit.Fields[]` contract uses `string` field names and `object` values — that is the domain-agnostic boundary. If you're extracting a type from Meridian and it has any domain coupling, the coupling must be removed before it crosses into `packages/`.
+Nothing in this repo may reference a host's business domain (no `WorkOrder`, `Aircraft`, `Customer`, `FleetStatus`, `LeaveRequest`, `Employee`, etc.). The `Affidavit.Fields[]` contract uses `string` field names and `object` values — that is the domain-agnostic boundary. Any type with domain coupling does not belong here; the coupling must be removed before code crosses into the framework.
 
-Grep `packages/` for `WorkOrder`, `Aircraft`, `Meridian`, `HRPortal`, `LeaveRequest`, `Employee` before committing an extraction. Any hit is a bug.
-
-## The `packages/` ↔ `apps/` boundary
-
-- `packages/` never contains `ProjectReference` to anything under `apps/`. Structurally prevented — `<IsPackable>true</IsPackable>` is set in `packages/Directory.Build.props`, so a NuGet pack would fail on such a reference anyway, but also don't try.
-- Host apps reference framework projects via the conditional `UseAffiantPackages` MSBuild property pattern documented in `affiant-repo-architecture.md`. Both branches must stay in sync: adding a new framework package means updating both the `ProjectReference` and `PackageReference` item groups in every host.
-- When this subtree is eventually extracted via `git filter-repo`, everything in `packages/` must remain a self-contained buildable repo with its own `Affiant.slnx`, tests, and `Directory.Build.props`. Don't add anything that depends on the root-level monorepo being present.
+Grep for `WorkOrder`, `Aircraft`, `Meridian`, `HRPortal`, `LeaveRequest`, `Employee` before committing. Any hit is a bug.
 
 ## Target framework and C# conventions
 
-- **Target framework**: `net10.0`. Do not introduce `<TargetFrameworks>` multi-targeting unless there's a concrete reason — Phase 3 may add `netstandard2.0` for broader reach, but not before.
-- **Nullable reference types**: enabled globally. Don't disable per file.
-- **Implicit usings**: enabled globally. Don't add implicit `using` directives that are already pulled in by the SDK.
+- **Target framework**: `net10.0`. Do not introduce `<TargetFrameworks>` multi-targeting unless there's a concrete reason.
+- **`LangVersion 12.0`, `Nullable enable`, `ImplicitUsings enable`, `TreatWarningsAsErrors true`** — all set globally in the root `Directory.Build.props`. Don't disable per file. A warning fails the build.
 - **File-scoped namespaces** (`namespace Affiant.Core.Services;`). Never block-scoped.
-- **Records** for all DTOs, models, and immutable value types. Classes only for services with behavior and mutable state. `readonly record struct` for small value types that benefit from stack allocation.
+- **Records** for all DTOs, models, and immutable value types. Classes only for services with behavior and mutable state. `readonly record struct` for small value types.
 - **Primary constructors** on services where all dependencies are captured by DI.
-- **`[JsonDerivedType]`** on `ToolEnvelope` for polymorphic serialization, using the `type` discriminator. Matches SK's own `KernelContent` pattern.
-- **Package IDs** must match the reserved names on nuget.org exactly: `Affiant.Core`, `Affiant.Abstractions`, `Affiant.SemanticKernel`, `Affiant.Docket`, `Affiant.EntityFramework`, `Affiant.Policies`, `Affiant.Transport.SignalR`, `Affiant.Testing.ComplianceHarness` (eight packages total). Version is shared across all packages via `packages/Directory.Build.props`.
+- **`[JsonDerivedType]`** on `ToolEnvelope` for polymorphic serialization, using the `type` discriminator.
+- **Package IDs** must match the reserved names on nuget.org exactly (the eight listed above). Version is shared across all packages via the root `Directory.Build.props`.
 
 ## Build, pack, test
 
-All framework work must leave both solutions buildable. Host apps use `<ProjectReference>` to framework projects, so any change here transitively affects them.
-
 ```bash
-# Framework-only build
-dotnet build packages/Affiant.slnx -c Release
+# Build (implicit restore; TreatWarningsAsErrors is active — 0 warnings required)
+dotnet build Affiant.slnx -c Release
+
+# Test
+dotnet test Affiant.slnx -c Release
 
 # Pack to validate NuGet structure (no publish)
-dotnet pack packages/Affiant.slnx -c Release -o ./nupkgs/
-
-# Framework tests
-dotnet test packages/Affiant.slnx -c Release
-
-# Full cross-check: framework + every host
-dotnet build packages/Affiant.slnx -c Release \
-  && dotnet build apps/Meridian/Meridian.sln -c Release
+dotnet pack Affiant.slnx -c Release -o ./nupkgs/
 ```
 
-Use xUnit for framework tests. Prefer `[Theory]` with a provider factory for tests that should run against multiple adapter implementations (e.g., the shared `Affiant.Docket.Tests` suite running against InMemory + SQLite + Postgres). Tests live under `packages/tests/`, one test project per src project.
-
-## Extraction workflow (Phase 2)
-
-Phase 2's extraction is a series of small, reversible moves. Follow this rhythm:
-
-1. Pick one logical component (primitive type group, one interface, one service).
-2. Move it from Meridian into the correct framework package.
-3. Update namespaces, `using` statements, and any `ProjectReference` edges.
-4. Run `dotnet build packages/Affiant.slnx && dotnet build apps/Meridian/Meridian.sln`. Both must succeed.
-5. Commit with a message scoped to that one component.
-6. Repeat.
-
-If a single step touches more than ~10 files or breaks Meridian's runtime behavior, split it further. The blast radius of any single extraction commit should be small enough to revert cleanly. This is not the place for "big bang" refactors.
-
-When moving a type, preserve behavior exactly — Phase 2 is a refactor, not a feature-adding phase. If you find a bug during extraction, note it and fix it in a separate commit so the refactor stays pure.
+`global.json` pins the SDK to `10.0.105` with `rollForward: latestPatch`. Use xUnit for tests. Prefer `[Theory]` with a provider factory for tests that should run against multiple adapter implementations (e.g. the shared Docket suite over InMemory + SQLite + Postgres). Tests live under `tests/`, one test project per src project.
 
 ## What NOT to do
 
 - **No comments explaining what code does.** Well-named identifiers carry that weight. Only add a comment when the *why* is non-obvious (a hidden constraint, a workaround for a specific bug, a subtle invariant that would surprise a reader).
-- **No speculative abstractions.** Don't add a base class, interface, or generic parameter because "we might need it later." Three similar lines is better than a premature abstraction. The framework is small right now — resist the urge to future-proof.
-- **No backwards-compatibility shims during Phase 2.** Pre-1.0 alpha means we break things cleanly. No `[Obsolete]` aliases, no re-exported types, no shim namespaces. If something is removed or renamed, the rename is the change.
-- **No domain-specific imports.** Anything named after Meridian, HR Portal, aviation, HR, work orders, leave requests — none of it belongs in `packages/`.
-- **No references to files outside `packages/`** (other than the root `Directory.Build.props` / `global.json` which are structural). The extracted repo must stand alone.
+- **No speculative abstractions.** Don't add a base class, interface, or generic parameter because "we might need it later." The framework is small — resist the urge to future-proof.
+- **No backwards-compatibility shims pre-1.0.** Alpha/beta means we break things cleanly. No `[Obsolete]` aliases, no re-exported types, no shim namespaces. If something is removed or renamed, the rename is the change.
+- **No domain-specific imports.** Anything named after a host domain (aviation, HR, work orders, leave requests) does not belong here.
 - **No secrets, connection strings, or API keys** in csproj, appsettings, or code. Framework code has no runtime configuration — it's all DI-driven.
 
 ## When in doubt
 
-- If the PRD and this file disagree, the PRD wins — this file is a summary and will drift. But note the drift and surface it so the PRD and this file can be reconciled.
-- If the framework spec and this file disagree, read both carefully and ask the user before acting. The spec is the design contract; this file is operational guidance.
-- If extracting a type would violate the layering invariant, domain-agnostic invariant, or the seven rules — stop and ask. Don't try to "make it work."
+- If the framework spec and this file disagree, read both carefully and ask before acting. The spec is the design contract; this file is operational guidance and will drift.
+- If a change would violate the layering invariant, the domain-agnostic invariant, or the seven rules — stop and ask. Don't try to "make it work."

@@ -1,7 +1,13 @@
 <Project>
-  <!-- Import root-level build props (LangVersion, Nullable, ImplicitUsings, TreatWarningsAsErrors) -->
-  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))"
-          Condition="'$([MSBuild]::GetPathOfFileAbove(Directory.Build.props, $(MSBuildThisFileDirectory)../))' != ''" />
+  <!-- Standalone build settings for the public Affiant framework repo.
+       Formerly imported from the monorepo root props via GetPathOfFileAbove; inlined here
+       so the extracted repo is self-contained (no parent props exists above this root). -->
+  <PropertyGroup>
+    <LangVersion>12.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
 
   <PropertyGroup>
     <IsPackable>true</IsPackable>
@@ -15,12 +21,10 @@
 
   <!-- GHSA-2m69-gcr7-jv3q: SQLitePCLRaw.lib.e_sqlite3 <= 2.1.11 bundles a vulnerable SQLite;
        no patched version exists as of 2026-07-04 (advisory first_patched_version = null).
-       Duplicated from the root Directory.Build.props so it survives the OSS split, where this
-       file becomes the repo root and the parent import above silently no-ops. The condition
-       (same expression as the import, inverted) keeps it inactive in the monorepo, where the
-       root props already supply it — two copies trip NU1508.
+       Suppresses the NU1903 audit warning (which would fail the build under TreatWarningsAsErrors
+       on a cold restore) for this one advisory only. NuGetAudit stays on for everything else.
        REMOVE when upstream ships a patched SQLitePCLRaw and the EF Core Sqlite chain is bumped. -->
-  <ItemGroup Condition="'$([MSBuild]::GetPathOfFileAbove(Directory.Build.props, $(MSBuildThisFileDirectory)../))' == ''">
+  <ItemGroup>
     <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-2m69-gcr7-jv3q" />
   </ItemGroup>
 </Project>

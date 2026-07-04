@@ -377,7 +377,7 @@ public interface ITaskInferenceStrategy
 
 ### 3.11 Tool Descriptor Registry
 
-> Added 2026-05-14 as part of Phase 3 Track A Epic 15 (stories 15.1–15.7). Closes the empty-Affidavit regression identified at commit `b72c1fa` (2026-04-30) and recorded in [`docs/proposals/affiant-validator-handoff.md`](../docs/proposals/affiant-validator-handoff.md).
+> Added 2026-05-14 as part of Phase 3 Track A Epic 15 (stories 15.1–15.7). Closes the empty-Affidavit regression identified at commit `b72c1fa` (2026-04-30) and recorded in `docs/proposals/affiant-validator-handoff.md` (in the private affiant-dev/affiant-host-apps repo).
 
 Every tool the framework orchestrates is described by an `AffiantToolDescriptor` record. The descriptor is the contract that the framework's L2 pipeline (§3.10 Task Inference Strategy) reads when classifying a tool invocation, and the input to the startup validator (§3.11.5 below) that ensures the descriptor registry is exhaustive at every host boot.
 
@@ -412,7 +412,7 @@ public sealed record Operation(string Kind)
 
 Four well-known static factories ship with the framework. A host needing a fifth kind constructs `new Operation("WriteUpsert")` or `new Operation("MyDomainKind")` without forcing a framework version bump. The framework's filters pattern-match on the four well-known instances; host-defined kinds pass through transparently.
 
-**Why open record, not enum?** A closed enum forces every host to wait for a framework release cadence to introduce a new operation kind. The open-record contract decouples host extensibility from framework release tempo. (Decision D27, documented in [`docs/proposals/affiant-validator-handoff.md`](../docs/proposals/affiant-validator-handoff.md) §10 — D27 reads: "Operation as open record, not enum, to permit host-defined operation kinds without a framework version bump.")
+**Why open record, not enum?** A closed enum forces every host to wait for a framework release cadence to introduce a new operation kind. The open-record contract decouples host extensibility from framework release tempo. (Decision D27, documented in `docs/proposals/affiant-validator-handoff.md` (in the private affiant-dev/affiant-host-apps repo) §10 — D27 reads: "Operation as open record, not enum, to permit host-defined operation kinds without a framework version bump.")
 
 #### 3.11.2 The `AffiantToolDescriptor` Field Set
 
@@ -493,7 +493,7 @@ public sealed class AffiantWriteToolAttribute : Attribute
 public async Task<string> CreateWorkOrderAsync(...)
 ```
 
-`AllowMultiple = false` is enforced — applying the attribute twice to the same method is a compile-time error. The attribute name, namespace, constructor parameter order, and `AllowMultiple` value are part of the public API contract ratified at HIL gate G0 (2026-05-14, [`docs/implementation-artifacts/track-a/g0-descriptor-contract-approval.md`](../../docs/implementation-artifacts/track-a/g0-descriptor-contract-approval.md) Item 4).
+`AllowMultiple = false` is enforced — applying the attribute twice to the same method is a compile-time error. The attribute name, namespace, constructor parameter order, and `AllowMultiple` value are part of the public API contract ratified at HIL gate G0 (2026-05-14, `docs/implementation-artifacts/track-a/g0-descriptor-contract-approval.md` (in the private affiant-dev/affiant-host-apps repo) Item 4).
 
 #### 3.11.5 Hard Startup-Failure Semantics
 
@@ -515,9 +515,9 @@ The framework's `AffiantStartupValidator` (in `Affiant.SemanticKernel`) implemen
 
 **No WARN-and-continue.** Misconfiguration is a hard failure, not a warning log line. There is no `enableValidation: false` switch and there will not be one.
 
-The structural reason: before the validator existed, the framework silently produced empty Affidavits when a write tool was misclassified. An Affidavit with all fields at `ProvenanceSource.Empty` is indistinguishable from a read tool's correct provenance — the error was invisible at runtime and surfaced only in audit reviews. The 2026-04-30 regression at commit `b72c1fa` demonstrated that a warning-and-continue approach does not protect against this class of misconfiguration. The validator is the load-bearing fix. See also: PRD Task 6 preamble in [`docs/architecture/phase-3-prd-a0-tool-descriptor-registry.md`](../../docs/architecture/phase-3-prd-a0-tool-descriptor-registry.md).
+The structural reason: before the validator existed, the framework silently produced empty Affidavits when a write tool was misclassified. An Affidavit with all fields at `ProvenanceSource.Empty` is indistinguishable from a read tool's correct provenance — the error was invisible at runtime and surfaced only in audit reviews. The 2026-04-30 regression at commit `b72c1fa` demonstrated that a warning-and-continue approach does not protect against this class of misconfiguration. The validator is the load-bearing fix. See also: PRD Task 6 preamble in `docs/architecture/phase-3-prd-a0-tool-descriptor-registry.md` (in the private affiant-dev/affiant-host-apps repo).
 
-Both error-message shapes were ratified as part of the public API contract at HIL gate G0 (2026-05-14, [`docs/implementation-artifacts/track-a/g0-descriptor-contract-approval.md`](../../docs/implementation-artifacts/track-a/g0-descriptor-contract-approval.md) Item 5).
+Both error-message shapes were ratified as part of the public API contract at HIL gate G0 (2026-05-14, `docs/implementation-artifacts/track-a/g0-descriptor-contract-approval.md` (in the private affiant-dev/affiant-host-apps repo) Item 5).
 
 #### 3.11.6 Adopter Integration Paths
 
@@ -533,7 +533,7 @@ The registry's idempotency contract (double-registration throws `InvalidOperatio
 
 ### 3.12 Inference Orchestration & Affidavit Projection
 
-> Added 2026-06-12 as part of Phase 3 Track A Epic 16 (stories 16.1–16.6), ratified 2026-05-05. Addresses the empty-Affidavit regression identified at commit `b72c1fa` (2026-04-30) and recorded in [`docs/proposals/affiant-validator-handoff.md`](../../docs/proposals/affiant-validator-handoff.md).
+> Added 2026-06-12 as part of Phase 3 Track A Epic 16 (stories 16.1–16.6), ratified 2026-05-05. Addresses the empty-Affidavit regression identified at commit `b72c1fa` (2026-04-30) and recorded in `docs/proposals/affiant-validator-handoff.md` (in the private affiant-dev/affiant-host-apps repo).
 
 The L2 inference orchestration layer centralizes two responsibilities that were previously scattered across host implementations: (1) running structured-output inference *before* a write tool executes (pre-tool), so the LLM's intent is captured while the conversation history still reflects the user's unmodified request; and (2) building the resulting `Affidavit` directly from the `ContextFabric` — rather than from per-tool form-data structs that hosts previously had to maintain. The 2026-04-30 regression at commit `b72c1fa` demonstrated why both matters: when inference was decomposed into a post-tool filter, structured-output JSON was parsed from the tool's *return value* where it never existed, and every Affidavit produced was silently fully `ProvenanceSource.Empty`. L2 restores pre-tool inference as a framework concern, preventing the regression class entirely. The architecture was ratified 2026-05-05 (decision D21 — L2 over L1/L3 alternatives; see `docs/proposals/affiant-validator-handoff.md` §10 for the decision rationale).
 
@@ -563,7 +563,7 @@ L2 introduces three new abstractions in `Affiant.Abstractions.Interfaces`, each 
 
 **`IDeterministicFieldSource`** is an augmentation surface for fields that should always come from a deterministic source (e.g., a system clock, a session-authenticated user ID) rather than from LLM inference. `SchemaDrivenAffidavitProjection` checks registered `IDeterministicFieldSource` implementations per field before consulting the fabric; the first non-null resolution wins.
 
-*Source files:* `packages/src/Affiant.Abstractions/Interfaces/IInferenceCompletionPort.cs`, `packages/src/Affiant.Abstractions/Interfaces/IInferenceTrigger.cs`, `packages/src/Affiant.Abstractions/Interfaces/IAffidavitProjection.cs`, `packages/src/Affiant.Abstractions/Interfaces/IDeterministicFieldSource.cs`
+*Source files:* `src/Affiant.Abstractions/Interfaces/IInferenceCompletionPort.cs`, `src/Affiant.Abstractions/Interfaces/IInferenceTrigger.cs`, `src/Affiant.Abstractions/Interfaces/IAffidavitProjection.cs`, `src/Affiant.Abstractions/Interfaces/IDeterministicFieldSource.cs`
 
 #### 3.12.2 Default Services
 
@@ -577,7 +577,7 @@ Three default service implementations ship with the framework. Hosts that accept
 
 **`FunctionNameInferenceTrigger`** (in `Affiant.Core.Triggers`) is a soft-deprecated `IInferenceTrigger` that fires by explicit function-name allowlist rather than registry classification. It exists to support hosts adopted before the Tool Descriptor Registry (§3.11) was available, carries an `[Obsolete]` attribute, and will be removed before v1.0.0. Hosts should migrate to `WriteIntentInferenceTrigger` with `[AffiantWriteTool]` decoration.
 
-*Source files:* `packages/src/Affiant.Core/Services/TaskInferenceRunner.cs`, `packages/src/Affiant.Core/Triggers/WriteIntentInferenceTrigger.cs`, `packages/src/Affiant.Core/Services/SchemaDrivenAffidavitProjection.cs`, `packages/src/Affiant.Core/Triggers/FunctionNameInferenceTrigger.cs`
+*Source files:* `src/Affiant.Core/Services/TaskInferenceRunner.cs`, `src/Affiant.Core/Triggers/WriteIntentInferenceTrigger.cs`, `src/Affiant.Core/Services/SchemaDrivenAffidavitProjection.cs`, `src/Affiant.Core/Triggers/FunctionNameInferenceTrigger.cs`
 
 #### 3.12.3 SK Adapter Surface
 
@@ -591,11 +591,11 @@ The L2 SK-specific components live in `Affiant.SemanticKernel`, keeping the `Mic
 
 **`AddAffiantInferenceOrchestration()`** is the `IServiceCollection` extension method in `Affiant.SemanticKernel.Extensions.ServiceCollectionExtensions` that registers all L2 components with a single call: `SemanticKernelInferenceCompletionPort`, `TaskInferenceRunner`, `WriteIntentInferenceTrigger`, `InferenceTriggerFilter`, `ToolArgumentCaptureFilter`, `SchemaDrivenAffidavitProjection` (keyed per registered tool), and the SK-adapter startup validator extension.
 
-*Source files:* `packages/src/Affiant.SemanticKernel/Adapters/SemanticKernelInferenceCompletionPort.cs`, `packages/src/Affiant.SemanticKernel/Filters/InferenceTriggerFilter.cs`, `packages/src/Affiant.SemanticKernel/Filters/ToolArgumentCaptureFilter.cs`, `packages/src/Affiant.SemanticKernel/Extensions/ServiceCollectionExtensions.cs`
+*Source files:* `src/Affiant.SemanticKernel/Adapters/SemanticKernelInferenceCompletionPort.cs`, `src/Affiant.SemanticKernel/Filters/InferenceTriggerFilter.cs`, `src/Affiant.SemanticKernel/Filters/ToolArgumentCaptureFilter.cs`, `src/Affiant.SemanticKernel/Extensions/ServiceCollectionExtensions.cs`
 
 #### 3.12.4 Pipeline Order
 
-The canonical 7-step filter pipeline order — locked by `AffiantFilterPipelineOrderTests` (`packages/tests/Affiant.SemanticKernel.Tests/Filters/AffiantFilterPipelineOrderTests.cs`, landed in Story 16.4) — is:
+The canonical 7-step filter pipeline order — locked by `AffiantFilterPipelineOrderTests` (`tests/Affiant.SemanticKernel.Tests/Filters/AffiantFilterPipelineOrderTests.cs`, landed in Story 16.4) — is:
 
 ```
 Pre-tool (IFunctionInvocationFilter):
@@ -612,7 +612,7 @@ Post-tool (IAutoFunctionInvocationFilter):
 
 Steps 4 and 5 are the L2 additions. `ToolArgumentCaptureFilter` (step 4) must precede `InferenceTriggerFilter` (step 5) so that captured arguments are available to `ITaskInferenceStrategy` implementations during inference. `TaskInferenceMergeFilter` (step 6) is a post-tool `IAutoFunctionInvocationFilter` that merges deferred inference results from the `ContextFabric` into the final Affidavit via `IAffidavitProjection`; it runs before `ReviewGateFilter` (step 7) so the Affidavit is fully populated before the reviewer sees it. Steps 1–3 and 7 were part of the L1 pipeline; see §3.10 Task Inference Strategy and §7 Tool Authoring Guide for their documentation.
 
-*Source files:* `packages/src/Affiant.SemanticKernel/Filters/AffiantFilterPipeline.cs`, `packages/src/Affiant.SemanticKernel/Filters/InferenceTriggerFilter.cs`, `packages/src/Affiant.SemanticKernel/Filters/ToolArgumentCaptureFilter.cs`, `packages/src/Affiant.Core/Filters/TaskInferenceMergeFilter.cs`
+*Source files:* `src/Affiant.SemanticKernel/Filters/AffiantFilterPipeline.cs`, `src/Affiant.SemanticKernel/Filters/InferenceTriggerFilter.cs`, `src/Affiant.SemanticKernel/Filters/ToolArgumentCaptureFilter.cs`, `src/Affiant.Core/Filters/TaskInferenceMergeFilter.cs`
 
 #### 3.12.5 Observability Contract
 
@@ -632,7 +632,7 @@ All 12 attribute key strings are constants in `Affiant.Core.Observability.L2Tele
 
 **Typed event publication.** After projection, `SchemaDrivenAffidavitProjection` publishes a typed `AffidavitEmittedEvent` record through `IObservabilityEventStream<AffidavitEmittedEvent>`. The event carries `ConversationId`, `AffidavitId`, `OperationType`, `EntityType`, `PopulatedFieldCount`, `AggregateConfidence`, and `EmptyProvenanceFieldCount`. The Phase 3.5 Validator subscribes to this stream to perform quality audits without coupling to OTel infrastructure; hosts that want dashboard-level monitoring subscribe to the OTel span events instead.
 
-*Source files:* `packages/src/Affiant.Core/Observability/AffiantTelemetry.cs`, `packages/src/Affiant.Abstractions/Models/AffidavitEmittedEvent.cs`, `packages/src/Affiant.Core/Services/TaskInferenceRunner.cs`, `packages/src/Affiant.Core/Services/SchemaDrivenAffidavitProjection.cs`
+*Source files:* `src/Affiant.Core/Observability/AffiantTelemetry.cs`, `src/Affiant.Abstractions/Models/AffidavitEmittedEvent.cs`, `src/Affiant.Core/Services/TaskInferenceRunner.cs`, `src/Affiant.Core/Services/SchemaDrivenAffidavitProjection.cs`
 
 #### 3.12.6 Adopter Pattern
 
@@ -646,7 +646,7 @@ Optionally, a host may register `IDeterministicFieldSource` implementations for 
 
 The contrast with the pre-L2 pattern is significant: before L2, each write tool required approximately 350 lines across a per-tool inference filter, a per-tool form-data struct, a per-tool Affidavit mapper, and per-field provenance assignments — all host-maintained and all outside the framework's guarantees. With L2, the same coverage requires the `[AffiantWriteTool]` decoration, the strategy declaration (~30 lines), and the one-line DI registration.
 
-*Source files:* `packages/src/Affiant.SemanticKernel/Extensions/ServiceCollectionExtensions.cs`, `packages/src/Affiant.Abstractions/Attributes/AffiantWriteToolAttribute.cs`
+*Source files:* `src/Affiant.SemanticKernel/Extensions/ServiceCollectionExtensions.cs`, `src/Affiant.Abstractions/Attributes/AffiantWriteToolAttribute.cs`
 
 #### 3.12.7 Fail-Safe Semantics
 
@@ -654,9 +654,9 @@ Inference failure never breaks the agent turn. The fail-safe contract, enforced 
 
 `OperationCanceledException` is deliberately re-thrown — cancellation is user- or host-initiated and must propagate normally.
 
-The fail-safe contract is asserted end-to-end by `InferenceFailSafeIntegrationTests` (`packages/tests/Affiant.SemanticKernel.Tests/Integration/InferenceFailSafeIntegrationTests.cs`, landed in Story 16.6).
+The fail-safe contract is asserted end-to-end by `InferenceFailSafeIntegrationTests` (`tests/Affiant.SemanticKernel.Tests/Integration/InferenceFailSafeIntegrationTests.cs`, landed in Story 16.6).
 
-*Source files:* `packages/src/Affiant.SemanticKernel/Filters/InferenceTriggerFilter.cs`, `packages/src/Affiant.Core/Services/TaskInferenceRunner.cs`
+*Source files:* `src/Affiant.SemanticKernel/Filters/InferenceTriggerFilter.cs`, `src/Affiant.Core/Services/TaskInferenceRunner.cs`
 
 #### 3.12.8 Idempotency Semantics
 
@@ -664,9 +664,9 @@ Inference runs at most once per `(ConversationId, FunctionName, TurnNumber)` tup
 
 `ConversationId` is read from `kernel.Data["ConversationId"]`; `TurnNumber` from `kernel.Data["AffiantTurnNumber"]`. If either is absent the filter falls back to a stable per-fabric-instance hash (`ConversationId`) or zero (`TurnNumber`) — a conservative fallback that may coalesce tuples across conversations on the same fabric instance, but never double-infers within a single conversation turn.
 
-The idempotency contract is asserted end-to-end by `InferenceIdempotencyIntegrationTests` (`packages/tests/Affiant.SemanticKernel.Tests/Integration/InferenceIdempotencyIntegrationTests.cs`, landed in Story 16.6).
+The idempotency contract is asserted end-to-end by `InferenceIdempotencyIntegrationTests` (`tests/Affiant.SemanticKernel.Tests/Integration/InferenceIdempotencyIntegrationTests.cs`, landed in Story 16.6).
 
-*Source files:* `packages/src/Affiant.SemanticKernel/Filters/InferenceTriggerFilter.cs`
+*Source files:* `src/Affiant.SemanticKernel/Filters/InferenceTriggerFilter.cs`
 
 ---
 
