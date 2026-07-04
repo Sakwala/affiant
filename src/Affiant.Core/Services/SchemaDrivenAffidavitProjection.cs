@@ -79,7 +79,7 @@ public sealed class SchemaDrivenAffidavitProjection : IAffidavitProjection
                     }
                 }
 
-                return new AffidavitField(field.Name, value, null, provenance);
+                return new AffidavitField(field.Name, value, null, provenance, field.Required);
             })
             .ToArray();
 

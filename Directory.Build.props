@@ -9,7 +9,18 @@
     <VersionSuffix>alpha.1</VersionSuffix>
     <Authors>Seevali</Authors>
     <PackageProjectUrl>https://github.com/affiant-dev/affiant</PackageProjectUrl>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/affiant-dev/affiant</RepositoryUrl>
   </PropertyGroup>
+
+  <!-- GHSA-2m69-gcr7-jv3q: SQLitePCLRaw.lib.e_sqlite3 <= 2.1.11 bundles a vulnerable SQLite;
+       no patched version exists as of 2026-07-04 (advisory first_patched_version = null).
+       Duplicated from the root Directory.Build.props so it survives the OSS split, where this
+       file becomes the repo root and the parent import above silently no-ops. The condition
+       (same expression as the import, inverted) keeps it inactive in the monorepo, where the
+       root props already supply it — two copies trip NU1508.
+       REMOVE when upstream ships a patched SQLitePCLRaw and the EF Core Sqlite chain is bumped. -->
+  <ItemGroup Condition="'$([MSBuild]::GetPathOfFileAbove(Directory.Build.props, $(MSBuildThisFileDirectory)../))' == ''">
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-2m69-gcr7-jv3q" />
+  </ItemGroup>
 </Project>

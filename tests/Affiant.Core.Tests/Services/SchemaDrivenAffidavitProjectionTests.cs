@@ -22,6 +22,17 @@ public class SchemaDrivenAffidavitProjectionTests
         public double? MinimumConfidenceThreshold => null;
     }
 
+    private sealed class MandatoryFieldStrategy : ITaskInferenceStrategy
+    {
+        public string EntityName => "Widget";
+        public IReadOnlyList<TaskInferenceField> Fields { get; } =
+        [
+            new("Color", "string", "Color of the widget", Required: true),
+            new("Weight", "string", "Weight in kg"),
+        ];
+        public double? MinimumConfidenceThreshold => null;
+    }
+
     private sealed class FixedSource : IDeterministicFieldSource
     {
         private readonly ProvenanceTag? _tag;
@@ -194,7 +205,26 @@ public class SchemaDrivenAffidavitProjectionTests
         Assert.Equal(0.9f, affidavit.AggregateConfidence, 5);
     }
 
-    // --- Test 9: constructor null guards ---
+    // --- Test 9: strategy.Required threads to AffidavitField.IsMandatory (issue #2) ---
+
+    [Fact]
+    public void RequiredField_EmptyValue_ProjectsMandatory_ProvenanceUntouched()
+    {
+        var fabric = new ContextFabric(); // empty → both fields Empty-sourced
+        var projection = BuildProjection(new MandatoryFieldStrategy());
+
+        var affidavit = projection.Project(fabric, "WriteCreate", []);
+
+        var colorField = affidavit.Fields.Single(f => f.Name == "Color");
+        Assert.True(colorField.IsMandatory);
+        Assert.Null(colorField.Value);
+        Assert.Equal(ProvenanceSource.Empty, colorField.Provenance.Current.Source);
+
+        var weightField = affidavit.Fields.Single(f => f.Name == "Weight");
+        Assert.False(weightField.IsMandatory);
+    }
+
+    // --- Test 10: constructor null guards ---
 
     [Fact]
     public void Constructor_NullStrategy_Throws()

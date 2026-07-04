@@ -11,7 +11,8 @@ public sealed record AffidavitField(
     string Name,
     object? Value,
     object? PreviousValue,
-    ProvenanceChain Provenance);
+    ProvenanceChain Provenance,
+    bool IsMandatory = false);
 
 /// <summary>
 /// The sworn evidence report for a proposed mutation. Every proposed write
