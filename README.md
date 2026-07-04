@@ -293,9 +293,15 @@ Affiant complements Microsoft's agent stack; it does not compete with it.
   function-invocation filter pipeline. MAF exposes a near 1:1 successor (`FunctionInvocationContext`
   with argument access and a terminate flag); a MAF adapter is planned, with the port confined
   to `Affiant.SemanticKernel`.
-- **MCP tool writes flow through the same seam.** Because MCP tool calls funnel through the
-  same function-invocation context, an adapter intercepts MCP writes for free — field-level
-  provenance for MCP tool writes.
+- **Locally-invoked MCP tool writes flow through the same seam.** MCP tools that *your
+  client* invokes funnel through the same function-invocation context, so an adapter
+  intercepts those writes for free — field-level provenance for local MCP tool writes.
+- **Honest boundary: hosted / server-side tools are out of interception reach.** Tools
+  executed by the provider runtime (hosted MCP, code interpreter, web search, and other
+  server-side tools) never enter the client's function-invocation pipeline — no framework
+  middleware fires for them, so Affiant cannot swear to writes it never sees. Keep
+  hosted-tool writes read-only or route them through a reviewed path if you need them
+  sworn. (Verified against Microsoft primary documentation, 2026-07-04.)
 
 ---
 
