@@ -46,4 +46,4 @@ If `result.Passed` is `false`, either:
 
 ---
 
-*Version 1.0.0-alpha.1 | MIT License | Part of the [Affiant Framework](https://github.com/affiant-dev/affiant)*
+*Version 1.0.0-alpha.1 | Apache-2.0 License | Part of the [Affiant Framework](https://github.com/affiant-dev/affiant)*
