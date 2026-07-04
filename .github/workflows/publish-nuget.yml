@@ -1,0 +1,55 @@
+name: Publish NuGet Packages
+
+# Tag-triggered publish ONLY. Branch pushes never publish — this invariant is
+# load-bearing: NuGet publishes are irreversible, so only an explicit `v*` tag
+# may trigger a release.
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      # Safety gate: the git tag must match the package version declared in
+      # Directory.Build.props (VersionPrefix + VersionSuffix). A wrong-tag publish
+      # is unrecoverable on NuGet.org, so fail loudly before building or pushing.
+      - name: Assert tag matches package version
+        run: |
+          version_prefix=$(grep -oP '(?<=<VersionPrefix>)[^<]+' Directory.Build.props)
+          version_suffix=$(grep -oP '(?<=<VersionSuffix>)[^<]+' Directory.Build.props)
+          if [ -n "$version_suffix" ]; then
+            pkg_version="${version_prefix}-${version_suffix}"
+          else
+            pkg_version="${version_prefix}"
+          fi
+          tag="${GITHUB_REF_NAME}"
+          expected="v${pkg_version}"
+          echo "Package version (Directory.Build.props): ${pkg_version}"
+          echo "Git tag:                                 ${tag}"
+          echo "Expected tag:                            ${expected}"
+          if [ "$tag" != "$expected" ]; then
+            echo "::error::Tag '${tag}' does not match package version '${pkg_version}' (expected tag '${expected}'). Refusing to publish — a wrong-tag publish is unrecoverable."
+            exit 1
+          fi
+
+      - name: Build framework packages
+        run: dotnet build Affiant.slnx -c Release
+
+      - name: Run framework tests
+        run: dotnet test Affiant.slnx -c Release --no-build
+
+      - name: Pack packages
+        run: dotnet pack Affiant.slnx -c Release -o ./nupkgs
+
+      - name: Publish to NuGet.org
+        run: dotnet nuget push ./nupkgs/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
