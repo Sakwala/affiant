@@ -9,7 +9,7 @@
     <VersionSuffix>alpha.1</VersionSuffix>
     <Authors>Seevali</Authors>
     <PackageProjectUrl>https://github.com/affiant-dev/affiant</PackageProjectUrl>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/affiant-dev/affiant</RepositoryUrl>
   </PropertyGroup>
 </Project>
