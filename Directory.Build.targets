@@ -16,7 +16,7 @@
              Importance="normal" />
 
     <Error
-      Text="Version mismatch in $(MSBuildProjectFullPath): expected 1.0.0-alpha.1, got '$(Version)'. All framework packages must share the same version. Update packages/Directory.Build.props to fix."
+      Text="Version mismatch in $(MSBuildProjectFullPath): expected 1.0.0-alpha.1, got '$(Version)'. All framework packages must share the same version. Update Directory.Build.props to fix."
       Condition="'$(Version)' != '1.0.0-alpha.1'" />
 
     <Error
@@ -24,7 +24,7 @@
       Condition="'$(PackageId)' != '$(MSBuildProjectName)'" />
 
     <Error
-      Text="RepositoryUrl mismatch in $(MSBuildProjectFullPath): expected 'https://github.com/affiant-dev/affiant', got '$(RepositoryUrl)'. Update the csproj or packages/Directory.Build.props."
+      Text="RepositoryUrl mismatch in $(MSBuildProjectFullPath): expected 'https://github.com/affiant-dev/affiant', got '$(RepositoryUrl)'. Update the csproj or Directory.Build.props."
       Condition="'$(RepositoryUrl)' != 'https://github.com/affiant-dev/affiant'" />
 
   </Target>

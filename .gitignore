@@ -1,0 +1,23 @@
+# Build output
+bin/
+obj/
+
+# Packing output
+nupkgs/
+verify-nupkgs/
+*.nupkg
+*.snupkg
+
+# IDE / user state
+.vs/
+.idea/
+*.user
+*.suo
+
+# Test results
+TestResults/
+*.trx
+
+# OS
+.DS_Store
+Thumbs.db
