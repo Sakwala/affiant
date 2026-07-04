@@ -35,4 +35,5 @@ public record TaskInferenceField(
     string Description,
     int? MaxLength = null,
     string? Pattern = null,
-    IReadOnlyList<string>? Enum = null);
+    IReadOnlyList<string>? Enum = null,
+    bool Required = false);
