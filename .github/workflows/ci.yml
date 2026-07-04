@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Build framework packages
+        run: dotnet build Affiant.slnx -c Release
+
+      - name: Run framework tests
+        run: dotnet test Affiant.slnx -c Release --no-build
+
+      - name: Pack framework packages
+        run: dotnet pack Affiant.slnx -c Release -o ./nupkgs
+
+      - name: Check 8 packages produced
+        run: |
+          count=$(ls ./nupkgs/*.nupkg | wc -l)
+          echo "Produced $count packages"
+          [ "$count" -eq 8 ] || (echo "Expected 8 packages, got $count" && exit 1)
