@@ -8,7 +8,6 @@ using Affiant.Core.Filters;
 using Affiant.Core.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.SemanticKernel;
 using Xunit;
 
 /// <summary>
@@ -126,9 +125,9 @@ public class ServiceCollectionExtensionsTests
         public Task<ChatSession> CreateAsync(string tenantId, string userId, CancellationToken ct) =>
             Task.FromResult(new ChatSession(Guid.NewGuid().ToString(), tenantId, userId, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
         public Task<ChatSession?> GetAsync(string sessionId, CancellationToken ct) => Task.FromResult<ChatSession?>(null);
-        public Task SaveMessagesAsync(string sessionId, IReadOnlyList<ChatMessageContent> messages, CancellationToken ct) => Task.CompletedTask;
-        public Task<IReadOnlyList<ChatMessageContent>> LoadMessagesAsync(string sessionId, CancellationToken ct) =>
-            Task.FromResult<IReadOnlyList<ChatMessageContent>>(Array.Empty<ChatMessageContent>());
+        public Task SaveMessagesAsync(string sessionId, IReadOnlyList<AffiantChatMessage> messages, CancellationToken ct) => Task.CompletedTask;
+        public Task<IReadOnlyList<AffiantChatMessage>> LoadMessagesAsync(string sessionId, CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<AffiantChatMessage>>(Array.Empty<AffiantChatMessage>());
         public Task DeleteAsync(string sessionId, CancellationToken ct) => Task.CompletedTask;
     }
 

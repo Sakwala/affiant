@@ -55,14 +55,14 @@ public class AddAffiantInferenceOrchestrationTests
     }
 
     [Fact]
-    public void AddAffiantInferenceOrchestration_FunctionInvocationFilterEnumerable_ContainsBothFilters()
+    public void AddAffiantInferenceOrchestration_ToolInvocationFilterEnumerable_ContainsBothFilters()
     {
         using var scope = BuildScope();
-        var filters = scope.ServiceProvider.GetServices<IFunctionInvocationFilter>().ToList();
+        var filters = scope.ServiceProvider.GetServices<IToolInvocationFilter>().ToList();
 
         Assert.Contains(filters, f => f is ToolArgumentCaptureFilter);
         Assert.Contains(filters, f => f is InferenceTriggerFilter);
-        // Order assertion is 16.4's territory — assert only membership here.
+        // Order assertion is asserted by the pipeline-order tests — assert only membership here.
     }
 
     // ── Idempotency ───────────────────────────────────────────────────────────
@@ -81,8 +81,8 @@ public class AddAffiantInferenceOrchestrationTests
         var ports = scope.ServiceProvider.GetServices<IInferenceCompletionPort>().ToList();
         Assert.Single(ports);
 
-        // IFunctionInvocationFilter: TryAddEnumerable deduplicates by (ServiceType, ImplementationType)
-        var filters = scope.ServiceProvider.GetServices<IFunctionInvocationFilter>().ToList();
+        // IToolInvocationFilter: TryAddEnumerable deduplicates by (ServiceType, ImplementationType)
+        var filters = scope.ServiceProvider.GetServices<IToolInvocationFilter>().ToList();
         var captureCount = filters.Count(f => f is ToolArgumentCaptureFilter);
         var triggerCount = filters.Count(f => f is InferenceTriggerFilter);
         Assert.Equal(1, captureCount);
@@ -97,10 +97,11 @@ public class AddAffiantInferenceOrchestrationTests
     // ── Integration: kernel resolves correctly ────────────────────────────────
 
     [Fact]
-    public void AddAffiantInferenceOrchestration_KernelResolvesWithRegisteredFilters()
+    public void AddAffiantInferenceOrchestration_KernelResolvesWithBridge()
     {
         var services = BuildBaseServices();
         services.AddAffiantInferenceOrchestration();
+        services.AddAffiantSkFilters();
         services.AddKernel();
 
         var sp = services.BuildServiceProvider();
@@ -110,10 +111,10 @@ public class AddAffiantInferenceOrchestrationTests
         var kernel = scope.ServiceProvider.GetRequiredService<Kernel>();
         Assert.NotNull(kernel);
 
-        // The pre-tool filters are visible in the kernel's filter collection
-        var fnFilters = kernel.FunctionInvocationFilters;
-        Assert.Contains(fnFilters, f => f is ToolArgumentCaptureFilter);
-        Assert.Contains(fnFilters, f => f is InferenceTriggerFilter);
+        // The SK function-invocation bridge is the only IFunctionInvocationFilter the kernel sees;
+        // it runs the neutral pre-tool filters internally.
+        Assert.Contains(kernel.FunctionInvocationFilters, f => f is AffiantFunctionInvocationBridge);
+        Assert.Contains(kernel.AutoFunctionInvocationFilters, f => f is AffiantAutoFunctionInvocationBridge);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

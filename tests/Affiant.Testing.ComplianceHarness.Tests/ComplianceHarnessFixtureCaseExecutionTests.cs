@@ -5,7 +5,6 @@ using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
 using Affiant.Core.Extensions;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.SemanticKernel.ChatCompletion;
 using Xunit;
 
 // ---------------------------------------------------------------------------
@@ -71,7 +70,7 @@ file static class Helpers
     }
 
     public static InferenceFixtureCase MakeCase(string name, Func<Affidavit, bool> assertion) =>
-        new(name, new ChatHistory(), new Dictionary<string, object?>(), assertion);
+        new(name, Array.Empty<AffiantChatMessage>(), new Dictionary<string, object?>(), assertion);
 }
 
 // ---------------------------------------------------------------------------

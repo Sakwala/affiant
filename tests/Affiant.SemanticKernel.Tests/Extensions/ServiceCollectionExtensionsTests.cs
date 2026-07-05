@@ -79,21 +79,21 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddAffiantSemanticKernel_RegistersTaskInferenceMergeFilter_AsAutoFunctionInvocationFilter()
+    public void AddAffiantSemanticKernel_RegistersTaskInferenceMergeFilter_AsToolInvocationFilter()
     {
         var sp = BuildProviderWithInferenceStack();
         using var scope = sp.CreateScope();
-        var filters = scope.ServiceProvider.GetServices<IAutoFunctionInvocationFilter>().ToList();
+        var filters = scope.ServiceProvider.GetServices<IToolInvocationFilter>().ToList();
         Assert.NotEmpty(filters);
         Assert.Single(filters, f => f is TaskInferenceMergeFilter);
     }
 
     [Fact]
-    public void AddAffiantSemanticKernel_RegistersReviewGateFilter_AsAutoFunctionInvocationFilter()
+    public void AddAffiantSemanticKernel_RegistersReviewGateFilter_AsToolInvocationFilter()
     {
         var sp = BuildProviderWithInferenceStack();
         using var scope = sp.CreateScope();
-        var filters = scope.ServiceProvider.GetServices<IAutoFunctionInvocationFilter>().ToList();
+        var filters = scope.ServiceProvider.GetServices<IToolInvocationFilter>().ToList();
         Assert.NotEmpty(filters);
         Assert.Single(filters, f => f is ReviewGateFilter);
     }
@@ -101,11 +101,12 @@ public class ServiceCollectionExtensionsTests
     [Fact]
     public void AddAffiantSemanticKernel_FilterPipeline_TaskInferenceMergeBeforeReviewGate()
     {
-        // The pipeline position contract: TaskInferenceMergeFilter (pos 6) must appear before
-        // ReviewGateFilter (pos 7) in the registered enumerable — SK invokes in order.
+        // The completion-stage position contract: TaskInferenceMergeFilter (pos 6) must appear
+        // before ReviewGateFilter (pos 7) in the registered neutral enumerable — the SK auto-
+        // invocation bridge runs the completion-stage filters in that order.
         var sp = BuildProviderWithInferenceStack();
         using var scope = sp.CreateScope();
-        var filters = scope.ServiceProvider.GetServices<IAutoFunctionInvocationFilter>().ToList();
+        var filters = scope.ServiceProvider.GetServices<IToolInvocationFilter>().ToList();
 
         var taskInferenceIdx = filters.FindIndex(f => f is TaskInferenceMergeFilter);
         var reviewGateIdx = filters.FindIndex(f => f is ReviewGateFilter);

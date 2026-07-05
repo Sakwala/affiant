@@ -2,18 +2,16 @@ namespace Affiant.Abstractions.Tests.Interfaces;
 
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
-using Microsoft.SemanticKernel.ChatCompletion;
 using Xunit;
 
 public class InferenceCompletionRequestTests
 {
-    // ChatHistory is not JSON-round-trippable through System.Text.Json (SK's
-    // ChatMessageContent carries KernelArguments and other non-serializable state).
-    // See Story 16.1 Gotcha 2. Tests assert structural contract and reference equality only.
+    // History is a backend-neutral IReadOnlyList<AffiantChatMessage>. Tests assert the structural
+    // contract and reference equality only.
 
     private static InferenceCompletionRequest SampleRequest()
     {
-        var history = new ChatHistory();
+        IReadOnlyList<AffiantChatMessage> history = new List<AffiantChatMessage>();
         var strategy = new StubStrategy();
         var args = new Dictionary<string, object?> { ["key"] = "value" };
         return new InferenceCompletionRequest(history, strategy, "TestFunction", args);
@@ -31,11 +29,11 @@ public class InferenceCompletionRequestTests
     }
 
     [Fact]
-    public void History_PropertyType_IsChatHistory()
+    public void History_PropertyType_IsNeutralMessageList()
     {
         var prop = typeof(InferenceCompletionRequest).GetProperty("History");
         Assert.NotNull(prop);
-        Assert.Equal(typeof(ChatHistory), prop.PropertyType);
+        Assert.Equal(typeof(IReadOnlyList<AffiantChatMessage>), prop.PropertyType);
     }
 
     [Fact]
@@ -57,7 +55,7 @@ public class InferenceCompletionRequestTests
     [Fact]
     public void RecordEquality_HoldsWhenHistoryAndStrategyReferenceEqual()
     {
-        var history = new ChatHistory();
+        IReadOnlyList<AffiantChatMessage> history = new List<AffiantChatMessage>();
         var strategy = new StubStrategy();
         var args = new Dictionary<string, object?>();
         var a = new InferenceCompletionRequest(history, strategy, "Fn", args);

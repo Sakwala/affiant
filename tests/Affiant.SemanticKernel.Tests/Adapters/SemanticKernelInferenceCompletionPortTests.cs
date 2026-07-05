@@ -77,9 +77,11 @@ public class SemanticKernelInferenceCompletionPortTests
         });
 
         var port = BuildPort(fake);
-        var inputHistory = new ChatHistory();
-        inputHistory.AddUserMessage("first user message");
-        inputHistory.AddAssistantMessage("first assistant reply");
+        IReadOnlyList<AffiantChatMessage> inputHistory =
+        [
+            new AffiantChatMessage("user", "first user message"),
+            new AffiantChatMessage("assistant", "first assistant reply"),
+        ];
 
         await port.CompleteStructuredAsync(MakeRequest(inputHistory));
 
@@ -167,10 +169,10 @@ public class SemanticKernelInferenceCompletionPortTests
             kernel.Services, NullLogger<SemanticKernelInferenceCompletionPort>.Instance);
     }
 
-    private static InferenceCompletionRequest MakeRequest(ChatHistory? history = null)
+    private static InferenceCompletionRequest MakeRequest(IReadOnlyList<AffiantChatMessage>? history = null)
     {
         return new InferenceCompletionRequest(
-            History: history ?? new ChatHistory(),
+            History: history ?? Array.Empty<AffiantChatMessage>(),
             Strategy: new WorkItemStrategy(),
             FunctionName: "CreateWorkItem",
             Arguments: new Dictionary<string, object?>(0));

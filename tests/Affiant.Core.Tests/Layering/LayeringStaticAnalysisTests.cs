@@ -38,4 +38,32 @@ public class LayeringStaticAnalysisTests
         Assert.Empty(illegalRefs);
         Assert.Contains(affiantRefs, a => a.Name == "Affiant.Abstractions");
     }
+
+    // The interception pipeline in Abstractions + Core is backend-neutral (L2 AC #4). Neither
+    // package may take a direct dependency on any agent-framework backend — not Semantic Kernel,
+    // and not the Microsoft Agent Framework stack. This guard fails the build if one creeps back in.
+    private static readonly string[] ForbiddenBackendAssemblies =
+    [
+        "Microsoft.SemanticKernel",
+        "Microsoft.Agents.AI",
+        "Microsoft.Extensions.AI",
+    ];
+
+    [Theory]
+    [InlineData(typeof(Affiant.Abstractions.Models.ToolEnvelope))]
+    [InlineData(typeof(ContextFabric))]
+    public void AffiantNeutralPackages_reject_backend_framework_references(Type anchor)
+    {
+        var referenced = anchor.Assembly
+            .GetReferencedAssemblies()
+            .Select(a => a.Name)
+            .Where(n => n is not null)
+            .ToList();
+
+        foreach (var forbidden in ForbiddenBackendAssemblies)
+        {
+            Assert.DoesNotContain(referenced, n =>
+                n!.StartsWith(forbidden, StringComparison.Ordinal));
+        }
+    }
 }

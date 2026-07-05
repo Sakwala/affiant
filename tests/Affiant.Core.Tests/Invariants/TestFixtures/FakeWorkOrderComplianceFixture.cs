@@ -2,7 +2,6 @@ namespace Affiant.Core.Tests.Invariants.TestFixtures;
 
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
-using Microsoft.SemanticKernel.ChatCompletion;
 
 internal sealed class FakeWorkOrderComplianceFixture : ITaskInferenceComplianceFixture
 {
@@ -12,9 +11,11 @@ internal sealed class FakeWorkOrderComplianceFixture : ITaskInferenceComplianceF
     {
         get
         {
-            var history = new ChatHistory();
-            history.AddUserMessage(
-                "Create a work order to replace the engine on aircraft A7-BCA, priority High.");
+            IReadOnlyList<AffiantChatMessage> history =
+            [
+                new AffiantChatMessage("user",
+                    "Create a work order to replace the engine on aircraft A7-BCA, priority High."),
+            ];
 
             yield return new InferenceFixtureCase(
                 Name: "happy_path_create_work_order",
