@@ -27,12 +27,20 @@ public sealed record AffiantToolCatalog(
 
         var functions = new List<AIFunction>();
         var descriptors = new List<AffiantToolDescriptor>();
+        var seenNames = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var method in typeof(T).GetMethods(BindingFlags.Public | BindingFlags.Instance))
         {
             if (method.IsGenericMethodDefinition) continue;
             if (method.DeclaringType == typeof(object)) continue;
             if (method.IsSpecialName) continue; // property accessors, event add/remove
+
+            if (!seenNames.Add(method.Name))
+                throw new InvalidOperationException(
+                    $"AffiantToolCatalog.FromType<{typeof(T).Name}>(): method '{method.Name}' is overloaded. " +
+                    "Tool method overloads are not supported — a tool is identified by (function name, plugin " +
+                    "name), so overloads collapse to duplicate descriptors that later fail at registry time. " +
+                    $"Rename one overload so each tool method on {typeof(T).Name} has a unique name.");
 
             functions.Add(AIFunctionFactory.Create(method, ResolveTarget<T>));
 
