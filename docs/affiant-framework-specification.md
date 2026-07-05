@@ -2,7 +2,8 @@
 
 > **Sworn provenance for every AI write.**  
 > **Version**: 1.0.0-spec  
-> **Last updated**: 2026-04-10  
+> **Last updated**: 2026-07-05 (§3.8, §3.12.3, §3.12.4, §4 Package Mapping, §5 corrected/extended —
+> see `docs/proposals/affiant-maf-adapter.md` for the change that drove this update)  
 > **Authors**: Software Architect, Technical Product Manager, Principal Engineer, Technical Writer  
 > **Status**: Ready for implementation  
 > **Repository**: github.com/affiant-dev/affiant  
@@ -18,7 +19,7 @@ An affiant is one who swears to truth. This framework swears to the provenance o
 
 The framework exists because no agent framework today — open-source or enterprise — offers field-level provenance tracking with deterministic context extraction. Enterprise write operations demand the same evidentiary chain that financial transactions require: the user must know *why* the AI suggested each value before approving it. Affiant intercepts every AI-proposed database mutation, tags each field with its deterministic origin, and holds the proposal in a durable review queue — the **Docket** — for human review. Nothing commits without evidence. Nothing writes without approval.
 
-Affiant is built on Semantic Kernel's `IAutoFunctionInvocationFilter` pipeline, which provides the richest interception surface in any .NET agent framework. It cleanly separates into six architectural layers, with the natural boundary between framework and host application falling at three seams: domain plugins, domain models, and transport configuration.
+Affiant's interception logic — provenance tagging, task inference, and review gating — is defined once, backend-neutrally, and runs behind either of two interception backends: Semantic Kernel's `IFunctionInvocationFilter`/`IAutoFunctionInvocationFilter` pipeline (the original, richest-available interception surface at the time this framework was built) or the Microsoft Agent Framework's function-calling middleware (added 2026-07-05; see §3.12.3 and `docs/adapters/microsoft-agent-framework.md`). It cleanly separates into six architectural layers, with the natural boundary between framework and host application falling at four seams: domain plugins, domain models, transport configuration, and the interception backend itself (§5).
 
 ### Ecosystem Vocabulary
 
@@ -345,13 +346,26 @@ public interface IRouteRegistry
 
 ### 3.8 Intent Interception
 
+> Corrected 2026-07-05: this section previously documented a `Priority`/`CanHandle(string)` shape
+> that never matched the shipped interface. The text below now reflects the interface as it
+> actually ships in `src/Affiant.Abstractions/Interfaces/IIntentInterceptor.cs` — a drift
+> discovered during the `Affiant.AgentFramework` adapter recon (`docs/proposals/affiant-maf-adapter.md`
+> §4.3) and fixed alongside that work. The shipped interface takes an arguments dictionary and
+> has no priority-ordering concept: `DeterministicShortCircuit` (§4, Layer 2) queries every
+> registered `IIntentInterceptor` and uses the first one whose `MatchesAsync` returns `true`, in
+> DI registration order.
+
 ```csharp
 // For DeterministicShortCircuit — bypasses the LLM entirely for high-failure-cost intents
 public interface IIntentInterceptor
 {
-    int Priority { get; }
-    bool CanHandle(string userMessage);
-    Task<string> HandleAsync(string userMessage, ConversationIdentity identity, CancellationToken ct);
+    Task<bool> MatchesAsync(
+        IReadOnlyDictionary<string, object?> arguments,
+        CancellationToken cancellationToken = default);
+
+    Task<object?> HandleAsync(
+        IReadOnlyDictionary<string, object?> arguments,
+        CancellationToken cancellationToken = default);
 }
 ```
 
@@ -579,40 +593,125 @@ Three default service implementations ship with the framework. Hosts that accept
 
 *Source files:* `src/Affiant.Core/Services/TaskInferenceRunner.cs`, `src/Affiant.Core/Triggers/WriteIntentInferenceTrigger.cs`, `src/Affiant.Core/Services/SchemaDrivenAffidavitProjection.cs`, `src/Affiant.Core/Triggers/FunctionNameInferenceTrigger.cs`
 
-#### 3.12.3 SK Adapter Surface
+#### 3.12.3 Neutral Pipeline + Backend Bridges
 
-The L2 SK-specific components live in `Affiant.SemanticKernel`, keeping the `Microsoft.SemanticKernel` PackageReference isolated to that package. `Affiant.Core` reaches SK behaviour only through `Affiant.Abstractions`'s interface contracts — this is the L2 AC #4 architectural constraint ratified 2026-05-05: Core must not take a direct SK dependency.
+> Rewritten 2026-07-05 (`docs/proposals/affiant-maf-adapter.md`, implemented on branch
+> `feat/agent-framework-adapter`, commits `50e6cf2`/`649dd32`). This section previously claimed
+> the L2 SK-specific components were isolated to `Affiant.SemanticKernel` and that L2 AC #4
+> ("`Affiant.Core` must not take a direct SK dependency," ratified 2026-05-05) already held. As
+> written, that claim was **false**: `Affiant.Core` carried a direct `Microsoft.SemanticKernel`
+> PackageReference and several filters implemented SK's own filter interfaces directly, and
+> `Affiant.Abstractions` was typed against SK's `ChatMessageContent`/`ChatHistory`. The 2026-07-05
+> refactor made the claim true and test-enforced. What follows describes the **current, shipped**
+> architecture, not the earlier aspiration.
 
-**`SemanticKernelInferenceCompletionPort`** (in `Affiant.SemanticKernel.Adapters`) implements `IInferenceCompletionPort` using SK's `IChatCompletionService` with structured-output mode. It converts the `InferenceCompletionRequest` into a `ChatHistory` with a system prompt derived from the strategy's field schema, calls the completion service, and parses the response into a `JsonElement`.
+L2's filter logic is defined **once**, backend-neutrally, in `Affiant.Core`, against a neutral
+invocation contract in `Affiant.Abstractions` (`ToolInvocationContext`, `IToolInvocationFilter` —
+see `src/Affiant.Abstractions/Models/ToolInvocationContext.cs` and
+`src/Affiant.Abstractions/Interfaces/IToolInvocationFilter.cs`). Each interception backend package
+(`Affiant.SemanticKernel`, `Affiant.AgentFramework`) is a **thin bridge**: it translates its
+framework's native tool-invocation seam into a `ToolInvocationContext`, hands it to a shared
+`ToolInvocationPipeline` (`Affiant.Core.Services`) which runs the canonical filter order
+(§3.12.4), and translates the outcome back. Bridges contain no provenance, inference, or
+review-gate logic — that logic exists in exactly one place, so the two backends cannot drift
+apart in what they tag or when they gate. `Affiant.Abstractions` and `Affiant.Core` now carry no
+`Microsoft.SemanticKernel` or `Microsoft.Agents.AI` PackageReference at all — **L2 AC #4 holds
+and is enforced by the domain-agnostic/dependency static-analysis test suite**, not merely
+asserted in prose.
 
-**`InferenceTriggerFilter`** (in `Affiant.SemanticKernel.Filters`) implements SK's `IFunctionInvocationFilter` (pre-tool). It iterates registered `IInferenceTrigger` instances, enforces once-per-`(ConversationId, FunctionName, TurnNumber)` idempotency via `ContextFabric` bookkeeping, resolves the `ITaskInferenceStrategy` from `IAffiantToolRegistry` and `IServiceProvider`, and delegates to `TaskInferenceRunner`. Inference failure is absorbed (fail-safe per §3.12.7); the tool call always proceeds.
+`ToolInvocationContext` (neutral, in `Affiant.Abstractions.Models`) carries `FunctionName`,
+`PluginName`, a mutable `Arguments` dictionary, a settable `Result`, a `Terminate` flag, a
+per-invocation `Services` scope, and ambient turn context (`ConversationId`, `TurnNumber`,
+`History` as `IReadOnlyList<AffiantChatMessage>`) that each bridge populates from whatever its
+framework exposes. `AffiantChatMessage` (also neutral) replaced SK's `ChatMessageContent` in
+`IChatSessionStore`, `InferenceCompletionRequest`, and `InferenceFixtureCase`; each bridge
+converts to/from its native message type at its own edge (`SkMessageConversions` for SK,
+`MafMessageConversions` for MAF).
 
-**`ToolArgumentCaptureFilter`** (in `Affiant.SemanticKernel.Filters`) implements `IFunctionInvocationFilter` (pre-tool). It runs before `InferenceTriggerFilter` in the pipeline order (§3.12.4) and captures tool arguments into the `ContextFabric` so that `IAffidavitProjection` implementations can incorporate argument-sourced provenance.
+**`TaskInferenceRunner`, `ToolArgumentCaptureFilter`, `InferenceTriggerFilter`,
+`TaskInferenceMergeFilter`, `ReviewGateFilter`, `ToolErrorFilter`, `ToolTracingFilter`,
+`DeterministicShortCircuit`, and `ContextExtractor<T>`** all live in `Affiant.Core` today (moved
+from `Affiant.SemanticKernel`, or re-expressed off SK types, by the 2026-07-05 refactor) and
+implement the neutral `IToolInvocationFilter` contract rather than any SK-specific interface.
 
-**`AddAffiantInferenceOrchestration()`** is the `IServiceCollection` extension method in `Affiant.SemanticKernel.Extensions.ServiceCollectionExtensions` that registers all L2 components with a single call: `SemanticKernelInferenceCompletionPort`, `TaskInferenceRunner`, `WriteIntentInferenceTrigger`, `InferenceTriggerFilter`, `ToolArgumentCaptureFilter`, `SchemaDrivenAffidavitProjection` (keyed per registered tool), and the SK-adapter startup validator extension.
+**The SK bridge** (`Affiant.SemanticKernel`) keeps the exact two-firing-position split SK's own
+filter pipeline requires — pre-tool argument capture and inference triggering at SK's
+`IFunctionInvocationFilter` position, post-tool merge and review gating at SK's
+`IAutoFunctionInvocationFilter` position (where SK exposes auto-invocation-loop termination) —
+via two concrete bridge classes: `AffiantFunctionInvocationBridge`
+(`src/Affiant.SemanticKernel/Filters/AffiantFunctionInvocationBridge.cs`, implements SK's
+`IFunctionInvocationFilter`) and `AffiantAutoFunctionInvocationBridge`
+(`src/Affiant.SemanticKernel/Filters/AffiantAutoFunctionInvocationBridge.cs`, implements SK's
+`IAutoFunctionInvocationFilter`). Each constructs a `ToolInvocationContext`, runs the neutral
+`ToolInvocationPipeline` with the subset of neutral filters appropriate to its firing position,
+and writes the result back — for the invocation bridge, into the SK context's mutable `Result`;
+for the auto-invocation bridge, likewise, plus mapping `Terminate` onto
+`AutoFunctionInvocationContext.Terminate`.
 
-*Source files:* `src/Affiant.SemanticKernel/Adapters/SemanticKernelInferenceCompletionPort.cs`, `src/Affiant.SemanticKernel/Filters/InferenceTriggerFilter.cs`, `src/Affiant.SemanticKernel/Filters/ToolArgumentCaptureFilter.cs`, `src/Affiant.SemanticKernel/Extensions/ServiceCollectionExtensions.cs`
+**`SemanticKernelInferenceCompletionPort`** (in `Affiant.SemanticKernel.Adapters`) implements
+`IInferenceCompletionPort` using SK's `IChatCompletionService` with structured-output mode,
+unchanged in role by this refactor beyond converting through `AffiantChatMessage` at its edge.
+
+**`AddAffiantInferenceOrchestration()`** (in `Affiant.SemanticKernel.Extensions.ServiceCollectionExtensions`)
+registers the SK-side L2 components: `SemanticKernelInferenceCompletionPort`, `TaskInferenceRunner`,
+`WriteIntentInferenceTrigger`, the neutral `ToolArgumentCaptureFilter`/`InferenceTriggerFilter`
+(now registered against `IToolInvocationFilter`, not SK's `IFunctionInvocationFilter`),
+`SchemaDrivenAffidavitProjection`, and the SK-adapter startup validator extension.
+`AddAffiantSkFilters()` registers the two bridge classes themselves against SK's own filter
+interfaces — this is the one place SK's interfaces are referenced at all.
+
+**The MAF bridge** (`Affiant.AgentFramework`, added 2026-07-05) is the second, symmetric proof
+that the neutral pipeline is genuinely backend-neutral: MAF exposes exactly one function-calling
+seam (no invocation/auto-invocation split), so `AffiantFunctionInvocationMiddleware`
+(`src/Affiant.AgentFramework/Filters/AffiantFunctionInvocationMiddleware.cs`) runs the *entire*
+canonical filter order at that one seam and seals evidence by **returning** the neutral context's
+`Result` from the middleware delegate (MAF's `FunctionInvocationContext` has no settable
+`.Result`, unlike SK's context). See `docs/adapters/microsoft-agent-framework.md` for the full
+host-facing surface.
+
+*Source files:* `src/Affiant.Abstractions/Models/ToolInvocationContext.cs`,
+`src/Affiant.Abstractions/Interfaces/IToolInvocationFilter.cs`,
+`src/Affiant.Core/Services/ToolInvocationPipeline.cs`,
+`src/Affiant.SemanticKernel/Filters/AffiantFunctionInvocationBridge.cs`,
+`src/Affiant.SemanticKernel/Filters/AffiantAutoFunctionInvocationBridge.cs`,
+`src/Affiant.SemanticKernel/Adapters/SemanticKernelInferenceCompletionPort.cs`,
+`src/Affiant.SemanticKernel/Extensions/ServiceCollectionExtensions.cs`,
+`src/Affiant.AgentFramework/Filters/AffiantFunctionInvocationMiddleware.cs`
 
 #### 3.12.4 Pipeline Order
 
-The canonical 7-step filter pipeline order — locked by `AffiantFilterPipelineOrderTests` (`tests/Affiant.SemanticKernel.Tests/Filters/AffiantFilterPipelineOrderTests.cs`, landed in Story 16.4) — is:
+> Restated 2026-07-05 as backend-neutral (`docs/proposals/affiant-maf-adapter.md` §3). The order
+> itself is unchanged from when it was first locked (Story 16.4); what changed is that it is now
+> a property of the one neutral `ToolInvocationPipeline` (§3.12.3) that both backends run,
+> rather than of an SK-specific filter chain. The onion-order mechanics (registration order,
+> pre-/post-`next()` split) are asserted backend-free by
+> `tests/Affiant.Core.Tests/Services/ToolInvocationPipelineTests.cs`; the concrete 7-step order
+> for the SK bridge specifically remains locked by `AffiantFilterPipelineOrderTests`
+> (`tests/Affiant.SemanticKernel.Tests/Filters/AffiantFilterPipelineOrderTests.cs`). The MAF
+> bridge reproduces the identical order at its one middleware seam (no separate order-lock test
+> is needed there because MAF has no stage split to get wrong — see
+> `docs/adapters/microsoft-agent-framework.md`).
+
+The canonical 7-step filter pipeline order is expressed as an onion over the neutral
+`IToolInvocationFilter` contract (§3.12.3); each backend's bridge decides which segment of the
+onion fires at which of its framework's native seams:
 
 ```
-Pre-tool (IFunctionInvocationFilter):
+Pre-tool (SK: IFunctionInvocationFilter · MAF: same middleware seam, earlier in the onion):
   1. ToolErrorFilter
   2. DeterministicShortCircuit
   3. ContextExtractor* (host-registered)
   4. ToolArgumentCaptureFilter
   5. InferenceTriggerFilter
 [tool invokes]
-Post-tool (IAutoFunctionInvocationFilter):
+Post-tool (SK: IAutoFunctionInvocationFilter · MAF: same middleware seam, later in the onion):
   6. TaskInferenceMergeFilter
   7. ReviewGateFilter
 ```
 
-Steps 4 and 5 are the L2 additions. `ToolArgumentCaptureFilter` (step 4) must precede `InferenceTriggerFilter` (step 5) so that captured arguments are available to `ITaskInferenceStrategy` implementations during inference. `TaskInferenceMergeFilter` (step 6) is a post-tool `IAutoFunctionInvocationFilter` that merges deferred inference results from the `ContextFabric` into the final Affidavit via `IAffidavitProjection`; it runs before `ReviewGateFilter` (step 7) so the Affidavit is fully populated before the reviewer sees it. Steps 1–3 and 7 were part of the L1 pipeline; see §3.10 Task Inference Strategy and §7 Tool Authoring Guide for their documentation.
+Steps 4 and 5 are the L2 additions. `ToolArgumentCaptureFilter` (step 4) must precede `InferenceTriggerFilter` (step 5) so that captured arguments are available to `ITaskInferenceStrategy` implementations during inference. `TaskInferenceMergeFilter` (step 6) merges deferred inference results from the `ContextFabric` into the final Affidavit via `IAffidavitProjection`; it runs before `ReviewGateFilter` (step 7) so the Affidavit is fully populated before the reviewer sees it. On SK, steps 1–5 fire at `IFunctionInvocationFilter` and steps 6–7 at `IAutoFunctionInvocationFilter` — two native seams. On MAF, all seven fire at MAF's single function-calling middleware seam, in the same relative order, because MAF has no equivalent two-position split (§3.12.3). Steps 1–3 and 7 were part of the L1 pipeline; see §3.10 Task Inference Strategy and §7 Tool Authoring Guide for their documentation.
 
-*Source files:* `src/Affiant.SemanticKernel/Filters/AffiantFilterPipeline.cs`, `src/Affiant.SemanticKernel/Filters/InferenceTriggerFilter.cs`, `src/Affiant.SemanticKernel/Filters/ToolArgumentCaptureFilter.cs`, `src/Affiant.Core/Filters/TaskInferenceMergeFilter.cs`
+*Source files:* `src/Affiant.Core/Services/ToolInvocationPipeline.cs`, `src/Affiant.SemanticKernel/Filters/AffiantFilterPipeline.cs`, `src/Affiant.Core/Filters/InferenceTriggerFilter.cs`, `src/Affiant.Core/Filters/ToolArgumentCaptureFilter.cs`, `src/Affiant.Core/Filters/TaskInferenceMergeFilter.cs`, `src/Affiant.AgentFramework/Filters/AffiantFunctionInvocationMiddleware.cs`, `src/Affiant.AgentFramework/Extensions/ServiceCollectionExtensions.cs`
 
 #### 3.12.5 Observability Contract
 
@@ -730,21 +829,33 @@ The architecture separates into six layers forming a directed acyclic graph, wit
 
 ### Package Mapping
 
-The NuGet package hierarchy reflects the reserved `Affiant.*` namespace on nuget.org:
+> Updated 2026-07-05: `Affiant.AgentFramework` joined the set as the ninth co-versioned package
+> (`docs/proposals/affiant-maf-adapter.md`, implemented on branch `feat/agent-framework-adapter`).
+> The `Affiant.SemanticKernel` entry below is also corrected — it previously described a single
+> `IAutoFunctionInvocationFilter` implementation, which understated its shape even before this
+> change (see §3.12.3 for the two-bridge-class reality).
 
-**`Affiant.Abstractions`** — Bottom of the framework dependency graph: all domain-agnostic primitive types (`ToolEnvelope`, `Affidavit`, `ProvenanceTag`, `ProvenanceChain`, `DocketEntry`, `TransportEvent`, etc.) and all framework interfaces (`IChatSessionStore`, `IDocketStore`, `IStreamingTransport`, `IApprovalPolicy`, `IFieldMapper<T>`, `IWriteExecutor`, `IRouteRegistry`, `IIntentInterceptor`, etc.). Zero dependencies on other Affiant packages. Host applications that only need to implement a contract can reference this package alone without pulling in `Core`'s services.
+The NuGet package hierarchy reflects the reserved `Affiant.*` namespace on nuget.org. Nine
+packages exist today (the eighth published set plus `Affiant.AgentFramework`, in-repo pending the
+maintainer's nuget.org ID reservation — see `docs/proposals/affiant-maf-adapter.md` §4.5 and §9):
 
-**`Affiant.Core`** — Concrete services built on top of `Affiant.Abstractions`: the `ContextFabric`, `ReviewGate`, `ContextExtractor<T>` base class, `TaskInferenceStep`, `DeterministicShortCircuit`, `UiGuidanceBridge`, `AffiantTelemetry`, and the DI registration extension `AddAffiantCore()`. References `Affiant.Abstractions`. This layering matches the standard `Microsoft.Extensions.*.Abstractions` / `Microsoft.Extensions.*` convention.
+**`Affiant.Abstractions`** — Bottom of the framework dependency graph: all domain-agnostic primitive types (`ToolEnvelope`, `Affidavit`, `ProvenanceTag`, `ProvenanceChain`, `DocketEntry`, `TransportEvent`, etc.) and all framework interfaces (`IChatSessionStore`, `IDocketStore`, `IStreamingTransport`, `IApprovalPolicy`, `IFieldMapper<T>`, `IWriteExecutor`, `IRouteRegistry`, `IIntentInterceptor`, `IToolInvocationFilter`, etc.). Zero dependencies on other Affiant packages, and — since the 2026-07-05 neutral-pipeline refactor — zero dependency on either `Microsoft.SemanticKernel` or `Microsoft.Agents.AI`. Host applications that only need to implement a contract can reference this package alone without pulling in `Core`'s services.
 
-**`Affiant.SemanticKernel`** — The `IAutoFunctionInvocationFilter` implementations that wire Affiant into SK's filter pipeline. The connector-quirk abstraction (`IConnectorCapabilities`, `ManualToolInvoker`), and the provider configuration.
+**`Affiant.Core`** — Concrete services built on top of `Affiant.Abstractions`: the `ContextFabric`, `ReviewGate`, `ContextExtractor<T>` base class, `TaskInferenceStep`, `DeterministicShortCircuit`, `UiGuidanceBridge`, `AffiantTelemetry`, the backend-neutral `ToolInvocationPipeline` and its `IToolInvocationFilter` implementations (§3.12.3), and the DI registration extension `AddAffiantCore()`. References `Affiant.Abstractions` only — no interception-backend package, per L2 AC #4.
+
+**`Affiant.SemanticKernel`** — The Semantic Kernel interception bridge: `AffiantFunctionInvocationBridge` (SK `IFunctionInvocationFilter`) and `AffiantAutoFunctionInvocationBridge` (SK `IAutoFunctionInvocationFilter`) translate SK's two-position filter pipeline into the neutral `ToolInvocationPipeline` (§3.12.3) and back. Also: the connector-quirk abstraction (`IConnectorCapabilities`, `ManualToolInvoker`), provider configuration, and `SemanticKernelInferenceCompletionPort`.
+
+**`Affiant.AgentFramework`** — The Microsoft Agent Framework (MAF) interception bridge, added 2026-07-05. `AffiantFunctionInvocationMiddleware` translates MAF's single function-calling middleware seam into the same neutral `ToolInvocationPipeline` SK uses. Also: `AffiantToolCatalog` (reflects a tool type into `AIFunction`s + `AffiantToolDescriptor`s in one pass), the `WithAffiant(...)` wiring extension, the hosted-tool coverage audit, and `AgentFrameworkInferenceCompletionPort`. See `docs/adapters/microsoft-agent-framework.md` for the host-facing guide.
 
 **`Affiant.Docket`** — The durable review queue with persistence. Contains `IDocketStore` implementations and the `DocketExpiryService` background worker. Persistence adapters: PostgreSQL (via EF Core with `jsonb`), SQLite (for development), InMemory (for tests).
 
-**`Affiant.EntityFramework`** — EF Core interceptor for the propose-review-commit pattern. The `IChatSessionStore` implementations, migration helpers, and the row-per-message schema.
+**`Affiant.EntityFramework`** — EF Core interceptor for the propose-review-commit pattern. The `IChatSessionStore` implementations (typed against the neutral `AffiantChatMessage`, §3.12.3), migration helpers, and the row-per-message schema.
 
 **`Affiant.Policies`** — Standing Orders (auto-approval rules), Referral logic (escalation), risk-scoring functions, and the `IApprovalPolicy` evaluation pipeline.
 
 **`Affiant.Transport.SignalR`** — SignalR adapter implementing `IStreamingTransport`. Reference transport for real-time Evidence Card delivery.
+
+**`Affiant.Testing.ComplianceHarness`** — `ComplianceHarness.Verify(...)`, depending only on `Affiant.Abstractions`/`Affiant.Core` contracts (e.g. `IInferenceCompletionPort`), which is why a single compliance-parity `[Theory]` suite can run the same fixtures against both the SK and MAF interception backends (§3.12.3).
 
 **Host** (application-specific, never in a package): Domain plugins, domain models, `IFieldMapper<T>` implementations, SignalR hub hosting, frontend application, authentication, authorization policies, system prompt content.
 
@@ -754,13 +865,20 @@ The NuGet package hierarchy reflects the reserved `Affiant.*` namespace on nuget
 
 ## 5. Framework Boundary Contract
 
-The boundary between framework and host is a three-seam cut. Everything below the seams is reusable. Everything above is host-specific.
+> Extended 2026-07-05 with Seam 4 (`docs/proposals/affiant-maf-adapter.md` §7). The boundary
+> was a three-seam cut through 2026-06; the neutral tool-invocation pipeline (§3.12.3) made the
+> interception backend itself a swappable seam rather than an SK-only implementation detail, so
+> it is documented as a fourth seam here.
 
-**Seam 1 — Domain Plugins**: Host applications implement `[KernelFunction]`-decorated methods that return `ReadResult` or `WriteProposal` via the `ToolEnvelope` contract. The framework never knows about aviation work orders, HR leave requests, or CRM contacts. It only knows about `ToolEnvelope<TResult>`.
+The boundary between framework and host is a four-seam cut. Everything below the seams is reusable. Everything above is host-specific.
+
+**Seam 1 — Domain Plugins**: Host applications implement `[KernelFunction]`-decorated (SK) or reflected-`AIFunction` (MAF, via `AffiantToolCatalog.FromType<T>()`) methods that return `ReadResult` or `WriteProposal` via the `ToolEnvelope` contract. The framework never knows about aviation work orders, HR leave requests, or CRM contacts. It only knows about `ToolEnvelope<TResult>`.
 
 **Seam 2 — Domain Models**: The framework's `Affidavit.Fields[]` carries `string` field names and `object` values. The host application's strongly-typed domain models live outside the framework. The `IFieldMapper<TDomainModel>` interface converts between the two.
 
 **Seam 3 — Transport Configuration**: The SignalR hub, authentication middleware, and frontend application are host concerns. The framework provides `IStreamingTransport` and the reference `Affiant.Transport.SignalR` adapter. The host configures and hosts it.
+
+**Seam 4 — Interception Backend**: The framework-specific seam where Affiant observes tool calls — argument capture before execution, result envelopes after, review gating on write intent — is itself a swappable adapter behind the neutral `IToolInvocationFilter`/`ToolInvocationPipeline` contract (§3.12.3). A host picks `Affiant.SemanticKernel` or `Affiant.AgentFramework` (or, in principle, a future third backend) without the framework's provenance, inference, or review-gate logic changing at all — that logic lives once, in `Affiant.Core`, on the neutral side of this seam. This seam did not exist as a documented boundary before 2026-07-05; it existed in practice (the SK bridge), but `Affiant.Core` and `Affiant.Abstractions` still leaked SK types across it until the neutral-pipeline refactor made the cut real.
 
 ---
 
