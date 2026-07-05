@@ -8,7 +8,6 @@ using Affiant.Core.Filters;
 using Affiant.Core.Observability;
 using Affiant.Core.Services;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.SemanticKernel.ChatCompletion;
 using Xunit;
 
 /// <summary>
@@ -52,7 +51,7 @@ public class TaskInferenceRunnerTelemetryTests
 
             await runner.RunAsync(
                 new ThreeFieldStrategy(),
-                new ChatHistory(),
+                Array.Empty<AffiantChatMessage>(),
                 "CreateThing",
                 new Dictionary<string, object?>());
         }
@@ -89,7 +88,7 @@ public class TaskInferenceRunnerTelemetryTests
 
             await runner.RunAsync(
                 new ThreeFieldStrategy(),
-                new ChatHistory(),
+                Array.Empty<AffiantChatMessage>(),
                 "CreateThing",
                 new Dictionary<string, object?>());
         }
@@ -121,7 +120,7 @@ public class TaskInferenceRunnerTelemetryTests
 
             await runner.RunAsync(
                 new ThreeFieldStrategy(),
-                new ChatHistory(),
+                Array.Empty<AffiantChatMessage>(),
                 "CreateThing",
                 new Dictionary<string, object?>());
         }
@@ -159,7 +158,7 @@ public class TaskInferenceRunnerTelemetryTests
             {
                 await runner.RunAsync(
                     new ThreeFieldStrategy(),
-                    new ChatHistory(),
+                    Array.Empty<AffiantChatMessage>(),
                     "CreateThing",
                     new Dictionary<string, object?>(),
                     cts.Token);

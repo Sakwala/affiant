@@ -4,7 +4,6 @@ using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
 using Affiant.Core.Extensions;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.SemanticKernel.ChatCompletion;
 using Xunit;
 
 // ---------------------------------------------------------------------------
@@ -146,7 +145,7 @@ public class AssertProvenanceIsSubstantiveTests
         services.AddSingleton<ITaskInferenceComplianceFixture>(new FakeCaseFixture(
             new InferenceFixtureCase(
                 "hollow_but_asserts_true",
-                new ChatHistory(),
+                Array.Empty<AffiantChatMessage>(),
                 new Dictionary<string, object?>(),
                 _ => true)));
 
@@ -173,7 +172,7 @@ public class AssertProvenanceIsSubstantiveTests
         services.AddSingleton<ITaskInferenceComplianceFixture>(new FakeCaseFixture(
             new InferenceFixtureCase(
                 "happy_path",
-                new ChatHistory(),
+                Array.Empty<AffiantChatMessage>(),
                 new Dictionary<string, object?>(),
                 a => a.Fields.Length > 0)));
 

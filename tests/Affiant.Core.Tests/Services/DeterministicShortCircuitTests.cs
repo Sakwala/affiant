@@ -1,16 +1,20 @@
 namespace Affiant.Core.Tests.Services;
 
 using Affiant.Abstractions.Interfaces;
+using Affiant.Abstractions.Models;
 using Affiant.Core.Services;
-using Microsoft.SemanticKernel;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 /// <summary>
-/// Uses a real Kernel to exercise DeterministicShortCircuit through the SK filter pipeline.
-/// FunctionInvocationContext has no public constructor so we test via kernel invocation.
+/// Exercises DeterministicShortCircuit against the neutral <see cref="ToolInvocationContext"/>.
+/// Backend-free — invokes the filter directly with a terminal delegate standing in for the tool.
 /// </summary>
 public class DeterministicShortCircuitTests
 {
+    private static readonly IServiceProvider EmptyServices =
+        new ServiceCollection().BuildServiceProvider();
+
     // ── Test doubles ──────────────────────────────────────────────────────────
 
     private sealed class AlwaysMatchingInterceptor(object? response) : IIntentInterceptor
@@ -55,70 +59,74 @@ public class DeterministicShortCircuitTests
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static Kernel BuildKernel(DeterministicShortCircuit filter)
+    private static ToolInvocationContext Ctx() => new()
     {
-        var kernel = Kernel.CreateBuilder().Build();
-        kernel.FunctionInvocationFilters.Add(filter);
-        return kernel;
-    }
+        FunctionName = "TestFunction",
+        PluginName = string.Empty,
+        Arguments = new Dictionary<string, object?>(),
+        Services = EmptyServices,
+    };
 
     // ── Tests ─────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task NoInterceptors_KernelInvocationProceeds()
+    public async Task NoInterceptors_ToolInvocationProceeds()
     {
         var filter = new DeterministicShortCircuit([]);
-        var kernel = BuildKernel(filter);
+        var ctx = Ctx();
 
         var originalCalled = false;
-        var function = KernelFunctionFactory.CreateFromMethod(
-            () => { originalCalled = true; return "original"; },
-            functionName: "TestFunction");
-
-        var result = await kernel.InvokeAsync(function);
+        await filter.OnToolInvocationAsync(ctx, c =>
+        {
+            originalCalled = true;
+            c.Result = "original";
+            return Task.CompletedTask;
+        });
 
         Assert.True(originalCalled);
-        Assert.Equal("original", result.GetValue<string>());
+        Assert.Equal("original", ctx.Result);
     }
 
     [Fact]
-    public async Task OneMatchingInterceptor_LlmInvocationSkipped()
+    public async Task OneMatchingInterceptor_ToolInvocationSkipped()
     {
         var interceptor = new AlwaysMatchingInterceptor("I cannot do this");
         var filter = new DeterministicShortCircuit([interceptor]);
-        var kernel = BuildKernel(filter);
+        var ctx = Ctx();
 
         var originalCalled = false;
-        var function = KernelFunctionFactory.CreateFromMethod(
-            () => { originalCalled = true; return "original"; },
-            functionName: "TestFunction");
-
-        var result = await kernel.InvokeAsync(function);
+        await filter.OnToolInvocationAsync(ctx, c =>
+        {
+            originalCalled = true;
+            c.Result = "original";
+            return Task.CompletedTask;
+        });
 
         Assert.Equal(1, interceptor.MatchCallCount);
         Assert.Equal(1, interceptor.HandleCallCount);
-        Assert.Equal("I cannot do this", result.GetValue<string>());
+        Assert.Equal("I cannot do this", ctx.Result);
         Assert.False(originalCalled);
     }
 
     [Fact]
-    public async Task OneNonMatchingInterceptor_KernelInvocationProceeds()
+    public async Task OneNonMatchingInterceptor_ToolInvocationProceeds()
     {
         var interceptor = new NeverMatchingInterceptor();
         var filter = new DeterministicShortCircuit([interceptor]);
-        var kernel = BuildKernel(filter);
+        var ctx = Ctx();
 
         var originalCalled = false;
-        var function = KernelFunctionFactory.CreateFromMethod(
-            () => { originalCalled = true; return "original"; },
-            functionName: "TestFunction");
-
-        var result = await kernel.InvokeAsync(function);
+        await filter.OnToolInvocationAsync(ctx, c =>
+        {
+            originalCalled = true;
+            c.Result = "original";
+            return Task.CompletedTask;
+        });
 
         Assert.Equal(1, interceptor.MatchCallCount);
         Assert.Equal(0, interceptor.HandleCallCount);
         Assert.True(originalCalled);
-        Assert.Equal("original", result.GetValue<string>());
+        Assert.Equal("original", ctx.Result);
     }
 
     [Fact]
@@ -128,20 +136,21 @@ public class DeterministicShortCircuitTests
         var interceptorB = new AlwaysMatchingInterceptor("handled by B");
         var interceptorC = new AlwaysMatchingInterceptor("handled by C");
         var filter = new DeterministicShortCircuit([interceptorA, interceptorB, interceptorC]);
-        var kernel = BuildKernel(filter);
+        var ctx = Ctx();
 
         var originalCalled = false;
-        var function = KernelFunctionFactory.CreateFromMethod(
-            () => { originalCalled = true; return "original"; },
-            functionName: "TestFunction");
-
-        var result = await kernel.InvokeAsync(function);
+        await filter.OnToolInvocationAsync(ctx, c =>
+        {
+            originalCalled = true;
+            c.Result = "original";
+            return Task.CompletedTask;
+        });
 
         Assert.Equal(1, interceptorA.MatchCallCount);
         Assert.Equal(1, interceptorB.MatchCallCount);
         Assert.Equal(1, interceptorB.HandleCallCount);
         Assert.Equal(0, interceptorC.MatchCallCount);
-        Assert.Equal("handled by B", result.GetValue<string>());
+        Assert.Equal("handled by B", ctx.Result);
         Assert.False(originalCalled);
     }
 
@@ -150,14 +159,10 @@ public class DeterministicShortCircuitTests
     {
         var interceptor = new AlwaysMatchingInterceptor("result");
         var filter = new DeterministicShortCircuit([interceptor]);
-        var kernel = BuildKernel(filter);
-
-        var function = KernelFunctionFactory.CreateFromMethod(
-            () => "original",
-            functionName: "TestFunction");
+        var ctx = Ctx();
 
         using var cts = new CancellationTokenSource();
-        await kernel.InvokeAsync(function, cancellationToken: cts.Token);
+        await filter.OnToolInvocationAsync(ctx, _ => Task.CompletedTask, cts.Token);
 
         Assert.Equal(cts.Token, interceptor.CapturedMatchToken);
         Assert.Equal(cts.Token, interceptor.CapturedHandleToken);

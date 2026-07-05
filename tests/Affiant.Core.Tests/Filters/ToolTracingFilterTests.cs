@@ -1,16 +1,21 @@
 namespace Affiant.Core.Tests.Filters;
 
 using System.Diagnostics;
+using Affiant.Abstractions.Models;
 using Affiant.Core.Filters;
-using Microsoft.SemanticKernel;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 /// <summary>
-/// Verifies ToolTracingFilter's span contract: operation name, scope name, tag values,
+/// Verifies ToolTracingFilter's span contract: operation name, source name, tag values,
 /// and error-path behaviour (status set, exception re-thrown, span disposed in finally).
+/// Backend-free — drives the neutral <see cref="ToolInvocationContext"/> directly.
 /// </summary>
 public sealed class ToolTracingFilterTests
 {
+    private static readonly IServiceProvider EmptyServices =
+        new ServiceCollection().BuildServiceProvider();
+
     private static ActivityListener CreateListener(List<Activity> stopped)
     {
         var listener = new ActivityListener
@@ -24,12 +29,16 @@ public sealed class ToolTracingFilterTests
         return listener;
     }
 
-    private static Kernel BuildKernelWithFilter()
+    private static ToolInvocationContext Ctx(string functionName) => new()
     {
-        var kernel = Kernel.CreateBuilder().Build();
-        kernel.FunctionInvocationFilters.Add(new ToolTracingFilter());
-        return kernel;
-    }
+        FunctionName = functionName,
+        PluginName = string.Empty,
+        Arguments = new Dictionary<string, object?>(),
+        Services = EmptyServices,
+    };
+
+    private static Task Run(string functionName, Func<ToolInvocationContext, Task> next) =>
+        new ToolTracingFilter().OnToolInvocationAsync(Ctx(functionName), next);
 
     // ── span structure ───────────────────────────────────────────────────────
 
@@ -39,27 +48,19 @@ public sealed class ToolTracingFilterTests
         var stopped = new List<Activity>();
         using var listener = CreateListener(stopped);
 
-        var kernel = BuildKernelWithFilter();
-        kernel.Plugins.Add(KernelPluginFactory.CreateFromFunctions("P",
-            [KernelFunctionFactory.CreateFromMethod(() => "ok", "Probe1")]));
-
-        await kernel.InvokeAsync("P", "Probe1");
+        await Run("Probe1", ctx => { ctx.Result = "ok"; return Task.CompletedTask; });
 
         var span = stopped.Single(a => a.OperationName == "execute_tool");
         Assert.Equal("Affiant.Framework", span.Source.Name);
     }
 
     [Fact]
-    public async Task Tag_GenAiToolName_CarriesKernelFunctionName()
+    public async Task Tag_GenAiToolName_CarriesFunctionName()
     {
         var stopped = new List<Activity>();
         using var listener = CreateListener(stopped);
 
-        var kernel = BuildKernelWithFilter();
-        kernel.Plugins.Add(KernelPluginFactory.CreateFromFunctions("P",
-            [KernelFunctionFactory.CreateFromMethod(() => "ok", "NamedFunction")]));
-
-        await kernel.InvokeAsync("P", "NamedFunction");
+        await Run("NamedFunction", ctx => { ctx.Result = "ok"; return Task.CompletedTask; });
 
         var span = stopped.Single(a => a.OperationName == "execute_tool");
         Assert.Equal("NamedFunction", span.GetTagItem("gen_ai.tool.name"));
@@ -73,11 +74,7 @@ public sealed class ToolTracingFilterTests
         var stopped = new List<Activity>();
         using var listener = CreateListener(stopped);
 
-        var kernel = BuildKernelWithFilter();
-        kernel.Plugins.Add(KernelPluginFactory.CreateFromFunctions("P",
-            [KernelFunctionFactory.CreateFromMethod(() => "non-empty", "OkFn")]));
-
-        await kernel.InvokeAsync("P", "OkFn");
+        await Run("OkFn", ctx => { ctx.Result = "non-empty"; return Task.CompletedTask; });
 
         var span = stopped.Single(a => a.OperationName == "execute_tool");
         Assert.Equal("ok", span.GetTagItem("tool_status"));
@@ -89,11 +86,7 @@ public sealed class ToolTracingFilterTests
         var stopped = new List<Activity>();
         using var listener = CreateListener(stopped);
 
-        var kernel = BuildKernelWithFilter();
-        kernel.Plugins.Add(KernelPluginFactory.CreateFromFunctions("P",
-            [KernelFunctionFactory.CreateFromMethod((Func<string?>)(() => null), "NullFn")]));
-
-        await kernel.InvokeAsync("P", "NullFn");
+        await Run("NullFn", ctx => { ctx.Result = null; return Task.CompletedTask; });
 
         var span = stopped.Single(a => a.OperationName == "execute_tool");
         Assert.Equal("empty", span.GetTagItem("tool_status"));
@@ -102,18 +95,13 @@ public sealed class ToolTracingFilterTests
     // ── error path ───────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task OnPluginThrow_ToolStatusIsError_AndActivityStatusIsError()
+    public async Task OnToolThrow_ToolStatusIsError_AndActivityStatusIsError()
     {
         var stopped = new List<Activity>();
         using var listener = CreateListener(stopped);
 
-        var kernel = BuildKernelWithFilter();
-        kernel.Plugins.Add(KernelPluginFactory.CreateFromFunctions("P",
-            [KernelFunctionFactory.CreateFromMethod(
-                (Func<string>)(() => throw new InvalidOperationException("boom")),
-                "ThrowFn")]));
-
-        await Assert.ThrowsAnyAsync<Exception>(() => kernel.InvokeAsync("P", "ThrowFn"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            Run("ThrowFn", _ => throw new InvalidOperationException("boom")));
 
         var span = stopped.Single(a => a.OperationName == "execute_tool");
         Assert.Equal("error", span.GetTagItem("tool_status"));
@@ -121,21 +109,15 @@ public sealed class ToolTracingFilterTests
     }
 
     [Fact]
-    public async Task OnPluginThrow_SpanIsStoppedViaFinally_BeforeExceptionPropagates()
+    public async Task OnToolThrow_SpanIsStoppedViaFinally_BeforeExceptionPropagates()
     {
         var stopped = new List<Activity>();
         using var listener = CreateListener(stopped);
 
-        var kernel = BuildKernelWithFilter();
-        kernel.Plugins.Add(KernelPluginFactory.CreateFromFunctions("P",
-            [KernelFunctionFactory.CreateFromMethod(
-                (Func<string>)(() => throw new InvalidOperationException("boom")),
-                "ThrowFn2")]));
-
-        await Assert.ThrowsAnyAsync<Exception>(() => kernel.InvokeAsync("P", "ThrowFn2"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            Run("ThrowFn2", _ => throw new InvalidOperationException("boom")));
 
         // ActivityStopped fires only when the activity is stopped (disposed via the finally block).
-        // If the finally block did not run, this assertion would fail.
         Assert.Single(stopped, a => a.OperationName == "execute_tool");
     }
 }

@@ -67,7 +67,7 @@ public class TaskInferenceRunnerTests
 
         var result = await runner.RunAsync(
             new ThreeFieldStrategy(),
-            new Microsoft.SemanticKernel.ChatCompletion.ChatHistory(),
+            Array.Empty<AffiantChatMessage>(),
             "CreateThing",
             new Dictionary<string, object?>());
 
@@ -85,7 +85,7 @@ public class TaskInferenceRunnerTests
 
         var result = await runner.RunAsync(
             new ThreeFieldStrategy(),
-            new Microsoft.SemanticKernel.ChatCompletion.ChatHistory(),
+            Array.Empty<AffiantChatMessage>(),
             "CreateThing",
             new Dictionary<string, object?>());
 
@@ -107,7 +107,7 @@ public class TaskInferenceRunnerTests
         await Assert.ThrowsAsync<OperationCanceledException>(() =>
             runner.RunAsync(
                 new ThreeFieldStrategy(),
-                new Microsoft.SemanticKernel.ChatCompletion.ChatHistory(),
+                Array.Empty<AffiantChatMessage>(),
                 "CreateThing",
                 new Dictionary<string, object?>(),
                 cts.Token));
@@ -122,7 +122,7 @@ public class TaskInferenceRunnerTests
 
         var result = await runner.RunAsync(
             new ThreeFieldStrategy(),
-            new Microsoft.SemanticKernel.ChatCompletion.ChatHistory(),
+            Array.Empty<AffiantChatMessage>(),
             "CreateThing",
             new Dictionary<string, object?>());
 

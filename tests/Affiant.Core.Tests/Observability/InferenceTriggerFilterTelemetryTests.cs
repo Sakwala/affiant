@@ -1,4 +1,4 @@
-namespace Affiant.SemanticKernel.Tests.Observability;
+namespace Affiant.Core.Tests.Observability;
 
 using System.Diagnostics;
 using System.Text.Json;
@@ -7,23 +7,17 @@ using Affiant.Abstractions.Models;
 using Affiant.Core.Filters;
 using Affiant.Core.Observability;
 using Affiant.Core.Services;
-using Affiant.SemanticKernel.Filters;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.ChatCompletion;
 using Xunit;
 
 /// <summary>
-/// Verifies that InferenceTriggerFilter emits the correct OTel span events
-/// (inference.triggered / inference.skipped) and uses the correct attribute keys.
-/// Events are captured via an ActivityListener subscribed to Affiant.Framework.
-/// Activity.Current during filter execution is the root test span started below.
+/// Verifies that the neutral InferenceTriggerFilter emits the correct OTel span events
+/// (inference.triggered / inference.skipped) with the correct attribute keys. Events are captured
+/// on the root test span via an ActivityListener. Backend-free — invokes the filter directly.
 /// </summary>
 public class InferenceTriggerFilterTelemetryTests
 {
-    // ── Listener helpers ──────────────────────────────────────────────────────
-
     private static (ActivityListener Listener, Activity? Root) StartListening()
     {
         var listener = new ActivityListener
@@ -32,40 +26,38 @@ public class InferenceTriggerFilterTelemetryTests
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
         };
         ActivitySource.AddActivityListener(listener);
-        // StartActivity returns non-null because a listener is now registered.
         var root = AffiantTelemetry.AffiantActivitySource.StartActivity("test_root");
         return (listener, root);
     }
 
-    // ── Tests ─────────────────────────────────────────────────────────────────
+    private static async Task RunFilter(InferenceTriggerFilter filter, IServiceProvider services)
+    {
+        var ctx = new ToolInvocationContext
+        {
+            FunctionName = "WriteFn",
+            PluginName = "TestPlugin",
+            Arguments = new Dictionary<string, object?>(),
+            Services = services,
+            ConversationId = "conv-tel",
+            TurnNumber = 0,
+            History = Array.Empty<AffiantChatMessage>(),
+        };
+        await filter.OnToolInvocationAsync(ctx, _ => Task.CompletedTask);
+    }
 
     [Fact]
     public async Task TriggerFired_EmitsInferenceTriggered_WithAllFourAttributes()
     {
         var (listener, root) = StartListening();
-
         try
         {
-            var (filter, kernel) = BuildHarness(
-                triggerResult: true,
-                descriptor: new AffiantToolDescriptor("WriteFn", "TestPlugin",
-                    Operation.WriteCreate, "Thing", typeof(StubStrategy)));
-            kernel.FunctionInvocationFilters.Add(filter);
-            kernel.Data["ConversationId"] = "conv-trigger";
-            kernel.Data["AffiantTurnNumber"] = 0;
-            kernel.Data["ChatHistory"] = new ChatHistory();
-
-            await kernel.InvokeAsync("TestPlugin", "WriteFn");
+            var (filter, sp) = BuildHarness(true,
+                new AffiantToolDescriptor("WriteFn", "TestPlugin", Operation.WriteCreate, "Thing", typeof(StubStrategy)));
+            await RunFilter(filter, sp);
         }
-        finally
-        {
-            root?.Dispose();
-            listener.Dispose();
-        }
+        finally { root?.Dispose(); listener.Dispose(); }
 
         var events = root?.Events.ToList() ?? [];
-        Assert.True(events.Any(e => e.Name == "inference.triggered"),
-            "Expected inference.triggered event to be emitted");
         var triggered = events.Single(e => e.Name == "inference.triggered");
         var tags = triggered.Tags.ToDictionary(kv => kv.Key, kv => kv.Value);
 
@@ -79,26 +71,15 @@ public class InferenceTriggerFilterTelemetryTests
     public async Task NoTriggerFired_DescriptorInRegistry_EmitsInferenceSkipped_NotAWriteTool()
     {
         var (listener, root) = StartListening();
-
         try
         {
-            var (filter, kernel) = BuildHarness(
-                triggerResult: false,
-                descriptor: new AffiantToolDescriptor("WriteFn", "TestPlugin",
-                    Operation.WriteCreate, "Thing", typeof(StubStrategy)));
-            kernel.FunctionInvocationFilters.Add(filter);
-
-            await kernel.InvokeAsync("TestPlugin", "WriteFn");
+            var (filter, sp) = BuildHarness(false,
+                new AffiantToolDescriptor("WriteFn", "TestPlugin", Operation.WriteCreate, "Thing", typeof(StubStrategy)));
+            await RunFilter(filter, sp);
         }
-        finally
-        {
-            root?.Dispose();
-            listener.Dispose();
-        }
+        finally { root?.Dispose(); listener.Dispose(); }
 
         var events = root?.Events.ToList() ?? [];
-        Assert.True(events.Any(e => e.Name == "inference.skipped"),
-            "Expected inference.skipped event to be emitted");
         var skipped = events.Single(e => e.Name == "inference.skipped");
         var tags = skipped.Tags.ToDictionary(kv => kv.Key, kv => kv.Value);
 
@@ -110,29 +91,15 @@ public class InferenceTriggerFilterTelemetryTests
     public async Task TriggerFired_DescriptorHasNullStrategy_EmitsInferenceSkipped_NoStrategyRegistered()
     {
         var (listener, root) = StartListening();
-
         try
         {
-            var (filter, kernel) = BuildHarness(
-                triggerResult: true,
-                descriptor: new AffiantToolDescriptor("WriteFn", "TestPlugin",
-                    Operation.WriteCreate, "Thing", InferenceStrategy: null));
-            kernel.FunctionInvocationFilters.Add(filter);
-            kernel.Data["ConversationId"] = "conv-nostrategy";
-            kernel.Data["AffiantTurnNumber"] = 0;
-            kernel.Data["ChatHistory"] = new ChatHistory();
-
-            await kernel.InvokeAsync("TestPlugin", "WriteFn");
+            var (filter, sp) = BuildHarness(true,
+                new AffiantToolDescriptor("WriteFn", "TestPlugin", Operation.WriteCreate, "Thing", InferenceStrategy: null));
+            await RunFilter(filter, sp);
         }
-        finally
-        {
-            root?.Dispose();
-            listener.Dispose();
-        }
+        finally { root?.Dispose(); listener.Dispose(); }
 
         var events = root?.Events.ToList() ?? [];
-        Assert.True(events.Any(e => e.Name == "inference.skipped"),
-            "Expected inference.skipped event to be emitted");
         var skipped = events.Single(e => e.Name == "inference.skipped");
         var tags = skipped.Tags.ToDictionary(kv => kv.Key, kv => kv.Value);
 
@@ -144,20 +111,12 @@ public class InferenceTriggerFilterTelemetryTests
     public async Task NoDescriptor_NoInferenceEventEmitted()
     {
         var (listener, root) = StartListening();
-
         try
         {
-            // No descriptor registered — framework doesn't know about this function.
-            var (filter, kernel) = BuildHarness(triggerResult: false, descriptor: null);
-            kernel.FunctionInvocationFilters.Add(filter);
-
-            await kernel.InvokeAsync("TestPlugin", "WriteFn");
+            var (filter, sp) = BuildHarness(false, descriptor: null);
+            await RunFilter(filter, sp);
         }
-        finally
-        {
-            root?.Dispose();
-            listener.Dispose();
-        }
+        finally { root?.Dispose(); listener.Dispose(); }
 
         var events = root?.Events.ToList() ?? [];
         Assert.DoesNotContain(events, e => e.Name.StartsWith("inference.", StringComparison.Ordinal));
@@ -165,14 +124,13 @@ public class InferenceTriggerFilterTelemetryTests
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static (InferenceTriggerFilter Filter, Kernel Kernel) BuildHarness(
+    private static (InferenceTriggerFilter Filter, IServiceProvider Services) BuildHarness(
         bool triggerResult, AffiantToolDescriptor? descriptor)
     {
         var fabric = new ContextFabric();
         var strategy = new StubStrategy();
         var step = new TaskInferenceStep(fabric, NullLogger<TaskInferenceStep>.Instance);
-        var port = new NoOpPort();
-        var runner = new TaskInferenceRunner(port, fabric, step, NullLogger<TaskInferenceRunner>.Instance);
+        var runner = new TaskInferenceRunner(new NoOpPort(), fabric, step, NullLogger<TaskInferenceRunner>.Instance);
 
         var registry = new AffiantToolRegistry();
         if (descriptor is not null)
@@ -185,14 +143,10 @@ public class InferenceTriggerFilterTelemetryTests
         var sp = services.BuildServiceProvider();
 
         var filter = new InferenceTriggerFilter(
-            [new FakeTrigger(_ => triggerResult)], runner, sp, registry,
+            [new FakeTrigger(_ => triggerResult)], runner, fabric, registry,
             NullLogger<InferenceTriggerFilter>.Instance);
 
-        var kernel = Kernel.CreateBuilder().Build();
-        kernel.Plugins.Add(KernelPluginFactory.CreateFromFunctions("TestPlugin",
-            [KernelFunctionFactory.CreateFromMethod(() => "fn-result", "WriteFn")]));
-
-        return (filter, kernel);
+        return (filter, sp);
     }
 
     private sealed class FakeTrigger(Func<InferenceTriggerContext, bool> impl) : IInferenceTrigger
@@ -203,8 +157,7 @@ public class InferenceTriggerFilterTelemetryTests
     private sealed class StubStrategy : ITaskInferenceStrategy
     {
         public string EntityName => "Thing";
-        public IReadOnlyList<TaskInferenceField> Fields =>
-            [new TaskInferenceField("title", "string", "Title")];
+        public IReadOnlyList<TaskInferenceField> Fields => [new TaskInferenceField("title", "string", "Title")];
         public double? MinimumConfidenceThreshold => null;
     }
 

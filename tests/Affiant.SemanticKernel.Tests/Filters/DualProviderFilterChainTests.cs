@@ -285,40 +285,9 @@ public class DualProviderFilterChainTests
 
     // ── ToolError handling ───────────────────────────────────────────────────
 
-    /// <summary>
-    /// ToolErrorFilter (position 1 in the pipeline) must capture exceptions from plugins
-    /// and convert them into structured ToolError envelopes — never letting them propagate
-    /// to the LLM as unhandled exceptions.
-    /// </summary>
-    [Fact]
-    public async Task FilterChain_ToolErrorFilter_ConvertsExceptionToStructuredError()
-    {
-        var kernel = BuildKernelWithToolErrorFilter();
-        var plugin = KernelPluginFactory.CreateFromFunctions("BrokenPlugin",
-            [KernelFunctionFactory.CreateFromMethod(
-                (Func<string>)(() => throw new InvalidOperationException("Simulated tool failure")),
-                "BrokenFn")]);
-        kernel.Plugins.Add(plugin);
-
-        var fnResult = await kernel.InvokeAsync("BrokenPlugin", "BrokenFn");
-        var resultStr = fnResult.GetValue<string>() ?? string.Empty;
-
-        // ToolErrorFilter must convert the exception to a JSON ToolError envelope
-        Assert.Contains("VALIDATION_FAILED", resultStr);
-        Assert.Contains("Simulated tool failure", resultStr);
-    }
-
-    [Fact]
-    public async Task FilterChain_ToolErrorFilter_SuccessfulInvocation_PassesThrough()
-    {
-        var kernel = BuildKernelWithToolErrorFilter();
-        var plugin = KernelPluginFactory.CreateFromFunctions("WorkingPlugin",
-            [KernelFunctionFactory.CreateFromMethod(() => "ok", "Fn")]);
-        kernel.Plugins.Add(plugin);
-
-        var fnResult = await kernel.InvokeAsync("WorkingPlugin", "Fn");
-        Assert.Equal("ok", fnResult.GetValue<string>());
-    }
+    // ToolErrorFilter behavior is covered backend-free in
+    // Affiant.Core.Tests.Filters.ToolErrorFilterTests (the filter is now a neutral
+    // IToolInvocationFilter, no longer an SK IFunctionInvocationFilter).
 
     // ── Full DI wiring ───────────────────────────────────────────────────────
 
@@ -362,14 +331,6 @@ public class DualProviderFilterChainTests
         var strategy = new InferenceStrategyWithStatusField(minimumConfidence);
         var step = new TaskInferenceStep(fabric, NullLogger<TaskInferenceStep>.Instance);
         return (step, fabric, strategy);
-    }
-
-    private static Kernel BuildKernelWithToolErrorFilter()
-    {
-        var kernel = Kernel.CreateBuilder().Build();
-        var filter = new ToolErrorFilter(NullLogger<ToolErrorFilter>.Instance);
-        kernel.FunctionInvocationFilters.Add(filter);
-        return kernel;
     }
 
     private sealed class InferenceStrategyWithStatusField(double? minimumConfidence = null)
