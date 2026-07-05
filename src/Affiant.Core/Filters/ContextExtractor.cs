@@ -1,10 +1,10 @@
 namespace Affiant.Core.Filters;
 
 using System.Text.Json;
+using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
 using Affiant.Core.Services;
 using Microsoft.Extensions.Logging;
-using Microsoft.SemanticKernel;
 
 /// <summary>
 /// Abstract base class for context extractors. Each host application subclasses this
@@ -12,12 +12,12 @@ using Microsoft.SemanticKernel;
 /// domain-specific extraction logic from ReadResult.Entities.
 ///
 /// The base class handles:
-/// - IFunctionInvocationFilter wiring (runs after the plugin, before the caller resumes)
+/// - <see cref="IToolInvocationFilter"/> wiring (runs after the tool, before the caller resumes)
 /// - JSON deserialization of the ToolEnvelope
 /// - Tool-name matching via abstract MatchesTool
 /// - EmitEntity helper that upserts into ContextFabric with structured logging
 /// </summary>
-public abstract class ContextExtractor : IFunctionInvocationFilter
+public abstract class ContextExtractor : IToolInvocationFilter
 {
     private static readonly JsonSerializerOptions EnvelopeOptions = new()
     {
@@ -35,15 +35,16 @@ public abstract class ContextExtractor : IFunctionInvocationFilter
         Logger = logger;
     }
 
-    public async Task OnFunctionInvocationAsync(
-        FunctionInvocationContext context,
-        Func<FunctionInvocationContext, Task> next)
+    public async Task OnToolInvocationAsync(
+        ToolInvocationContext context,
+        Func<ToolInvocationContext, Task> next,
+        CancellationToken cancellationToken = default)
     {
         await next(context);
 
-        if (!MatchesTool(context.Function.Name)) return;
+        if (!MatchesTool(context.FunctionName)) return;
 
-        var resultText = context.Result.GetValue<string>();
+        var resultText = context.Result as string ?? context.Result?.ToString();
         if (string.IsNullOrWhiteSpace(resultText)) return;
 
         ReadResult? readResult = null;
@@ -64,7 +65,7 @@ public abstract class ContextExtractor : IFunctionInvocationFilter
 
     /// <summary>
     /// Returns true if this extractor handles the given tool name.
-    /// Use StringComparison.OrdinalIgnoreCase to match SK's tool registration.
+    /// Use StringComparison.OrdinalIgnoreCase to match backend tool registration.
     /// </summary>
     protected abstract bool MatchesTool(string toolName);
 
@@ -72,7 +73,7 @@ public abstract class ContextExtractor : IFunctionInvocationFilter
     /// Override to extract domain-specific EntityRef instances from the ReadResult.
     /// Call EmitEntity for each extracted entity.
     /// </summary>
-    protected abstract Task ExtractAsync(ReadResult result, FunctionInvocationContext context);
+    protected abstract Task ExtractAsync(ReadResult result, ToolInvocationContext context);
 
     /// <summary>Upserts an EntityRef into the ContextFabric with structured logging.</summary>
     protected void EmitEntity(EntityRef entityRef)

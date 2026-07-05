@@ -1,13 +1,13 @@
 using System.Diagnostics;
 using System.Net;
+using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
 using Microsoft.Extensions.Logging;
-using Microsoft.SemanticKernel;
 
 namespace Affiant.Core.Filters;
 
 /// <summary>
-/// Catches exceptions thrown by plugins (or downstream filters), converts them
+/// Catches exceptions thrown by tools (or downstream filters), converts them
 /// into structured <see cref="ToolError"/> envelopes, and retries retryable
 /// failures exactly once. Records <c>affiant.tool_error</c> span events on the
 /// active <c>execute_tool</c> span for observability.
@@ -15,11 +15,12 @@ namespace Affiant.Core.Filters;
 /// Must be registered before downstream pipeline filters so its <c>next(context)</c>
 /// wraps the entire downstream chain.
 /// </summary>
-public class ToolErrorFilter(ILogger<ToolErrorFilter> logger) : IFunctionInvocationFilter
+public class ToolErrorFilter(ILogger<ToolErrorFilter> logger) : IToolInvocationFilter
 {
-    public async Task OnFunctionInvocationAsync(
-        FunctionInvocationContext context,
-        Func<FunctionInvocationContext, Task> next)
+    public async Task OnToolInvocationAsync(
+        ToolInvocationContext context,
+        Func<ToolInvocationContext, Task> next,
+        CancellationToken cancellationToken = default)
     {
         try
         {
@@ -31,12 +32,12 @@ public class ToolErrorFilter(ILogger<ToolErrorFilter> logger) : IFunctionInvocat
         }
         catch (Exception ex)
         {
-            var toolError = MapExceptionToToolError(context.Function.Name, ex);
+            var toolError = MapExceptionToToolError(context.FunctionName, ex);
 
             RecordToolErrorEvent(toolError, ex);
             logger.LogWarning(ex,
-                "Plugin {FunctionName} failed with {ErrorCode} (retryable: {Retryable})",
-                context.Function.Name, toolError.Code, toolError.Retryable);
+                "Tool {FunctionName} failed with {ErrorCode} (retryable: {Retryable})",
+                context.FunctionName, toolError.Code, toolError.Retryable);
 
             if (toolError.Retryable)
             {
@@ -44,26 +45,26 @@ public class ToolErrorFilter(ILogger<ToolErrorFilter> logger) : IFunctionInvocat
                 try
                 {
                     await next(context);
-                    return; // Retry succeeded — context.Result is already set by the plugin
+                    return; // Retry succeeded — context.Result is already set by the tool
                 }
                 catch (Exception retryEx)
                 {
-                    var retryError = MapExceptionToToolError(context.Function.Name, retryEx) with
+                    var retryError = MapExceptionToToolError(context.FunctionName, retryEx) with
                     {
                         Retryable = false // Second failure is always non-retryable
                     };
 
                     RecordToolErrorEvent(retryError, retryEx);
                     logger.LogWarning(retryEx,
-                        "Plugin {FunctionName} retry failed with {ErrorCode} — surfacing to LLM",
-                        context.Function.Name, retryError.Code);
+                        "Tool {FunctionName} retry failed with {ErrorCode} — surfacing to LLM",
+                        context.FunctionName, retryError.Code);
 
-                    context.Result = new FunctionResult(context.Function, retryError.ToJsonString());
+                    context.Result = retryError.ToJsonString();
                     return;
                 }
             }
 
-            context.Result = new FunctionResult(context.Function, toolError.ToJsonString());
+            context.Result = toolError.ToJsonString();
         }
     }
 
@@ -93,7 +94,7 @@ public class ToolErrorFilter(ILogger<ToolErrorFilter> logger) : IFunctionInvocat
 
     private static void RecordToolErrorEvent(ToolError toolError, Exception ex)
     {
-        // When SK OTel diagnostics are enabled, Activity.Current may be a SK child span.
+        // When backend OTel diagnostics are enabled, Activity.Current may be a backend child span.
         // Walk up to the nearest Affiant.Framework span so the event lands on our trace.
         var target = FindAffiantActivity() ?? Activity.Current;
         target?.AddEvent(new ActivityEvent("affiant.tool_error",

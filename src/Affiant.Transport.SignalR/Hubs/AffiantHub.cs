@@ -2,9 +2,9 @@ namespace Affiant.Transport.SignalR.Hubs;
 
 using System.Diagnostics;
 using Affiant.Abstractions.Interfaces;
+using Affiant.Abstractions.Models;
 using Affiant.Core.Observability;
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.SemanticKernel;
 
 /// <summary>
 /// Abstract base for all Affiant SignalR hubs. Provides group-based session management,
@@ -81,7 +81,7 @@ public abstract class AffiantHub(IChatSessionStore chatSessionStore) : Hub
     /// Adds the current connection to the session group and loads the persisted chat messages.
     /// Call this from the subclass's reconnection flow.
     /// </summary>
-    protected async Task<IReadOnlyList<ChatMessageContent>> RehydrateSessionAsync(
+    protected async Task<IReadOnlyList<AffiantChatMessage>> RehydrateSessionAsync(
         string sessionId,
         CancellationToken cancellationToken = default)
     {

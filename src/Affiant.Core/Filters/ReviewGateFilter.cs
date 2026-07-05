@@ -1,4 +1,4 @@
-namespace Affiant.SemanticKernel.Filters;
+namespace Affiant.Core.Filters;
 
 using System.Text.Json;
 using Affiant.Abstractions.Interfaces;
@@ -6,33 +6,31 @@ using Affiant.Abstractions.Models;
 using Affiant.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.SemanticKernel;
 
 /// <summary>
-/// IAutoFunctionInvocationFilter adapter that routes WriteProposal results through ReviewGate.
+/// Completion-stage filter that routes WriteProposal results through ReviewGate.
 ///
-/// Fires after each LLM auto-invoked function. If the function result deserializes as a
-/// WriteProposal, the proposal is routed through ReviewGate.FileReviewAsync using a fresh
-/// per-invocation scope. Silently skips when IReviewContextProvider or ReviewGate are not
-/// registered in the DI container, so the filter is safe to register globally even in hosts
-/// that do not use the full review infrastructure.
+/// Fires after each auto-invoked tool. If the tool result deserializes as a WriteProposal, the
+/// proposal is routed through ReviewGate.FileReviewAsync using the pipeline's per-invocation
+/// scope (<see cref="ToolInvocationContext.Services"/>). Silently skips when IReviewContextProvider
+/// or ReviewGate are not registered in the DI container, so the filter is safe to register globally
+/// even in hosts that do not use the full review infrastructure.
 /// </summary>
-public sealed class ReviewGateFilter(
-    IServiceScopeFactory scopeFactory,
-    ILogger<ReviewGateFilter> logger) : IAutoFunctionInvocationFilter
+public sealed class ReviewGateFilter(ILogger<ReviewGateFilter> logger) : IToolInvocationFilter
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    public async Task OnAutoFunctionInvocationAsync(
-        AutoFunctionInvocationContext context,
-        Func<AutoFunctionInvocationContext, Task> next)
+    public async Task OnToolInvocationAsync(
+        ToolInvocationContext context,
+        Func<ToolInvocationContext, Task> next,
+        CancellationToken cancellationToken = default)
     {
         await next(context);
 
-        var resultString = context.Result?.ToString();
+        var resultString = context.Result as string ?? context.Result?.ToString();
         if (string.IsNullOrEmpty(resultString))
             return;
 
@@ -53,11 +51,7 @@ public sealed class ReviewGateFilter(
         if (proposal is null)
             return;
 
-        // A new scope per invocation ensures ReviewGate (scoped) and any ambient
-        // context services are resolved fresh for each write proposal.
-        using var scope = scopeFactory.CreateScope();
-
-        var contextProvider = scope.ServiceProvider.GetService<IReviewContextProvider>();
+        var contextProvider = context.Services.GetService<IReviewContextProvider>();
         if (contextProvider is null)
         {
             logger.LogDebug(
@@ -75,7 +69,7 @@ public sealed class ReviewGateFilter(
             return;
         }
 
-        var gate = scope.ServiceProvider.GetService<ReviewGate>();
+        var gate = context.Services.GetService<ReviewGate>();
         if (gate is null)
         {
             logger.LogDebug(

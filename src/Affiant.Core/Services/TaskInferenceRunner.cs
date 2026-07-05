@@ -7,7 +7,6 @@ using Affiant.Abstractions.Models;
 using Affiant.Core.Filters;
 using Affiant.Core.Observability;
 using Microsoft.Extensions.Logging;
-using Microsoft.SemanticKernel.ChatCompletion;
 
 /// <summary>
 /// Stateless orchestrator for pre-tool structured-output inference.
@@ -36,7 +35,7 @@ public sealed class TaskInferenceRunner
 
     public async Task<TaskInferenceResult> RunAsync(
         ITaskInferenceStrategy strategy,
-        ChatHistory history,
+        IReadOnlyList<AffiantChatMessage> history,
         string functionName,
         IReadOnlyDictionary<string, object?> arguments,
         CancellationToken cancellationToken = default)

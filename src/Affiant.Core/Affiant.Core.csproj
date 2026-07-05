@@ -12,8 +12,12 @@
     <ProjectReference Include="..\Affiant.Abstractions\Affiant.Abstractions.csproj" />
   </ItemGroup>
 
+  <!-- No Microsoft.SemanticKernel / Microsoft.Agents.AI / Microsoft.Extensions.AI reference:
+       the interception pipeline here is backend-neutral (L2 AC #4). Formerly these
+       Microsoft.Extensions.* abstractions arrived transitively through Semantic Kernel. -->
   <ItemGroup>
-    <PackageReference Include="Microsoft.SemanticKernel" Version="1.74.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.5" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.5" />
   </ItemGroup>
 
   <!-- Zero references to adapter packages or host apps -->

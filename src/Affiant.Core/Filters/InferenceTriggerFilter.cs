@@ -1,4 +1,4 @@
-namespace Affiant.SemanticKernel.Filters;
+namespace Affiant.Core.Filters;
 
 using System.Diagnostics;
 using System.Globalization;
@@ -9,68 +9,62 @@ using Affiant.Core.Observability;
 using Affiant.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.ChatCompletion;
 
 /// <summary>
-/// Pre-tool IFunctionInvocationFilter that fires structured-output inference before a registered
-/// write-intent tool executes. For each <see cref="IInferenceTrigger"/> that returns true,
-/// resolves the tool's <see cref="ITaskInferenceStrategy"/> and invokes <see cref="TaskInferenceRunner"/>.
+/// Pre-tool filter that fires structured-output inference before a registered write-intent tool
+/// executes. For each <see cref="IInferenceTrigger"/> that returns true, resolves the tool's
+/// <see cref="ITaskInferenceStrategy"/> and invokes <see cref="TaskInferenceRunner"/>.
 ///
-/// Four-step algorithm per PRD §3.2:
+/// Algorithm per L2 PRD §3.2:
 ///   1. Trigger evaluation — short-circuits on first true.
 ///   2. Idempotency check — once per (ConversationId, FunctionName, TurnNumber).
 ///      Bookkeeping anchored on IContextFabric via reserved entity key "inference_idempotency".
-///   3. Strategy resolution — from IAffiantToolRegistry + IServiceProvider.
-///   4. Run inference — fail-safe: any non-cancellation exception logs warning + continues.
+///   3. Strategy resolution — from IAffiantToolRegistry + the per-invocation service scope.
+///   4. Run inference — fail-safe: any non-cancellation exception logs a warning + continues.
 ///   5. Tool call — next(context) always fires in every path.
-///
-/// NOTE: This filter implements IFunctionInvocationFilter (pre-tool), NOT IAutoFunctionInvocationFilter.
-/// Per PRD §3.2 first paragraph.
 /// </summary>
-public sealed class InferenceTriggerFilter : IFunctionInvocationFilter
+public sealed class InferenceTriggerFilter : IToolInvocationFilter
 {
     // Reserved key under which the idempotency tracker entity is stored in IContextFabric.
     private const string IdempotencyEntityId = "inference_idempotency";
 
     private readonly IEnumerable<IInferenceTrigger> _triggers;
     private readonly TaskInferenceRunner _runner;
-    private readonly IServiceProvider _serviceProvider;
+    private readonly IContextFabric _fabric;
     private readonly IAffiantToolRegistry _registry;
     private readonly ILogger<InferenceTriggerFilter> _logger;
 
     public InferenceTriggerFilter(
         IEnumerable<IInferenceTrigger> triggers,
         TaskInferenceRunner runner,
-        IServiceProvider serviceProvider,
+        IContextFabric fabric,
         IAffiantToolRegistry registry,
         ILogger<InferenceTriggerFilter> logger)
     {
         _triggers = triggers ?? throw new ArgumentNullException(nameof(triggers));
         _runner = runner ?? throw new ArgumentNullException(nameof(runner));
-        _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+        _fabric = fabric ?? throw new ArgumentNullException(nameof(fabric));
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task OnFunctionInvocationAsync(
-        FunctionInvocationContext context,
-        Func<FunctionInvocationContext, Task> next)
+    public async Task OnToolInvocationAsync(
+        ToolInvocationContext context,
+        Func<ToolInvocationContext, Task> next,
+        CancellationToken cancellationToken = default)
     {
-        // IContextFabric resolved from DI — Singleton (same fabric anchors idempotency bookkeeping).
-        var fabric = _serviceProvider.GetRequiredService<IContextFabric>();
+        var pluginName = string.IsNullOrEmpty(context.PluginName) ? null : context.PluginName;
 
         // Step 1: Trigger evaluation — short-circuit on first true trigger.
-        // KernelArguments implements IDictionary but not IReadOnlyDictionary; copy to concrete Dictionary.
         IReadOnlyDictionary<string, object?> args = context.Arguments is not null
             ? context.Arguments.ToDictionary(kv => kv.Key, kv => kv.Value)
             : new Dictionary<string, object?>(0);
 
         var triggerCtx = new InferenceTriggerContext(
-            FunctionName: context.Function.Name,
-            PluginName: context.Function.PluginName,
+            FunctionName: context.FunctionName,
+            PluginName: context.PluginName,
             Arguments: args,
-            Fabric: fabric,
+            Fabric: _fabric,
             Phase: InferencePhase.PreTool);
 
         var shouldRun = false;
@@ -85,16 +79,14 @@ public sealed class InferenceTriggerFilter : IFunctionInvocationFilter
 
         if (!shouldRun)
         {
-            // Emit inference.skipped when a descriptor exists so the host knows the filter
-            // evaluated this function and chose not to run inference.
-            var skipDescriptor = _registry.Find(context.Function.Name, context.Function.PluginName);
+            var skipDescriptor = _registry.Find(context.FunctionName, pluginName);
             if (skipDescriptor is not null)
             {
                 Activity.Current?.AddEvent(new ActivityEvent(
                     "inference.skipped",
                     tags: new ActivityTagsCollection
                     {
-                        { L2TelemetryKeys.FunctionName, context.Function.Name },
+                        { L2TelemetryKeys.FunctionName, context.FunctionName },
                         { L2TelemetryKeys.SkipReason, "not_a_write_tool" },
                     }));
             }
@@ -103,25 +95,23 @@ public sealed class InferenceTriggerFilter : IFunctionInvocationFilter
         }
 
         // Step 2: Idempotency check — (ConversationId, FunctionName, TurnNumber).
-        // ConversationId from kernel.Data["ConversationId"]; fall back to fabric instance hash.
-        // TurnNumber from kernel.Data["AffiantTurnNumber"]; fall back to 0 (more conservative dedup).
-        var conversationId = GetConversationId(context.Kernel, fabric);
-        var turnNumber = GetTurnNumber(context.Kernel);
+        var conversationId = GetConversationId(context, _fabric);
+        var turnNumber = context.TurnNumber;
 
-        if (IsAlreadySeen(fabric, conversationId, context.Function.Name, turnNumber))
+        if (IsAlreadySeen(_fabric, conversationId, context.FunctionName, turnNumber))
         {
             await next(context);
             return;
         }
-        MarkAsSeen(fabric, conversationId, context.Function.Name, turnNumber);
+        MarkAsSeen(_fabric, conversationId, context.FunctionName, turnNumber);
 
-        // Step 3: Strategy resolution via registry + service provider.
-        var descriptor = _registry.Find(context.Function.Name, context.Function.PluginName);
+        // Step 3: Strategy resolution via registry + per-invocation scope.
+        var descriptor = _registry.Find(context.FunctionName, pluginName);
         if (descriptor is null)
         {
             _logger.LogWarning(
                 "InferenceTriggerFilter: no descriptor for {FunctionName}/{PluginName}; skipping inference",
-                context.Function.Name, context.Function.PluginName);
+                context.FunctionName, context.PluginName);
             await next(context);
             return;
         }
@@ -132,23 +122,23 @@ public sealed class InferenceTriggerFilter : IFunctionInvocationFilter
                 "inference.skipped",
                 tags: new ActivityTagsCollection
                 {
-                    { L2TelemetryKeys.FunctionName, context.Function.Name },
+                    { L2TelemetryKeys.FunctionName, context.FunctionName },
                     { L2TelemetryKeys.SkipReason, "no_strategy_registered" },
                 }));
             _logger.LogWarning(
                 "InferenceTriggerFilter: no strategy registered for {FunctionName}/{PluginName}; skipping inference",
-                context.Function.Name, context.Function.PluginName);
+                context.FunctionName, context.PluginName);
             await next(context);
             return;
         }
 
-        // Descriptor exists and has a strategy — emit inference.triggered before DI strategy resolution.
+        // Descriptor exists and has a strategy — emit inference.triggered before strategy resolution.
         Activity.Current?.AddEvent(new ActivityEvent(
             "inference.triggered",
             tags: new ActivityTagsCollection
             {
-                { L2TelemetryKeys.FunctionName, context.Function.Name },
-                { L2TelemetryKeys.PluginName, context.Function.PluginName ?? string.Empty },
+                { L2TelemetryKeys.FunctionName, context.FunctionName },
+                { L2TelemetryKeys.PluginName, context.PluginName },
                 { L2TelemetryKeys.EntityType, descriptor.EntityType ?? string.Empty },
                 { L2TelemetryKeys.StrategyType, descriptor.InferenceStrategy.FullName ?? string.Empty },
             }));
@@ -156,13 +146,13 @@ public sealed class InferenceTriggerFilter : IFunctionInvocationFilter
         ITaskInferenceStrategy? strategy;
         try
         {
-            strategy = _serviceProvider.GetRequiredService(descriptor.InferenceStrategy) as ITaskInferenceStrategy;
+            strategy = context.Services.GetRequiredService(descriptor.InferenceStrategy) as ITaskInferenceStrategy;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogWarning(ex,
                 "InferenceTriggerFilter: could not resolve strategy {Type} for {FunctionName}; skipping inference",
-                descriptor.InferenceStrategy.Name, context.Function.Name);
+                descriptor.InferenceStrategy.Name, context.FunctionName);
             await next(context);
             return;
         }
@@ -171,21 +161,15 @@ public sealed class InferenceTriggerFilter : IFunctionInvocationFilter
         {
             _logger.LogWarning(
                 "InferenceTriggerFilter: strategy {Type} does not implement ITaskInferenceStrategy for {FunctionName}",
-                descriptor.InferenceStrategy.Name, context.Function.Name);
+                descriptor.InferenceStrategy.Name, context.FunctionName);
             await next(context);
             return;
         }
 
-        // Step 4: Run inference — result is already merged into fabric by TaskInferenceStep.
-        // History is read from kernel.Data["ChatHistory"]; falls back to empty ChatHistory.
-        // Per host convention: kernel.Data["ChatHistory"] is set by the host's agent runner before tool invocation.
-        var history = context.Kernel.Data.TryGetValue("ChatHistory", out var histObj) && histObj is ChatHistory h
-            ? h
-            : new ChatHistory();
-
+        // Step 4: Run inference — result is already merged into the fabric by TaskInferenceStep.
         try
         {
-            await _runner.RunAsync(strategy, history, context.Function.Name, args, context.CancellationToken)
+            await _runner.RunAsync(strategy, context.History, context.FunctionName, args, cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException)
@@ -197,7 +181,7 @@ public sealed class InferenceTriggerFilter : IFunctionInvocationFilter
             // Fail-safe per PRD §3.2 — inference failure never breaks the tool call.
             _logger.LogWarning(ex,
                 "InferenceTriggerFilter: inference failed for {FunctionName}; continuing tool call",
-                context.Function.Name);
+                context.FunctionName);
         }
 
         // Step 5: Tool call — always fires, regardless of inference outcome.
@@ -206,24 +190,12 @@ public sealed class InferenceTriggerFilter : IFunctionInvocationFilter
 
     // ── Idempotency helpers ───────────────────────────────────────────────────
 
-    private static string GetConversationId(Kernel kernel, IContextFabric fabric)
+    private static string GetConversationId(ToolInvocationContext context, IContextFabric fabric)
     {
-        if (kernel.Data.TryGetValue("ConversationId", out var cid) &&
-            cid is string s && !string.IsNullOrEmpty(s))
-            return s;
+        if (!string.IsNullOrEmpty(context.ConversationId))
+            return context.ConversationId;
         // Stable per-fabric-instance fallback — conservative dedup within the fabric's lifetime.
         return RuntimeHelpers.GetHashCode(fabric).ToString(CultureInfo.InvariantCulture);
-    }
-
-    private static int GetTurnNumber(Kernel kernel)
-    {
-        if (!kernel.Data.TryGetValue("AffiantTurnNumber", out var tn)) return 0;
-        return tn switch
-        {
-            int i => i,
-            string str when int.TryParse(str, out var parsed) => parsed,
-            _ => 0
-        };
     }
 
     private static bool IsAlreadySeen(

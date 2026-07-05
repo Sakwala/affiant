@@ -50,10 +50,9 @@ public sealed class SemanticKernelInferenceCompletionPort : IInferenceCompletion
         {
             var chatCompletion = _services.GetRequiredService<IChatCompletionService>();
 
-            // Copy the existing conversation history so the inference call reads all context.
-            var inferenceHistory = new ChatHistory();
-            foreach (var msg in request.History)
-                inferenceHistory.Add(msg);
+            // Convert the neutral conversation history into an SK ChatHistory at this edge so the
+            // inference call reads all context.
+            var inferenceHistory = Filters.SkMessageConversions.ToChatHistory(request.History);
 
             var today = DateTime.UtcNow.Date.ToString("yyyy-MM-dd");
             inferenceHistory.AddUserMessage(BuildPrompt(request.Strategy, today));
