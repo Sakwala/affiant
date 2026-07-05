@@ -56,9 +56,12 @@ public class AffiantFilterPipelineOrderTests
         Assert.True(toolErrorIdx < toolArgCaptureIdx);
         Assert.True(shortCircuitIdx < toolArgCaptureIdx);
         Assert.True(toolArgCaptureIdx < inferTriggerIdx);
-        // Completion filters follow the pre-tool filters and are ordered merge-before-review.
-        Assert.True(inferTriggerIdx < mergeIdx);
-        Assert.True(mergeIdx < reviewIdx);
+        // Completion filters follow the pre-tool filters. Both are post-tool, so entry order is the
+        // reverse of completion order: ReviewGateFilter is entered outer (registered first) and
+        // TaskInferenceMergeFilter inner (registered last), so on the unwind the merge completes
+        // before the review is filed (framework spec §3.12.4).
+        Assert.True(inferTriggerIdx < reviewIdx);
+        Assert.True(reviewIdx < mergeIdx);
     }
 
     [Fact]

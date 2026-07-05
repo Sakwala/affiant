@@ -1,6 +1,6 @@
 namespace Affiant.SemanticKernel.Filters;
 
-using Affiant.Abstractions.Interfaces;
+using Affiant.Core.Extensions;
 using Affiant.Core.Filters;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -37,12 +37,10 @@ public static class AffiantFilterPipeline
     /// </summary>
     public static IServiceCollection AddAffiantSkFilters(this IServiceCollection services)
     {
-        // Completion-stage neutral filters (positions 6 and 7). Scoped: resolved per invocation
-        // from the pipeline runner's DI scope.
-        services.TryAddEnumerable(
-            ServiceDescriptor.Scoped<IToolInvocationFilter, TaskInferenceMergeFilter>());
-        services.TryAddEnumerable(
-            ServiceDescriptor.Scoped<IToolInvocationFilter, ReviewGateFilter>());
+        // Completion-stage neutral filters (spec steps 6 and 7). Registration order is fixed by the
+        // shared Core helper: ReviewGateFilter outermost, TaskInferenceMergeFilter innermost, so that
+        // on the onion unwind the merge's post-work completes before the review is filed (§3.12.4).
+        services.AddAffiantCompletionFilters();
 
         // SK bridges — the only IFunctionInvocationFilter / IAutoFunctionInvocationFilter the
         // kernel sees. Each translates its SK context into the neutral pipeline and back.
