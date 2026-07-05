@@ -104,12 +104,16 @@ public class ManualToolInvokerTests
     {
         var docketStore = new FakeDocketStore();
         var sp = BuildReviewStack(docketStore);
-        var pipeline = sp.GetRequiredService<ToolInvocationPipeline>();
 
         const string writeProposalJson =
             """{"$type":"write","toolName":"DoWrite","timestamp":"2026-01-01T00:00:00Z","envelope":null}""";
 
-        var kernel = Kernel.CreateBuilder().Build();
+        // Resolve the kernel from a turn scope so kernel.Services (the ambient provider the invoker
+        // hands the pipeline) carries the scoped completion filters, fabric, and ReviewGate — this is
+        // how real hosts resolve the kernel per request.
+        using var scope = sp.CreateScope();
+        var pipeline = scope.ServiceProvider.GetRequiredService<ToolInvocationPipeline>();
+        var kernel = scope.ServiceProvider.GetRequiredService<Kernel>();
         kernel.Plugins.Add(KernelPluginFactory.CreateFromFunctions("WritePlugin",
             [KernelFunctionFactory.CreateFromMethod(() => writeProposalJson, "DoWrite")]));
 
@@ -131,6 +135,7 @@ public class ManualToolInvokerTests
         services.AddLogging();
         services.AddAffiantCore(opts => opts.EnableObservability = false);
         services.AddAffiantCompletionFilters();
+        services.AddKernel();
 
         services.AddScoped<ReviewGate>();
         services.AddSingleton<IStreamingTransport>(new UnusedStreamingTransport());

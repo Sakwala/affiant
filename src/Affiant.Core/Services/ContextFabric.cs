@@ -4,14 +4,19 @@ using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
 
 /// <summary>
-/// Sealed service class that owns all entity-tracking state for a conversation turn.
-/// Extractors upsert EntityRef instances via the public interface;
-/// ContextFabric handles merging, provenance chain preservation, and retrieval.
+/// Sealed service class that owns all entity-tracking state for a conversation turn. Registered
+/// Scoped so one instance serves one conversation turn; extractors upsert EntityRef instances via the
+/// public interface, and ContextFabric handles merging, provenance chain preservation, and retrieval.
 /// Field-level ProvenanceChain tracking supports the confidence-based merge rule
 /// in TaskInferenceStep: higher confidence wins; ties break by ProvenanceSource ordinal.
+///
+/// Scoping is the primary conversation-isolation mechanism. The internal monitor is
+/// belt-and-suspenders: it makes each read-modify-write atomic so nothing tears if a host ever fans a
+/// single turn out across threads (e.g. parallel tool calls sharing one scope).
 /// </summary>
 public sealed class ContextFabric : IContextFabric
 {
+    private readonly object _gate = new();
     private readonly Dictionary<string, EntityRef> _entities = new();
     private readonly Dictionary<string, ProvenanceChain> _fieldChains = new();
 
@@ -23,13 +28,11 @@ public sealed class ContextFabric : IContextFabric
     {
         ArgumentNullException.ThrowIfNull(entityRef);
 
-        if (_entities.TryGetValue(entityRef.EntityId, out var existing))
+        lock (_gate)
         {
-            _entities[entityRef.EntityId] = MergeEntityRefs(existing, entityRef);
-        }
-        else
-        {
-            _entities[entityRef.EntityId] = entityRef;
+            _entities[entityRef.EntityId] = _entities.TryGetValue(entityRef.EntityId, out var existing)
+                ? MergeEntityRefs(existing, entityRef)
+                : entityRef;
         }
     }
 
@@ -37,12 +40,19 @@ public sealed class ContextFabric : IContextFabric
     public EntityRef? GetByKey(string entityKey)
     {
         ArgumentNullException.ThrowIfNull(entityKey);
-        _entities.TryGetValue(entityKey, out var entity);
-        return entity;
+        lock (_gate)
+        {
+            _entities.TryGetValue(entityKey, out var entity);
+            return entity;
+        }
     }
 
     /// <summary>Returns a shallow copy of all tracked entities, keyed by EntityId.</summary>
-    public Dictionary<string, EntityRef> Snapshot() => new(_entities);
+    public Dictionary<string, EntityRef> Snapshot()
+    {
+        lock (_gate)
+            return new(_entities);
+    }
 
     /// <summary>Upserts multiple entities in a single call.</summary>
     public void MergeFrom(IEnumerable<EntityRef> entityRefs)
@@ -55,8 +65,11 @@ public sealed class ContextFabric : IContextFabric
     /// <summary>Clears all tracked entities and field chains. Used for testing and session cleanup.</summary>
     public void Clear()
     {
-        _entities.Clear();
-        _fieldChains.Clear();
+        lock (_gate)
+        {
+            _entities.Clear();
+            _fieldChains.Clear();
+        }
     }
 
     /// <summary>
@@ -66,8 +79,11 @@ public sealed class ContextFabric : IContextFabric
     public ProvenanceChain? GetFieldChain(string fieldKey)
     {
         ArgumentNullException.ThrowIfNull(fieldKey);
-        _fieldChains.TryGetValue(fieldKey, out var chain);
-        return chain;
+        lock (_gate)
+        {
+            _fieldChains.TryGetValue(fieldKey, out var chain);
+            return chain;
+        }
     }
 
     /// <summary>
@@ -78,7 +94,8 @@ public sealed class ContextFabric : IContextFabric
     {
         ArgumentNullException.ThrowIfNull(fieldKey);
         ArgumentNullException.ThrowIfNull(chain);
-        _fieldChains[fieldKey] = chain;
+        lock (_gate)
+            _fieldChains[fieldKey] = chain;
     }
 
     private static EntityRef MergeEntityRefs(EntityRef existing, EntityRef incoming)

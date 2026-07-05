@@ -151,6 +151,47 @@ public class AffiantFunctionInvocationMiddlewareTests
         Assert.Equal([""], observed);
     }
 
+    // ── Conversation identity ────────────────────────────────────────────────
+
+    [Fact]
+    public async Task ConversationId_ThreadedFromChatOptions_OntoNeutralContext()
+    {
+        var services = new ServiceCollection();
+        var observed = new List<string?>();
+        services.AddSingleton<IToolInvocationFilter>(new ConversationRecordingFilter(observed));
+        var sp = services.BuildServiceProvider();
+        var middleware = new AffiantFunctionInvocationMiddleware(Pipeline(sp), new StubRegistry());
+
+        var function = MakeFunction("WriteThing", () => "raw");
+        var context = BuildContext(function);
+        context.Options = new ChatOptions { ConversationId = "conversation-42" };
+
+        await middleware.InvokeAsync(
+            StubAgent, context, (_, _) => new ValueTask<object?>("raw"), CancellationToken.None);
+
+        // The neutral pipeline saw the run's conversation id — this is what gives InferenceTriggerFilter
+        // a genuinely per-conversation idempotency namespace instead of the fabric-hash fallback.
+        Assert.Equal(["conversation-42"], observed);
+    }
+
+    [Fact]
+    public async Task ConversationId_Null_WhenNoChatOptionsConversationId()
+    {
+        var services = new ServiceCollection();
+        var observed = new List<string?>();
+        services.AddSingleton<IToolInvocationFilter>(new ConversationRecordingFilter(observed));
+        var sp = services.BuildServiceProvider();
+        var middleware = new AffiantFunctionInvocationMiddleware(Pipeline(sp), new StubRegistry());
+
+        var function = MakeFunction("WriteThing", () => "raw");
+        var context = BuildContext(function);
+
+        await middleware.InvokeAsync(
+            StubAgent, context, (_, _) => new ValueTask<object?>("raw"), CancellationToken.None);
+
+        Assert.Equal([null], observed);
+    }
+
     // ── Arguments shared by reference ────────────────────────────────────────
 
     [Fact]
@@ -207,6 +248,15 @@ public class AffiantFunctionInvocationMiddlewareTests
         public Task OnToolInvocationAsync(ToolInvocationContext context, Func<ToolInvocationContext, Task> next, CancellationToken cancellationToken = default)
         {
             observed.Add(context.PluginName);
+            return next(context);
+        }
+    }
+
+    private sealed class ConversationRecordingFilter(List<string?> observed) : IToolInvocationFilter
+    {
+        public Task OnToolInvocationAsync(ToolInvocationContext context, Func<ToolInvocationContext, Task> next, CancellationToken cancellationToken = default)
+        {
+            observed.Add(context.ConversationId);
             return next(context);
         }
     }

@@ -37,6 +37,11 @@ public sealed class AffiantFunctionInvocationMiddleware(
             InitialTerminate = context.Terminate,
             TurnNumber = context.Iteration,
             History = MafMessageConversions.ToNeutral(context.Messages),
+            // MAF threads the run's conversation identity onto ChatOptions.ConversationId (set by the
+            // host on the agent thread / run options). Carrying it onto the neutral context gives
+            // InferenceTriggerFilter a genuinely per-conversation idempotency namespace; without it the
+            // key collapses to the fabric instance hash and dedups across unrelated conversations.
+            ConversationId = context.Options?.ConversationId,
         };
 
         object? toolProduced = null;
@@ -51,6 +56,10 @@ public sealed class AffiantFunctionInvocationMiddleware(
                 toolRan = true;
                 neutral.Result = toolProduced;
             },
+            // Prefer the run's ambient scope when the host wired one onto the function arguments;
+            // otherwise the pipeline owns a fresh scope per invocation, giving each tool call its own
+            // conversation fabric (concurrent MAF runs never share fabric state).
+            context.Arguments?.Services,
             cancellationToken).ConfigureAwait(false);
 
         context.Terminate = resultContext.Terminate;

@@ -20,10 +20,12 @@ public static class ServiceCollectionExtensions
     /// (register your overrides before calling this method).
     /// </summary>
     /// <remarks>
+    /// <c>ContextFabric</c> / <c>IContextFabric</c> (conversation entity + provenance state) and
+    /// <c>TaskInferenceStep</c> (which captures the fabric) are registered <b>Scoped</b> — one instance
+    /// per conversation turn scope. Hosts MUST NOT re-register the fabric as a singleton: doing so bleeds
+    /// values across concurrent conversations and races a global <c>Clear()</c> against live projections.
     /// The following services are registered as Singletons by this method:
     /// <list type="bullet">
-    /// <item><c>ContextFabric</c> — entity state tracking</item>
-    /// <item><c>TaskInferenceStep</c> — confidence-based merge logic (strategy passed per-invocation, not via DI)</item>
     /// <item><c>ApprovalPolicyEvaluator</c> / <c>IApprovalPolicyEvaluator</c> — policy pipeline</item>
     /// <item><c>DeterministicShortCircuit</c> as <c>IToolInvocationFilter</c> — pre-LLM interception</item>
     /// <item><c>ToolErrorFilter</c> as <c>IToolInvocationFilter</c> — error handling with retry</item>
@@ -60,13 +62,18 @@ public static class ServiceCollectionExtensions
         // Default in-process observability channel — always registered; hosts override before AddAffiantCore().
         services.TryAddSingleton<IObservabilityEventStream<AffidavitEmittedEvent>, InMemoryObservabilityEventStream<AffidavitEmittedEvent>>();
 
-        // Step 1: Entity state tracking
-        services.TryAddSingleton<ContextFabric>();
-        // IContextFabric alias — resolved as the same singleton so adapters can depend on the abstraction.
-        services.TryAddSingleton<IContextFabric>(sp => sp.GetRequiredService<ContextFabric>());
+        // Step 1: Entity state tracking. SCOPED — the fabric is a conversation-scoped store (framework
+        // spec §7 / tool-authoring-guide). One instance per turn scope isolates concurrent
+        // conversations; a singleton fabric shares un-namespaced keys across conversations (value bleed)
+        // and a global Clear() would race a concurrent conversation's provenance to Empty. Hosts MUST
+        // NOT re-register it as a singleton.
+        services.TryAddScoped<ContextFabric>();
+        // IContextFabric alias — resolved as the same scoped instance so adapters can depend on the abstraction.
+        services.TryAddScoped<IContextFabric>(sp => sp.GetRequiredService<ContextFabric>());
 
-        // Step 3: Structured-output merge logic
-        services.TryAddSingleton<TaskInferenceStep>();
+        // Step 3: Structured-output merge logic. SCOPED because it captures the scoped ContextFabric —
+        // a singleton here would be a captive dependency pinning one conversation's fabric.
+        services.TryAddScoped<TaskInferenceStep>();
 
         // Step 5: Policy evaluation pipeline
         services.TryAddSingleton<ApprovalPolicyEvaluator>();
