@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <PackageId>Affiant.AgentFramework</PackageId>
+    <Description>Microsoft Agent Framework (MAF) adapter for the Affiant framework — function-calling middleware bridging Microsoft.Agents.AI/Microsoft.Extensions.AI into the backend-neutral tool-invocation pipeline, tool catalog reflection, structured-output inference port, and hosted-tool coverage auditing.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <!-- Framework layering: AgentFramework adapter depends on Core (which pulls in Abstractions) -->
+  <ItemGroup>
+    <ProjectReference Include="..\Affiant.Core\Affiant.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Agents.AI" Version="1.13.0" />
+  </ItemGroup>
+
+  <!-- Zero references to other adapter packages or host apps -->
+
+</Project>
