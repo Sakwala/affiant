@@ -188,15 +188,34 @@ type. `Affiant.AgentFramework`'s `MafMessageConversions`
 - `ToChatMessages(IReadOnlyList<AffiantChatMessage>)` — the reverse, used when building the
   inference prompt (§`AgentFrameworkInferenceCompletionPort`).
 
-**`ConversationId` is not populated from MAF today.** `AffiantFunctionInvocationMiddleware`
-populates `ToolInvocationContext.History` from `FunctionInvocationContext.Messages` (the actual
-per-call message list MAF supplies) and `TurnNumber` from `FunctionInvocationContext.Iteration` —
-both richer neutral-seam sources than the SK bridge has (SK reads a host-populated
-`kernel.Data` side channel). `ConversationId` is left `null` because `AgentSession` in
-`Microsoft.Agents.AI` 1.13.0 exposes no session identifier at all — only an opaque
-`AgentSessionStateBag`. `InferenceTriggerFilter`'s existing fallback (a stable hash of the
-`IContextFabric` instance) applies unchanged; this is not new MAF-specific behavior, it is the
-same fallback SK hosts hit when they omit `kernel.Data["ConversationId"]`.
+`AffiantFunctionInvocationMiddleware` also populates `ToolInvocationContext.History` from
+`FunctionInvocationContext.Messages` (the actual per-call message list MAF supplies) and
+`TurnNumber` from `FunctionInvocationContext.Iteration` — both richer neutral-seam sources than the
+SK bridge has (SK reads a host-populated `kernel.Data` side channel).
+
+### 5.1 Conversation identity and idempotency wiring
+
+`AffiantFunctionInvocationMiddleware` threads `ToolInvocationContext.ConversationId` from
+**`FunctionInvocationContext.Options.ConversationId`** — the `Microsoft.Extensions.AI.ChatOptions`
+conversation id the function-invoking chat client carries through a run. This is what gives
+`InferenceTriggerFilter` a genuinely per-conversation idempotency namespace
+(`(ConversationId, FunctionName, TurnNumber)`); without it the key collapses to a per-`IContextFabric`
+fallback hash and can dedup across unrelated conversations.
+
+**What the host must do:** set the conversation id on the run so MAF carries it onto `ChatOptions`.
+The idiomatic path is the run/thread's conversation id — e.g. supply
+`ChatClientAgentRunOptions { ChatOptions = new ChatOptions { ConversationId = "<your id>" } }` when
+running the agent, or use your provider's server-side thread/conversation id if it round-trips
+`ConversationId`. When the id is absent the middleware leaves `ConversationId` null and
+`InferenceTriggerFilter`'s fabric-instance fallback applies — safe, but conservative.
+
+**Do not rely on a shared fabric for isolation:** the conversation-scoped `IContextFabric` (registered
+`Scoped` by `AddAffiantCore()`, see the tool-authoring guide §4.1) is the primary isolation mechanism.
+The middleware runs the pipeline in the run's ambient scope when the host wired one onto
+`AIFunctionArguments.Services`; otherwise the pipeline owns a fresh scope per tool invocation, so each
+call gets its own fabric. Either way concurrent MAF runs never share fabric state. `AgentSession` in
+`Microsoft.Agents.AI` 1.13.0 exposes no first-class session identifier (only an opaque
+`AgentSessionStateBag`), so `ChatOptions.ConversationId` is the neutral-seam source of record.
 
 ## 6. The hosted-tool boundary
 
