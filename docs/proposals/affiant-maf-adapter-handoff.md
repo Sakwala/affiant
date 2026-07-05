@@ -27,7 +27,7 @@ Two verified facts bound the work (Microsoft primary sources, verified 2026-07-0
 
 | # | Decision | Why (compressed — full reasoning in proposal §) |
 |---|---|---|
-| 1 | One neutral pipeline in `Affiant.Core` + thin per-backend bridges, not per-backend filter copies | Only structure that makes cross-backend semantic drift impossible; duplication recreates the b72c1fa regression class between backends (§4.1) |
+| 1 | One neutral pipeline in `Affiant.Core` + thin per-backend bridges, not per-backend filter copies | Only structure that makes cross-backend semantic drift impossible; duplication recreates the hollow-Affidavit regression class between backends (private-repo commit `b72c1fa`, 2026-04-30, not resolvable from this public repo) (§4.1) |
 | 2 | Fix the Core/Abstractions SK-dependency violation as part of this work | The violation is exactly what blocks a second backend; deferring it makes the debt load-bearing (§3, §4.3) |
 | 3 | Package name `Affiant.AgentFramework` | Symmetry with `Affiant.SemanticKernel` (product name minus vendor prefix); alternatives cryptic or Microsoft-sounding (§4.5). NuGet ID not yet reserved — operator act |
 | 4 | Hosted tools: refuse by default, explicit per-tool acknowledgment to override | "Nothing writes without approval" must not silently exclude uncovered write paths; acknowledgment is itself an auditable record (§4.6). Maintainer may veto |
