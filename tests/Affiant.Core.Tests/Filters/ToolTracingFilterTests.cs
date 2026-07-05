@@ -16,14 +16,22 @@ public sealed class ToolTracingFilterTests
     private static readonly IServiceProvider EmptyServices =
         new ServiceCollection().BuildServiceProvider();
 
-    private static ActivityListener CreateListener(List<Activity> stopped)
+    private static ActivityListener CreateListener(List<Activity> stopped, string functionName)
     {
+        // The "Affiant.Framework" ActivitySource is process-global, so a bare listener would also
+        // collect execute_tool spans emitted by ToolTracingFilter running in other tests executing
+        // concurrently, contaminating this test's Assert.Single. Record only the span carrying this
+        // test's unique gen_ai.tool.name so the listener is scoped to its own invocation.
         var listener = new ActivityListener
         {
             ShouldListenTo = s => s.Name == "Affiant.Framework",
             Sample = (ref ActivityCreationOptions<ActivityContext> _) =>
                 ActivitySamplingResult.AllDataAndRecorded,
-            ActivityStopped = a => stopped.Add(a),
+            ActivityStopped = a =>
+            {
+                if ((a.GetTagItem("gen_ai.tool.name") as string) == functionName)
+                    stopped.Add(a);
+            },
         };
         ActivitySource.AddActivityListener(listener);
         return listener;
@@ -46,7 +54,7 @@ public sealed class ToolTracingFilterTests
     public async Task Span_OperationName_IsExecuteTool_WithAffiantFrameworkSource()
     {
         var stopped = new List<Activity>();
-        using var listener = CreateListener(stopped);
+        using var listener = CreateListener(stopped, "Probe1");
 
         await Run("Probe1", ctx => { ctx.Result = "ok"; return Task.CompletedTask; });
 
@@ -58,7 +66,7 @@ public sealed class ToolTracingFilterTests
     public async Task Tag_GenAiToolName_CarriesFunctionName()
     {
         var stopped = new List<Activity>();
-        using var listener = CreateListener(stopped);
+        using var listener = CreateListener(stopped, "NamedFunction");
 
         await Run("NamedFunction", ctx => { ctx.Result = "ok"; return Task.CompletedTask; });
 
@@ -72,7 +80,7 @@ public sealed class ToolTracingFilterTests
     public async Task ToolStatus_IsOk_WhenResultIsNonEmpty()
     {
         var stopped = new List<Activity>();
-        using var listener = CreateListener(stopped);
+        using var listener = CreateListener(stopped, "OkFn");
 
         await Run("OkFn", ctx => { ctx.Result = "non-empty"; return Task.CompletedTask; });
 
@@ -84,7 +92,7 @@ public sealed class ToolTracingFilterTests
     public async Task ToolStatus_IsEmpty_WhenResultIsNull()
     {
         var stopped = new List<Activity>();
-        using var listener = CreateListener(stopped);
+        using var listener = CreateListener(stopped, "NullFn");
 
         await Run("NullFn", ctx => { ctx.Result = null; return Task.CompletedTask; });
 
@@ -98,7 +106,7 @@ public sealed class ToolTracingFilterTests
     public async Task OnToolThrow_ToolStatusIsError_AndActivityStatusIsError()
     {
         var stopped = new List<Activity>();
-        using var listener = CreateListener(stopped);
+        using var listener = CreateListener(stopped, "ThrowFn");
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             Run("ThrowFn", _ => throw new InvalidOperationException("boom")));
@@ -112,7 +120,7 @@ public sealed class ToolTracingFilterTests
     public async Task OnToolThrow_SpanIsStoppedViaFinally_BeforeExceptionPropagates()
     {
         var stopped = new List<Activity>();
-        using var listener = CreateListener(stopped);
+        using var listener = CreateListener(stopped, "ThrowFn2");
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             Run("ThrowFn2", _ => throw new InvalidOperationException("boom")));
