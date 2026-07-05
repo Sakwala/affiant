@@ -71,7 +71,14 @@ public class ServiceCollectionExtensionsTests
     [Fact]
     public void AddAffiantSemanticKernel_RegistersManualToolInvoker_AsScoped()
     {
-        var sp = BuildMinimalProvider();
+        // ManualToolInvoker depends on ToolInvocationPipeline (it runs the completion segment), which
+        // AddAffiantCore registers — the SK adapter documents that AddAffiantCore is called first.
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddAffiantCore(opts => opts.EnableObservability = false);
+        services.AddAffiantSemanticKernel();
+        var sp = services.BuildServiceProvider();
+
         using var scope = sp.CreateScope();
         var invoker = scope.ServiceProvider.GetRequiredService<IManualToolInvoker>();
         Assert.NotNull(invoker);
@@ -99,11 +106,13 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddAffiantSemanticKernel_FilterPipeline_TaskInferenceMergeBeforeReviewGate()
+    public void AddAffiantSemanticKernel_FilterPipeline_ReviewGateEnteredBeforeMerge_SoMergeCompletesFirst()
     {
-        // The completion-stage position contract: TaskInferenceMergeFilter (pos 6) must appear
-        // before ReviewGateFilter (pos 7) in the registered neutral enumerable — the SK auto-
-        // invocation bridge runs the completion-stage filters in that order.
+        // Completion-stage ordering contract (framework spec §3.12.4): both TaskInferenceMergeFilter
+        // and ReviewGateFilter do their work after await next() (post-tool), so on the onion unwind
+        // the filter entered LAST runs its post-work FIRST. To make the merge COMPLETE before the
+        // review is filed, ReviewGateFilter must be entered (registered) outer/first and
+        // TaskInferenceMergeFilter inner/last. Registration order is therefore review-before-merge.
         var sp = BuildProviderWithInferenceStack();
         using var scope = sp.CreateScope();
         var filters = scope.ServiceProvider.GetServices<IToolInvocationFilter>().ToList();
@@ -113,8 +122,9 @@ public class ServiceCollectionExtensionsTests
 
         Assert.True(taskInferenceIdx >= 0, "TaskInferenceMergeFilter must be registered");
         Assert.True(reviewGateIdx >= 0, "ReviewGateFilter must be registered");
-        Assert.True(taskInferenceIdx < reviewGateIdx,
-            "TaskInferenceMergeFilter (pos 6) must precede ReviewGateFilter (pos 7)");
+        Assert.True(reviewGateIdx < taskInferenceIdx,
+            "ReviewGateFilter must be entered before TaskInferenceMergeFilter so the merge's post-work " +
+            "(inner, unwinds first) completes before the review is filed");
     }
 
     [Fact]
