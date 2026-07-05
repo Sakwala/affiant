@@ -242,20 +242,23 @@ dotnet add package Affiant.SemanticKernel --prerelease
 
 ## The packages
 
-Eight co-versioned packages target `net10.0`. The dependency graph is a strict DAG rooted at
-`Affiant.Abstractions`, mirroring the `Microsoft.Extensions.*.Abstractions` / `Microsoft.Extensions.*`
-convention — depend only on what you need.
+Nine co-versioned packages target `net10.0` (`Affiant.AgentFramework` joined the set 2026-07-05;
+its NuGet ID reservation is still pending, see [Beta status](#beta-status)). The dependency graph
+is a strict DAG rooted at `Affiant.Abstractions`, mirroring the
+`Microsoft.Extensions.*.Abstractions` / `Microsoft.Extensions.*` convention — depend only on what
+you need.
 
 | Package | Purpose | Depends on |
 |---------|---------|------------|
-| `Affiant.Abstractions` | All primitive types (`Affidavit`, `ProvenanceTag`, `ToolEnvelope`, `DocketEntry`) and every framework interface (`IWriteExecutor`, `IFieldMapper<T>`, `IDocketStore`, …). Reference this alone to implement a contract. | *(nothing)* |
-| `Affiant.Core` | Concrete services: `ContextFabric`, `ReviewGate`, task-inference merge, the deterministic short-circuit and tool filters, DI wiring. | Abstractions |
-| `Affiant.SemanticKernel` | Semantic Kernel adapter — the interception seam (`IAutoFunctionInvocationFilter` pipeline), connector capabilities, structured-output inference. | Core |
+| `Affiant.Abstractions` | All primitive types (`Affidavit`, `ProvenanceTag`, `ToolEnvelope`, `DocketEntry`) and every framework interface (`IWriteExecutor`, `IFieldMapper<T>`, `IDocketStore`, …), including the neutral tool-interception contract (`IToolInvocationFilter`). Reference this alone to implement a contract. | *(nothing)* |
+| `Affiant.Core` | Concrete services: `ContextFabric`, `ReviewGate`, task-inference merge, the deterministic short-circuit, the backend-neutral tool-invocation pipeline, DI wiring. | Abstractions |
+| `Affiant.SemanticKernel` | Semantic Kernel interception bridge — translates SK's function-invocation filter pipeline into the neutral pipeline; connector capabilities, structured-output inference. | Core |
+| `Affiant.AgentFramework` | Microsoft Agent Framework (MAF) interception bridge — translates MAF's function-calling middleware into the same neutral pipeline; tool catalog reflection, hosted-tool coverage audit. See [`docs/adapters/microsoft-agent-framework.md`](docs/adapters/microsoft-agent-framework.md). | Core |
 | `Affiant.Docket` | The durable review queue — `IDocketStore` with in-memory, SQLite, and Postgres backing stores. | Abstractions, Core, EntityFramework |
 | `Affiant.EntityFramework` | EF Core persistence for sessions and dockets — row-per-message schema, migrations. | Abstractions, Core |
 | `Affiant.Policies` | Fluent approval policy graph — Standing Orders (auto-approval), Referrals (escalation), reviewer confirmation, risk scoring. | Core |
 | `Affiant.Transport.SignalR` | SignalR streaming transport and Evidence Card round-trip hub. | Core |
-| `Affiant.Testing.ComplianceHarness` | Ship provenance testing as a product: `ComplianceHarness.Verify(...)` proves every write strategy has a paired fixture asserting *substantive* provenance. For your CI, not just ours. | Core |
+| `Affiant.Testing.ComplianceHarness` | Ship provenance testing as a product: `ComplianceHarness.Verify(...)` proves every write strategy has a paired fixture asserting *substantive* provenance, against either interception backend. For your CI, not just ours. | Core |
 
 ---
 
@@ -289,10 +292,17 @@ Affiant complements Microsoft's agent stack; it does not compete with it.
 - **Microsoft Agent Framework (MAF) approval gates the *call*.** Affiant records provenance
   and evidence for each *field*. Approval-gating and field-level provenance are orthogonal;
   you can run both.
-- **Semantic Kernel today; MAF on the roadmap.** The interception thesis rests on SK's
-  function-invocation filter pipeline. MAF exposes a near 1:1 successor (`FunctionInvocationContext`
-  with argument access and a terminate flag); a MAF adapter is planned, with the port confined
-  to `Affiant.SemanticKernel`.
+- **Semantic Kernel and Microsoft Agent Framework, both first-class (as of 2026-07-05).** The
+  interception thesis — provenance tagging, task inference, review gating — is defined once,
+  backend-neutrally, in `Affiant.Core`; `Affiant.SemanticKernel` and `Affiant.AgentFramework`
+  are thin bridges over SK's function-invocation filter pipeline and MAF's function-calling
+  middleware (`FunctionInvocationContext`) respectively. Earlier planning assumed a MAF port
+  could stay confined to a new `Affiant.SemanticKernel`-adjacent package with no other changes;
+  that premise turned out to be false — `Affiant.Core` and `Affiant.Abstractions` still carried
+  direct Semantic Kernel dependencies, which a second backend could not share. Extracting a
+  genuinely neutral pipeline out of that coupling was the actual work; see
+  `docs/proposals/affiant-maf-adapter.md` for the design and
+  `docs/adapters/microsoft-agent-framework.md` for the host-facing guide.
 - **Locally-invoked MCP tool writes flow through the same seam.** MCP tools that *your
   client* invokes funnel through the same function-invocation context, so an adapter
   intercepts those writes for free — field-level provenance for local MCP tool writes.
@@ -317,6 +327,10 @@ yet reached 1.0 GA and **will change before it does**. Adopt on this basis:
   contract is stable and is enforced by the ComplianceHarness.
 - **Expect API evolution.** Type shapes, DI extension signatures, and package boundaries may
   change between beta and 1.0.0. Pin the version; read the [CHANGELOG](CHANGELOG.md).
+- **`Affiant.AgentFramework` ships in this repo but is not yet on nuget.org.** The NuGet ID
+  reservation and its inclusion in the co-versioned publish set are separate, still-pending
+  maintainer/operator steps (`docs/proposals/affiant-maf-adapter.md` §9). Build it from source
+  until then.
 
 ---
 
