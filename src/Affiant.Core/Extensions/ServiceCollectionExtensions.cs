@@ -108,6 +108,30 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
+    /// Registers the two completion-stage neutral filters — <see cref="ReviewGateFilter"/> and
+    /// <see cref="TaskInferenceMergeFilter"/> — in the one order both interception backends must use.
+    ///
+    /// Both filters do all their work <em>after</em> <c>await next()</c> (post-tool), so on the onion
+    /// unwind the filter registered <em>last</em> runs its post-work <em>first</em>. The framework spec
+    /// §3.12.4 requires <see cref="TaskInferenceMergeFilter"/>'s merge to <em>complete</em> before
+    /// <see cref="ReviewGateFilter"/> files the review (the reviewer must see a fully-merged Affidavit),
+    /// so the merge filter must be innermost: <see cref="ReviewGateFilter"/> is registered first
+    /// (outermost), <see cref="TaskInferenceMergeFilter"/> last (innermost, post-work runs first).
+    ///
+    /// Single source of truth so the SK bridge (<c>AddAffiantSkFilters</c>) and the MAF adapter
+    /// (<c>AddAffiantAgentFramework</c>) cannot drift on this ordering. Both filters are Scoped:
+    /// resolved per invocation from the pipeline runner's DI scope.
+    /// </summary>
+    public static IServiceCollection AddAffiantCompletionFilters(this IServiceCollection services)
+    {
+        services.TryAddEnumerable(
+            ServiceDescriptor.Scoped<IToolInvocationFilter, ReviewGateFilter>());
+        services.TryAddEnumerable(
+            ServiceDescriptor.Scoped<IToolInvocationFilter, TaskInferenceMergeFilter>());
+        return services;
+    }
+
+    /// <summary>
     /// Registers a write-intent tool's strategy in DI and a matching descriptor in the registry — atomically.
     /// Call <c>services.AddAffiantCore()</c> first.
     /// </summary>

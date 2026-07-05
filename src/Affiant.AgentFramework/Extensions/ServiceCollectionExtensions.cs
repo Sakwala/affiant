@@ -49,15 +49,14 @@ public static class ServiceCollectionExtensions
 
         // Neutral filter positions 4–7 (canonical order, framework spec §3.12.4). MAF has no
         // stage split, so all four run at the one middleware seam AffiantFunctionInvocationMiddleware
-        // fires — registration order here fixes their position in the pipeline.
+        // fires — registration order here fixes their position in the pipeline. The invocation-stage
+        // pair (positions 4, 5) registers here; the completion-stage pair (positions 6, 7) registers
+        // via the shared Core helper so the merge-before-review onion order matches the SK bridge.
         services.TryAddEnumerable(
             ServiceDescriptor.Scoped<IToolInvocationFilter, ToolArgumentCaptureFilter>());
         services.TryAddEnumerable(
             ServiceDescriptor.Scoped<IToolInvocationFilter, InferenceTriggerFilter>());
-        services.TryAddEnumerable(
-            ServiceDescriptor.Scoped<IToolInvocationFilter, TaskInferenceMergeFilter>());
-        services.TryAddEnumerable(
-            ServiceDescriptor.Scoped<IToolInvocationFilter, ReviewGateFilter>());
+        services.AddAffiantCompletionFilters();
 
         return services;
     }
