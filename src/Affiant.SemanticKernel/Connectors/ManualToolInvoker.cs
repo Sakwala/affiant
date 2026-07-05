@@ -1,11 +1,17 @@
+using Affiant.Core.Services;
+using Affiant.SemanticKernel.Filters;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 
 namespace Affiant.SemanticKernel.Connectors;
 
-// Uses kernel.InvokeAsync to fire the full IFunctionInvocationFilter chain —
-// identical filter-captured state to SK's automatic invocation path.
-public class ManualToolInvoker(ILogger<ManualToolInvoker> logger) : IManualToolInvoker
+// Degraded/fallback invocation path for providers without SK's native auto-function-invocation
+// loop. kernel.InvokeAsync fires only the invocation-stage bridge (IFunctionInvocationFilter); the
+// completion stage (merge + review gate) lives at SK's IAutoFunctionInvocationFilter position, which
+// only the auto-invocation loop drives — so this path must run the completion segment explicitly, or
+// a manually-invoked write tool's WriteProposal is never filed for review.
+public class ManualToolInvoker(ToolInvocationPipeline pipeline, ILogger<ManualToolInvoker> logger)
+    : IManualToolInvoker
 {
     public async Task<FunctionResultContent> CaptureAndInvokeAsync(
         FunctionCallContent functionCall, Kernel kernel, CancellationToken ct)
@@ -42,11 +48,29 @@ public class ManualToolInvoker(ILogger<ManualToolInvoker> logger) : IManualToolI
         }
 
         var result = await kernel.InvokeAsync(function, arguments, ct);
+        var produced = result.GetValue<object>();
+
+        // Run the completion segment (TaskInferenceMergeFilter → ReviewGateFilter) over the tool
+        // result, mirroring AffiantAutoFunctionInvocationBridge. No double-filing risk: the manual
+        // and auto paths are mutually exclusive by design (manual runs only when the provider lacks
+        // native auto-invocation), and kernel.InvokeAsync above never drives the completion stage.
+        var completionRequest = new ToolInvocationRequest(
+            functionName, pluginName, new Dictionary<string, object?>());
+
+        var completed = await pipeline.RunAsync(
+            completionRequest,
+            BridgeStages.CompletionStage,
+            neutral =>
+            {
+                neutral.Result = produced;
+                return Task.CompletedTask;
+            },
+            ct);
 
         return new FunctionResultContent(
             callId: functionCall.Id,
             pluginName: pluginName,
             functionName: functionName,
-            result: result.GetValue<object>());
+            result: completed.Result);
     }
 }

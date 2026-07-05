@@ -26,6 +26,12 @@ using Xunit;
 /// </summary>
 public class DualProviderFilterChainTests
 {
+    // Completion-stage no-op pipeline for the passthrough-result assertions below: an empty
+    // container registers no completion filters, so the completion segment returns the tool result
+    // unchanged. (The "files exactly one review" behavior is covered in ManualToolInvokerTests.)
+    private static ToolInvocationPipeline EmptyPipeline() =>
+        new(new ServiceCollection().BuildServiceProvider().GetRequiredService<IServiceScopeFactory>());
+
     // ── OpenAI auto path ─────────────────────────────────────────────────────
 
     /// <summary>
@@ -157,7 +163,7 @@ public class DualProviderFilterChainTests
         if (path == "manual")
         {
             // Gemini path: ManualToolInvoker → kernel.InvokeAsync
-            var invoker = new ManualToolInvoker(NullLogger<ManualToolInvoker>.Instance);
+            var invoker = new ManualToolInvoker(EmptyPipeline(), NullLogger<ManualToolInvoker>.Instance);
             var call = new FunctionCallContent("GetStatus", "StatusPlugin", "call-gemini");
             var resultContent = await invoker.CaptureAndInvokeAsync(call, kernel, CancellationToken.None);
             actualResult = resultContent.Result?.ToString() ?? string.Empty;
@@ -193,7 +199,7 @@ public class DualProviderFilterChainTests
             kernel.Plugins.Add(KernelPluginFactory.CreateFromFunctions("StatusPlugin",
                 [KernelFunctionFactory.CreateFromMethod(() => expectedResult, "GetStatus")]));
 
-            var invoker = new ManualToolInvoker(NullLogger<ManualToolInvoker>.Instance);
+            var invoker = new ManualToolInvoker(EmptyPipeline(), NullLogger<ManualToolInvoker>.Instance);
             var call = new FunctionCallContent("GetStatus", "StatusPlugin", "call-manual");
             var resultContent = await invoker.CaptureAndInvokeAsync(call, kernel, CancellationToken.None);
             var result = resultContent.Result?.ToString() ?? string.Empty;
@@ -263,7 +269,7 @@ public class DualProviderFilterChainTests
             [KernelFunctionFactory.CreateFromMethod(() => 42, "GetAnswer")]);
         kernel.Plugins.Add(plugin);
 
-        var invoker = new ManualToolInvoker(NullLogger<ManualToolInvoker>.Instance);
+        var invoker = new ManualToolInvoker(EmptyPipeline(), NullLogger<ManualToolInvoker>.Instance);
         var call = new FunctionCallContent("GetAnswer", "TestPlugin", "call-1");
         var result = await invoker.CaptureAndInvokeAsync(call, kernel, CancellationToken.None);
 
@@ -275,7 +281,7 @@ public class DualProviderFilterChainTests
     public async Task GeminiManualPath_ManualToolInvoker_HandlesUnknownFunction()
     {
         var kernel = Kernel.CreateBuilder().Build();
-        var invoker = new ManualToolInvoker(NullLogger<ManualToolInvoker>.Instance);
+        var invoker = new ManualToolInvoker(EmptyPipeline(), NullLogger<ManualToolInvoker>.Instance);
         var call = new FunctionCallContent("Missing", "NoPlugin", "call-bad");
         var result = await invoker.CaptureAndInvokeAsync(call, kernel, CancellationToken.None);
 
