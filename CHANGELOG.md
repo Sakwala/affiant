@@ -25,6 +25,27 @@ any *published* release (`docs/proposals/affiant-maf-adapter.md` §9).
   see. See `docs/adapters/microsoft-agent-framework.md`. NuGet ID reservation pending — ships
   in-repo only until then.
 
+### Fixed — conversation-scoped context fabric
+
+- **`ContextFabric` / `IContextFabric` are now registered `Scoped`** by `AddAffiantCore()` (was
+  `Singleton`). The context fabric is a conversation-scoped store; a singleton shared one
+  un-namespaced entity/provenance store across every concurrent conversation, so values bled between
+  conversations through shared keys and the per-session `Clear()` could race a concurrent
+  conversation's provenance to `ProvenanceTag.Empty` mid-projection. `TaskInferenceStep` moves to
+  `Scoped` with it (it captures the fabric). **Hosts must not re-register the fabric as a singleton**,
+  and any service that captures it must be `Scoped`/`Transient` (tool-authoring guide §4.1).
+- **`ToolInvocationPipeline` now runs filters (and the fabric) in the caller's ambient service
+  scope** instead of a fresh detached root scope it created per invocation. `RunAsync` takes an
+  optional ambient `IServiceProvider`; the SK bridges and `ManualToolInvoker` pass `kernel.Services`
+  so a turn's invocation and completion stages share one fabric, and the MAF middleware passes
+  `AIFunctionArguments.Services` (falling back to a pipeline-owned per-invocation scope). Concurrent
+  turns resolve distinct scopes and stay isolated.
+- **MAF now threads a real conversation id** onto the neutral context from
+  `FunctionInvocationContext.Options.ConversationId`, giving `InferenceTriggerFilter` a genuinely
+  per-conversation idempotency namespace instead of collapsing to a fabric-instance hash.
+- **`ContextFabric` guards its internal dictionaries with a monitor** so read-modify-write stays
+  atomic under concurrent access — belt-and-suspenders behind the scoping isolation.
+
 ### Changed — pre-1.0 clean break: backend-neutral tool-invocation pipeline
 
 `Affiant.Core` previously took a direct `Microsoft.SemanticKernel` dependency and several of its

@@ -554,7 +554,7 @@ The L2 inference orchestration layer centralizes two responsibilities that were 
 **Glossary for this section:**
 
 - *Affidavit* — the framework's field-level provenance record attached to every write operation. Each field carries a `ProvenanceChain`. `ProvenanceSource.Empty` marks fields whose origin could not be determined (Rule 7 — see §6).
-- *ContextFabric* — the framework's per-session in-memory entity accumulation store. Read tools extract entities into it via `ContextExtractor<TTool>` filters; L2 inference reads from it to build Affidavit fields.
+- *ContextFabric* — the framework's conversation-scoped in-memory entity accumulation store (registered `Scoped` by `AddAffiantCore()`, one instance per turn; §3.12.3). Read tools extract entities into it via `ContextExtractor<TTool>` filters; L2 inference reads from it to build Affidavit fields.
 - *`[AffiantWriteTool]`* — the attribute that marks a `[KernelFunction]` as a write-intent tool and associates it with an `InferenceStrategy` type and an `EntityType` string (§3.11.4 above).
 - *`ITaskInferenceStrategy`* — the host-supplied strategy interface that declares which fields the framework should infer for a given entity type (§3.10 Task Inference Strategy).
 - *`IAffiantToolRegistry`* — the registry that maps `(FunctionName, PluginName)` pairs to `AffiantToolDescriptor` records, including the associated `InferenceStrategy` type (§3.11.3 above).
@@ -620,10 +620,22 @@ and is enforced by the domain-agnostic/dependency static-analysis test suite**, 
 asserted in prose.
 
 `ToolInvocationContext` (neutral, in `Affiant.Abstractions.Models`) carries `FunctionName`,
-`PluginName`, a mutable `Arguments` dictionary, a settable `Result`, a `Terminate` flag, a
-per-invocation `Services` scope, and ambient turn context (`ConversationId`, `TurnNumber`,
-`History` as `IReadOnlyList<AffiantChatMessage>`) that each bridge populates from whatever its
-framework exposes. `AffiantChatMessage` (also neutral) replaced SK's `ChatMessageContent` in
+`PluginName`, a mutable `Arguments` dictionary, a settable `Result`, a `Terminate` flag, the
+`Services` provider the pipeline resolved filters from, and ambient turn context (`ConversationId`,
+`TurnNumber`, `History` as `IReadOnlyList<AffiantChatMessage>`) that each bridge populates from
+whatever its framework exposes.
+
+**Scope flow.** `ToolInvocationPipeline` resolves its filters — and, transitively, the
+conversation-scoped `ContextFabric` — from the **caller's ambient service scope** when the bridge
+supplies one, owning a fresh scope per invocation only as a fallback. This is deliberate: `ContextFabric`
+/ `IContextFabric` is registered `Scoped` by `AddAffiantCore()` (one instance per conversation turn),
+so every filter in a tool call — and, on SK, both the invocation-stage and completion-stage bridges of
+that call — must resolve from one scope to share one fabric, while concurrent turns (distinct scopes)
+stay isolated. The SK bridges pass `context.Kernel.Services`; the MAF middleware passes
+`AIFunctionArguments.Services` when the host wired one, else lets the pipeline own a per-invocation
+scope. A singleton fabric would share one un-namespaced store across all concurrent conversations
+(value bleed) and let `Clear()` race a live projection to `ProvenanceTag.Empty`; hosts MUST NOT
+re-register it as a singleton (tool-authoring guide §4.1). `AffiantChatMessage` (also neutral) replaced SK's `ChatMessageContent` in
 `IChatSessionStore`, `InferenceCompletionRequest`, and `InferenceFixtureCase`; each bridge
 converts to/from its native message type at its own edge (`SkMessageConversions` for SK,
 `MafMessageConversions` for MAF).
@@ -763,11 +775,17 @@ The fail-safe contract is asserted end-to-end by `InferenceFailSafeIntegrationTe
 
 Inference runs at most once per `(ConversationId, FunctionName, TurnNumber)` tuple within a single agent turn, even when multiple `IInferenceTrigger` instances are registered and more than one returns `true`. Idempotency is enforced by `InferenceTriggerFilter` via a bookkeeping entity maintained in the `ContextFabric` under the reserved key `"inference_idempotency"`. When the filter evaluates a tool call and finds the tuple already marked, it skips inference and proceeds directly to `next(context)`.
 
-`ConversationId` is read from `kernel.Data["ConversationId"]`; `TurnNumber` from `kernel.Data["AffiantTurnNumber"]`. If either is absent the filter falls back to a stable per-fabric-instance hash (`ConversationId`) or zero (`TurnNumber`) — a conservative fallback that may coalesce tuples across conversations on the same fabric instance, but never double-infers within a single conversation turn.
+Each bridge supplies `ConversationId` from its framework's neutral seam: the SK bridge reads
+`kernel.Data["ConversationId"]` (and `TurnNumber` from `kernel.Data["AffiantTurnNumber"]`); the MAF
+middleware reads `FunctionInvocationContext.Options.ConversationId` (the `ChatOptions` conversation id
+the run carries) and `TurnNumber` from `FunctionInvocationContext.Iteration`. If `ConversationId` is
+absent the filter falls back to a stable per-fabric-instance hash — conservative, and because the fabric
+is now conversation-scoped (§3.12.3) that hash is itself per-conversation, so the fallback no longer
+coalesces tuples across concurrent conversations the way a singleton fabric did.
 
 The idempotency contract is asserted end-to-end by `InferenceIdempotencyIntegrationTests` (`tests/Affiant.SemanticKernel.Tests/Integration/InferenceIdempotencyIntegrationTests.cs`, landed in Story 16.6).
 
-*Source files:* `src/Affiant.SemanticKernel/Filters/InferenceTriggerFilter.cs`
+*Source files:* `src/Affiant.Core/Filters/InferenceTriggerFilter.cs`
 
 ---
 

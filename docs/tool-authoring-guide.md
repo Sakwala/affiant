@@ -429,6 +429,17 @@ Assert.True(fabric.Snapshot().ContainsKey(entityRef.EntityId));
 - *"Do I need one per read tool?"* Only for tools with entity-rich results. A "what's today's date?" tool doesn't produce entities.
 - *"Can the extractor modify what the LLM sees?"* No. The filter runs after the LLM receives the result. `ContextExtractor` is purely for internal state tracking.
 
+### 4.1 ContextFabric lifetime contract (read before registering it)
+
+`ContextFabric` / `IContextFabric` is **conversation-scoped**: `AddAffiantCore()` registers it with the DI `Scoped` lifetime, giving each conversation turn its own instance. The framework relies on this — the neutral tool-invocation pipeline resolves the fabric (and every filter) from the caller's turn scope, so one turn's inference, merge, and review-gate stages all read and write the same instance while concurrent turns stay fully isolated.
+
+**Hosts MUST NOT re-register the fabric as a singleton.** A singleton fabric is shared by every concurrent conversation. Because entities and field chains are keyed by bare entity/field names (no conversation namespace), one conversation's values overwrite another's (value bleed), and the `Clear()` method — intended for per-session cleanup — would wipe a concurrent conversation's provenance to `ProvenanceTag.Empty` mid-projection. `AddAffiantCore()` uses `TryAdd`, so a host `AddSingleton<ContextFabric>()` registered *before* it silently wins and reintroduces exactly this bug.
+
+**Consequences for host code:**
+
+- Any service that captures `ContextFabric` / `IContextFabric` by constructor (e.g. a `ContextExtractor` subclass, a custom filter) must itself be registered `Scoped` or `Transient` — never `Singleton`. A singleton capturing the scoped fabric is a captive dependency and fails `ValidateScopes`.
+- Resolve the agent/kernel from the per-request (turn) scope so the ambient scope the bridges hand the pipeline carries that turn's fabric. Resolving from the root provider defeats the isolation.
+
 ---
 
 ## 5. Field Mapping and Write Execution
