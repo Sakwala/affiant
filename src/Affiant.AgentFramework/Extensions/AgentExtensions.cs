@@ -47,12 +47,16 @@ public static class AgentExtensions
                 "Affiant.AgentFramework: AgentFrameworkOptions is not registered. " +
                 "Call services.AddAffiantAgentFramework() before agent.WithAffiant().");
 
-        foreach (var descriptor in tools.Descriptors)
-            registry.Register(descriptor);
-
         var logger = services.GetService<ILoggerFactory>()?.CreateLogger("Affiant.AgentFramework")
             ?? NullLogger.Instance;
+
+        // Audit before any registry mutation: a refused wrap (unacknowledged hosted tool or
+        // unauditable agent shape) must leave the singleton registry untouched, so a corrected
+        // retry does not die with "already registered" from AffiantToolRegistry.Register.
         HostedToolAudit.Run(agent, options, logger);
+
+        foreach (var descriptor in tools.Descriptors)
+            registry.Register(descriptor);
 
         var middleware = new AffiantFunctionInvocationMiddleware(pipeline, registry);
 

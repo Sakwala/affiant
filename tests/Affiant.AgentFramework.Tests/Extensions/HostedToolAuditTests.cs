@@ -1,6 +1,7 @@
 namespace Affiant.AgentFramework.Tests.Extensions;
 
 using System.Text.Json;
+using Affiant.Abstractions.Interfaces;
 using Affiant.AgentFramework.Extensions;
 using Affiant.AgentFramework.Tests.Utilities;
 using Affiant.Core.Extensions;
@@ -60,6 +61,50 @@ public class HostedToolAuditTests
 
         var wrapped = agent.WithAffiant(sp, AffiantToolCatalog.FromType<NoToolsMarker>());
         Assert.NotNull(wrapped);
+    }
+
+    // ── Registry is not mutated on a refused wrap (audit runs before registration) ──────────
+
+    [Fact]
+    public void RefusedWrap_WithNonEmptyCatalog_LeavesRegistryUnchanged()
+    {
+        var services = BuildServices();
+        var sp = services.BuildServiceProvider();
+        var registry = sp.GetRequiredService<IAffiantToolRegistry>();
+
+        var catalog = AffiantToolCatalog.FromType<SampleTools>();
+        Assert.NotEmpty(catalog.Descriptors);
+
+        var agent = BuildAgentWithHostedTool();
+
+        Assert.Throws<InvalidOperationException>(() => agent.WithAffiant(sp, catalog));
+
+        // The audit refuses before any registry mutation, so nothing from the catalog leaked in.
+        Assert.Empty(registry.All);
+    }
+
+    [Fact]
+    public void CorrectedRetryAfterRefusal_Succeeds_WithoutAlreadyRegistered()
+    {
+        var services = BuildServices();
+        var sp = services.BuildServiceProvider();
+        var registry = sp.GetRequiredService<IAffiantToolRegistry>();
+
+        var catalog = AffiantToolCatalog.FromType<SampleTools>();
+
+        var refusedAgent = BuildAgentWithHostedTool();
+        Assert.Throws<InvalidOperationException>(() => refusedAgent.WithAffiant(sp, catalog));
+
+        // Corrected retry on the same singleton registry: an agent with no uncovered hosted tool.
+        // If the refused wrap had registered the catalog's descriptors, this would die with
+        // "already registered" from AffiantToolRegistry.Register.
+        var pingTool = AIFunctionFactory.Create((Func<string>)(() => "ok"), name: "Ping");
+        var correctedAgent = new ChatClientAgent(new NoOpChatClient(), instructions: "x", tools: [pingTool]);
+
+        var wrapped = correctedAgent.WithAffiant(sp, catalog);
+
+        Assert.NotNull(wrapped);
+        Assert.Equal(catalog.Descriptors.Count, registry.All.Count);
     }
 
     [Fact]
@@ -162,6 +207,11 @@ public class HostedToolAuditTests
     }
 
     private sealed class NoToolsMarker;
+
+    private sealed class SampleTools
+    {
+        public string DoThing(string value) => value;
+    }
 
     private sealed class CapturingLogger : ILogger
     {
