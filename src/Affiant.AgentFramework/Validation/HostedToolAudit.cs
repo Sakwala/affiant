@@ -15,13 +15,46 @@ using Microsoft.Extensions.Logging;
 /// Default: refuse, naming every uncovered tool. Override: <see cref="AgentFrameworkOptions.AcknowledgeUncoveredTools"/>
 /// names tools the host explicitly accepts as uncovered; each acknowledged tool emits a startup
 /// telemetry warning so the acknowledgment is auditable, never silent.
+///
+/// Enumeration itself can fail: <c>agent.GetService(typeof(ChatOptions))</c> answers non-null only
+/// for <c>ChatClientAgent</c> (the only concrete <c>AIAgent</c> <c>Microsoft.Agents.AI</c> 1.13.0
+/// ships). Detection before first run is the invariant (§4.6), not the probe mechanism, so a null
+/// probe result is itself an uncovered-audit condition — refused by default, mirroring
+/// <see cref="AgentFrameworkOptions.AcknowledgeUncoveredTools"/>'s acknowledge-and-warn shape via
+/// <see cref="AgentFrameworkOptions.AllowUnauditableAgent"/>.
 /// </summary>
 internal static class HostedToolAudit
 {
     public static void Run(AIAgent agent, AgentFrameworkOptions options, ILogger logger)
     {
         var chatOptions = agent.GetService(typeof(ChatOptions)) as ChatOptions;
-        var tools = chatOptions?.Tools;
+
+        if (chatOptions is null)
+        {
+            if (!options.AllowUnauditableAgent)
+            {
+                throw new InvalidOperationException(
+                    "Affiant.AgentFramework: WithAffiant cannot audit hosted-tool coverage for this agent " +
+                    $"shape ('{agent.GetType()}') — agent.GetService(typeof(ChatOptions)) returned null. " +
+                    "Detection before first run is the invariant (proposal §4.6); Affiant refuses to wrap an " +
+                    "agent whose tool set it cannot enumerate. Set " +
+                    "AgentFrameworkOptions.AllowUnauditableAgent = true if the host accepts this coverage gap " +
+                    "for this agent shape.");
+            }
+
+            using var unauditableSpan = AffiantTelemetry.AffiantActivitySource
+                .StartActivity("agentframework.unauditable_agent_acknowledged");
+            unauditableSpan?.SetTag("affiant.agent.type", agent.GetType().FullName);
+
+            logger.LogWarning(
+                "Affiant.AgentFramework: agent type '{AgentType}' does not expose ChatOptions via " +
+                "GetService, so Affiant cannot audit it for uncovered hosted/provider-side tools. " +
+                "Acknowledged via AgentFrameworkOptions.AllowUnauditableAgent.",
+                agent.GetType());
+            return;
+        }
+
+        var tools = chatOptions.Tools;
         if (tools is null || tools.Count == 0) return;
 
         var acknowledged = new HashSet<string>(options.AcknowledgeUncoveredTools, StringComparer.Ordinal);

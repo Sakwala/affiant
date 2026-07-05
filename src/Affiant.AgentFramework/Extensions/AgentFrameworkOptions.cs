@@ -13,4 +13,17 @@ public sealed class AgentFrameworkOptions
     /// Default: empty (every hosted tool is refused).
     /// </summary>
     public IReadOnlyList<string> AcknowledgeUncoveredTools { get; set; } = [];
+
+    /// <summary>
+    /// Explicit host acknowledgment that <c>WithAffiant</c> may wrap an <c>AIAgent</c> whose tool set
+    /// it cannot enumerate — i.e. <c>agent.GetService(typeof(ChatOptions))</c> returns <c>null</c>,
+    /// which happens for any <c>AIAgent</c> shape other than <c>ChatClientAgent</c> (framework spec /
+    /// proposal §4.6: "detection before first run is the invariant, not the mechanism"). When this
+    /// probe fails, Affiant cannot audit for uncovered hosted/provider-side tools at all, so
+    /// <c>WithAffiant</c> throws by default. Setting this to <c>true</c> permits the wrap and emits a
+    /// startup telemetry warning, mirroring <see cref="AcknowledgeUncoveredTools"/>'s explicit,
+    /// auditable, loud acknowledgment shape. Default: <c>false</c> (every unauditable agent shape is
+    /// refused).
+    /// </summary>
+    public bool AllowUnauditableAgent { get; set; }
 }
