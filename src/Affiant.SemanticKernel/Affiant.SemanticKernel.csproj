@@ -12,6 +12,11 @@
     <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
+  <!-- Unit-test access to internal edge helpers (message conversions). -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Affiant.SemanticKernel.Tests" />
+  </ItemGroup>
+
   <!-- Framework layering: SemanticKernel adapter depends on Core (which pulls in Abstractions) -->
   <ItemGroup>
     <ProjectReference Include="..\Affiant.Core\Affiant.Core.csproj" />
