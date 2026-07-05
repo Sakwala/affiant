@@ -65,6 +65,9 @@ public class ManualToolInvoker(ToolInvocationPipeline pipeline, ILogger<ManualTo
                 neutral.Result = produced;
                 return Task.CompletedTask;
             },
+            // Same kernel scope as the invocation stage fired by kernel.InvokeAsync above, so the
+            // completion stage sees the conversation fabric the tool call populated.
+            kernel.Services,
             ct);
 
         return new FunctionResultContent(

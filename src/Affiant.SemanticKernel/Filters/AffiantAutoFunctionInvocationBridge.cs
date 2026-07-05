@@ -45,6 +45,9 @@ public sealed class AffiantAutoFunctionInvocationBridge(ToolInvocationPipeline p
                 toolProduced = context.Result?.GetValue<object>();
                 neutral.Result = toolProduced;
             },
+            // Same kernel scope as the invocation stage — see AffiantFunctionInvocationBridge — so the
+            // completion-stage merge writes to, and the review gate reads, the same conversation fabric.
+            context.Kernel.Services,
             context.CancellationToken).ConfigureAwait(false);
 
         if (!toolRan || !ReferenceEquals(resultContext.Result, toolProduced))

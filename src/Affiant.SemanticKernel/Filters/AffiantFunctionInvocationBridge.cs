@@ -47,6 +47,10 @@ public sealed class AffiantFunctionInvocationBridge(ToolInvocationPipeline pipel
                 toolProduced = context.Result?.GetValue<object>();
                 neutral.Result = toolProduced;
             },
+            // Run every filter (and the conversation-scoped fabric) in the kernel's own scope so the
+            // invocation and auto-invocation stages of one turn share a single fabric instance, and
+            // concurrent turns (distinct kernel scopes) stay isolated.
+            context.Kernel.Services,
             context.CancellationToken).ConfigureAwait(false);
 
         // Write the (possibly replaced) neutral result back onto the SK context. Skip the rewrap
