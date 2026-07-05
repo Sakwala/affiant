@@ -1,24 +1,24 @@
 namespace Affiant.Core.Services;
 
 using Affiant.Abstractions.Interfaces;
-using Microsoft.SemanticKernel;
+using Affiant.Abstractions.Models;
 
 public sealed class DeterministicShortCircuit(IEnumerable<IIntentInterceptor> interceptors)
-    : IFunctionInvocationFilter
+    : IToolInvocationFilter
 {
-    public async Task OnFunctionInvocationAsync(
-        FunctionInvocationContext context,
-        Func<FunctionInvocationContext, Task> next)
+    public async Task OnToolInvocationAsync(
+        ToolInvocationContext context,
+        Func<ToolInvocationContext, Task> next,
+        CancellationToken cancellationToken = default)
     {
         IReadOnlyDictionary<string, object?> args = context.Arguments
             .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
 
         foreach (var interceptor in interceptors)
         {
-            if (await interceptor.MatchesAsync(args, context.CancellationToken).ConfigureAwait(false))
+            if (await interceptor.MatchesAsync(args, cancellationToken).ConfigureAwait(false))
             {
-                var result = await interceptor.HandleAsync(args, context.CancellationToken).ConfigureAwait(false);
-                context.Result = new FunctionResult(context.Function, result);
+                context.Result = await interceptor.HandleAsync(args, cancellationToken).ConfigureAwait(false);
                 return;
             }
         }

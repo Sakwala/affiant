@@ -7,7 +7,6 @@ using Affiant.Core.Observability;
 using Affiant.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.SemanticKernel;
 
 /// <summary>
 /// Extension methods for <see cref="IServiceCollection"/> to register
@@ -26,9 +25,10 @@ public static class ServiceCollectionExtensions
     /// <item><c>ContextFabric</c> — entity state tracking</item>
     /// <item><c>TaskInferenceStep</c> — confidence-based merge logic (strategy passed per-invocation, not via DI)</item>
     /// <item><c>ApprovalPolicyEvaluator</c> / <c>IApprovalPolicyEvaluator</c> — policy pipeline</item>
-    /// <item><c>DeterministicShortCircuit</c> as <c>IFunctionInvocationFilter</c> — pre-LLM interception</item>
-    /// <item><c>ToolErrorFilter</c> as <c>IFunctionInvocationFilter</c> — error handling with retry</item>
-    /// <item><c>ToolTracingFilter</c> as <c>IFunctionInvocationFilter</c> — per-tool <c>execute_tool</c> OTel span</item>
+    /// <item><c>DeterministicShortCircuit</c> as <c>IToolInvocationFilter</c> — pre-LLM interception</item>
+    /// <item><c>ToolErrorFilter</c> as <c>IToolInvocationFilter</c> — error handling with retry</item>
+    /// <item><c>ToolTracingFilter</c> as <c>IToolInvocationFilter</c> — per-tool <c>execute_tool</c> OTel span</item>
+    /// <item><c>ToolInvocationPipeline</c> — backend-neutral runner owning canonical filter order</item>
     /// </list>
     /// No <c>IApprovalPolicy</c> is registered by default. Hosts must call
     /// <c>AddAffiantPolicies()</c> from Affiant.Policies to declare their policy graph.
@@ -77,20 +77,23 @@ public static class ServiceCollectionExtensions
         // via AddAffiantPolicies() in Affiant.Policies. The evaluator's built-in fallback
         // returns ReviewerConfirmation when no policy matches.
 
+        // Backend-neutral pipeline runner — owns canonical filter order + per-invocation DI scope.
+        services.TryAddSingleton<ToolInvocationPipeline>();
+
         // Step 8: Pre-LLM intent interception
         services.TryAddSingleton<DeterministicShortCircuit>();
         services.TryAddEnumerable(
-            ServiceDescriptor.Singleton<IFunctionInvocationFilter, DeterministicShortCircuit>());
+            ServiceDescriptor.Singleton<IToolInvocationFilter, DeterministicShortCircuit>());
 
         // Step 9: Error-handling filter (outermost in inner pipeline — wraps ToolTracingFilter)
         services.TryAddSingleton<ToolErrorFilter>();
         services.TryAddEnumerable(
-            ServiceDescriptor.Singleton<IFunctionInvocationFilter, ToolErrorFilter>());
+            ServiceDescriptor.Singleton<IToolInvocationFilter, ToolErrorFilter>());
 
         // Step 10: Per-tool OTel span — creates execute_tool span for all hosts automatically
         services.TryAddSingleton<ToolTracingFilter>();
         services.TryAddEnumerable(
-            ServiceDescriptor.Singleton<IFunctionInvocationFilter, ToolTracingFilter>());
+            ServiceDescriptor.Singleton<IToolInvocationFilter, ToolTracingFilter>());
 
         // Step 13: Telemetry infrastructure (idempotent static initialisation)
         if (options.EnableObservability)

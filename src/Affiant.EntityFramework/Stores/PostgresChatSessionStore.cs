@@ -1,22 +1,12 @@
-using System.Text.Json;
 using Affiant.Abstractions.Interfaces;
+using Affiant.Abstractions.Models;
 using Affiant.EntityFramework.Models;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
-using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.ChatCompletion;
 
 namespace Affiant.EntityFramework.Stores;
 
-public sealed class PostgresChatSessionStore(
-    AffiantDbContext db,
-    ILogger<PostgresChatSessionStore> logger) : IChatSessionStore
+public sealed class PostgresChatSessionStore(AffiantDbContext db) : IChatSessionStore
 {
-    private static readonly JsonSerializerOptions s_jsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
-
     public async Task<ChatSession> CreateAsync(string tenantId, string userId, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
@@ -47,7 +37,7 @@ public sealed class PostgresChatSessionStore(
         return entity is null ? null : ToDomainRecord(entity);
     }
 
-    public async Task SaveMessagesAsync(string sessionId, IReadOnlyList<ChatMessageContent> messages, CancellationToken ct)
+    public async Task SaveMessagesAsync(string sessionId, IReadOnlyList<AffiantChatMessage> messages, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
 
@@ -62,14 +52,13 @@ public sealed class PostgresChatSessionStore(
 
         for (var i = 0; i < messages.Count; i++)
         {
-            var entity = ToEntity(messages[i], sessionId, ordinal: i);
-            db.ChatMessages.Add(entity);
+            db.ChatMessages.Add(ToEntity(messages[i], sessionId, ordinal: i));
         }
 
         await db.SaveChangesAsync(ct);
     }
 
-    public async Task<IReadOnlyList<ChatMessageContent>> LoadMessagesAsync(string sessionId, CancellationToken ct)
+    public async Task<IReadOnlyList<AffiantChatMessage>> LoadMessagesAsync(string sessionId, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
 
@@ -79,7 +68,7 @@ public sealed class PostgresChatSessionStore(
             .OrderBy(m => m.Ordinal)
             .ToListAsync(ct);
 
-        return entities.Select(ToDomainContent).ToList();
+        return entities.Select(ToDomain).ToList();
     }
 
     public async Task DeleteAsync(string sessionId, CancellationToken ct)
@@ -99,105 +88,28 @@ public sealed class PostgresChatSessionStore(
     private static ChatSession ToDomainRecord(ChatSessionEntity entity) =>
         new(entity.SessionId, entity.TenantId, entity.UserId, entity.CreatedAt, entity.LastActivityAt);
 
-    private ChatMessageEntity ToEntity(ChatMessageContent message, string sessionId, int ordinal)
-    {
-        var entity = new ChatMessageEntity
+    private static ChatMessageEntity ToEntity(AffiantChatMessage message, string sessionId, int ordinal) =>
+        new()
         {
             SessionId = sessionId,
             Ordinal = ordinal,
-            Role = message.Role.Label,
-            Content = message.Content ?? string.Empty,
+            Role = message.Role,
+            Content = message.Content,
             AuthorName = message.AuthorName,
             ModelId = message.ModelId,
+            ToolCallId = message.ToolCallId,
+            FunctionName = message.FunctionName,
+            ArgumentsJson = message.ArgumentsJson,
             Timestamp = DateTimeOffset.UtcNow
         };
 
-        var funcCalls = message.Items.OfType<FunctionCallContent>().ToList();
-        if (funcCalls.Count > 1)
-        {
-            logger.LogWarning(
-                "ChatMessageContent has {Count} parallel FunctionCallContent items — only the first is stored; others will be lost on rehydration",
-                funcCalls.Count);
-        }
-
-        if (funcCalls.Count >= 1)
-        {
-            var first = funcCalls[0];
-            entity.ToolCallId = first.Id;
-            entity.FunctionName = first.FunctionName;
-            entity.ArgumentsJson = SerializeArguments(first.Arguments);
-        }
-
-        var funcResults = message.Items.OfType<FunctionResultContent>().ToList();
-        if (funcResults.Count >= 1 && entity.ToolCallId is null)
-        {
-            var first = funcResults[0];
-            entity.ToolCallId = first.CallId;
-            entity.FunctionName = first.FunctionName;
-            entity.Content = first.Result?.ToString() ?? string.Empty;
-        }
-
-        entity.MetadataJson = SerializeMetadata(message.Metadata);
-
-        return entity;
-    }
-
-    private static ChatMessageContent ToDomainContent(ChatMessageEntity entity)
-    {
-        var role = new AuthorRole(entity.Role);
-        var content = new ChatMessageContent(role, entity.Content)
+    private static AffiantChatMessage ToDomain(ChatMessageEntity entity) =>
+        new(entity.Role, entity.Content)
         {
             AuthorName = entity.AuthorName,
-            ModelId = entity.ModelId
+            ModelId = entity.ModelId,
+            ToolCallId = entity.ToolCallId,
+            FunctionName = entity.FunctionName,
+            ArgumentsJson = entity.ArgumentsJson,
         };
-
-        if (entity.ToolCallId is not null && entity.FunctionName is not null)
-        {
-            if (role == AuthorRole.Assistant)
-            {
-                var args = DeserializeArguments(entity.ArgumentsJson);
-                content.Items.Add(new FunctionCallContent(
-                    functionName: entity.FunctionName,
-                    pluginName: null,
-                    id: entity.ToolCallId,
-                    arguments: args));
-            }
-            else if (role == AuthorRole.Tool)
-            {
-                content.Items.Add(new FunctionResultContent(
-                    functionName: entity.FunctionName,
-                    pluginName: null,
-                    callId: entity.ToolCallId,
-                    result: entity.Content));
-            }
-        }
-
-        return content;
-    }
-
-    // ── Serialization helpers ────────────────────────────────────────────────
-
-    private static string? SerializeArguments(KernelArguments? args)
-    {
-        if (args is null) return null;
-        var dict = args.ToDictionary(kv => kv.Key, kv => kv.Value);
-        return JsonSerializer.Serialize(dict, s_jsonOptions);
-    }
-
-    private static KernelArguments? DeserializeArguments(string? json)
-    {
-        if (string.IsNullOrEmpty(json)) return null;
-        var dict = JsonSerializer.Deserialize<Dictionary<string, object?>>(json, s_jsonOptions);
-        if (dict is null) return null;
-        var args = new KernelArguments();
-        foreach (var (k, v) in dict)
-            args[k] = v;
-        return args;
-    }
-
-    private static string? SerializeMetadata(IReadOnlyDictionary<string, object?>? metadata)
-    {
-        if (metadata is null || metadata.Count == 0) return null;
-        return JsonSerializer.Serialize(metadata, s_jsonOptions);
-    }
 }

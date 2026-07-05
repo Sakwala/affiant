@@ -17,6 +17,8 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.5" />
+    <!-- BackgroundService / IHostedService — formerly transitive via Semantic Kernel through Core. -->
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.4" />
   </ItemGroup>
 
 </Project>

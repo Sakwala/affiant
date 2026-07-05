@@ -1,55 +1,55 @@
 namespace Affiant.SemanticKernel.Filters;
 
+using Affiant.Abstractions.Interfaces;
 using Affiant.Core.Filters;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.SemanticKernel;
 
 /// <summary>
-/// Registration helper for the Affiant Semantic Kernel filter pipeline.
-/// Consumed by <c>AddAffiantSemanticKernel()</c>.
+/// Registration helper that wires the Semantic Kernel bridges over the backend-neutral
+/// tool-invocation pipeline. Consumed by <c>AddAffiantSemanticKernel()</c>.
 ///
-/// Full pipeline execution order (non-negotiable per framework spec §6 and L2 PRD §"Task 4"):
+/// Two bridges translate SK's two interception seams into the one neutral pipeline, preserving
+/// today's firing positions and the canonical 7-step order (framework spec §3.12.4):
 ///
-///  Pre-tool (IFunctionInvocationFilter) — runs in DI registration order
-///    before the function executes:
-///    1. ToolErrorFilter                  — AddAffiantCore() (Step 9)
-///    2. DeterministicShortCircuit         — AddAffiantCore() (Step 8)
-///    3. ContextExtractor* subclasses      — host-registered, post-tool ctx extractors
-///    4. ToolArgumentCaptureFilter         — AddAffiantInferenceOrchestration() (Story 16.3)
-///    5. InferenceTriggerFilter            — AddAffiantInferenceOrchestration() (Story 16.3)
+///  Invocation stage — <see cref="AffiantFunctionInvocationBridge"/> (SK IFunctionInvocationFilter),
+///    fires on every invocation including manual <c>kernel.InvokeAsync</c>:
+///    1. ToolErrorFilter, 2. DeterministicShortCircuit, (ToolTracingFilter),
+///    3. ContextExtractor* (host-registered), 4. ToolArgumentCaptureFilter, 5. InferenceTriggerFilter
 ///
-///  Post-tool (IAutoFunctionInvocationFilter) — runs in DI registration order
-///    after the function returns:
-///    6. TaskInferenceMergeFilter          — this helper (was TaskInferenceFilter pre-16.4)
-///    7. ReviewGateFilter                  — this helper
+///  Completion stage — <see cref="AffiantAutoFunctionInvocationBridge"/> (SK
+///    IAutoFunctionInvocationFilter), fires at the auto-invocation loop where result replacement
+///    and termination live:
+///    6. TaskInferenceMergeFilter, 7. ReviewGateFilter
 ///
-/// Positions 1, 2 are satisfied by calling AddAffiantCore() before this helper.
-/// Position 3 is satisfied by host apps registering their ContextExtractor subclasses.
-/// Positions 4, 5 are satisfied by hosts calling AddAffiantInferenceOrchestration()
-///   (from Story 16.3) before this helper.
-/// Positions 6, 7 are satisfied by this helper.
+/// The neutral filters at positions 1–5 are registered by <c>AddAffiantCore()</c> (1, 2, tracing)
+/// and <c>AddAffiantInferenceOrchestration()</c> (4, 5); host <c>ContextExtractor</c> subclasses
+/// supply position 3. This helper registers the two completion-stage filters (6, 7) plus the two
+/// bridges that run them.
 /// </summary>
 public static class AffiantFilterPipeline
 {
     /// <summary>
-    /// Registers the Affiant Semantic Kernel auto-function invocation filters.
-    /// <c>AddAffiantCore()</c> must be called first — it registers ToolErrorFilter and
-    /// DeterministicShortCircuit which form the outer envelope of this pipeline.
+    /// Registers the Semantic Kernel bridges and the completion-stage neutral filters.
+    /// <c>AddAffiantCore()</c> must be called first — it registers the invocation-stage filters
+    /// and the <c>ToolInvocationPipeline</c> the bridges run.
     /// </summary>
     public static IServiceCollection AddAffiantSkFilters(this IServiceCollection services)
     {
-        // Position 6: TaskInferenceMergeFilter (was TaskInferenceFilter pre-16.4) — fires after
-        // each LLM auto-invoked function. Merges structured output with field/confidence pairs
-        // into ContextFabric using TaskInferenceStep's confidence-based merge rule (framework
-        // spec §2.3). Pre-tool inference (positions 4, 5) is registered separately by
-        // AddAffiantInferenceOrchestration (Story 16.3).
-        // Scoped lifetime required: TaskInferenceStep captures ContextFabric (Scoped in most hosts).
-        services.AddScoped<IAutoFunctionInvocationFilter, TaskInferenceMergeFilter>();
+        // Completion-stage neutral filters (positions 6 and 7). Scoped: resolved per invocation
+        // from the pipeline runner's DI scope.
+        services.TryAddEnumerable(
+            ServiceDescriptor.Scoped<IToolInvocationFilter, TaskInferenceMergeFilter>());
+        services.TryAddEnumerable(
+            ServiceDescriptor.Scoped<IToolInvocationFilter, ReviewGateFilter>());
 
-        // Position 5: ReviewGate adapter — detects WriteProposal results and routes them through
-        // ReviewGate.FileReviewAsync using a fresh per-invocation scope. No-op if
-        // IReviewContextProvider or ReviewGate are not registered in the DI container.
-        services.AddScoped<IAutoFunctionInvocationFilter, ReviewGateFilter>();
+        // SK bridges — the only IFunctionInvocationFilter / IAutoFunctionInvocationFilter the
+        // kernel sees. Each translates its SK context into the neutral pipeline and back.
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IFunctionInvocationFilter, AffiantFunctionInvocationBridge>());
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IAutoFunctionInvocationFilter, AffiantAutoFunctionInvocationBridge>());
 
         return services;
     }

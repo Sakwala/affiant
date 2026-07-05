@@ -1,6 +1,7 @@
 namespace Affiant.SemanticKernel.Extensions;
 
 using Affiant.Abstractions.Interfaces;
+using Affiant.Core.Filters;
 using Affiant.Core.Services;
 using Affiant.Core.Triggers;
 using Affiant.SemanticKernel.Adapters;
@@ -10,7 +11,6 @@ using Affiant.SemanticKernel.Validation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
-using Microsoft.SemanticKernel;
 
 /// <summary>
 /// DI extension for the Affiant.SemanticKernel adapter.
@@ -152,12 +152,14 @@ public static class ServiceCollectionExtensions
                 ServiceDescriptor.Scoped<IAffidavitProjection, SchemaDrivenAffidavitProjection>());
         }
 
-        // Pre-tool filter pair (pipeline ordering is 16.4's job — registered into the
-        // IFunctionInvocationFilter enumerable that SK pulls from when building FunctionInvocationFilters).
+        // Invocation-stage neutral filters (positions 4 and 5). Registered into the neutral
+        // IToolInvocationFilter enumerable the ToolInvocationPipeline runs; the SK function-
+        // invocation bridge fires them at the pre-tool position. Scoped: resolved per invocation
+        // from the pipeline runner's DI scope.
         services.TryAddEnumerable(
-            ServiceDescriptor.Scoped<IFunctionInvocationFilter, ToolArgumentCaptureFilter>());
+            ServiceDescriptor.Scoped<IToolInvocationFilter, ToolArgumentCaptureFilter>());
         services.TryAddEnumerable(
-            ServiceDescriptor.Scoped<IFunctionInvocationFilter, InferenceTriggerFilter>());
+            ServiceDescriptor.Scoped<IToolInvocationFilter, InferenceTriggerFilter>());
 
         return services;
     }

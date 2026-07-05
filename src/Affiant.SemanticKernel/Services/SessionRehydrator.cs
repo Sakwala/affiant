@@ -1,16 +1,21 @@
+namespace Affiant.SemanticKernel.Services;
+
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
+using Affiant.SemanticKernel.Filters;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel.ChatCompletion;
-
-namespace Affiant.Core.Services;
 
 /// <summary>
 /// Reconstructs full conversation state on reconnect: <see cref="ChatHistory"/>,
 /// the abstract <see cref="ConversationContext"/>, and pending <see cref="DocketEntry"/> entries.
 /// Applies <c>ChatHistoryTruncationReducer</c> when the message count exceeds the configurable
 /// threshold (<c>Affiant:ContextWindow:MessageLimit</c>).
+///
+/// Lives in the Semantic Kernel adapter because it materializes an SK <see cref="ChatHistory"/> and
+/// uses SK's truncation reducer. Neutral <see cref="AffiantChatMessage"/> loaded from the store is
+/// converted to <see cref="ChatHistory"/> at this edge.
 ///
 /// Invoked from the host's hub/gateway when a client reconnects with an existing session id.
 /// </summary>
@@ -26,9 +31,7 @@ public sealed class SessionRehydrator(
     {
         // 1. Load messages and build ChatHistory
         var messages = await chatStore.LoadMessagesAsync(sessionId, ct);
-        var history = new ChatHistory();
-        foreach (var msg in messages)
-            history.Add(msg);
+        var history = SkMessageConversions.ToChatHistory(messages);
 
         logger.LogInformation("Rehydrating session {SessionId}: {Count} messages loaded", sessionId, messages.Count);
 
