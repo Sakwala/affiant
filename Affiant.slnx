@@ -3,6 +3,7 @@
     <Project Path="src/Affiant.Abstractions/Affiant.Abstractions.csproj" />
     <Project Path="src/Affiant.Core/Affiant.Core.csproj" />
     <Project Path="src/Affiant.SemanticKernel/Affiant.SemanticKernel.csproj" />
+    <Project Path="src/Affiant.AgentFramework/Affiant.AgentFramework.csproj" />
     <Project Path="src/Affiant.Transport.SignalR/Affiant.Transport.SignalR.csproj" />
     <Project Path="src/Affiant.EntityFramework/Affiant.EntityFramework.csproj" />
     <Project Path="src/Affiant.Docket/Affiant.Docket.csproj" />
@@ -18,6 +19,7 @@
     <Project Path="tests/Affiant.Docket.Tests/Affiant.Docket.Tests.csproj" />
     <Project Path="tests/Affiant.Policies.Tests/Affiant.Policies.Tests.csproj" />
     <Project Path="tests/Affiant.SemanticKernel.Tests/Affiant.SemanticKernel.Tests.csproj" />
+    <Project Path="tests/Affiant.AgentFramework.Tests/Affiant.AgentFramework.Tests.csproj" />
     <Project Path="tests/Affiant.Testing.ComplianceHarness.Tests/Affiant.Testing.ComplianceHarness.Tests.csproj" />
   </Folder>
 </Solution>
