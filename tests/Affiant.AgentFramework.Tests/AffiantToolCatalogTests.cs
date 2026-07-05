@@ -110,7 +110,24 @@ public class AffiantToolCatalogTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => fn.InvokeAsync(args).AsTask());
     }
 
+    [Fact]
+    public void OverloadedToolMethod_ThrowsAtCatalogBuildTime_WithClearMessage()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => AffiantToolCatalog.FromType<OverloadedTools>());
+
+        Assert.Contains("DoThing", ex.Message);
+        Assert.Contains("overload", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Rename", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     // ── Fixtures ─────────────────────────────────────────────────────────────
+
+    private sealed class OverloadedTools
+    {
+        public string DoThing() => "no-arg";
+        public string DoThing(string value) => value;
+    }
 
     private sealed class ProbeTools
     {
