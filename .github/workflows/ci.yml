@@ -27,8 +27,8 @@ jobs:
       - name: Pack framework packages
         run: dotnet pack Affiant.slnx -c Release -o ./nupkgs
 
-      - name: Check 8 packages produced
+      - name: Check 9 packages produced
         run: |
           count=$(ls ./nupkgs/*.nupkg | wc -l)
           echo "Produced $count packages"
-          [ "$count" -eq 8 ] || (echo "Expected 8 packages, got $count" && exit 1)
+          [ "$count" -eq 9 ] || (echo "Expected 9 packages, got $count" && exit 1)
