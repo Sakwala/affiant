@@ -100,6 +100,17 @@ public sealed class SqliteDocketStore(
             .ExecuteUpdateAsync(s => s.SetProperty(d => d.Status, status.ToString()), ct);
     }
 
+    public async Task UpdateAmendmentsAsync(
+        Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+
+        var json = JsonSerializer.Serialize(amendments, s_jsonOptions);
+        await db.Docket
+            .Where(d => d.EntryId == entryId)
+            .ExecuteUpdateAsync(s => s.SetProperty(d => d.AmendmentsJson, json), ct);
+    }
+
     public async Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
@@ -189,17 +200,22 @@ public sealed class SqliteDocketStore(
             Amendments: DeserializeAmendments(entity.AmendmentsJson));
     }
 
-    private static IReadOnlyDictionary<string, object>? DeserializeAmendments(string? json)
+    private static IReadOnlyDictionary<string, object?>? DeserializeAmendments(string? json)
     {
         if (string.IsNullOrEmpty(json)) return null;
 
         var raw = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json, s_jsonOptions);
         if (raw is null) return null;
 
-        var result = new Dictionary<string, object>(raw.Count);
+        var result = new Dictionary<string, object?>(raw.Count);
         foreach (var (k, v) in raw)
         {
-            result[k] = v.ValueKind == JsonValueKind.String ? v.GetString()! : (object)v;
+            result[k] = v.ValueKind switch
+            {
+                JsonValueKind.Null => null,
+                JsonValueKind.String => v.GetString(),
+                _ => v
+            };
         }
         return result;
     }

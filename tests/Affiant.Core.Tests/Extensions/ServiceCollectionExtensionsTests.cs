@@ -113,6 +113,7 @@ public class ServiceCollectionExtensionsTests
         public Task FileDocketEntryAsync(DocketEntry entry, CancellationToken ct) => Task.CompletedTask;
         public Task<DocketEntry?> GetDocketEntryAsync(Guid entryId, CancellationToken ct) => Task.FromResult<DocketEntry?>(null);
         public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct) => Task.FromResult(0);
+        public Task UpdateAmendmentsAsync(Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct) => Task.CompletedTask;
         public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct) =>
             Task.FromResult<IReadOnlyList<DocketEntry>>(Array.Empty<DocketEntry>());
         public Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(DateTimeOffset expiresBeforeUtc, CancellationToken ct) =>

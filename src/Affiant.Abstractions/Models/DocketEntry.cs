@@ -34,7 +34,11 @@ public record ReviewStep(
 ///
 /// <see cref="ReviewerUserId"/> is null when the entry is self-reviewed by the same
 /// user who proposed it; set to a different user id for Referrals (delegated review).
-/// <see cref="Amendments"/> records any fields the reviewer changed during approval.
+/// <see cref="Amendments"/> records any fields the reviewer changed during approval — a
+/// <c>null</c> value means the reviewer explicitly cleared that field, distinct from the
+/// field being absent from the dictionary (unamended). Set at filing time from
+/// <see cref="ReviewContext.Amendments"/> and, for the reviewer's actual edits captured on
+/// the Evidence Card response, updated via <see cref="Interfaces.IDocketStore.UpdateAmendmentsAsync"/>.
 ///
 /// Matches framework specification §2.7.
 /// </summary>
@@ -49,4 +53,4 @@ public sealed record DocketEntry(
     ReviewStatus Status,
     DateTimeOffset CreatedAt,
     DateTimeOffset ExpiresAt,
-    IReadOnlyDictionary<string, object>? Amendments);
+    IReadOnlyDictionary<string, object?>? Amendments);

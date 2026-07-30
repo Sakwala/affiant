@@ -52,6 +52,19 @@ public sealed class InMemoryDocketStore : IDocketStore
         }
     }
 
+    public Task UpdateAmendmentsAsync(
+        Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+
+        lock (_statusLock)
+        {
+            if (_entries.TryGetValue(entryId, out var existing))
+                _entries[entryId] = existing with { Amendments = amendments };
+        }
+        return Task.CompletedTask;
+    }
+
     public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();

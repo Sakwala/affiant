@@ -180,9 +180,23 @@ public sealed record DocketEntry(
     ReviewStatus Status,
     DateTimeOffset CreatedAt,
     DateTimeOffset ExpiresAt,                  // Default TTL: 10 minutes (configurable via Standing Order)
-    Dictionary<string, object>? Amendments     // Fields the reviewer changed (Amendments)
+    IReadOnlyDictionary<string, object?>? Amendments  // Fields the reviewer changed; null value = explicitly cleared
 );
 ```
+
+**Amendment round-trip (issue #6, GA exit criterion).** The reviewer's actual edits arrive on
+`EvidenceCardResponse.Amendments` (transported via `TransportEvent.EvidenceCardResponse`) rather
+than at filing time — `ReviewContext.Amendments` on `DocketEntry` creation is a distinct,
+earlier-stage input (e.g. pre-filled defaults). `ReviewGate` persists `EvidenceCardResponse.Amendments`
+onto the `DocketEntry` via `IDocketStore.UpdateAmendmentsAsync(entryId, amendments, ct)` once the
+approval transition has won the double-submit race (§ below, "Docket idempotency"). Framework
+responsibility ends there: appending a UserStated `ProvenanceTag` (`ProvenanceTag.FromUser`,
+Rule 7) to each amended field's `ProvenanceChain` before the write reaches the domain store is the
+host's `IWriteExecutor` overlay's job — `IWriteExecutor.ExecuteAsync(affidavit, amendments, ct)`
+already accepts the amendments dictionary for exactly that purpose. A test asserting the persisted
+chain ends in `UserStated` therefore belongs in the host's test suite, once the overlay exists,
+not in `Affiant.Testing.ComplianceHarness` (which asserts task-inference extraction substance, an
+unrelated pipeline stage).
 
 ### 2.8 ReviewStep (Record) — Multi-Step Reviews
 
@@ -281,6 +295,7 @@ public interface IDocketStore
     Task FileDocketEntryAsync(DocketEntry entry, CancellationToken ct);
     Task<DocketEntry?> GetDocketEntryAsync(Guid entryId, CancellationToken ct);
     Task UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct);
+    Task UpdateAmendmentsAsync(Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct);
 }
 ```
 
