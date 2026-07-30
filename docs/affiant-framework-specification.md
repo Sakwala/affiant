@@ -207,8 +207,11 @@ public sealed record ReviewStep(
 > text below reflects the interface as it actually ships in
 > `src/Affiant.Abstractions/Models/GuidableElement.cs`. A host that wants route-scoping or a
 > human-readable description stores them as `Attributes` entries (e.g. `"route"`, `"displayName"`)
-> — see `HRPortalRouteRegistry`/`MeridianRouteRegistry` in the private `affiant-host-apps` repo for
-> two independent implementations of that convention.
+> — see `MeridianRouteRegistry` in the private `affiant-host-apps` repo for the live end-to-end
+> reference implementation of that convention (registry, `UiGuidancePlugin`, and frontend renderer
+> all wired together). `HRPortalRouteRegistry` implements the same `IRouteRegistry` convention but
+> is registry-only as of 2026-07-31 — no HRPortal plugin emits `GuideUI` yet, so it has no bridge
+> or emitting plugin exercising it end-to-end.
 
 ```csharp
 public sealed record GuidableElement(
