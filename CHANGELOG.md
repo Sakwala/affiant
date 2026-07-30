@@ -33,6 +33,25 @@ any *published* release (`docs/proposals/affiant-maf-adapter.md` §9).
   `IWriteExecutor.ExecuteAsync`, which already accepts the amendments dictionary for exactly that
   purpose. UI, SignalR hub signature (`ApproveAction`/`useSignalR.approveAction`), and the
   executor overlay itself are host-apps follow-through, tracked against issue #6.
+  
+  **Breaking (host-facing, latent until package re-pin):** Host applications using this framework
+  must not bump the `packages` submodule pointer past commit `331a8ea` until both of the following
+  host-side updates land:
+  
+  - **`ReviewGate.HandleDecisionAsync` signature change** — gained an `amendments` parameter
+    before the trailing `CancellationToken`. Existing host calls at `affiant-host-apps:ChatHub.cs:137`
+    and `affiant-host-apps:ChatHub.cs:150` pass `entryId` and `decision` positionally without
+    the new `amendments` argument, causing **CS1503 hard compile error** once host-apps re-pins.
+    **Fix:** update both call sites to pass `amendments` (available from the `EvidenceCardResponse`
+    or context) as the third positional argument before `ct`.
+  
+  - **`DocketEntry.Amendments` type widening breaks host's `GetAmendmentString` signature** —
+    the host's `WorkOrderExecutor.GetAmendmentString(IReadOnlyDictionary<string, object>?, string)`
+    at `affiant-host-apps:WorkOrderExecutor.cs:53` and `:108` expects `object` (not `object?`)
+    values in the amendments dictionary. The framework now carries `object?` to distinguish
+    explicit field clears from unamended fields. **CS8619 compile error** (object to object?
+    assignment) with `TreatWarningsAsErrors` enabled. **Fix:** widen the parameter type to
+    accept `IReadOnlyDictionary<string, object?, string>` instead.
 
 - **`Affiant.AgentFramework`** — the Microsoft Agent Framework (MAF) interception backend, a
   peer of `Affiant.SemanticKernel` behind one shared, backend-neutral tool-invocation pipeline.
