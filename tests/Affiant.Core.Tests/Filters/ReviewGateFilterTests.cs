@@ -166,6 +166,14 @@ public class ReviewGateFilterTests
             return Task.FromResult(1);
         }
 
+        public Task UpdateAmendmentsAsync(
+            Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct)
+        {
+            var idx = Filed.FindIndex(e => e.EntryId == entryId);
+            if (idx >= 0) Filed[idx] = Filed[idx] with { Amendments = amendments };
+            return Task.CompletedTask;
+        }
+
         public Task SaveContextAsync(string sessionId, ConversationContext context, CancellationToken ct)
             => Task.CompletedTask;
 

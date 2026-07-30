@@ -14,6 +14,26 @@ any *published* release (`docs/proposals/affiant-maf-adapter.md` §9).
 
 ### Added
 
+- **Evidence Card amendment round-trip (framework half of issue #6)** — `EvidenceCardResponse`
+  gains a trailing `IReadOnlyDictionary<string, object?>? Amendments` param carrying the fields a
+  reviewer edited before approving (`null` value = the reviewer explicitly cleared that field).
+  `IDocketStore` gains `UpdateAmendmentsAsync(entryId, amendments, ct)`, implemented by
+  `InMemoryDocketStore`, `SqliteDocketStore`, and `PostgresDocketStore` (no EF model/migration
+  change — `DocketEntryEntity.AmendmentsJson` was already mapped). `ReviewGate.FileReviewAsync`
+  persists `EvidenceCardResponse.Amendments` onto the `DocketEntry` immediately after the approval
+  transition wins the double-submit race; `ReviewGate.HandleDecisionAsync` gains a matching
+  `amendments` parameter, threading it into the live-waiter `EvidenceCardResponse` and persisting
+  it directly on the host-restart replay path. **Breaking (pre-1.0):** `DocketEntry.Amendments`
+  widens from `IReadOnlyDictionary<string, object>?` to `IReadOnlyDictionary<string, object?>?` so
+  an explicit reviewer-cleared field survives the round-trip distinguishably from an unamended
+  field — update any code pattern-matching on the old type. Framework responsibility ends at
+  persistence: appending `ProvenanceTag.FromUser` (Rule 7 UserStated tag — already exists; the
+  issue's `FromUserStated` name doesn't) to each amended field's `ProvenanceChain` before the
+  write reaches the domain store is the host's `IWriteExecutor` overlay's job — see
+  `IWriteExecutor.ExecuteAsync`, which already accepts the amendments dictionary for exactly that
+  purpose. UI, SignalR hub signature (`ApproveAction`/`useSignalR.approveAction`), and the
+  executor overlay itself are host-apps follow-through, tracked against issue #6.
+
 - **`Affiant.AgentFramework`** — the Microsoft Agent Framework (MAF) interception backend, a
   peer of `Affiant.SemanticKernel` behind one shared, backend-neutral tool-invocation pipeline.
   `AffiantToolCatalog.FromType<T>()` reflects a tool type into `AIFunction`s and

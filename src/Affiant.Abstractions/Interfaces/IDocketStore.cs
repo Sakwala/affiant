@@ -45,6 +45,22 @@ public interface IDocketStore
     /// </remarks>
     Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct);
 
+    /// <summary>
+    /// Persist the reviewer's amendments onto a <see cref="DocketEntry"/> — the field values a
+    /// human reviewer changed while acting on an Evidence Card (issue #6, the amendment
+    /// round-trip). Overwrites any amendments previously recorded on the entry (e.g. from
+    /// <see cref="ReviewContext.Amendments"/> at filing time).
+    /// </summary>
+    /// <remarks>
+    /// Framework responsibility ends at persistence. Appending
+    /// <see cref="ProvenanceTag"/> UserStated tags to each amended field's
+    /// <see cref="ProvenanceChain"/> before the write reaches the domain store is the host's
+    /// <see cref="IWriteExecutor"/> overlay's job — <c>IWriteExecutor.ExecuteAsync</c> already
+    /// accepts the amendments dictionary for exactly that purpose.
+    /// </remarks>
+    Task UpdateAmendmentsAsync(
+        Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct);
+
     Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct);
 
     /// <summary>

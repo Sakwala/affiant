@@ -50,7 +50,7 @@ public sealed class ReviewGate(
             if (existing is null)
             {
                 var amendments = context.Amendments is { Count: > 0 }
-                    ? context.Amendments.ToDictionary(kv => kv.Key, kv => kv.Value)
+                    ? context.Amendments.ToDictionary(kv => kv.Key, kv => (object?)kv.Value)
                     : null;
 
                 var entry = new DocketEntry(
@@ -138,6 +138,13 @@ public sealed class ReviewGate(
                     : MapStatusToOutcome(finalEntry.Status, entryId);
             }
 
+            // This call won the approval race — persist the reviewer's amendments (if any) onto
+            // the entry it just transitioned. See EvidenceCardResponse.Amendments.
+            if (response.Amendments is { Count: > 0 })
+            {
+                await docketStore.UpdateAmendmentsAsync(entryId, response.Amendments, cancellationToken);
+            }
+
             return new ReviewOutcome.Approved(entryId);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -151,17 +158,24 @@ public sealed class ReviewGate(
     /// Routes a human decision to the appropriate handling path.
     /// If a <see cref="FileReviewAsync"/> task is currently awaiting a response for
     /// <paramref name="entryId"/>, the decision is delivered directly and this method
-    /// returns <c>(null, null)</c> — the awaiting caller owns the outcome and completion.
+    /// returns <c>(null, null)</c> — the awaiting caller owns the outcome and completion,
+    /// including persisting <paramref name="amendments"/> (see <see cref="FileReviewAsync"/>).
     /// If no waiter exists (e.g. the host was restarted), the decision is replayed
-    /// through the docket store and the outcome plus the entry's creation time are returned.
+    /// through the docket store, <paramref name="amendments"/> are persisted directly, and the
+    /// outcome plus the entry's creation time are returned.
     /// </summary>
+    /// <param name="amendments">
+    /// Fields the reviewer changed while acting on the Evidence Card — see
+    /// <see cref="EvidenceCardResponse.Amendments"/>. Ignored on rejection.
+    /// </param>
     public async Task<(ReviewOutcome? Outcome, DateTimeOffset? EntryCreatedAt)> HandleDecisionAsync(
         Guid entryId,
         ApprovalDecision decision,
+        IReadOnlyDictionary<string, object?>? amendments = null,
         CancellationToken cancellationToken = default)
     {
         // Live path: a FileReviewAsync call is awaiting — deliver and let it own the outcome.
-        if (transport.TryDeliverResponse(entryId, new EvidenceCardResponse(entryId, decision)))
+        if (transport.TryDeliverResponse(entryId, new EvidenceCardResponse(entryId, decision, Amendments: amendments)))
             return (null, null);
 
         // Restart path: no live waiter — replay through the docket store.
@@ -182,6 +196,12 @@ public sealed class ReviewGate(
             return current is null
                 ? (new ReviewOutcome.Expired(entryId), null)
                 : (MapStatusToOutcome(current.Status, entryId), createdAt);
+        }
+
+        // This call won the transition race — persist the reviewer's amendments (if any).
+        if (decision == ApprovalDecision.Approved && amendments is { Count: > 0 })
+        {
+            await docketStore.UpdateAmendmentsAsync(entryId, amendments, cancellationToken);
         }
 
         ReviewOutcome outcome = decision == ApprovalDecision.Approved
