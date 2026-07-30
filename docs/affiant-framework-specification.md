@@ -201,13 +201,22 @@ public sealed record ReviewStep(
 
 ### 2.9 GuidableElement (Record) — UI Bridge
 
+> Corrected 2026-07-31 alongside the Rule 6 clarification above: this record previously
+> documented a `Selector`/`Route`/`Description`/`Tags` shape that never matched the shipped type
+> and — worse — modeled a CSS selector as a first-class field, directly contradicting Rule 6. The
+> text below reflects the interface as it actually ships in
+> `src/Affiant.Abstractions/Models/GuidableElement.cs`. A host that wants route-scoping or a
+> human-readable description stores them as `Attributes` entries (e.g. `"route"`, `"displayName"`)
+> — see `HRPortalRouteRegistry`/`MeridianRouteRegistry` in the private `affiant-host-apps` repo for
+> two independent implementations of that convention.
+
 ```csharp
 public sealed record GuidableElement(
-    string ElementId,              // Stable identifier (e.g., "save-button")
-    string Selector,               // CSS selector using data-guide attribute
-    string Route,                  // Which route/page this element appears on
-    string Description,            // Human-readable description for the LLM
-    string[] Tags                  // Semantic tags for discovery (e.g., "form", "navigation")
+    string ElementId,                            // Stable semantic identifier (e.g., "save-button")
+    string ElementType,                          // Element kind for the consumer (e.g., "button", "form", "widget")
+    Dictionary<string, object>? Attributes = null // Host-defined metadata: displayName, description,
+                                                   // route, rendering hints (side, highlightPadding), etc.
+                                                   // Never a CSS/DOM selector — see Rule 6.
 );
 ```
 
@@ -335,12 +344,18 @@ public sealed record WriteResult(bool Success, string? EntityId, string? ErrorMe
 
 ### 3.7 UI Guidance
 
+> Corrected 2026-07-31 alongside the Rule 6 clarification in §6: `GetAll()` never matched the
+> shipped method name, and `GetElementById` was missing entirely. The text below reflects
+> `src/Affiant.Abstractions/Interfaces/IRouteRegistry.cs` as it actually ships. This is the single
+> supported UI guidance model — see the Rule 6 note in §6 for what "single supported" rules out.
+
 ```csharp
 public interface IRouteRegistry
 {
     void Register(GuidableElement element);
     IReadOnlyList<GuidableElement> GetElementsForRoute(string route);
-    IReadOnlyList<GuidableElement> GetAll();
+    IReadOnlyList<GuidableElement> GetAllElements();
+    GuidableElement? GetElementById(string elementId);
 }
 ```
 
@@ -843,7 +858,7 @@ The architecture separates into six layers forming a directed acyclic graph, wit
 
 **Components**: `UiGuidanceBridge`, `IRouteRegistry`, `GuidableElement`.
 
-**Responsibility**: Translates LLM guidance intents into `data-guide` selector payloads sent via the transport. The LLM discovers guidable elements through the registry (injected into the system prompt), not by inspecting the DOM.
+**Responsibility**: Surfaces `GuidableElement` entries — keyed by semantic `ElementId`, never a CSS/DOM selector (Rule 6) — from the host's `IRouteRegistry` registration to downstream consumers (a plugin the LLM calls, a transport payload, a frontend renderer). The LLM discovers guidable elements through the registry, not by inspecting the DOM; translating an `ElementId` into a concrete DOM selector, if a host's rendering layer needs one, happens once, downstream of this layer, in the frontend renderer — never in the plugin or the transport payload it produces.
 
 **Depends on**: Transport (Layer 1) for emitting `UiGuidance` events.
 
@@ -919,6 +934,8 @@ These rules are non-negotiable. Every implementation, code review, and plugin au
 **Rule 5: Graceful degradation on provider failure.** When the primary LLM provider fails, the framework falls back to a secondary provider or enters degraded mode where only deterministic operations (read tools, keyword-matched intents) are available. *Rationale*: Enterprise applications cannot show users a blank screen when an LLM API has an outage. *Anti-pattern*: Throwing an unhandled exception when `IChatCompletionService.GetChatMessageContentsAsync` fails.
 
 **Rule 6: `data-guide` contracts are UI-layer registrations, not LLM-layer concerns.** The agent discovers guidable UI elements through the `IRouteRegistry`, not by inspecting the DOM or asking the user. *Rationale*: LLMs cannot reliably generate CSS selectors, and DOM structures change between deployments. *Anti-pattern*: Prompting the LLM to "find the button labeled Save" by generating a querySelector.
+
+> **`IRouteRegistry` is the single supported guidance model (corrected 2026-07-31).** A host registers each guidable element once, in one place, keyed by a stable `ElementId` (e.g. `HRPortalRouteRegistry`/`MeridianRouteRegistry` implementing `IRouteRegistry` — §3.7). Every layer above that registration — the `UiGuidancePlugin`-style tool the LLM calls, the transport payload it returns, and the frontend renderer that ultimately highlights the element — refers to the element **only by `ElementId`**. Nothing above the registration may hold, construct, or pass through a raw CSS/DOM selector string; a plugin field named `elementSelector` (or equivalent) is non-conformant regardless of who set its value. Selector-based UI guidance — where the LLM, a plugin, or a transport payload carries a `document.querySelector`-style string instead of an `ElementId` — is **unsupported**, not merely discouraged: it is the exact anti-pattern this rule exists to prevent, and there is no accepted fallback or transitional shape for it. The *frontend* renderer may still translate a registered `ElementId` into a concrete DOM selector (e.g. `` `[data-guide='${elementId}']` ``) as its own presentation-layer detail — that translation is UI-layer, happens once, after the `IRouteRegistry` lookup, and is not the thing this rule bans. What Rule 6 bans is selector authorship or transport above that translation point. This clarification was prompted by a 2026-07-31 audit of Meridian's `UiGuidancePlugin`, which built `[data-guide='...']` selector strings directly in the tool the LLM invoked — see the private `affiant-host-apps` repository, issue #9, for the host-side fix.
 
 **Rule 7: Every Affidavit field carries provenance, no exceptions.** If a field's provenance is unknown, it must be tagged `ProvenanceSource.Empty` — never omitted. The Evidence Card renders provenance as visual indicators (green for UserStated, amber for Inferred, grey for Default). *Rationale*: Missing provenance is indistinguishable from "the framework forgot to track it" versus "the AI made this up." *Anti-pattern*: Fields without provenance tags that the UI renders identically to user-confirmed values.
 
