@@ -29,6 +29,14 @@ public interface ITaskInferenceStrategy
 /// <summary>
 /// Describes a single field in the structured-output schema used for task inference.
 /// </summary>
+/// <param name="Format">
+/// An explicit semantic hint for how to render/validate the field (e.g. "date").
+/// Optional and additive: <c>SchemaDrivenAffidavitProjection</c> uses it to derive
+/// <c>AffidavitField.Kind</c> "date" when <see cref="JsonType"/> alone is ambiguous
+/// (a "string" JsonType could be free text or a date — guessing from <see cref="Pattern"/>
+/// would be unreliable, so this is the explicit signal instead). Null means no hint;
+/// the projection falls back to <see cref="JsonType"/>-based inference.
+/// </param>
 public record TaskInferenceField(
     string Name,
     string JsonType,
@@ -36,4 +44,5 @@ public record TaskInferenceField(
     int? MaxLength = null,
     string? Pattern = null,
     IReadOnlyList<string>? Enum = null,
-    bool Required = false);
+    bool Required = false,
+    string? Format = null);

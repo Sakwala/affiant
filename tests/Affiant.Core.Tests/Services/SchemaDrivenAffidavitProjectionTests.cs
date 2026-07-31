@@ -33,6 +33,19 @@ public class SchemaDrivenAffidavitProjectionTests
         public double? MinimumConfidenceThreshold => null;
     }
 
+    private sealed class MetadataFieldStrategy : ITaskInferenceStrategy
+    {
+        public string EntityName => "Widget";
+        public IReadOnlyList<TaskInferenceField> Fields { get; } =
+        [
+            new("Status", "string", "Widget status", Enum: ["Active", "Retired"]),
+            new("Weight", "number", "Weight in kg", Pattern: @"^\d+(\.\d+)?$"),
+            new("ManufacturedOn", "string", "Manufacture date", Format: "date"),
+            new("Description", "string", "Free-text description"),
+        ];
+        public double? MinimumConfidenceThreshold => null;
+    }
+
     private sealed class FixedSource : IDeterministicFieldSource
     {
         private readonly ProvenanceTag? _tag;
@@ -233,5 +246,72 @@ public class SchemaDrivenAffidavitProjectionTests
             new SchemaDrivenAffidavitProjection(
                 null!, [], NullLogger<SchemaDrivenAffidavitProjection>.Instance,
                 new InMemoryObservabilityEventStream<AffidavitEmittedEvent>()));
+    }
+
+    // --- Test 11: metadata forwarding (D6) — Kind/AllowedValues/Pattern per TaskInferenceField ---
+
+    [Fact]
+    public void Project_ForwardsEnumMetadata()
+    {
+        var projection = BuildProjection(new MetadataFieldStrategy());
+        var affidavit = projection.Project(new ContextFabric(), "WriteCreate", []);
+
+        var status = affidavit.Fields.Single(f => f.Name == "Status");
+        Assert.Equal(AffidavitFieldKind.Enum, status.Kind);
+        Assert.Equal(["Active", "Retired"], status.AllowedValues);
+        Assert.Null(status.Pattern);
+    }
+
+    [Fact]
+    public void Project_ForwardsNumberMetadata_AndPattern()
+    {
+        var projection = BuildProjection(new MetadataFieldStrategy());
+        var affidavit = projection.Project(new ContextFabric(), "WriteCreate", []);
+
+        var weight = affidavit.Fields.Single(f => f.Name == "Weight");
+        Assert.Equal(AffidavitFieldKind.Number, weight.Kind);
+        Assert.Null(weight.AllowedValues);
+        Assert.Equal(@"^\d+(\.\d+)?$", weight.Pattern);
+    }
+
+    [Fact]
+    public void Project_ForwardsDateMetadata_FromFormatHint()
+    {
+        var projection = BuildProjection(new MetadataFieldStrategy());
+        var affidavit = projection.Project(new ContextFabric(), "WriteCreate", []);
+
+        var manufacturedOn = affidavit.Fields.Single(f => f.Name == "ManufacturedOn");
+        Assert.Equal(AffidavitFieldKind.Date, manufacturedOn.Kind);
+        Assert.Null(manufacturedOn.AllowedValues);
+    }
+
+    [Fact]
+    public void Project_DefaultsToTextKind_WhenNoMetadataHints()
+    {
+        var projection = BuildProjection(new MetadataFieldStrategy());
+        var affidavit = projection.Project(new ContextFabric(), "WriteCreate", []);
+
+        var description = affidavit.Fields.Single(f => f.Name == "Description");
+        Assert.Equal(AffidavitFieldKind.Text, description.Kind);
+        Assert.Null(description.AllowedValues);
+        Assert.Null(description.Pattern);
+    }
+
+    // --- Test 12: default behavior unchanged for fields without metadata (D6) ---
+
+    [Fact]
+    public void Project_FieldsWithoutMetadata_DefaultToTextKind_NullsForAllowedValuesAndPattern()
+    {
+        // TwoFieldStrategy's fields carry no Enum/Pattern/Format — confirms the additive
+        // members don't perturb the pre-D6 default projection shape.
+        var projection = BuildProjection();
+        var affidavit = projection.Project(new ContextFabric(), "WriteCreate", []);
+
+        Assert.All(affidavit.Fields, f =>
+        {
+            Assert.Equal(AffidavitFieldKind.Text, f.Kind);
+            Assert.Null(f.AllowedValues);
+            Assert.Null(f.Pattern);
+        });
     }
 }

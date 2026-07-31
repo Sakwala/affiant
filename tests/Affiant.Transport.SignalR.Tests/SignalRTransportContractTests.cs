@@ -2,6 +2,7 @@ namespace Affiant.Transport.SignalR.Tests;
 
 using System.Text.Json;
 using Affiant.Abstractions.Interfaces;
+using Affiant.Abstractions.Models;
 using Affiant.Abstractions.Transport;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
@@ -143,6 +144,70 @@ public sealed class SignalRTransportContractTests(TransportIntegrationTestFixtur
         Assert.Equal("Test", element.GetProperty("name").GetString());
         Assert.Equal(42, element.GetProperty("value").GetInt32());
         Assert.Equal("val", element.GetProperty("nested").GetProperty("key").GetString());
+    }
+
+    [Fact(DisplayName = "AffidavitField metadata (D6) crosses the wire as lowercase kind/allowedValues/pattern")]
+    public async Task EvidenceCardRequest_AffidavitFieldMetadata_SerializesToPinnedWireShape()
+    {
+        // Pins the exact JSON shape the React client reads off ConfirmAction: the SignalR
+        // JsonHubProtocol's default JsonSerializerOptions (JsonSerializerDefaults.Web) camelCases
+        // property names, so AffidavitField.Kind/AllowedValues/Pattern must arrive as
+        // "kind" (lowercase string value), "allowedValues" (array), "pattern".
+        var (client, connId) = await fixture.CreateConnectedClientAsync();
+        await using var _ = client;
+
+        var received = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
+        client.On<JsonElement>(ConfirmActionMethod, payload => received.TrySetResult(payload));
+
+        var enumField = new AffidavitField(
+            Name: "Status",
+            Value: "Active",
+            PreviousValue: null,
+            Provenance: ProvenanceChain.From(ProvenanceTag.FromUser("Status")),
+            Kind: AffidavitFieldKind.Enum,
+            AllowedValues: ["Active", "Retired"],
+            Pattern: null);
+
+        var numberField = new AffidavitField(
+            Name: "Weight",
+            Value: 12.5,
+            PreviousValue: null,
+            Provenance: ProvenanceChain.From(ProvenanceTag.FromUser("Weight")),
+            Kind: AffidavitFieldKind.Number,
+            AllowedValues: null,
+            Pattern: @"^\d+(\.\d+)?$");
+
+        var affidavit = new Affidavit(
+            OperationType: "WriteUpdate",
+            EntityType: "Widget",
+            EntityId: "W-1",
+            Fields: [enumField, numberField],
+            AggregateConfidence: 1.0f,
+            Warnings: [],
+            RequiresConfirmation: true);
+
+        var docketId = Guid.NewGuid();
+        var requiredBy = DateTimeOffset.Parse("2026-08-01T00:00:00Z");
+        var request = new EvidenceCardRequest(docketId, affidavit, requiredBy);
+
+        var transport = fixture.Server.Services.GetRequiredService<IStreamingTransport>();
+        await transport.SendAsync(connId, TransportEvent.EvidenceCardRequest, request, CancellationToken.None);
+
+        var element = await received.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var fields = element.GetProperty("affidavit").GetProperty("fields");
+
+        var status = fields.EnumerateArray().Single(f => f.GetProperty("name").GetString() == "Status");
+        Assert.Equal("enum", status.GetProperty("kind").GetString());
+        Assert.Equal(
+            new[] { "Active", "Retired" },
+            status.GetProperty("allowedValues").EnumerateArray().Select(v => v.GetString()));
+        Assert.Equal(JsonValueKind.Null, status.GetProperty("pattern").ValueKind);
+
+        var weight = fields.EnumerateArray().Single(f => f.GetProperty("name").GetString() == "Weight");
+        Assert.Equal("number", weight.GetProperty("kind").GetString());
+        Assert.Equal(JsonValueKind.Null, weight.GetProperty("allowedValues").ValueKind);
+        Assert.Equal(@"^\d+(\.\d+)?$", weight.GetProperty("pattern").GetString());
     }
 
     [Fact(DisplayName = "BroadcastToGroupAsync delivers to group members")]
