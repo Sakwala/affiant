@@ -14,6 +14,31 @@ any *published* release (`docs/proposals/affiant-maf-adapter.md` §9).
 
 ### Added
 
+- **Affidavit field metadata (framework half of issue #11, flagship decision D6)** —
+  `AffidavitField` gains three additive members, all with defaults so every existing
+  construction site compiles unchanged: `Kind` (`string`, one of the new
+  `AffidavitFieldKind` constants `"text"` | `"number"` | `"date"` | `"enum"`, default
+  `"text"`), `AllowedValues` (`IReadOnlyList<string>?`, default `null`), and `Pattern`
+  (`string?`, default `null`). `Kind` is deliberately a plain string rather than an enum
+  type — an enum here would need a JSON converter, and converter behavior has drifted
+  between the SignalR and plain-JSON transports before; the values live as string
+  constants on `AffidavitFieldKind` in one place
+  (`src/Affiant.Abstractions/Models/Affidavit.cs`) so every producer/consumer references
+  the same literals. `TaskInferenceField` gains an optional `Format` (`string?`, default
+  `null`, e.g. `"date"`) — the explicit signal for date-typed fields, since deriving
+  "date" from a regex `Pattern` would be guesswork. `SchemaDrivenAffidavitProjection.Project`
+  derives `Kind`/`AllowedValues` per field: a non-null `TaskInferenceField.Enum` wins
+  (`Kind` `"enum"`, `AllowedValues` from `Enum`); else a `JsonType` of `"number"` or
+  `"integer"` maps to `Kind` `"number"`; else `Format == "date"` maps to `Kind` `"date"`;
+  else `Kind` defaults to `"text"`. `Pattern` is forwarded from
+  `TaskInferenceField.Pattern` unconditionally, regardless of `Kind`. On the wire this
+  travels through the SignalR transport's default `JsonHubProtocol` (camelCase), so a
+  reviewer UI reads `kind` (lowercase string), `allowedValues` (array), and `pattern`
+  off the `EvidenceCardRequest.affidavit.fields[]` payload — pinned by
+  `SignalRTransportContractTests.EvidenceCardRequest_AffidavitFieldMetadata_SerializesToPinnedWireShape`.
+  Host applications adopt `Format` and render `Kind`/`AllowedValues`/`Pattern` in their
+  own review UI later — this change is framework-only and does not touch host repos.
+
 - **Evidence Card amendment round-trip (framework half of issue #6)** — `EvidenceCardResponse`
   gains a trailing `IReadOnlyDictionary<string, object?>? Amendments` param carrying the fields a
   reviewer edited before approving (`null` value = the reviewer explicitly cleared that field).

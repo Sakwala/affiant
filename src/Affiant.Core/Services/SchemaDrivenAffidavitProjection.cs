@@ -79,7 +79,11 @@ public sealed class SchemaDrivenAffidavitProjection : IAffidavitProjection
                     }
                 }
 
-                return new AffidavitField(field.Name, value, null, provenance, field.Required);
+                var (kind, allowedValues) = ClassifyKind(field);
+
+                return new AffidavitField(
+                    field.Name, value, null, provenance, field.Required,
+                    Kind: kind, AllowedValues: allowedValues, Pattern: field.Pattern);
             })
             .ToArray();
 
@@ -137,5 +141,28 @@ public sealed class SchemaDrivenAffidavitProjection : IAffidavitProjection
             EmptyProvenanceFieldCount: emptyProvenanceFieldCount));
 
         return affidavit;
+    }
+
+    /// <summary>
+    /// Derives <see cref="AffidavitField.Kind"/> (and, for enums, <see cref="AffidavitField.AllowedValues"/>)
+    /// from a <see cref="TaskInferenceField"/>. Resolution order: an explicit
+    /// <see cref="TaskInferenceField.Enum"/> wins over everything (Kind "enum"); otherwise a
+    /// numeric <see cref="TaskInferenceField.JsonType"/> ("number" or "integer") maps to Kind
+    /// "number"; otherwise an explicit <see cref="TaskInferenceField.Format"/> of "date" maps to
+    /// Kind "date"; otherwise Kind defaults to "text". <see cref="TaskInferenceField.Pattern"/> is
+    /// forwarded separately by the caller regardless of Kind.
+    /// </summary>
+    private static (string Kind, IReadOnlyList<string>? AllowedValues) ClassifyKind(TaskInferenceField field)
+    {
+        if (field.Enum is not null)
+            return (AffidavitFieldKind.Enum, field.Enum);
+
+        if (field.JsonType is "number" or "integer")
+            return (AffidavitFieldKind.Number, null);
+
+        if (field.Format == "date")
+            return (AffidavitFieldKind.Date, null);
+
+        return (AffidavitFieldKind.Text, null);
     }
 }
