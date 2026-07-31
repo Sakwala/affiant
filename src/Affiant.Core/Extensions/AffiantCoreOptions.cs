@@ -22,10 +22,21 @@ public sealed class AffiantCoreOptions
 
     /// <summary>
     /// Default TTL for DocketEntry records before automatic expiry.
-    /// Enforced by DocketExpiryService (registered separately in Affiant.Docket).
+    /// Enforced by DocketExpiryService (registered separately in Affiant.Docket) and by
+    /// <see cref="Affiant.Core.Services.ReviewGate"/>'s blocking-await window — both the
+    /// <c>DocketEntry.ExpiresAt</c> stamp and the internal await timeout derive from this value.
     /// Default: TimeSpan.FromMinutes(30).
     /// </summary>
     public TimeSpan DefaultDocketTtl { get; set; } = TimeSpan.FromMinutes(30);
+
+    /// <summary>
+    /// How far before a Pending DocketEntry's <c>ExpiresAt</c> the framework starts broadcasting
+    /// <c>TransportEvent.DocketExpiring</c> warnings to the UI (Affiant.Docket's
+    /// DocketExpiryService checks this on every tick). Re-emission across ticks inside the window
+    /// is expected — clients must treat repeated warnings for the same docket as idempotent.
+    /// Default: TimeSpan.FromMinutes(2).
+    /// </summary>
+    public TimeSpan DocketExpiryWarningWindow { get; set; } = TimeSpan.FromMinutes(2);
 
     /// <summary>
     /// Whether to initialize AffiantTelemetry (ActivitySource + Meter).
