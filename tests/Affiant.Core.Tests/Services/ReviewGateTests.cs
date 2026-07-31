@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
 using Affiant.Abstractions.Transport;
+using Affiant.Core.Extensions;
 using Affiant.Core.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -21,6 +22,8 @@ public class ReviewGateTests
     {
         private readonly Queue<EvidenceCardResponse> _responses = new();
         private bool _simulateTimeout;
+        private bool _hangUntilCancelled;
+        private Func<Task>? _beforeTimeoutThrow;
 
         public List<(string GroupId, TransportEvent EventType, object Payload)> SentEvents { get; } = [];
         public List<EvidenceCardResponse> DeliveredResponses { get; } = [];
@@ -29,7 +32,24 @@ public class ReviewGateTests
         public bool HasLiveWaiter { get; set; }
 
         public void EnqueueResponse(EvidenceCardResponse response) => _responses.Enqueue(response);
-        public void SimulateTimeout() => _simulateTimeout = true;
+
+        /// <param name="beforeThrow">
+        /// Optional callback run immediately before the simulated timeout exception is thrown —
+        /// used to inject a race (e.g. the restart path transitioning the entry) at exactly the
+        /// moment the blocking-timeout path is about to act.
+        /// </param>
+        public void SimulateTimeout(Func<Task>? beforeThrow = null)
+        {
+            _simulateTimeout = true;
+            _beforeTimeoutThrow = beforeThrow;
+        }
+
+        /// <summary>
+        /// Never returns a response — <see cref="AwaitEventAsync{T}"/> only unblocks when
+        /// <paramref name="ct"/> is cancelled, so a real (short) TTL genuinely drives the
+        /// <c>CancelAfter</c> window instead of the fake short-circuiting synchronously.
+        /// </summary>
+        public void HangUntilCancelled() => _hangUntilCancelled = true;
 
         public bool TryDeliverResponse(Guid docketId, EvidenceCardResponse response)
         {
@@ -57,10 +77,13 @@ public class ReviewGateTests
             yield break;
         }
 
-        public Task<T> AwaitEventAsync<T>(string sessionGroupId, Guid docketId, CancellationToken ct = default)
+        public async Task<T> AwaitEventAsync<T>(string sessionGroupId, Guid docketId, CancellationToken ct = default)
         {
             if (_simulateTimeout)
             {
+                if (_beforeTimeoutThrow is not null)
+                    await _beforeTimeoutThrow();
+
                 // Throw with a fresh cancelled token — not the caller's token — to simulate
                 // the internal CTS timeout (distinct from caller cancellation).
                 using var timeoutCts = new CancellationTokenSource();
@@ -68,8 +91,15 @@ public class ReviewGateTests
                 throw new OperationCanceledException("Simulated timeout", timeoutCts.Token);
             }
 
+            if (_hangUntilCancelled)
+            {
+                // Only ReviewGate's own CancelAfter(options.DefaultDocketTtl) can unblock this —
+                // a real, but short, wait exercising the configured TTL end-to-end.
+                await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+            }
+
             if (_responses.TryDequeue(out var response) && response is T typed)
-                return Task.FromResult(typed);
+                return typed;
 
             throw new InvalidOperationException($"FakeStreamingTransport: no queued response for {typeof(T).Name}");
         }
@@ -165,12 +195,15 @@ public class ReviewGateTests
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static (ReviewGate gate, FakeStreamingTransport transport, InMemoryDocketStore docketStore)
-        CreateGate(ReviewRequirement reviewRequirement = ReviewRequirement.ReviewerConfirmation)
+        CreateGate(
+            ReviewRequirement reviewRequirement = ReviewRequirement.ReviewerConfirmation,
+            AffiantCoreOptions? options = null)
     {
         var transport = new FakeStreamingTransport();
         var store = new InMemoryDocketStore();
         var evaluator = new FakeApprovalPolicyEvaluator(reviewRequirement);
-        var gate = new ReviewGate(transport, store, evaluator, NullLogger<ReviewGate>.Instance);
+        var gate = new ReviewGate(
+            transport, store, evaluator, options ?? new AffiantCoreOptions(), NullLogger<ReviewGate>.Instance);
         return (gate, transport, store);
     }
 
@@ -251,6 +284,33 @@ public class ReviewGateTests
         var entry = await store.GetDocketEntryAsync(context.EntryId!.Value, default);
         Assert.NotNull(entry);
         Assert.Equal(ReviewStatus.Expired, entry.Status);
+    }
+
+    // ── Finding 1a regression: DocketExpired must not broadcast for an entry that ──
+    // ── did not actually transition to Expired (blocking-timeout path) ─────────────
+
+    [Fact]
+    public async Task FileReviewAsync_ApprovalRacesTimeout_NoExpiredBroadcast_ReturnsApproved()
+    {
+        var entryId = Guid.NewGuid();
+        var (gate, transport, store) = CreateGate(ReviewRequirement.ReviewerConfirmation);
+
+        // Simulate the restart path (HandleDecisionAsync) applying Approved a beat before the
+        // blocking-timeout path's own guarded UPDATE runs — the guard must see 0 rows affected.
+        transport.SimulateTimeout(beforeThrow: () =>
+            store.UpdateReviewStatusAsync(entryId, ReviewStatus.Approved, default));
+
+        var (proposal, context) = CreateTestInput(entryId);
+        var outcome = await gate.FileReviewAsync(proposal, context);
+
+        // The entry genuinely transitioned to Approved — the timeout path must report that
+        // reality, not lie with Expired.
+        Assert.IsType<ReviewOutcome.Approved>(outcome);
+        Assert.DoesNotContain(transport.SentEvents, e => e.EventType == TransportEvent.DocketExpired);
+
+        var entry = await store.GetDocketEntryAsync(entryId, default);
+        Assert.NotNull(entry);
+        Assert.Equal(ReviewStatus.Approved, entry.Status);
     }
 
     [Fact]
@@ -450,5 +510,223 @@ public class ReviewGateTests
         Assert.NotNull(updated);
         Assert.Equal(ReviewStatus.Rejected, updated.Status);
         Assert.Null(updated.Amendments);
+    }
+
+    // ── D2: TTL option becomes real (issue #7 / F0-A2) ───────────────────────
+
+    [Fact]
+    public async Task FileReviewAsync_DefaultDocketTtlOption_DrivesExpiresAtStamp()
+    {
+        async Task<DateTimeOffset> FileWithTtl(TimeSpan ttl)
+        {
+            var (gate, transport, store) = CreateGate(
+                ReviewRequirement.ReviewerConfirmation,
+                new AffiantCoreOptions { DefaultDocketTtl = ttl });
+            transport.EnqueueResponse(new EvidenceCardResponse(Guid.Empty, ApprovalDecision.Approved));
+            var (proposal, context) = CreateTestInput(Guid.NewGuid());
+            await gate.FileReviewAsync(proposal, context);
+            var entry = await store.GetDocketEntryAsync(context.EntryId!.Value, default);
+            return entry!.ExpiresAt;
+        }
+
+        var shortExpiry = await FileWithTtl(TimeSpan.FromSeconds(5));
+        // Deliberately exceeds the deleted 10-minute constant — proves ExpiresAt tracks the
+        // configured option rather than a hardcoded value.
+        var longExpiry = await FileWithTtl(TimeSpan.FromMinutes(45));
+
+        var delta = longExpiry - shortExpiry;
+        Assert.True(
+            delta > TimeSpan.FromMinutes(40),
+            $"expected ExpiresAt to track the configured DefaultDocketTtl option, delta was {delta}");
+    }
+
+    [Fact]
+    public async Task FileReviewAsync_ShortConfiguredTtl_UnblocksAwaitWindowQuickly()
+    {
+        var (gate, transport, _) = CreateGate(
+            ReviewRequirement.ReviewerConfirmation,
+            new AffiantCoreOptions { DefaultDocketTtl = TimeSpan.FromMilliseconds(50) });
+        transport.HangUntilCancelled(); // only the internal CancelAfter(options.DefaultDocketTtl) unblocks this
+
+        var (proposal, context) = CreateTestInput(Guid.NewGuid());
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var outcome = await gate.FileReviewAsync(proposal, context);
+        sw.Stop();
+
+        Assert.IsType<ReviewOutcome.Expired>(outcome);
+        Assert.True(
+            sw.Elapsed < TimeSpan.FromSeconds(5),
+            $"expected the configured 50ms TTL to unblock the await quickly, took {sw.Elapsed}");
+
+        Assert.Single(transport.SentEvents, e => e.EventType == TransportEvent.DocketExpired);
+    }
+
+    // ── D1 regression: FileForReviewAsync files no waiter (issue affiant-host-apps#25 / F0-A1) ──
+
+    [Fact]
+    public async Task FileForReviewAsync_NoWaiterRegistered_HandleDecisionAsync_SucceedsViaRestartPath()
+    {
+        var (gate, transport, store) = CreateGate(ReviewRequirement.ReviewerConfirmation);
+        transport.HasLiveWaiter = false; // FileForReviewAsync never calls AwaitEventAsync — no waiter exists
+
+        var (proposal, context) = CreateTestInput(Guid.NewGuid());
+        var filing = await gate.FileForReviewAsync(proposal, context);
+
+        var requiresReview = Assert.IsType<ReviewFilingResult.RequiresReview>(filing);
+        Assert.Equal(context.EntryId!.Value, requiresReview.EntryId);
+        Assert.Single(transport.SentEvents, e => e.EventType == TransportEvent.EvidenceCardRequest);
+
+        // Immediately deliver a decision — as if the host received it right after filing,
+        // long before any FileReviewAsync-style blocking await could exist.
+        var amendments = new Dictionary<string, object?> { ["title"] = "A1 regression edit" };
+        var (outcome, createdAt) = await gate.HandleDecisionAsync(
+            requiresReview.EntryId, ApprovalDecision.Approved, amendments);
+
+        Assert.IsType<ReviewOutcome.Approved>(outcome);
+        Assert.NotNull(createdAt);
+
+        var entry = await store.GetDocketEntryAsync(requiresReview.EntryId, default);
+        Assert.NotNull(entry);
+        Assert.Equal(ReviewStatus.Approved, entry.Status);
+        Assert.NotNull(entry.Amendments);
+        Assert.Equal("A1 regression edit", entry.Amendments!["title"]);
+    }
+
+    [Fact]
+    public async Task FileForReviewAsync_StandingOrder_ReturnsDecided_WithoutEvidenceCard()
+    {
+        var (gate, transport, store) = CreateGate(ReviewRequirement.StandingOrder);
+
+        var (proposal, context) = CreateTestInput(Guid.NewGuid());
+        var filing = await gate.FileForReviewAsync(proposal, context);
+
+        var decided = Assert.IsType<ReviewFilingResult.Decided>(filing);
+        Assert.IsType<ReviewOutcome.Approved>(decided.Outcome);
+        Assert.Empty(transport.SentEvents);
+
+        var entry = await store.GetDocketEntryAsync(context.EntryId!.Value, default);
+        Assert.NotNull(entry);
+        Assert.Equal(ReviewStatus.Approved, entry.Status);
+    }
+
+    // ── D3: persist late amendments (issue #8 / F0-A3) ───────────────────────
+
+    [Fact]
+    public async Task HandleDecisionAsync_LateAmendmentsOnExpiredEntry_PersistedAndFlagSet()
+    {
+        var (gate, transport, store) = CreateGate();
+        transport.HasLiveWaiter = false;
+
+        var (_, context) = CreateTestInput();
+        var expiredEntry = new DocketEntry(
+            EntryId: Guid.NewGuid(),
+            SessionId: context.SessionId,
+            TenantId: context.TenantId,
+            UserId: context.UserId,
+            ReviewerUserId: context.ReviewerUserId,
+            OperationType: "CreateOrder",
+            Envelope: context.Affidavit,
+            Status: ReviewStatus.Expired,
+            CreatedAt: DateTimeOffset.UtcNow.AddMinutes(-15),
+            ExpiresAt: DateTimeOffset.UtcNow.AddMinutes(-5),
+            Amendments: null);
+        await store.FileDocketEntryAsync(expiredEntry, default);
+
+        var lateAmendments = new Dictionary<string, object?> { ["title"] = "Late reviewer edit" };
+        var (outcome, createdAt) = await gate.HandleDecisionAsync(
+            expiredEntry.EntryId, ApprovalDecision.Approved, lateAmendments);
+
+        var expired = Assert.IsType<ReviewOutcome.Expired>(outcome);
+        Assert.True(expired.AmendmentsPreserved);
+        Assert.Null(createdAt); // the not-pending branch does not thread creation time
+
+        var updated = await store.GetDocketEntryAsync(expiredEntry.EntryId, default);
+        Assert.NotNull(updated);
+        Assert.Equal(ReviewStatus.Expired, updated.Status); // status itself is not resurrected here
+        Assert.NotNull(updated.Amendments);
+        Assert.Equal("Late reviewer edit", updated.Amendments!["title"]);
+    }
+
+    [Fact]
+    public async Task HandleDecisionAsync_NotFoundEntry_ReturnsExpired_AmendmentsPreservedFalse()
+    {
+        var (gate, transport, _) = CreateGate();
+        transport.HasLiveWaiter = false;
+
+        var (outcome, createdAt) = await gate.HandleDecisionAsync(
+            Guid.NewGuid(), ApprovalDecision.Approved, new Dictionary<string, object?> { ["x"] = 1 });
+
+        var expired = Assert.IsType<ReviewOutcome.Expired>(outcome);
+        Assert.False(expired.AmendmentsPreserved); // nothing to persist onto a nonexistent entry
+        Assert.Null(createdAt);
+    }
+
+    // ── D4: ResubmitAsync (framework half of issue #9) ───────────────────────
+
+    [Fact]
+    public async Task ResubmitAsync_ExpiredEntry_FilesFreshPendingEntry_WithPriorAmendmentsBroadcast()
+    {
+        var (gate, transport, store) = CreateGate(ReviewRequirement.ReviewerConfirmation);
+        var priorAmendments = new Dictionary<string, object?> { ["title"] = "Edited before expiry" };
+        var expiredEntry = new DocketEntry(
+            EntryId: Guid.NewGuid(),
+            SessionId: "session-test",
+            TenantId: "tenant-default",
+            UserId: "user-123",
+            ReviewerUserId: "reviewer-456",
+            OperationType: "CreateOrder",
+            Envelope: CreateTestInput().context.Affidavit,
+            Status: ReviewStatus.Expired,
+            CreatedAt: DateTimeOffset.UtcNow.AddMinutes(-20),
+            ExpiresAt: DateTimeOffset.UtcNow.AddMinutes(-10),
+            Amendments: priorAmendments);
+        await store.FileDocketEntryAsync(expiredEntry, default);
+
+        var filing = await gate.ResubmitAsync(expiredEntry.EntryId);
+
+        var requiresReview = Assert.IsType<ReviewFilingResult.RequiresReview>(filing);
+        Assert.NotEqual(expiredEntry.EntryId, requiresReview.EntryId); // fresh id
+
+        var freshEntry = await store.GetDocketEntryAsync(requiresReview.EntryId, default);
+        Assert.NotNull(freshEntry);
+        Assert.Equal(ReviewStatus.Pending, freshEntry.Status);
+        Assert.True(freshEntry.ExpiresAt > DateTimeOffset.UtcNow); // fresh TTL, not the original's already-past expiry
+
+        var broadcast = Assert.Single(transport.SentEvents, e => e.EventType == TransportEvent.EvidenceCardRequest);
+        var request = Assert.IsType<EvidenceCardRequest>(broadcast.Payload);
+        Assert.Equal(requiresReview.EntryId, request.DocketId);
+        Assert.NotNull(request.PriorAmendments);
+        Assert.Equal("Edited before expiry", request.PriorAmendments!["title"]);
+    }
+
+    [Fact]
+    public async Task ResubmitAsync_NonExpiredEntry_ThrowsInvalidOperationException()
+    {
+        var (gate, _, store) = CreateGate();
+        var pendingEntry = new DocketEntry(
+            EntryId: Guid.NewGuid(),
+            SessionId: "session-test",
+            TenantId: "tenant-default",
+            UserId: "user-123",
+            ReviewerUserId: "reviewer-456",
+            OperationType: "CreateOrder",
+            Envelope: CreateTestInput().context.Affidavit,
+            Status: ReviewStatus.Pending,
+            CreatedAt: DateTimeOffset.UtcNow,
+            ExpiresAt: DateTimeOffset.UtcNow.AddMinutes(10),
+            Amendments: null);
+        await store.FileDocketEntryAsync(pendingEntry, default);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => gate.ResubmitAsync(pendingEntry.EntryId));
+    }
+
+    [Fact]
+    public async Task ResubmitAsync_UnknownEntry_ThrowsInvalidOperationException()
+    {
+        var (gate, _, _) = CreateGate();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => gate.ResubmitAsync(Guid.NewGuid()));
     }
 }

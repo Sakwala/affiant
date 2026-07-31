@@ -1,6 +1,9 @@
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
+using Affiant.Abstractions.Transport;
+using Affiant.Core.Extensions;
 using Affiant.Docket.Services;
+using Affiant.Docket.Stores;
 using Affiant.Docket.Tests.Fixtures;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -17,6 +20,8 @@ namespace Affiant.Docket.Tests.Integration;
 ///   - Entries past ExpiresAt are transitioned to Expired on the first tick.
 ///   - Entries not yet past ExpiresAt remain Pending after the first tick.
 ///   - Running the tick a second time does not corrupt already-Expired entries (idempotent).
+///   - When an IStreamingTransport is registered, expiry and warning-window notifications are
+///     broadcast to each entry's SessionId group (framework half of repo issue #10 / F0-A6).
 /// </summary>
 public sealed class DocketExpiryServiceTests
 {
@@ -63,7 +68,153 @@ public sealed class DocketExpiryServiceTests
         Assert.Equal(afterFirst2.ExpiresAt, afterSecond2.ExpiresAt);
     }
 
-    private static DocketExpiryService BuildExpiryService(IDocketStore store)
+    // ── D5: expiry transport events (issue #10 / F0-A6) ──────────────────────
+
+    [Fact]
+    public async Task ExpireOverdueAsync_NoTransportRegistered_DoesNotThrow()
+    {
+        var store = new InMemoryDocketStore();
+        var entry = TestDocketEntry.CreateDefault(expiresAt: DateTimeOffset.UtcNow.AddSeconds(-5));
+        await store.FileDocketEntryAsync(entry, CancellationToken.None);
+
+        // transport is left null (default) — the docket package must not hard-require one.
+        var expiryService = BuildExpiryService(store, transport: null);
+
+        var ex = await Record.ExceptionAsync(() => expiryService.ExpireOverdueAsync(CancellationToken.None));
+
+        Assert.Null(ex);
+        var updated = await store.GetDocketEntryAsync(entry.EntryId, CancellationToken.None);
+        Assert.Equal(ReviewStatus.Expired, updated!.Status);
+    }
+
+    [Fact]
+    public async Task ExpireOverdueAsync_PastDeadlineEntry_BroadcastsDocketExpired()
+    {
+        var store = new InMemoryDocketStore();
+        var sessionId = Guid.NewGuid().ToString();
+        var entry = TestDocketEntry.CreateDefault(
+            sessionId: sessionId, expiresAt: DateTimeOffset.UtcNow.AddSeconds(-5));
+        await store.FileDocketEntryAsync(entry, CancellationToken.None);
+
+        var transport = new SpyStreamingTransport();
+        var expiryService = BuildExpiryService(store, transport);
+
+        await expiryService.ExpireOverdueAsync(CancellationToken.None);
+
+        var broadcast = Assert.Single(transport.Broadcasts, b => b.EventType == TransportEvent.DocketExpired);
+        Assert.Equal(sessionId, broadcast.GroupId);
+        var notification = Assert.IsType<DocketExpiredNotification>(broadcast.Payload);
+        Assert.Equal(entry.EntryId, notification.DocketId);
+    }
+
+    [Fact]
+    public async Task ExpireOverdueAsync_EntryInsideWarningWindow_BroadcastsDocketExpiring_AndStaysPending()
+    {
+        var store = new InMemoryDocketStore();
+        var sessionId = Guid.NewGuid().ToString();
+        // Not yet expired, but inside the default 2-minute warning window.
+        var entry = TestDocketEntry.CreateDefault(
+            sessionId: sessionId, expiresAt: DateTimeOffset.UtcNow.AddSeconds(30));
+        await store.FileDocketEntryAsync(entry, CancellationToken.None);
+
+        var transport = new SpyStreamingTransport();
+        var expiryService = BuildExpiryService(store, transport);
+
+        await expiryService.ExpireOverdueAsync(CancellationToken.None);
+
+        var broadcast = Assert.Single(transport.Broadcasts, b => b.EventType == TransportEvent.DocketExpiring);
+        Assert.Equal(sessionId, broadcast.GroupId);
+        var notification = Assert.IsType<DocketExpiringNotification>(broadcast.Payload);
+        Assert.Equal(entry.EntryId, notification.DocketId);
+        Assert.Equal(entry.ExpiresAt, notification.ExpiresAt);
+
+        Assert.DoesNotContain(transport.Broadcasts, b => b.EventType == TransportEvent.DocketExpired);
+        var stillPending = await store.GetDocketEntryAsync(entry.EntryId, CancellationToken.None);
+        Assert.Equal(ReviewStatus.Pending, stillPending!.Status);
+    }
+
+    [Fact]
+    public async Task ExpireOverdueAsync_EntryOutsideWarningWindow_NoBroadcast()
+    {
+        var store = new InMemoryDocketStore();
+        var entry = TestDocketEntry.CreateDefault(expiresAt: DateTimeOffset.UtcNow.AddMinutes(10));
+        await store.FileDocketEntryAsync(entry, CancellationToken.None);
+
+        var transport = new SpyStreamingTransport();
+        var expiryService = BuildExpiryService(store, transport);
+
+        await expiryService.ExpireOverdueAsync(CancellationToken.None);
+
+        Assert.Empty(transport.Broadcasts);
+    }
+
+    [Fact]
+    public async Task ExpireOverdueAsync_EntryInsideWarningWindow_ReemitsOnEveryTick()
+    {
+        // Documents the accepted behavior: re-emission across ticks inside the warning window is
+        // fine because clients are idempotent (see DocketExpiryService.ExpireOverdueAsync remarks).
+        var store = new InMemoryDocketStore();
+        var entry = TestDocketEntry.CreateDefault(expiresAt: DateTimeOffset.UtcNow.AddSeconds(30));
+        await store.FileDocketEntryAsync(entry, CancellationToken.None);
+
+        var transport = new SpyStreamingTransport();
+        var expiryService = BuildExpiryService(store, transport);
+
+        await expiryService.ExpireOverdueAsync(CancellationToken.None);
+        await expiryService.ExpireOverdueAsync(CancellationToken.None);
+
+        Assert.Equal(2, transport.Broadcasts.Count(b => b.EventType == TransportEvent.DocketExpiring));
+    }
+
+    // ── Finding 1b regression: DocketExpired must not broadcast for an entry that ──
+    // ── did not actually transition to Expired (sweep list-then-mark race) ─────────
+
+    [Fact]
+    public async Task ExpireOverdueAsync_EntryApprovedBetweenListAndMark_NoDocketExpiredForIt_SiblingStillNotified()
+    {
+        var inner = new InMemoryDocketStore();
+        var sessionId = Guid.NewGuid().ToString();
+        var now = DateTimeOffset.UtcNow;
+
+        var racer = TestDocketEntry.CreateDefault(sessionId: sessionId, expiresAt: now.AddSeconds(-5));
+        var sibling = TestDocketEntry.CreateDefault(sessionId: sessionId, expiresAt: now.AddSeconds(-10));
+        await inner.FileDocketEntryAsync(racer, CancellationToken.None);
+        await inner.FileDocketEntryAsync(sibling, CancellationToken.None);
+
+        // Wraps the store to inject a concurrent approval of `racer` right after the sweep's
+        // ListExpiredAsync snapshot is taken but before MarkExpiredAsync runs — the exact window
+        // Finding 1b targets.
+        var racyStore = new RaceInjectingDocketStore(inner, racer.EntryId);
+        var transport = new SpyStreamingTransport();
+        var expiryService = BuildExpiryService(racyStore, transport);
+
+        await expiryService.ExpireOverdueAsync(CancellationToken.None);
+
+        // racer was approved mid-sweep: MarkExpiredAsync's WHERE Status = 'Pending' guard leaves
+        // it Approved, and no DocketExpired should have been broadcast for it.
+        Assert.DoesNotContain(
+            transport.Broadcasts,
+            b => b.EventType == TransportEvent.DocketExpired
+                 && ((DocketExpiredNotification)b.Payload).DocketId == racer.EntryId);
+
+        var racerEntry = await inner.GetDocketEntryAsync(racer.EntryId, CancellationToken.None);
+        Assert.Equal(ReviewStatus.Approved, racerEntry!.Status);
+
+        // sibling was genuinely overdue throughout and still gets its DocketExpired broadcast.
+        var siblingBroadcast = Assert.Single(
+            transport.Broadcasts,
+            b => b.EventType == TransportEvent.DocketExpired
+                 && ((DocketExpiredNotification)b.Payload).DocketId == sibling.EntryId);
+        Assert.Equal(sessionId, siblingBroadcast.GroupId);
+
+        var siblingEntry = await inner.GetDocketEntryAsync(sibling.EntryId, CancellationToken.None);
+        Assert.Equal(ReviewStatus.Expired, siblingEntry!.Status);
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────────────
+
+    private static DocketExpiryService BuildExpiryService(
+        IDocketStore store, IStreamingTransport? transport = null, AffiantCoreOptions? options = null)
     {
         // Register the test store as Singleton so the service resolves the same
         // instance that test data was written to — the scope factory is built from
@@ -72,6 +223,79 @@ public sealed class DocketExpiryServiceTests
         services.AddSingleton(store);
         var provider = services.BuildServiceProvider();
         var scopeFactory = provider.GetRequiredService<IServiceScopeFactory>();
-        return new DocketExpiryService(scopeFactory, NullLogger<DocketExpiryService>.Instance);
+        return new DocketExpiryService(
+            scopeFactory,
+            options ?? new AffiantCoreOptions(),
+            NullLogger<DocketExpiryService>.Instance,
+            transport);
+    }
+
+    /// <summary>
+    /// Decorates an <see cref="IDocketStore"/> to inject a concurrent status transition on
+    /// <paramref name="racingEntryId"/> immediately after the first <see cref="ListExpiredAsync"/>
+    /// call returns — simulating a reviewer decision (e.g. via <c>HandleDecisionAsync</c>'s restart
+    /// path) landing in the window between the sweep's list snapshot and its bulk mark.
+    /// </summary>
+    private sealed class RaceInjectingDocketStore(IDocketStore inner, Guid racingEntryId) : IDocketStore
+    {
+        private bool _raced;
+
+        public Task SaveContextAsync(string sessionId, ConversationContext context, CancellationToken ct)
+            => inner.SaveContextAsync(sessionId, context, ct);
+
+        public Task<ConversationContext?> LoadContextAsync(string sessionId, CancellationToken ct)
+            => inner.LoadContextAsync(sessionId, ct);
+
+        public Task FileDocketEntryAsync(DocketEntry entry, CancellationToken ct)
+            => inner.FileDocketEntryAsync(entry, ct);
+
+        public Task<DocketEntry?> GetDocketEntryAsync(Guid entryId, CancellationToken ct)
+            => inner.GetDocketEntryAsync(entryId, ct);
+
+        public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct)
+            => inner.UpdateReviewStatusAsync(entryId, status, ct);
+
+        public Task UpdateAmendmentsAsync(
+            Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct)
+            => inner.UpdateAmendmentsAsync(entryId, amendments, ct);
+
+        public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct)
+            => inner.ListPendingBySessionAsync(sessionId, ct);
+
+        public async Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(
+            DateTimeOffset expiresBeforeUtc, CancellationToken ct)
+        {
+            var result = await inner.ListExpiredAsync(expiresBeforeUtc, ct);
+            if (!_raced)
+            {
+                _raced = true;
+                await inner.UpdateReviewStatusAsync(racingEntryId, ReviewStatus.Approved, ct);
+            }
+
+            return result;
+        }
+
+        public Task MarkExpiredAsync(IEnumerable<Guid> entryIds, CancellationToken ct)
+            => inner.MarkExpiredAsync(entryIds, ct);
+    }
+
+    private sealed class SpyStreamingTransport : IStreamingTransport
+    {
+        public List<(string GroupId, TransportEvent EventType, object Payload)> Broadcasts { get; } = [];
+
+        public Task BroadcastToGroupAsync(string groupId, TransportEvent eventType, object payload, CancellationToken ct)
+        {
+            Broadcasts.Add((groupId, eventType, payload));
+            return Task.CompletedTask;
+        }
+
+        public Task SendAsync(string connectionId, TransportEvent eventType, object payload, CancellationToken ct)
+            => throw new InvalidOperationException("SpyStreamingTransport.SendAsync should not be called by DocketExpiryService");
+
+        public IAsyncEnumerable<TransportMessage> ReceiveAsync(string connectionId, CancellationToken ct)
+            => throw new InvalidOperationException("SpyStreamingTransport.ReceiveAsync should not be called by DocketExpiryService");
+
+        public Task<T> AwaitEventAsync<T>(string sessionGroupId, Guid docketId, CancellationToken ct = default)
+            => throw new InvalidOperationException("SpyStreamingTransport.AwaitEventAsync should not be called by DocketExpiryService");
     }
 }

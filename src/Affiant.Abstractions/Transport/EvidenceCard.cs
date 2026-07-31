@@ -13,10 +13,17 @@ public enum ApprovalDecision
 /// Payload sent to the UI when a WriteProposal enters the review queue.
 /// Transported via <see cref="TransportEvent.EvidenceCardRequest"/>.
 /// </summary>
+/// <param name="PriorAmendments">
+/// Set only when this Evidence Card is a resubmission of a previously expired review (framework
+/// half of repo issue #9) — carries the amendments a reviewer made on the original, expired entry
+/// before the window lapsed, so the new reviewer can see what was already agreed. <c>null</c> for
+/// a first-time filing.
+/// </param>
 public record EvidenceCardRequest(
     Guid DocketId,
     Affidavit Affidavit,
-    DateTimeOffset RequiredBy);
+    DateTimeOffset RequiredBy,
+    IReadOnlyDictionary<string, object?>? PriorAmendments = null);
 
 /// <summary>
 /// Payload returned by the UI after the reviewer acts on an Evidence Card.

@@ -89,6 +89,80 @@ any *published* release (`docs/proposals/affiant-maf-adapter.md` §9).
   see. See `docs/adapters/microsoft-agent-framework.md`. NuGet ID reservation pending — ships
   in-repo only until then.
 
+### Added — review lifecycle v2: real TTL, non-blocking filing, amendment preservation, resubmission, expiry events
+
+Five related fixes to the review state machine (repo issues #7, #8, #9, #10, and framework
+enabler for host issue `Sakwala/affiant-host-apps#25`):
+
+- **TTL option becomes real (issue #7)** — `ReviewGate` now takes `AffiantCoreOptions` (the
+  codebase's established option-injection idiom — a plain singleton, not `IOptions<T>`, matching
+  how `AddAffiantCore()` already registers it) and uses `options.DefaultDocketTtl` for both the
+  `DocketEntry.ExpiresAt` stamp and the blocking await's internal `CancelAfter` window. The
+  hardcoded `DocketTimeoutMinutes = 10` const is deleted. Hosts that do not explicitly set
+  `AffiantCoreOptions.DefaultDocketTtl` will see both the blocking-wait window and the
+  `ExpiresAt` stamp move from the previous hardcoded 10 minutes to the option's existing 30-minute
+  default — an observable behavior change on upgrade for any host relying on the old 10-minute
+  value. A new `AffiantCoreOptions.DocketExpiryWarningWindow`
+  option (default 2 minutes) configures the expiry-warning broadcast below.
+- **Non-blocking filing API (framework enabler for `affiant-host-apps#25`)** — `ReviewGate.FileForReviewAsync(proposal, context, ct)`
+  does everything the blocking path does up to the reviewer await — idempotency check, policy
+  evaluation (StandingOrder/ReferralRequired short-circuits preserved, identical semantics),
+  `DocketEntry` filing, Evidence Card broadcast — but registers no waiter and returns immediately:
+  `ReviewFilingResult.RequiresReview(EntryId)` when a reviewer must act, or
+  `ReviewFilingResult.Decided(Outcome)` when the review was already settled. `FileReviewAsync` is
+  now a thin wrapper: it calls `FileForReviewAsync` and adds only the blocking await — a
+  behavior-preserving refactor (every prior `ReviewGate` test still passes unmodified, aside from
+  the two constructor call sites necessarily touched by the TTL-option change above).
+- **Late amendments are persisted, not dropped (issue #8)** — `HandleDecisionAsync`'s restart path
+  (entry not found / not Pending / already past `ExpiresAt`) used to silently discard the
+  decision's `amendments` before returning `Expired`. It now persists non-empty amendments via the
+  existing `IDocketStore.UpdateAmendmentsAsync` first. `ReviewOutcome.Expired` gains an additive
+  `AmendmentsPreserved` flag (default `false`) so callers can tell late-preserved edits apart from
+  a plain timeout with nothing to save. No store schema change — `AmendmentsJson` was already
+  mapped by all three backends.
+- **`ReviewGate.ResubmitAsync(expiredEntryId, ct)` (framework half of issue #9)** — loads the
+  expired entry (`InvalidOperationException` if not found or not `Expired`, matching this
+  codebase's existing not-found/wrong-state error idiom), files a **fresh** Pending entry (new
+  `EntryId`, fresh TTL) cloning the original envelope/affidavit through the same
+  `FileForReviewAsync` filing core, and broadcasts its Evidence Card with the original entry's
+  persisted `Amendments` carried in a new optional `EvidenceCardRequest.PriorAmendments` field
+  (additive, `null` default — existing broadcasts unchanged) so the new reviewer sees what was
+  already agreed. **Lineage back to the expired entry is intentionally NOT persisted** — a
+  `ResubmittedFromEntryId`-style column would require a schema migration across all three
+  `IDocketStore` backends (InMemory/SQLite/Postgres via EF), which is out of scope here; both
+  entry ids are logged together on resubmission so they can be correlated from application logs
+  in the meantime. **Breaking (pre-1.0):** `ReviewGate.ReplayApprovalAsync` is deleted — grep
+  confirmed it was dead code (no callers anywhere in this repo); its host-restart purpose is
+  already served by `HandleDecisionAsync`'s restart path.
+- **Expiry transport events (framework half of issue #10)** — `TransportEvent` gains
+  `DocketExpiring` and `DocketExpired`, with payload records `DocketExpiringNotification {DocketId, ExpiresAt}`
+  and `DocketExpiredNotification {DocketId}`. `DocketExpiryService` (Affiant.Docket) takes an
+  **optional** `IStreamingTransport` (null-tolerant trailing constructor parameter — the Docket
+  package must not hard-require a transport dependency) and, each 30-second tick: broadcasts
+  `DocketExpired` for every entry it just bulk-expired, and `DocketExpiring` for every still-Pending
+  entry whose `ExpiresAt` falls inside `DocketExpiryWarningWindow`. The warning set is re-queried
+  every tick, so a warning re-emits on every tick an entry remains inside the window — **clients
+  must treat repeated `DocketExpiring` notifications for the same docket id as idempotent** (e.g.
+  key a UI countdown off the notification's `ExpiresAt` rather than counting notifications).
+  `ReviewGate`'s own blocking-timeout path also broadcasts `DocketExpired` when it marks an entry
+  expired, so both expiry sources (the background sweep and a live blocking await timing out)
+  notify the UI the same way. `DocketEntry` already persisted `SessionId` end-to-end across all
+  three stores before this change, so **no schema migration was needed** to target the broadcast —
+  flagged here because the task briefing called this out as a possible gap; it turned out not to
+  be one. `AddAffiantDocket()` now also `TryAddSingleton`s a default `AffiantCoreOptions` so
+  `DocketExpiryService` resolves cleanly even for hosts that call `AddAffiantDocket()` without
+  `AddAffiantCore()`; a host's real `AddAffiantCore()` registration always wins regardless of
+  call order.
+
+**Breaking (host-facing, if a host constructs these types directly instead of via DI):**
+`ReviewGate`'s constructor gained an `AffiantCoreOptions options` parameter (inserted before the
+trailing `ILogger`), and `DocketExpiryService`'s constructor gained a required
+`AffiantCoreOptions options` parameter (inserted after `IServiceScopeFactory`) plus the optional
+trailing `IStreamingTransport? transport`. Hosts that resolve both types through the DI container
+(the pattern used everywhere in this repo and its own tests) are unaffected — `AffiantCoreOptions`
+is already registered by `AddAffiantCore()`, and `AddAffiantDocket()` now guarantees a fallback
+registration exists either way.
+
 ### Fixed — conversation-scoped context fabric
 
 - **`ContextFabric` / `IContextFabric` are now registered `Scoped`** by `AddAffiantCore()` (was
