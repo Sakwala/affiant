@@ -208,6 +208,11 @@ public static class ServiceCollectionExtensions
     /// the same or different field names; all resolve via <c>GetServices&lt;IDeterministicFieldSource&gt;()</c>.
     /// Calling with the same <typeparamref name="TSource"/> twice is a no-op.
     /// </summary>
+    /// <remarks>
+    /// <see cref="IDeterministicFieldSource"/> is obsolete — see <see cref="AddFieldResolver{TResolver}"/>
+    /// for its async, DI-scope-friendly successor. Kept fully functional for existing hosts.
+    /// </remarks>
+#pragma warning disable CS0618 // IDeterministicFieldSource is obsolete but kept fully functional — see type XML docs.
     public static IServiceCollection AddDeterministicFieldSource<TSource>(
         this IServiceCollection services)
         where TSource : class, IDeterministicFieldSource
@@ -218,6 +223,34 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<TSource>();
         services.AddSingleton<IDeterministicFieldSource>(sp => sp.GetRequiredService<TSource>());
+        return services;
+    }
+#pragma warning restore CS0618
+
+    /// <summary>
+    /// Registers an <see cref="IFieldResolver"/> in DI. Multiple resolvers may be registered for
+    /// the same or different field names; all resolve via <c>GetServices&lt;IFieldResolver&gt;()</c>.
+    /// Calling with the same <typeparamref name="TResolver"/> twice is a no-op.
+    /// </summary>
+    /// <remarks>
+    /// Registered <b>Scoped</b> — deliberately unlike <see cref="AddDeterministicFieldSource{TSource}"/>'s
+    /// Singleton lifetime — so a resolver may take a DI-scoped dependency (e.g. a per-request
+    /// lookup client) without becoming a captive dependency. This lines up with the default
+    /// single-strategy <c>IAffidavitProjection</c> registration (also Scoped). Hosts using the
+    /// multi-strategy <c>AddSchemaDrivenProjection&lt;TStrategy&gt;()</c> path (Singleton
+    /// projections) must ensure any resolvers they register there have no Scoped dependencies, or
+    /// route that strategy through the default Scoped registration instead.
+    /// </remarks>
+    public static IServiceCollection AddFieldResolver<TResolver>(
+        this IServiceCollection services)
+        where TResolver : class, IFieldResolver
+    {
+        // Idempotency guard: skip if TResolver was already registered.
+        if (services.Any(d => d.ServiceType == typeof(TResolver)))
+            return services;
+
+        services.AddScoped<TResolver>();
+        services.AddScoped<IFieldResolver>(sp => sp.GetRequiredService<TResolver>());
         return services;
     }
 

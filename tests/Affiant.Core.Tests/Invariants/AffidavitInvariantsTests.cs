@@ -100,7 +100,10 @@ public sealed class AffidavitInvariantsTests
         var port = provider.GetRequiredService<IInferenceCompletionPort>();
         var strategy = (ITaskInferenceStrategy)provider.GetRequiredService(descriptor.InferenceStrategy!);
         var eventStream = provider.GetRequiredService<IObservabilityEventStream<AffidavitEmittedEvent>>();
+        var resolvers = provider.GetServices<IFieldResolver>();
+#pragma warning disable CS0618 // IDeterministicFieldSource is obsolete but kept fully functional — see type XML docs.
         var deterministicSources = provider.GetServices<IDeterministicFieldSource>();
+#pragma warning restore CS0618
 
         var fabric = new ContextFabric();
         var step = new TaskInferenceStep(fabric, NullLogger<TaskInferenceStep>.Instance);
@@ -111,6 +114,7 @@ public sealed class AffidavitInvariantsTests
 
         var projection = new SchemaDrivenAffidavitProjection(
             strategy,
+            resolvers,
             deterministicSources,
             NullLogger<SchemaDrivenAffidavitProjection>.Instance,
             eventStream);
