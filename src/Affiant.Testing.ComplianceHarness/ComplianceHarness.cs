@@ -165,6 +165,54 @@ public static class ComplianceHarness
         return failures;
     }
 
+    /// <summary>
+    /// Opt-in parity check between a strategy's card fields and what the write path actually
+    /// consumes. Unlike <see cref="Verify"/>, this does <b>not</b> run automatically — a host
+    /// calls it directly (e.g. one line inside its own test), typically passing the parameter
+    /// names of the domain method the write tool ultimately calls.
+    ///
+    /// Reports two orthogonal problems:
+    /// <list type="bullet">
+    /// <item><b>Errors</b> — a <c>Projected == true</c> strategy field the write path never reads.
+    /// Such a field is sworn on the Evidence Card but has no effect on the write, which is either
+    /// dead weight on the card or a sign the field should have been declared an extraction field
+    /// (<c>Projected: false</c>) instead. <c>Projected == false</c> fields are exempt — they exist
+    /// to feed resolvers/business logic, not to be consumed verbatim by the write path.</item>
+    /// <item><b>Warnings</b> — a name in <paramref name="writeConsumedFieldNames"/> that the
+    /// strategy never declares at all. Not necessarily wrong (the write path may read fields from
+    /// elsewhere), so this is informational only and never fails <see cref="FieldSetParityResult.Passed"/>.</item>
+    /// </list>
+    /// </summary>
+    /// <param name="strategy">The strategy whose <see cref="ITaskInferenceStrategy.Fields"/> declare the card's shape.</param>
+    /// <param name="writeConsumedFieldNames">The field names the write path actually reads (e.g. the domain write method's parameter names).</param>
+    public static FieldSetParityResult AssertFieldSetParity(
+        ITaskInferenceStrategy strategy,
+        IReadOnlyCollection<string> writeConsumedFieldNames)
+    {
+        ArgumentNullException.ThrowIfNull(strategy);
+        ArgumentNullException.ThrowIfNull(writeConsumedFieldNames);
+
+        var consumed = new HashSet<string>(writeConsumedFieldNames, StringComparer.Ordinal);
+        var declared = new HashSet<string>(strategy.Fields.Select(f => f.Name), StringComparer.Ordinal);
+
+        var errors = strategy.Fields
+            .Where(f => f.Projected && !consumed.Contains(f.Name))
+            .Select(f => new FieldParityViolation(
+                f.Name,
+                $"card field '{f.Name}' is not part of the write contract — make it an extraction " +
+                "field (Projected=false) or remove it."))
+            .ToList();
+
+        var warnings = consumed
+            .Where(name => !declared.Contains(name))
+            .Select(name => new FieldParityViolation(
+                name,
+                $"write path consumes field '{name}', which strategy '{strategy.GetType().Name}' does not declare."))
+            .ToList();
+
+        return new FieldSetParityResult(errors.Count == 0, errors, warnings);
+    }
+
     private enum CaseOutcome
     {
         NoAffidavit,
@@ -236,9 +284,13 @@ public static class ComplianceHarness
             }
 
             var eventStream = provider.GetRequiredService<IObservabilityEventStream<AffidavitEmittedEvent>>();
+            var resolvers = provider.GetServices<IFieldResolver>();
+#pragma warning disable CS0618 // IDeterministicFieldSource is obsolete but kept fully functional — see type XML docs.
             var deterministicSources = provider.GetServices<IDeterministicFieldSource>();
+#pragma warning restore CS0618
             var projection = new SchemaDrivenAffidavitProjection(
                 strategy,
+                resolvers,
                 deterministicSources,
                 loggerFactory.CreateLogger<SchemaDrivenAffidavitProjection>(),
                 eventStream);
