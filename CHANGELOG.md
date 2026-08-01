@@ -12,6 +12,77 @@ any *published* release (`docs/proposals/affiant-maf-adapter.md` §9).
 
 ## [Unreleased]
 
+### Added — Area-1 field-provenance redesign: extraction fields, async resolvers, chain-merge fix, harness parity check
+
+Implements the gate-approved Area-1 redesign
+(`chancery docs/architecture-review/area-1-field-provenance-model.md`) in three parts, plus a
+fix to a pre-existing chain-truncation defect ("V4") surfaced along the way.
+
+- **Extraction fields (P1)** — `TaskInferenceField` gains an additive `bool Projected = true`
+  (`src/Affiant.Abstractions/Interfaces/ITaskInferenceStrategy.cs`). Every existing construction
+  site compiles unchanged and keeps its current (projected) behavior. Setting `Projected: false`
+  declares an **extraction field**: the LLM is still asked to extract it (both
+  `Affiant.SemanticKernel` and `Affiant.AgentFramework` inference ports already iterate
+  `strategy.Fields` unconditionally — verified, no port changes needed) and it is still merged
+  into `ContextFabric` by `TaskInferenceStep`, but `SchemaDrivenAffidavitProjection` no longer
+  emits an `AffidavitField` for it. Instead its extracted value + `ProvenanceChain` (from
+  `fabric.GetFieldChain`, may be absent if nothing was extracted yet) is collected into a new
+  `ExtractionFacts` type (`src/Affiant.Abstractions/Models/ExtractionFacts.cs`) — exposed only to
+  `IFieldResolver` implementations (see below) and never a member of `Affidavit`, never
+  serialized toward reviewer clients. `Projected: false` combined with `Required: true` is
+  invalid — an extraction fact never becomes a card field, so it can never gate the Evidence
+  Card — and is rejected loudly with a precise message at
+  `SchemaDrivenAffidavitProjection` construction time.
+- **Async field resolvers (P2)** — new `IFieldResolver` contract
+  (`src/Affiant.Abstractions/Interfaces/IFieldResolver.cs`):
+  `string FieldName { get; }` and
+  `Task<FieldResolution?> ResolveAsync(FieldResolutionContext ctx, CancellationToken ct)`, where
+  `FieldResolutionContext` is `(IContextFabric Fabric, ExtractionFacts Facts)` and
+  `FieldResolution` is `(object? Value, ProvenanceTag Tag)`
+  (`src/Affiant.Abstractions/Models/FieldResolution.cs`). Registered via new
+  `services.AddFieldResolver<TResolver>()` (mirrors the existing
+  `AddDeterministicFieldSource<TSource>()` idiom, but **Scoped** rather than Singleton, so a
+  resolver may take a DI-scoped dependency — e.g. a per-request lookup client — without becoming
+  a captive dependency). `SchemaDrivenAffidavitProjection`'s per-field resolution precedence is
+  now: `IFieldResolver` (first registered resolver for the field name whose `ResolveAsync`
+  returns non-null wins) → legacy `IDeterministicFieldSource` (kept fully working) → raw
+  `ContextFabric` chain → `ProvenanceTag.Empty`. Resolvers state their own derivation in
+  `FieldResolution.Tag.Evidence` rather than hardcoding a tool/mechanism name that may not have
+  run for a given resolution (documented on `IFieldResolver`'s XML docs with the convention
+  example, e.g. `"Resolved from tail number N12345 (stated in conversation)"`).
+- **`IDeterministicFieldSource` is now `[Obsolete]` (non-error)** — superseded by
+  `IFieldResolver`: it is synchronous, returns only a bare `ProvenanceTag` (the value must
+  already sit in `ContextFabric`'s entity), and cannot express a DI-scoped dependency because
+  `AddDeterministicFieldSource` registers Singleton. Kept fully functional — existing hosts
+  implementing it compile and behave exactly as before (including gaining the chain-merge fix
+  below) — and will be removed in a future major version.
+- **Chain-merge fix ("V4")** — both the resolver and legacy-source projection paths used to call
+  `ProvenanceChain.From(tag)` unconditionally when a deterministic value won, silently discarding
+  whatever `ProvenanceChain` already existed for that field (e.g. a conversational inference tag
+  recorded earlier in the same turn). `SchemaDrivenAffidavitProjection` now follows
+  `TaskInferenceStep.ExecuteAsync`'s existing merge idiom instead: the resolver/legacy tag is
+  merged onto the prior chain via `ProvenanceChain.Merge` — following the same higher-confidence-
+  wins, ties-broken-by-`ProvenanceSource`-ordinal rule already used there — so the prior tag
+  survives in `ProvenanceChain.Prior` rather than being dropped, and only falls back to
+  `ProvenanceChain.From(tag)` when no prior chain exists (structurally identical to the old
+  behavior in that no-prior case). **Behavior change:** any test asserting that a deterministic
+  win truncates prior chain history was necessarily updated as part of this fix — see
+  `SchemaDrivenAffidavitProjectionAreaOneTests.Resolver_MergesOntoExistingChain_CurrentIsResolverTag_PriorContainsConversationTag`
+  and `.LegacySource_MergesOntoExistingChain_PreservesPriorHistory` for the corrected behavior;
+  no pre-existing test in this repo asserted the old truncating behavior directly, so none needed
+  a behavior-reversing edit — the fix is additive-in-effect for existing suites.
+- **`ComplianceHarness.AssertFieldSetParity` (P7, opt-in)** — new public API on
+  `Affiant.Testing.ComplianceHarness.ComplianceHarness`:
+  `FieldSetParityResult AssertFieldSetParity(ITaskInferenceStrategy strategy, IReadOnlyCollection<string> writeConsumedFieldNames)`.
+  Reports (a) as `Errors`: any `Projected: true` card field the write path does not consume
+  ("card field 'X' is not part of the write contract — make it an extraction field
+  (Projected=false) or remove it"), and (b) as `Warnings` (non-failing, informational): a
+  consumed name the strategy never declares. Extraction fields (`Projected: false`) are exempt
+  from (a) — they exist to feed resolvers, not to be consumed verbatim by the write path. Does
+  **not** run automatically inside `ComplianceHarness.Verify` — existing harness consumers stay
+  green unchanged — a host calls it directly, typically with the domain write method's parameter
+  names.
+
 ### Added
 
 - **Affidavit field metadata (framework half of issue #11, flagship decision D6)** —
