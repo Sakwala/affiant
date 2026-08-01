@@ -276,5 +276,55 @@ public class SchemaDrivenAffidavitProjectionAreaOneTests
         var colorField = affidavit.Fields.Single(f => f.Name == "Color");
         Assert.Equal(ProvenanceChain.From(deterministicTag), colorField.Provenance);
     }
+
+    // --- Merge, losing-candidate branch (SchemaDrivenAffidavitProjection.cs's candidateWins == false
+    // path): every test above uses a candidate whose confidence exceeds the existing chain's, so
+    // candidateWins is always true and the "existing chain wins" branch has never been exercised.
+    // These two lock it down for both ladder rungs (resolver, legacy source).
+
+    [Fact]
+    public void Resolver_LosingCandidate_CurrentStaysExisting_PriorGainsResolverTag_ValueReflectsExistingEntity()
+    {
+        var fabric = new ContextFabric();
+        var existingTag = ProvenanceTag.FromUser("Color"); // UserStated, confidence 1.0
+        fabric.SetFieldChain("Color", ProvenanceChain.From(existingTag));
+        fabric.Upsert(new EntityRef("Widget", "Widget", "Widget", new Dictionary<string, object> { ["Color"] = "Blue" }));
+
+        // Resolver tag is lower-confidence than the existing UserStated 1.0 tag, so it must lose the merge.
+        var losingTag = new ProvenanceTag(ProvenanceSource.Computed, 0.4f, "low-confidence resolver guess", null);
+        var resolver = new FixedResolver("Color", "GreenFromResolver", losingTag);
+
+        var projection = BuildProjection(resolvers: [resolver]);
+        var affidavit = projection.Project(fabric, "WriteCreate", []);
+
+        var colorField = affidavit.Fields.Single(f => f.Name == "Color");
+        Assert.Equal(existingTag, colorField.Provenance.Current);
+        Assert.Contains(losingTag, colorField.Provenance.Prior);
+        // The projected Value must reflect the existing (winning) entity value, never the losing
+        // resolver's computed Value — a regression here would silently surface an unconfirmed,
+        // lower-confidence guess on the Evidence Card ahead of a UserStated fact.
+        Assert.Equal("Blue", colorField.Value);
+        Assert.NotEqual("GreenFromResolver", colorField.Value);
+    }
+
+    [Fact]
+    public void LegacySource_LosingCandidate_CurrentStaysExisting_PriorGainsLegacyTag_ValueReflectsExistingEntity()
+    {
+        var fabric = new ContextFabric();
+        var existingTag = ProvenanceTag.FromUser("Color"); // UserStated, confidence 1.0
+        fabric.SetFieldChain("Color", ProvenanceChain.From(existingTag));
+        fabric.Upsert(new EntityRef("Widget", "Widget", "Widget", new Dictionary<string, object> { ["Color"] = "Blue" }));
+
+        // Legacy source tag is lower-confidence than the existing UserStated 1.0 tag, so it must lose.
+        var losingTag = new ProvenanceTag(ProvenanceSource.Computed, 0.4f, "low-confidence legacy guess", null);
+
+        var projection = BuildProjection(sources: [new FixedSource("Color", losingTag)]);
+        var affidavit = projection.Project(fabric, "WriteCreate", []);
+
+        var colorField = affidavit.Fields.Single(f => f.Name == "Color");
+        Assert.Equal(existingTag, colorField.Provenance.Current);
+        Assert.Contains(losingTag, colorField.Provenance.Prior);
+        Assert.Equal("Blue", colorField.Value);
+    }
 }
 #pragma warning restore CS0618

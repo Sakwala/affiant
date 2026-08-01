@@ -236,10 +236,19 @@ public static class ServiceCollectionExtensions
     /// Registered <b>Scoped</b> — deliberately unlike <see cref="AddDeterministicFieldSource{TSource}"/>'s
     /// Singleton lifetime — so a resolver may take a DI-scoped dependency (e.g. a per-request
     /// lookup client) without becoming a captive dependency. This lines up with the default
-    /// single-strategy <c>IAffidavitProjection</c> registration (also Scoped). Hosts using the
-    /// multi-strategy <c>AddSchemaDrivenProjection&lt;TStrategy&gt;()</c> path (Singleton
-    /// projections) must ensure any resolvers they register there have no Scoped dependencies, or
-    /// route that strategy through the default Scoped registration instead.
+    /// single-strategy <c>IAffidavitProjection</c> registration (also Scoped, via
+    /// <c>AddAffiantInferenceOrchestration</c>'s conditional default in Affiant.SemanticKernel) and
+    /// with the multi-strategy <see cref="AddSchemaDrivenProjection{TStrategy}"/> path, which also
+    /// registers its projection Scoped. The concern below is not really about resolver
+    /// dependencies — a Scoped resolver has no captive-dependency risk in isolation. It is about the
+    /// <em>projection that consumes</em> <c>IEnumerable&lt;IFieldResolver&gt;</c>: if that projection
+    /// is ever registered as a Singleton (as <see cref="AddSchemaDrivenProjection{TStrategy}"/> once
+    /// did), resolving it captures the Scoped resolvers at singleton construction time — a captive
+    /// dependency that throws under <c>ServiceProviderOptions.ValidateScopes</c> and, without
+    /// validation, silently pins one request's resolver instances for the app's lifetime. Both
+    /// projection registration paths in this framework are Scoped specifically to avoid this; any
+    /// future projection registration must be too, or must guarantee its resolvers have no Scoped
+    /// dependencies.
     /// </remarks>
     public static IServiceCollection AddFieldResolver<TResolver>(
         this IServiceCollection services)
@@ -264,14 +273,28 @@ public static class ServiceCollectionExtensions
     /// <typeparam name="TStrategy">The concrete <see cref="ITaskInferenceStrategy"/> to bind the projection to.</typeparam>
     /// <param name="services">The service collection.</param>
     /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// Registered <b>Scoped</b> (not Singleton) — mirroring the default single-strategy projection
+    /// registration in <c>AddAffiantInferenceOrchestration</c> (Affiant.SemanticKernel). The
+    /// constructed <see cref="SchemaDrivenAffidavitProjection"/> takes <c>IEnumerable&lt;IFieldResolver&gt;</c>,
+    /// and <see cref="AddFieldResolver{TResolver}"/> registers resolvers Scoped by design (so they may
+    /// carry Scoped dependencies such as a per-request lookup client). A Singleton projection here
+    /// would resolve that enumerable once at first construction — a captive dependency that throws
+    /// under <c>ServiceProviderOptions.ValidateScopes</c> for any host combining this method with
+    /// <see cref="AddFieldResolver{TResolver}"/> (the documented multi-strategy pattern), and would
+    /// otherwise silently pin one scope's resolver instances for the process lifetime.
+    /// </remarks>
     public static IServiceCollection AddSchemaDrivenProjection<TStrategy>(this IServiceCollection services)
         where TStrategy : class, ITaskInferenceStrategy
     {
-        // Uses AddSingleton (not TryAddSingleton) so each strategy gets its own projection instance in the
-        // enumerable — multiple calls with different TStrategy types add independently, which is the intent.
-        // ActivatorUtilities resolves the remaining constructor parameters (deterministic sources, logger,
-        // event stream) from the service provider, binding the passed TStrategy instance to the strategy slot.
-        services.AddSingleton<IAffidavitProjection>(sp =>
+        // Uses AddScoped (not TryAddScoped) so each strategy gets its own projection instance in the
+        // enumerable — multiple calls with different TStrategy types add independently, which is the
+        // intent. Scoped (not Singleton — see remarks above) so the resolved IEnumerable<IFieldResolver>
+        // and IEnumerable<IDeterministicFieldSource> are never captured outside their own scope.
+        // ActivatorUtilities resolves the remaining constructor parameters (resolvers, deterministic
+        // sources, logger, event stream) from the service provider, binding the passed TStrategy
+        // instance to the strategy slot.
+        services.AddScoped<IAffidavitProjection>(sp =>
             ActivatorUtilities.CreateInstance<SchemaDrivenAffidavitProjection>(
                 sp, sp.GetRequiredService<TStrategy>()));
         return services;
