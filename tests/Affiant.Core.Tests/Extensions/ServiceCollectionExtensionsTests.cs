@@ -5,6 +5,7 @@ using Affiant.Abstractions.Models;
 using Affiant.Abstractions.Transport;
 using Affiant.Core.Extensions;
 using Affiant.Core.Filters;
+using Affiant.Core.Observability;
 using Affiant.Core.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -70,6 +71,40 @@ public class ServiceCollectionExtensionsTests
         var opts = sp.GetRequiredService<AffiantCoreOptions>();
         Assert.Equal("Gemini", opts.PrimaryProvider);
         Assert.Equal(TimeSpan.FromMinutes(20), opts.DefaultDocketTtl);
+    }
+
+    // --- Captive-dependency lock test: AddSchemaDrivenProjection<TStrategy>() (multi-strategy path)
+    // + AddFieldResolver<T>() (Scoped resolvers) must resolve under ValidateScopes: true. Before the
+    // fix, AddSchemaDrivenProjection<TStrategy>() registered IAffidavitProjection as a Singleton that
+    // resolved IEnumerable<IFieldResolver> at construction — a captive dependency on the Scoped
+    // resolver registered by AddFieldResolver<T>(), which throws InvalidOperationException under
+    // ValidateScopes for exactly this documented multi-strategy-projection + resolver combination.
+    [Fact]
+    public void AddSchemaDrivenProjection_WithFieldResolver_ResolvesAndProjectsUnderValidateScopes()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IObservabilityEventStream<AffidavitEmittedEvent>, InMemoryObservabilityEventStream<AffidavitEmittedEvent>>();
+
+        // Mirrors what AddAffiantTool<TStrategy>() does for the strategy's own DI slot.
+        services.AddSingleton<StubTaskInferenceStrategy>();
+
+        services.AddSchemaDrivenProjection<StubTaskInferenceStrategy>();
+        services.AddFieldResolver<StubFieldResolver>();
+
+        // ValidateScopes: true is the setting that turns a captive dependency into a hard failure
+        // at resolve time — the same setting ASP.NET Core's default host enables in Development.
+        var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
+
+        using var scope = provider.CreateScope();
+        var projection = Assert.Single(scope.ServiceProvider.GetServices<IAffidavitProjection>());
+
+        // Actually call the projection inside the scope — resolving is necessary but not sufficient;
+        // the regression this guards against is a resolve-time throw under ValidateScopes.
+        var fabric = new ContextFabric();
+        var affidavit = projection.Project(fabric, "WriteCreate", Array.Empty<string>());
+
+        Assert.Equal("StubEntity", affidavit.EntityType);
     }
 
     [Fact]
@@ -145,6 +180,13 @@ public class ServiceCollectionExtensionsTests
         public string EntityName => "StubEntity";
         public IReadOnlyList<TaskInferenceField> Fields => Array.Empty<TaskInferenceField>();
         public double? MinimumConfidenceThreshold => null;
+    }
+
+    private sealed class StubFieldResolver : IFieldResolver
+    {
+        public string FieldName => "SomeField";
+        public Task<FieldResolution?> ResolveAsync(FieldResolutionContext context, CancellationToken cancellationToken) =>
+            Task.FromResult<FieldResolution?>(null);
     }
 
     private sealed class StubApprovalPolicy : IApprovalPolicy
