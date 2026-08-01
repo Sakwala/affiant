@@ -111,7 +111,7 @@ public class AffidavitEmittedEventPublicationTests
     {
         var strategy = new TwoFieldStrategy();
         return new SchemaDrivenAffidavitProjection(
-            strategy, [],
+            strategy, [], [],
             NullLogger<SchemaDrivenAffidavitProjection>.Instance,
             eventStream);
     }

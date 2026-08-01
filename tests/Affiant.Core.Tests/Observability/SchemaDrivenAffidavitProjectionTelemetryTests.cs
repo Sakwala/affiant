@@ -161,7 +161,7 @@ public class SchemaDrivenAffidavitProjectionTelemetryTests
         var strategy = new TwoFieldStrategy();
         var eventStream = new InMemoryObservabilityEventStream<AffidavitEmittedEvent>();
         return new SchemaDrivenAffidavitProjection(
-            strategy, [],
+            strategy, [], [],
             NullLogger<SchemaDrivenAffidavitProjection>.Instance,
             eventStream);
     }

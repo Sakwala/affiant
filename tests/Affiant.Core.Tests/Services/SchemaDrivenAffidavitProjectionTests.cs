@@ -7,6 +7,8 @@ using Affiant.Core.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
+#pragma warning disable CS0618 // Testing the soft-deprecated IDeterministicFieldSource, kept fully functional (P2 area-1 wave)
+
 public class SchemaDrivenAffidavitProjectionTests
 {
     // --- Fakes ---
@@ -62,12 +64,14 @@ public class SchemaDrivenAffidavitProjectionTests
 
     private static SchemaDrivenAffidavitProjection BuildProjection(
         ITaskInferenceStrategy? strategy = null,
-        IEnumerable<IDeterministicFieldSource>? sources = null)
+        IEnumerable<IDeterministicFieldSource>? sources = null,
+        IEnumerable<IFieldResolver>? resolvers = null)
     {
         strategy ??= new TwoFieldStrategy();
         sources ??= [];
+        resolvers ??= [];
         return new SchemaDrivenAffidavitProjection(
-            strategy, sources, NullLogger<SchemaDrivenAffidavitProjection>.Instance,
+            strategy, resolvers, sources, NullLogger<SchemaDrivenAffidavitProjection>.Instance,
             new InMemoryObservabilityEventStream<AffidavitEmittedEvent>());
     }
 
@@ -244,7 +248,7 @@ public class SchemaDrivenAffidavitProjectionTests
     {
         Assert.Throws<ArgumentNullException>(() =>
             new SchemaDrivenAffidavitProjection(
-                null!, [], NullLogger<SchemaDrivenAffidavitProjection>.Instance,
+                null!, [], [], NullLogger<SchemaDrivenAffidavitProjection>.Instance,
                 new InMemoryObservabilityEventStream<AffidavitEmittedEvent>()));
     }
 
