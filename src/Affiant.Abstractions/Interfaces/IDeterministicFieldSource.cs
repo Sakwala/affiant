@@ -2,6 +2,23 @@ namespace Affiant.Abstractions.Interfaces;
 
 using Affiant.Abstractions.Models;
 
+/// <summary>
+/// Legacy deterministic-value source for one card field. Superseded by
+/// <see cref="IFieldResolver"/>, which is async (supports I/O-bound lookups and DI-scoped
+/// dependencies) and returns the resolved value alongside its <see cref="ProvenanceTag"/>
+/// instead of a bare tag whose value must already sit in <c>ContextFabric</c>'s entity.
+///
+/// Kept fully functional — existing hosts implementing this interface compile and behave
+/// exactly as before, including the fix to chain-truncation described on
+/// <c>SchemaDrivenAffidavitProjection</c>. New code should implement <see cref="IFieldResolver"/>
+/// instead. Will be removed in a future major version.
+/// </summary>
+[Obsolete(
+    "Use IFieldResolver instead — it is async and returns the resolved value alongside its " +
+    "ProvenanceTag rather than assuming the value already sits in ContextFabric's entity. " +
+    "IDeterministicFieldSource keeps working (projection precedence: resolver, then legacy " +
+    "source, then fabric chain, then Empty) but will be removed in a future major version.",
+    error: false)]
 public interface IDeterministicFieldSource
 {
     string FieldName { get; }
