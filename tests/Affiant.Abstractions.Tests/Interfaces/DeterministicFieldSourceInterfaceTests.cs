@@ -5,6 +5,8 @@ using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
 using Xunit;
 
+#pragma warning disable CS0618 // Testing the soft-deprecated IDeterministicFieldSource, kept fully functional (P2 area-1 wave)
+
 public class DeterministicFieldSourceInterfaceTests
 {
     [Fact]
