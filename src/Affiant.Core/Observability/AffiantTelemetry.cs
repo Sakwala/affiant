@@ -40,6 +40,27 @@ public static class AffiantTelemetry
     // Tags: reason ∈ { "primary_failure", "both_failed" }
     public static readonly Counter<long> ProviderDegraded =
         AffiantMeter.CreateCounter<long>("affiant.provider.degraded");
+
+    /// <summary>
+    /// Walks up from <see cref="Activity.Current"/> to the nearest ancestor whose
+    /// <see cref="Activity.Source"/> is <see cref="AffiantActivitySource"/> ("Affiant.Framework").
+    /// Framework-owned span events (e.g. <c>affiant.tool_error</c>, <c>affiant.review.filing_failed</c>)
+    /// should record on this ambient Affiant activity rather than whatever backend (SK/MAF) activity
+    /// happens to be current, so the event lands on the framework's own trace regardless of how many
+    /// backend-specific spans are nested around the tool call at the point of failure. Extracted from
+    /// <c>ToolErrorFilter</c> (P1a) so completion-stage emitters (<c>ReviewGateFilter</c>) share the
+    /// same walk-up logic instead of duplicating it.
+    /// </summary>
+    public static Activity? FindAffiantActivity()
+    {
+        var current = Activity.Current;
+        while (current is not null)
+        {
+            if (current.Source.Name == AffiantActivitySource.Name) return current;
+            current = current.Parent;
+        }
+        return null;
+    }
 }
 
 /// <summary>
