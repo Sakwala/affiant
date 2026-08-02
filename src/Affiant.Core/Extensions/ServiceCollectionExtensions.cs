@@ -24,9 +24,12 @@ public static class ServiceCollectionExtensions
     /// <c>TaskInferenceStep</c> (which captures the fabric) are registered <b>Scoped</b> — one instance
     /// per conversation turn scope. Hosts MUST NOT re-register the fabric as a singleton: doing so bleeds
     /// values across concurrent conversations and races a global <c>Clear()</c> against live projections.
+    /// <c>ApprovalPolicyEvaluator</c> / <c>IApprovalPolicyEvaluator</c> (policy pipeline) is registered
+    /// <b>Scoped</b> (affiant#19) — it constructor-injects <c>IEnumerable&lt;IApprovalPolicy&gt;</c>, and
+    /// Affiant.Policies registers policies Scoped by default, so a singleton evaluator would be a
+    /// captive dependency the moment a policy has a scoped dependency (e.g. a host <c>DbContext</c>).
     /// The following services are registered as Singletons by this method:
     /// <list type="bullet">
-    /// <item><c>ApprovalPolicyEvaluator</c> / <c>IApprovalPolicyEvaluator</c> — policy pipeline</item>
     /// <item><c>DeterministicShortCircuit</c> as <c>IToolInvocationFilter</c> — pre-LLM interception</item>
     /// <item><c>ToolErrorFilter</c> as <c>IToolInvocationFilter</c> — error handling with retry</item>
     /// <item><c>ToolTracingFilter</c> as <c>IToolInvocationFilter</c> — per-tool <c>execute_tool</c> OTel span</item>
@@ -75,9 +78,15 @@ public static class ServiceCollectionExtensions
         // a singleton here would be a captive dependency pinning one conversation's fabric.
         services.TryAddScoped<TaskInferenceStep>();
 
-        // Step 5: Policy evaluation pipeline
-        services.TryAddSingleton<ApprovalPolicyEvaluator>();
-        services.TryAddSingleton<IApprovalPolicyEvaluator>(
+        // Step 5: Policy evaluation pipeline. SCOPED (affiant#19) — it constructor-injects
+        // IEnumerable<IApprovalPolicy>, and Affiant.Policies' builder registers policies Scoped by
+        // default (a policy commonly needs a per-request dependency such as a host DbContext). A
+        // singleton evaluator would capture that scoped policy list once at root-scope construction:
+        // a captive dependency that throws under ValidateOnBuild/ValidateScopes, or — where
+        // validation is off — silently pins one request's scoped instances (e.g. a DbContext) for
+        // the process lifetime, shared unsafely across concurrent evaluations.
+        services.TryAddScoped<ApprovalPolicyEvaluator>();
+        services.TryAddScoped<IApprovalPolicyEvaluator>(
             sp => sp.GetRequiredService<ApprovalPolicyEvaluator>());
 
         // No default IApprovalPolicy registered here — hosts declare their policy graph

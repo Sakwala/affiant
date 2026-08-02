@@ -131,6 +131,88 @@ public class ServiceCollectionExtensionsTests
         Assert.Contains(policies, p => p is StubApprovalPolicy);
     }
 
+    // --- Captive-dependency lock test (affiant#19): ApprovalPolicyEvaluator constructor-injects
+    // IEnumerable<IApprovalPolicy>, and Affiant.Policies registers policies Scoped by default (a
+    // policy commonly needs a per-request dependency such as a host DbContext). Before the fix,
+    // AddAffiantCore() registered ApprovalPolicyEvaluator/IApprovalPolicyEvaluator as Singleton — a
+    // captive dependency the moment a policy had a Scoped dependency: a hard failure under
+    // ValidateOnBuild/ValidateScopes (the settings ASP.NET Core's Development host enables by
+    // default), and — where validation is off — a silently shared, process-lifetime instance of what
+    // should be a per-request dependency (e.g. an EF DbContext, which is not thread-safe) across
+    // every concurrent evaluation.
+    [Fact]
+    public async Task ApprovalPolicyEvaluator_WithScopedPolicyDependency_ResolvesUnderRealHostValidation()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IStreamingTransport, StubStreamingTransport>();
+        services.AddSingleton<IDocketStore, StubDocketStore>();
+        services.AddSingleton<IChatSessionStore, StubChatSessionStore>();
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
+        services.AddSingleton<IRouteRegistry, StubRouteRegistry>();
+        services.AddSingleton<ITaskInferenceStrategy, StubTaskInferenceStrategy>();
+
+        // Mimics Affiant.Policies' AddStandingOrder<TPolicy>()/AddReferralRule<TRule>() default —
+        // both register IApprovalPolicy as Scoped unless the host overrides the lifetime — and
+        // mimics a host policy (e.g. LeaveApprovalPolicy) that itself depends on a Scoped service
+        // (e.g. a host DbContext).
+        services.AddScoped<StubScopedPolicyDependency>();
+        services.AddScoped<IApprovalPolicy, ScopedPolicyWithScopedDependency>();
+
+        services.AddAffiantCore(o => o.EnableObservability = false);
+
+        // (a) Construction must succeed under the exact validation a Development host applies:
+        // ValidateScopes catches captive dependencies at resolve time, ValidateOnBuild catches them
+        // eagerly at BuildServiceProvider() — this line itself is the assertion for (a).
+        var provider = services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateScopes = true,
+            ValidateOnBuild = true
+        });
+
+        // (b) Resolving IApprovalPolicyEvaluator inside a scope works and evaluates the policy.
+        using (var scope = provider.CreateScope())
+        {
+            var evaluator = scope.ServiceProvider.GetRequiredService<IApprovalPolicyEvaluator>();
+            var affidavit = new Affidavit(
+                OperationType: "WriteCreate",
+                EntityType: "StubEntity",
+                EntityId: null,
+                Fields: [],
+                AggregateConfidence: 1.0f,
+                Warnings: [],
+                RequiresConfirmation: true);
+            var requirement = await evaluator.EvaluateAsync(affidavit);
+            Assert.Equal(ReviewRequirement.StandingOrder, requirement);
+        }
+
+        // (c) Two separate scopes get DISTINCT policy-dependency instances — kills the
+        // shared-instance concurrency hazard (an undisposed, process-wide DbContext shared across
+        // concurrent evaluations), not just the ValidateScopes/ValidateOnBuild error.
+        using var scopeA = provider.CreateScope();
+        using var scopeB = provider.CreateScope();
+
+        _ = scopeA.ServiceProvider.GetRequiredService<IApprovalPolicyEvaluator>();
+        _ = scopeB.ServiceProvider.GetRequiredService<IApprovalPolicyEvaluator>();
+
+        var dependencyA = Assert.Single(scopeA.ServiceProvider.GetServices<IApprovalPolicy>()
+            .OfType<ScopedPolicyWithScopedDependency>()).Dependency;
+        var dependencyB = Assert.Single(scopeB.ServiceProvider.GetServices<IApprovalPolicy>()
+            .OfType<ScopedPolicyWithScopedDependency>()).Dependency;
+
+        Assert.NotSame(dependencyA, dependencyB);
+    }
+
+    private sealed class StubScopedPolicyDependency;
+
+    private sealed class ScopedPolicyWithScopedDependency(StubScopedPolicyDependency dependency) : IApprovalPolicy
+    {
+        public StubScopedPolicyDependency Dependency => dependency;
+
+        public Task<ReviewRequirement?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default) =>
+            Task.FromResult<ReviewRequirement?>(ReviewRequirement.StandingOrder);
+    }
+
     // --- Stubs for adapter interfaces ---
 
     private sealed class StubStreamingTransport : IStreamingTransport

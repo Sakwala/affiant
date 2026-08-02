@@ -45,6 +45,13 @@ public static class ServiceCollectionExtensions
 /// Specific Standing Orders and Referral rules should come before the catch-all
 /// <see cref="AddDefaultReviewerConfirmation"/> call.
 /// </summary>
+/// <remarks>
+/// The default <see cref="ServiceLifetime.Scoped"/> lifetime below is safe precisely because
+/// <c>Affiant.Core</c>'s <c>ApprovalPolicyEvaluator</c> (the sole consumer of
+/// <c>IEnumerable&lt;IApprovalPolicy&gt;</c>) is itself registered Scoped (affiant#19) — a policy
+/// with a Scoped dependency (e.g. a host <c>DbContext</c>) no longer risks becoming a captive
+/// dependency of a longer-lived evaluator.
+/// </remarks>
 public sealed class PoliciesBuilder
 {
     private readonly IServiceCollection _services;
