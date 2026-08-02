@@ -1,9 +1,11 @@
 namespace Affiant.Core.Services;
 
+using System.Diagnostics;
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
 using Affiant.Abstractions.Transport;
 using Affiant.Core.Extensions;
+using Affiant.Core.Observability;
 using Microsoft.Extensions.Logging;
 
 /// <summary>
@@ -270,11 +272,8 @@ public sealed class ReviewGate(
             // here — that is the caller's choice (FileReviewAsync awaits it; FileForReviewAsync
             // callers route the eventual decision through HandleDecisionAsync instead).
             var request = new EvidenceCardRequest(entryId, context.Affidavit, expiresAt, priorAmendments);
-            await transport.BroadcastToGroupAsync(
-                context.SessionId, TransportEvent.EvidenceCardRequest, request, cancellationToken);
-            logger.LogInformation(
-                "Sent EvidenceCardRequest to group {SessionId} for DocketEntry {EntryId}",
-                context.SessionId, entryId);
+            await BroadcastEvidenceCardWithRetryAsync(
+                context.SessionId, entryId, proposal.ToolName, request, cancellationToken);
 
             return new ReviewFilingResult.RequiresReview(entryId);
         }
@@ -282,6 +281,122 @@ public sealed class ReviewGate(
         {
             logger.LogWarning("FileForReviewAsync cancelled for tool {ToolName}", proposal.ToolName);
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Broadcasts the Evidence Card for a DocketEntry that is already durably filed as
+    /// <see cref="ReviewStatus.Pending"/> — retrying once on failure (P1a, affiant#22 / FV-9).
+    ///
+    /// <para>
+    /// Filing has already succeeded by the time this runs: the caller reports success (
+    /// <see cref="ReviewFilingResult.RequiresReview"/>) regardless of whether the broadcast itself
+    /// ultimately succeeds. Reporting failure here would be a lie — the proposal genuinely IS filed
+    /// and pending, discoverable via <see cref="IDocketStore.ListPendingBySessionAsync"/> — and would
+    /// invite a caller to re-file on "failure", creating a duplicate docket entry for the same
+    /// proposal. If both the initial broadcast and the single retry fail, the entry is left durably
+    /// Pending but orphaned from the push-notification path: it is logged (<see cref="LogLevel.Error"/>),
+    /// an <c>affiant.review.broadcast_failed</c> OTel event is emitted, and a best-effort
+    /// <see cref="TransportEvent.SystemNotification"/> is broadcast so operators and the client both
+    /// have a chance to notice.
+    /// </para>
+    /// <para>
+    /// <b>Residual risk (documented, not fixed here):</b> <see cref="DocketEntry"/> has no field to
+    /// persist a "broadcast failed" marker — adding one would require a schema migration across every
+    /// <see cref="IDocketStore"/> backend (<c>DocketEntryEntity</c> + an EF migration shared by
+    /// <c>SqliteDocketStore</c>/<c>PostgresDocketStore</c>), which is out of scope for this change per
+    /// the P1 ruling. Today the only durable signal that a broadcast failure happened is the log line
+    /// and the OTel event — the entry itself is indistinguishable in the store from one whose Evidence
+    /// Card broadcast succeeded on the first try. Area 5 (store reconciliation) owns closing this gap;
+    /// until then, an entry that never gets a reviewer decision still expires normally via
+    /// <c>DocketExpiryService</c>, so it is not permanently stuck — just silently undiscoverable by
+    /// push notification alone.
+    /// </para>
+    /// </summary>
+    private async Task BroadcastEvidenceCardWithRetryAsync(
+        string sessionId,
+        Guid entryId,
+        string toolName,
+        EvidenceCardRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await transport.BroadcastToGroupAsync(
+                sessionId, TransportEvent.EvidenceCardRequest, request, cancellationToken);
+            logger.LogInformation(
+                "Sent EvidenceCardRequest to group {SessionId} for DocketEntry {EntryId}",
+                sessionId, entryId);
+            return;
+        }
+        catch (Exception firstEx) when (firstEx is not OperationCanceledException)
+        {
+            logger.LogWarning(firstEx,
+                "ReviewGate: Evidence Card broadcast failed for DocketEntry {EntryId}; retrying once",
+                entryId);
+        }
+
+        try
+        {
+            await transport.BroadcastToGroupAsync(
+                sessionId, TransportEvent.EvidenceCardRequest, request, cancellationToken);
+            logger.LogInformation(
+                "ReviewGate: Evidence Card broadcast succeeded on retry for DocketEntry {EntryId}",
+                entryId);
+        }
+        catch (Exception secondEx) when (secondEx is not OperationCanceledException)
+        {
+            // DocketEntry {entryId} is durably Pending — do NOT rethrow. See method remarks: the
+            // caller (FileForReviewCoreAsync) must still report RequiresReview/success.
+            logger.LogError(secondEx,
+                "ReviewGate: Evidence Card broadcast failed twice for DocketEntry {EntryId} — entry " +
+                "is filed and Pending, but no reviewer has been notified via push",
+                entryId);
+
+            RecordBroadcastFailedEvent(entryId, secondEx);
+
+            await NotifyBroadcastFailedBestEffortAsync(sessionId, entryId, toolName, cancellationToken);
+        }
+    }
+
+    private static void RecordBroadcastFailedEvent(Guid entryId, Exception ex)
+    {
+        var target = AffiantTelemetry.FindAffiantActivity() ?? Activity.Current;
+        target?.AddEvent(new ActivityEvent("affiant.review.broadcast_failed",
+            tags: new ActivityTagsCollection
+            {
+                { "docket.entry_id", entryId.ToString() },
+                { "exception.type", ex.GetType().Name }
+            }));
+    }
+
+    /// <summary>
+    /// Best-effort SystemNotification after both Evidence Card broadcast attempts fail. Guarded so a
+    /// failure here (including cancellation) never escapes — this is pure observability, not part of
+    /// the filing contract.
+    /// </summary>
+    private async Task NotifyBroadcastFailedBestEffortAsync(
+        string sessionId, Guid entryId, string toolName, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await transport.BroadcastToGroupAsync(
+                sessionId,
+                TransportEvent.SystemNotification,
+                new
+                {
+                    level = "warning",
+                    message = $"Your request to {toolName} was filed for review, but reviewers were " +
+                              "not notified. It may need manual follow-up."
+                },
+                cancellationToken);
+        }
+        catch (Exception notifyEx)
+        {
+            logger.LogWarning(notifyEx,
+                "ReviewGate: best-effort SystemNotification broadcast failed after DocketEntry " +
+                "{EntryId}'s Evidence Card broadcast failed twice",
+                entryId);
         }
     }
 

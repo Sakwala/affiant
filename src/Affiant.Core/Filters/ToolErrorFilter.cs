@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net;
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
+using Affiant.Core.Observability;
 using Microsoft.Extensions.Logging;
 
 namespace Affiant.Core.Filters;
@@ -17,6 +18,16 @@ namespace Affiant.Core.Filters;
 /// </summary>
 public class ToolErrorFilter(ILogger<ToolErrorFilter> logger) : IToolInvocationFilter
 {
+    /// <summary>
+    /// Code for a <see cref="ToolError"/> produced when <c>ReviewGateFilter</c>'s call to
+    /// <c>ReviewGate.FileReviewAsync</c> throws (P1a, affiant#22 / FV-9) — the WriteProposal was
+    /// not filed and was not queued for review. Placed here alongside this filter's own
+    /// exception-mapped codes (<c>DB_TIMEOUT</c>, <c>UPSTREAM_UNAVAILABLE</c>, <c>VALIDATION_FAILED</c>,
+    /// <c>UNKNOWN</c> in <see cref="MapExceptionToToolError"/> below) since a full <c>ToolErrorCodes</c>
+    /// registry is out of scope for this change (P2, framework spec backlog).
+    /// </summary>
+    public const string ReviewFilingFailedCode = "REVIEW_FILING_FAILED";
+
     public async Task OnToolInvocationAsync(
         ToolInvocationContext context,
         Func<ToolInvocationContext, Task> next,
@@ -96,7 +107,7 @@ public class ToolErrorFilter(ILogger<ToolErrorFilter> logger) : IToolInvocationF
     {
         // When backend OTel diagnostics are enabled, Activity.Current may be a backend child span.
         // Walk up to the nearest Affiant.Framework span so the event lands on our trace.
-        var target = FindAffiantActivity() ?? Activity.Current;
+        var target = AffiantTelemetry.FindAffiantActivity() ?? Activity.Current;
         target?.AddEvent(new ActivityEvent("affiant.tool_error",
             tags: new ActivityTagsCollection
             {
@@ -104,16 +115,5 @@ public class ToolErrorFilter(ILogger<ToolErrorFilter> logger) : IToolInvocationF
                 { "tool_error.retryable", toolError.Retryable },
                 { "exception.type", ex.GetType().Name }
             }));
-    }
-
-    private static Activity? FindAffiantActivity()
-    {
-        var current = Activity.Current;
-        while (current is not null)
-        {
-            if (current.Source.Name == "Affiant.Framework") return current;
-            current = current.Parent;
-        }
-        return null;
     }
 }

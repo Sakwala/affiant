@@ -40,6 +40,15 @@ public record ReviewStep(
 /// <see cref="ReviewContext.Amendments"/> and, for the reviewer's actual edits captured on
 /// the Evidence Card response, updated via <see cref="Interfaces.IDocketStore.UpdateAmendmentsAsync"/>.
 ///
+/// <para>
+/// <b>Residual risk (P1a, affiant#22 / FV-9):</b> this record has no field marking whether the
+/// Evidence Card broadcast for a Pending entry ever succeeded — <c>ReviewGate</c> retries a failed
+/// broadcast once and, on a second failure, logs + emits an OTel event rather than persisting a
+/// marker here, because doing so would require an <see cref="IDocketStore"/> schema change (a new
+/// column on every backend's entity + an EF migration). See <c>ReviewGate.BroadcastEvidenceCardWithRetryAsync</c>'s
+/// remarks for the full reasoning. Area 5 (store reconciliation) owns closing this gap.
+/// </para>
+///
 /// Matches framework specification §2.7.
 /// </summary>
 public sealed record DocketEntry(
