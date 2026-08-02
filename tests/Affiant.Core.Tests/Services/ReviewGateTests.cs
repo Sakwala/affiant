@@ -1,10 +1,12 @@
 namespace Affiant.Core.Tests.Services;
 
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
 using Affiant.Abstractions.Transport;
 using Affiant.Core.Extensions;
+using Affiant.Core.Observability;
 using Affiant.Core.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -30,6 +32,18 @@ public class ReviewGateTests
 
         /// <summary>When true, <see cref="TryDeliverResponse"/> simulates a live waiter.</summary>
         public bool HasLiveWaiter { get; set; }
+
+        private int _failNextEvidenceCardBroadcasts;
+
+        /// <summary>Total EvidenceCardRequest broadcast attempts (successful AND failed).</summary>
+        public int EvidenceCardBroadcastAttempts { get; private set; }
+
+        /// <summary>
+        /// The next <paramref name="count"/> EvidenceCardRequest broadcasts throw instead of
+        /// succeeding (P1a broadcast-retry test double). Does not affect other event types —
+        /// SystemNotification must still get through so the best-effort notify path is observable.
+        /// </summary>
+        public void FailNextEvidenceCardBroadcasts(int count) => _failNextEvidenceCardBroadcasts = count;
 
         public void EnqueueResponse(EvidenceCardResponse response) => _responses.Enqueue(response);
 
@@ -65,6 +79,16 @@ public class ReviewGateTests
 
         public Task BroadcastToGroupAsync(string groupId, TransportEvent eventType, object payload, CancellationToken ct)
         {
+            if (eventType == TransportEvent.EvidenceCardRequest)
+            {
+                EvidenceCardBroadcastAttempts++;
+                if (_failNextEvidenceCardBroadcasts > 0)
+                {
+                    _failNextEvidenceCardBroadcasts--;
+                    throw new InvalidOperationException("simulated Evidence Card broadcast failure");
+                }
+            }
+
             SentEvents.Add((groupId, eventType, payload));
             return Task.CompletedTask;
         }
@@ -659,6 +683,88 @@ public class ReviewGateTests
         var expired = Assert.IsType<ReviewOutcome.Expired>(outcome);
         Assert.False(expired.AmendmentsPreserved); // nothing to persist onto a nonexistent entry
         Assert.Null(createdAt);
+    }
+
+    // ── P1a: Evidence Card broadcast retry (affiant#22 / FV-9) ───────────────
+
+    private static ActivityListener FrameworkListener() => new()
+    {
+        // Hardcoded name, not AffiantTelemetry.AffiantActivitySource.Name — see the identical
+        // comment in ReviewGateFilterTests.FrameworkListener for why (cctor re-entrancy hazard).
+        ShouldListenTo = source => source.Name == "Affiant.Framework",
+        Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+    };
+
+    [Fact]
+    public async Task FileForReviewAsync_BroadcastFailsOnce_RetrySucceeds_StillReportsRequiresReview()
+    {
+        var (gate, transport, store) = CreateGate(ReviewRequirement.ReviewerConfirmation);
+        transport.FailNextEvidenceCardBroadcasts(1);
+
+        var (proposal, context) = CreateTestInput(Guid.NewGuid());
+        var filing = await gate.FileForReviewAsync(proposal, context);
+
+        var requiresReview = Assert.IsType<ReviewFilingResult.RequiresReview>(filing);
+        Assert.Equal(context.EntryId!.Value, requiresReview.EntryId);
+        Assert.Equal(2, transport.EvidenceCardBroadcastAttempts); // failed once, retried once, succeeded
+        Assert.Single(transport.SentEvents, e => e.EventType == TransportEvent.EvidenceCardRequest);
+        Assert.DoesNotContain(transport.SentEvents, e => e.EventType == TransportEvent.SystemNotification);
+
+        // The entry is durably filed regardless of the broadcast hiccup.
+        var entry = await store.GetDocketEntryAsync(requiresReview.EntryId, default);
+        Assert.NotNull(entry);
+        Assert.Equal(ReviewStatus.Pending, entry.Status);
+    }
+
+    [Fact]
+    public async Task FileForReviewAsync_BroadcastFailsTwice_StillReportsRequiresReview_NeverLies()
+    {
+        var (gate, transport, store) = CreateGate(ReviewRequirement.ReviewerConfirmation);
+        transport.FailNextEvidenceCardBroadcasts(2);
+
+        var (proposal, context) = CreateTestInput(Guid.NewGuid());
+        var filing = await gate.FileForReviewAsync(proposal, context);
+
+        // Filing must still report success — the proposal genuinely IS filed and Pending.
+        var requiresReview = Assert.IsType<ReviewFilingResult.RequiresReview>(filing);
+        Assert.Equal(2, transport.EvidenceCardBroadcastAttempts); // exactly one retry, no more
+        Assert.DoesNotContain(transport.SentEvents, e => e.EventType == TransportEvent.EvidenceCardRequest);
+
+        var entry = await store.GetDocketEntryAsync(requiresReview.EntryId, default);
+        Assert.NotNull(entry);
+        Assert.Equal(ReviewStatus.Pending, entry.Status);
+    }
+
+    [Fact]
+    public async Task FileForReviewAsync_BroadcastFailsTwice_EmitsOTelEvent_ObservedViaRealActivityListener()
+    {
+        using var listener = FrameworkListener();
+        ActivitySource.AddActivityListener(listener);
+        using var span = AffiantTelemetry.AffiantActivitySource.StartActivity("invoke_agent");
+        Assert.NotNull(span);
+
+        var (gate, transport, _) = CreateGate(ReviewRequirement.ReviewerConfirmation);
+        transport.FailNextEvidenceCardBroadcasts(2);
+
+        var (proposal, context) = CreateTestInput(Guid.NewGuid());
+        await gate.FileForReviewAsync(proposal, context);
+
+        var evt = Assert.Single(span!.Events, e => e.Name == "affiant.review.broadcast_failed");
+        var tags = evt.Tags.ToDictionary(t => t.Key, t => t.Value);
+        Assert.Equal(context.EntryId!.Value.ToString(), tags["docket.entry_id"]);
+        Assert.Equal("InvalidOperationException", tags["exception.type"]);
+    }
+
+    [Fact]
+    public async Task FileForReviewAsync_BroadcastFailsTwice_BestEffortSystemNotificationSent()
+    {
+        var (gate, transport, _) = CreateGate(ReviewRequirement.ReviewerConfirmation);
+        transport.FailNextEvidenceCardBroadcasts(2);
+
+        var (proposal, context) = CreateTestInput(Guid.NewGuid());
+        await gate.FileForReviewAsync(proposal, context);
+
+        Assert.Single(transport.SentEvents, e => e.EventType == TransportEvent.SystemNotification);
     }
 
     // ── D4: ResubmitAsync (framework half of issue #9) ───────────────────────
