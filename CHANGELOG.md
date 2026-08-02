@@ -44,13 +44,27 @@ additive, no breaking changes.
   method name — the MAF counterpart to Semantic Kernel's `[KernelFunction("name")]` override —
   closing the gap that forced the Area-2 P1 Meridian branch to rename C# methods themselves to
   snake_case just to get a `ToolNames`-constant-backed name. The override flows into both the
-  produced `AIFunction.Name` and the `AffiantToolDescriptor.FunctionName`. A method with no
-  `[AffiantToolName]` is unaffected — same two-argument `AIFunctionFactory.Create` call as before,
-  byte-identical behavior. Two methods resolving to the same effective name (an override colliding
-  with another method's name, or two overrides sharing a value) throws
-  `InvalidOperationException` naming the collision at catalog-build time, not silently. Documented
-  in `docs/adapters/microsoft-agent-framework.md` §4 and the new `docs/tool-authoring-guide.md`
-  §10 (SK vs MAF naming, side by side).
+  produced `AIFunction.Name` and the `AffiantToolDescriptor.FunctionName`. Two methods resolving to
+  the same effective name (an override colliding with another method's name, or two overrides
+  sharing a value) throws `InvalidOperationException` naming the collision at catalog-build time,
+  not silently. Documented in `docs/adapters/microsoft-agent-framework.md` §4 and the new
+  `docs/tool-authoring-guide.md` §10 (SK vs MAF naming, side by side).
+  - **Behavior change, no-override path:** `AffiantToolDescriptor.FunctionName` now always equals
+    the produced `AIFunction.Name`, including whatever sanitization
+    `Microsoft.Extensions.AI`'s `AIFunctionFactory.Create` applied — most notably its conditional
+    strip of a trailing `Async` from `Task`/`ValueTask`/`IAsyncEnumerable`-returning methods.
+    **Previously this repo's own comments and this changelog claimed the no-override path was
+    "byte-identical" to pre-affiant#16 behavior — that was false.** The pre-affiant#16 descriptor
+    sourced `FunctionName` from the raw C# `method.Name`, which silently diverged from the actual
+    LLM-visible tool name for every no-attribute, Async-suffixed, Task-returning method: the
+    descriptor said e.g. `FetchThingAsync` while the LLM and every invocation carried `FetchThing`.
+    That divergence is now closed — the descriptor always mirrors the name the LLM actually sees.
+    **Action for hosts:** if anything keys on `AffiantToolDescriptor.FunctionName` for such a
+    method (telemetry, the tool registry, extractor matching), it now sees the sanitized/stripped
+    name instead of the raw method name. Either update those call sites to expect the stripped
+    name, or add an explicit `[AffiantToolName(ToolNames.X)]` so the LLM-visible name — and hence
+    the descriptor's `FunctionName` — is a literal you control rather than one derived from
+    `AIFunctionFactory.Create`'s internal sanitization rules.
 
 ### Added — Area-1 field-provenance redesign: extraction fields, async resolvers, chain-merge fix, harness parity check
 

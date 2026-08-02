@@ -1144,10 +1144,17 @@ public sealed class ThingPlugin
 }
 ```
 
-A method with no `[AffiantToolName]` keeps its bare C# method name as the LLM-visible name, exactly
-as before this attribute existed. Applying it with a null/blank name, or in a way that makes two
-methods resolve to the same effective name, throws `InvalidOperationException` at catalog-build
-time — loud, not silent.
+A method with no `[AffiantToolName]` gets its LLM-visible name from `AIFunctionFactory.Create`'s
+default resolution — normally the bare C# method name, but `AIFunctionFactory.Create` strips a
+trailing `Async` when the method returns `Task`, `Task<T>`, `ValueTask`, `ValueTask<T>`, or
+`IAsyncEnumerable<T>` (the same condition SK's `[KernelFunction]` walker uses). A
+`Task<string> FetchThingAsync()` method with no override surfaces as tool `FetchThing`, not
+`FetchThingAsync` — see `docs/adapters/microsoft-agent-framework.md` §4 for the full behavior and
+why relying on it is discouraged. `AffiantToolDescriptor.FunctionName` always mirrors this
+resolved name exactly, whatever it turns out to be — that invariant, not "the bare method name,"
+is what `FromType<T>()` guarantees. Applying `[AffiantToolName]` with a null/blank name, or in a
+way that makes two methods resolve to the same effective name, throws `InvalidOperationException`
+at catalog-build time — loud, not silent.
 
 **Verifying the discipline held.** Hand-rolling a reflection test per host (enumerate every
 `[KernelFunction]`/tool method, assert its effective name is a `ToolNames` member, assert every

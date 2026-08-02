@@ -68,11 +68,57 @@ public class AffiantToolCatalogTests
     }
 
     [Fact]
-    public void AIFunction_Name_MatchesMethodName_NoAsyncStripping()
+    public void AIFunction_Name_MatchesMethodName_ForPlainSyncMethods()
     {
+        // ReadThing/CreateThing are synchronous, non-Task-returning, and don't end in "Async" —
+        // AIFunctionFactory.Create passes their names through unchanged. This does NOT exercise
+        // Async-suffix stripping (see the two tests below for that); it only proves the trivial
+        // no-op case. Previously named "...NoAsyncStripping", which asserted a falsehood: MAF's
+        // AIFunctionFactory DOES strip a trailing "Async" from Task/ValueTask/IAsyncEnumerable-
+        // returning methods (verified empirically — see NoOverride_AsyncSuffixedTaskReturningMethod_
+        // below) even though it never did so for Semantic Kernel's [KernelFunction] walker either.
         var catalog = AffiantToolCatalog.FromType<ProbeTools>();
         Assert.Contains(catalog.Functions, f => f.Name == "ReadThing");
         Assert.Contains(catalog.Functions, f => f.Name == "CreateThing");
+    }
+
+    [Fact]
+    public void AIFunction_Name_SyncMethod_AsyncSuffixIsNotStripped()
+    {
+        // AIFunctionFactory.Create's trailing-"Async" stripping is conditioned on return type
+        // (Task/ValueTask/IAsyncEnumerable), not on the method name alone. A synchronous method
+        // that happens to end in "Async" keeps the literal name — verified empirically via a
+        // standalone probe against Microsoft.Extensions.AI 10.6.0 before writing this assertion.
+        var catalog = AffiantToolCatalog.FromType<SyncAsyncSuffixedTools>();
+
+        var fn = Assert.Single(catalog.Functions);
+        Assert.Equal("LookupThingAsync", fn.Name);
+
+        var descriptor = Assert.Single(catalog.Descriptors);
+        Assert.Equal("LookupThingAsync", descriptor.FunctionName);
+    }
+
+    [Fact]
+    public void NoOverride_AsyncSuffixedTaskReturningMethod_DescriptorMirrorsSanitizedAIFunctionName()
+    {
+        // The affiant#16 branch changed the descriptor source from method.Name to function.Name on
+        // BOTH the override and no-override paths. For a Task-returning method with no
+        // [AffiantToolName], AIFunctionFactory.Create strips the trailing "Async" from the
+        // LLM-visible name (verified empirically against Microsoft.Extensions.AI 10.6.0: a
+        // `Task<string> FetchThingAsync()` method produces AIFunction.Name == "FetchThing", not
+        // "FetchThingAsync"). Before this branch, AffiantToolDescriptor.FunctionName used
+        // method.Name and would have recorded "FetchThingAsync" — silently diverging from the name
+        // the LLM and every invocation actually carry ("FetchThing"). The invariant this pins:
+        // AffiantToolDescriptor.FunctionName must always equal AIFunction.Name, with no exceptions
+        // for the no-override path.
+        var catalog = AffiantToolCatalog.FromType<AsyncSuffixedTaskTools>();
+
+        var fn = Assert.Single(catalog.Functions);
+        Assert.Equal("FetchThing", fn.Name);
+
+        var descriptor = Assert.Single(catalog.Descriptors);
+        Assert.Equal("FetchThing", descriptor.FunctionName);
+        Assert.Equal(fn.Name, descriptor.FunctionName);
     }
 
     [Fact]
@@ -146,9 +192,11 @@ public class AffiantToolCatalogTests
     [Fact]
     public void NoAffiantToolName_MethodNameUnaffectedByFeatureExisting()
     {
-        // Regression guard for the "no-attribute path stays byte-identical" requirement: a method
-        // with no [AffiantToolName] on a type that also has overridden methods must still surface
-        // under its bare C# name.
+        // Regression guard: a method with no [AffiantToolName] on a type that also has overridden
+        // methods must still surface under its default resolved name (bare C# name here, since
+        // PlainRead is synchronous and not Async-suffixed — see AIFunction_Name_SyncMethod_
+        // AsyncSuffixIsNotStripped and NoOverride_AsyncSuffixedTaskReturningMethod_
+        // DescriptorMirrorsSanitizedAIFunctionName for the cases where it isn't the bare name).
         var catalog = AffiantToolCatalog.FromType<OverrideTools>();
 
         Assert.Contains(catalog.Functions, f => f.Name == "PlainRead");
@@ -225,6 +273,16 @@ public class AffiantToolCatalogTests
     {
         [AffiantToolName("   ")]
         public string BlankName() => "unused";
+    }
+
+    private sealed class AsyncSuffixedTaskTools
+    {
+        public Task<string> FetchThingAsync() => Task.FromResult("fetched");
+    }
+
+    private sealed class SyncAsyncSuffixedTools
+    {
+        public string LookupThingAsync() => "looked-up";
     }
 
     private sealed class CollidingOverrideTools
