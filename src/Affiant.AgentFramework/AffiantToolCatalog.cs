@@ -48,8 +48,17 @@ public sealed record AffiantToolCatalog(
                     "name), so overloads collapse to duplicate descriptors that later fail at registry time. " +
                     $"Rename one overload so each tool method on {typeof(T).Name} has a unique name.");
 
-            // No-override path stays byte-identical to pre-affiant#16 behavior: same two-arg
-            // AIFunctionFactory.Create overload, no AIFunctionFactoryOptions constructed at all.
+            // No-override path still calls the same two-arg AIFunctionFactory.Create overload (no
+            // AIFunctionFactoryOptions constructed) — but the descriptor built below always sources
+            // FunctionName from function.Name, not method.Name, on both paths. They are NOT always
+            // the same string: AIFunctionFactory.Create sanitizes names and strips a trailing
+            // "Async" from Task/ValueTask/IAsyncEnumerable-returning methods (e.g. a no-attribute
+            // `Task<string> FetchThingAsync()` produces AIFunction.Name == "FetchThing"). Before
+            // this branch, AffiantToolDescriptor.FunctionName used method.Name and silently
+            // diverged from the LLM-visible name for every such method — exactly the class of
+            // silent-name-drift the Area-2 typed-contracts review exists to eliminate. The
+            // invariant is: AffiantToolDescriptor.FunctionName == the AIFunction's actual,
+            // LLM-visible name, always.
             var nameOverride = method.GetCustomAttribute<AffiantToolNameAttribute>();
             AIFunction function;
             if (nameOverride is null)

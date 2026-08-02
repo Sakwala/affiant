@@ -151,12 +151,33 @@ instance method on `T` except those declared on `object` and property/event acce
 contain only tool methods** — an unrelated public helper method on the same class becomes a
 callable `AIFunction` too.
 
-**No "Async"-suffix stripping.** SK's plugin walker strips a bare trailing `Async` from a method
-name when no explicit `[KernelFunction]` name is given; `AIFunctionFactory.Create` does not. A
-method named `CreateWidgetAsync` becomes tool `CreateWidgetAsync` on MAF but tool `CreateWidget`
-on an equivalent SK plugin. This is a permanent, structural naming asymmetry between the two
-backends — if you want identical tool names across an SK and a MAF host from the same domain
-type, avoid trailing `Async` in method names, or use the name override below.
+**`AIFunctionFactory.Create` sanitizes names, including a conditional "Async"-suffix strip.**
+Earlier drafts of this guide claimed MAF does *no* Async-suffix stripping — that was wrong,
+verified by decompiling `Microsoft.Extensions.AI` 10.6.0's `AIFunctionFactory.Create` twice. The
+actual behavior: for a method with no `[AffiantToolName]` override, `AIFunctionFactory.Create`
+strips a trailing `Async` from the LLM-visible name **when the method's return type is `Task`,
+`Task<T>`, `ValueTask`, `ValueTask<T>`, or `IAsyncEnumerable<T>`** — the same condition SK's
+`[KernelFunction]` walker uses. A method named `FetchThingAsync` returning `Task<string>` becomes
+tool `FetchThing` on both backends. A *synchronous* method whose name happens to end in `Async`
+(e.g. `string LookupThingAsync()`) is **not** stripped on either backend — the condition is on
+return type, not on the literal suffix in the name.
+
+**As of the affiant#16 branch, `AffiantToolDescriptor.FunctionName` always equals the produced
+`AIFunction.Name`** — including whatever sanitization `AIFunctionFactory.Create` applied. Before
+that branch, the descriptor sourced its `FunctionName` from the raw C# `method.Name`, which
+silently diverged from the LLM-visible name for every Async-suffixed, Task/ValueTask/
+IAsyncEnumerable-returning method with no override: the descriptor said `FetchThingAsync`, but the
+LLM and every invocation actually carried `FetchThing`. That divergence is exactly the
+silent-name-drift class the Area-2 typed-contracts review (gate ruling 2, "C-prime") exists to
+eliminate, so it was fixed rather than preserved.
+
+**Practical consequence.** Because the exact sanitized spelling depends on
+`AIFunctionFactory.Create`'s internal rules (subject to change across
+`Microsoft.Extensions.AI` versions) rather than on anything Affiant controls, do not rely on
+implicit Async-suffix stripping to get a specific tool name — decorate the method with
+`[AffiantToolName(ToolNames.X)]` (below) so the LLM-visible name is a literal, compiler-checked
+constant that never depends on sanitization rules, consistent with the typed-contracts standard
+and `docs/tool-authoring-guide.md` §10.
 
 **Naming override: `[AffiantToolName("name")]`.** Decorate a tool method with
 `Affiant.AgentFramework.Attributes.AffiantToolNameAttribute` to give it an LLM-visible name
@@ -178,7 +199,10 @@ Because attribute arguments must be compile-time constants, the argument can be 
 `public const string` `ToolNames` member directly — the same discipline
 `[KernelFunction(ToolNames.X)]` already gives SK hosts (Area 2 gate ruling 2, "C-prime": the
 declaration site and every other reference to the tool's name share one symbol). A method with no
-`[AffiantToolName]` keeps today's behavior exactly — its tool name is the bare C# method name.
+`[AffiantToolName]` gets its tool name from `AIFunctionFactory.Create`'s default resolution — the
+bare C# method name, *except* for the conditional Async-suffix strip described above. Either way,
+`AffiantToolDescriptor.FunctionName` mirrors whatever name `AIFunctionFactory.Create` actually
+produced.
 `FromType<T>()` throws `InvalidOperationException` at catalog-build time (not silently) if an
 override is null/blank, or if two methods resolve to the same effective name (whether from a
 collision between two overrides, or an override colliding with another method's default name).
