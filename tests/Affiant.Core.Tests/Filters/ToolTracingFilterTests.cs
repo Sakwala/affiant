@@ -128,4 +128,69 @@ public sealed class ToolTracingFilterTests
         // ActivityStopped fires only when the activity is stopped (disposed via the finally block).
         Assert.Single(stopped, a => a.OperationName == "execute_tool");
     }
+
+    // ── P1d: returned (non-thrown) ToolError-shaped results (area-3 V6) ─────
+
+    private static string ToolErrorJson(string code, bool retryable) =>
+        $$"""{"$type":"error","toolName":"Probe","timestamp":"2026-01-01T00:00:00Z","code":"{{code}}","message":"redirected","retryable":{{retryable.ToString().ToLowerInvariant()}}}""";
+
+    [Fact]
+    public async Task ReturnedToolError_ToolStatusIsError_NotOk()
+    {
+        var stopped = new List<Activity>();
+        using var listener = CreateListener(stopped, "ReturnedErrorFn");
+
+        await Run("ReturnedErrorFn", ctx => { ctx.Result = ToolErrorJson("REDIRECT", false); return Task.CompletedTask; });
+
+        var span = stopped.Single(a => a.OperationName == "execute_tool");
+        Assert.Equal("error", span.GetTagItem("tool_status"));
+    }
+
+    [Fact]
+    public async Task ReturnedToolError_EmitsAffiantToolErrorEvent_SameShapeAsThrownErrors()
+    {
+        var stopped = new List<Activity>();
+        using var listener = CreateListener(stopped, "ReturnedErrorFn2");
+
+        await Run("ReturnedErrorFn2", ctx => { ctx.Result = ToolErrorJson("REDIRECT", true); return Task.CompletedTask; });
+
+        var span = stopped.Single(a => a.OperationName == "execute_tool");
+        var evt = Assert.Single(span.Events, e => e.Name == "affiant.tool_error");
+        var tags = evt.Tags.ToDictionary(t => t.Key, t => t.Value);
+        Assert.Equal("REDIRECT", tags["tool_error.code"]);
+        Assert.Equal(true, tags["tool_error.retryable"]);
+        Assert.Equal(ToolTracingFilter.ReturnedToolErrorExceptionType, tags["exception.type"]);
+    }
+
+    [Fact]
+    public async Task NonToolErrorJson_StillTaggedOk_NoSpuriousEvent()
+    {
+        var stopped = new List<Activity>();
+        using var listener = CreateListener(stopped, "PlainJsonFn");
+
+        // A ReadResult-shaped envelope (valid $type, not "error") must not be misdetected.
+        await Run("PlainJsonFn", ctx =>
+        {
+            ctx.Result = """{"$type":"read","toolName":"Probe","timestamp":"2026-01-01T00:00:00Z","summary":"s","markdown":"m","entities":[]}""";
+            return Task.CompletedTask;
+        });
+
+        var span = stopped.Single(a => a.OperationName == "execute_tool");
+        Assert.Equal("ok", span.GetTagItem("tool_status"));
+        Assert.DoesNotContain(span.Events, e => e.Name == "affiant.tool_error");
+    }
+
+    [Fact]
+    public async Task PlainTextResult_StillTaggedOk_NotMisparsedAsToolError()
+    {
+        var stopped = new List<Activity>();
+        using var listener = CreateListener(stopped, "PlainTextFn");
+
+        // Most tool results are plain markdown/summary strings, not JSON at all.
+        await Run("PlainTextFn", ctx => { ctx.Result = "Here is your answer."; return Task.CompletedTask; });
+
+        var span = stopped.Single(a => a.OperationName == "execute_tool");
+        Assert.Equal("ok", span.GetTagItem("tool_status"));
+        Assert.DoesNotContain(span.Events, e => e.Name == "affiant.tool_error");
+    }
 }
