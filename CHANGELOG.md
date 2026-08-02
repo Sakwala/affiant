@@ -12,6 +12,46 @@ any *published* release (`docs/proposals/affiant-maf-adapter.md` §9).
 
 ## [Unreleased]
 
+### Added — Area-2 P2: tool-name and fabric-key parity checks; MAF tool-name override (affiant#16)
+
+Implements the P2 wave of the Area-2 typed-contracts review
+(`chancery docs/architecture-review/area-2-typed-contracts.md`) — two framework work items, both
+additive, no breaking changes.
+
+- **`ComplianceHarness.AssertToolNameRegistryParity` and `AssertFabricKeyParity`** — new public
+  APIs on `Affiant.Testing.ComplianceHarness.ComplianceHarness`, generalizing the
+  `AssertFieldSetParity` pattern (Area-1, P7) to two more boundaries the review's inventory flagged:
+  LLM tool names (Area-2 gate ruling 2, "C-prime") and context-fabric keys. Both mirror
+  `AssertFieldSetParity`'s shape — an explicit exemption-list parameter, precise failure messages
+  naming the offending member, and a result record the caller asserts on
+  (`ToolNameParityResult`/`FabricKeyParityResult`, plus a shared `ParityViolation(Member, Reason)`).
+  Neither runs inside `ComplianceHarness.Verify` — both are opt-in, called directly. Because this
+  package depends only on `Affiant.Abstractions`/`Affiant.Core` (deliberately — see the framework
+  spec's rationale for why one compliance suite runs against both interception backends), neither
+  method reflects over `[KernelFunction]` or an `AffiantToolCatalog` itself; the caller performs
+  that one adapter-specific step and passes the resulting name list in (XML docs on each method
+  spell out the SK and MAF acquisition one-liners). `AssertToolNameRegistryParity` is capable of
+  replacing a host's bespoke `ToolNamesExhaustivenessTests` reflection test without losing any
+  assertion (verified against the Area-2 P1 host-apps pattern). `AssertFabricKeyParity`'s live-key
+  set is an honest caller-supplied enumeration, not runtime introspection — fabric keys have no
+  central registry to reflect over the way tool names do (see the method's XML docs for the
+  tradeoff). Covered by unit tests including mutation-style negative cases (a rogue exposed name,
+  an orphaned constant, and — tool-name check only — two tools colliding on one name — each fail
+  with a message naming the offending member).
+- **`[AffiantToolName]` (Affiant.AgentFramework, affiant#16)** — new
+  `Affiant.AgentFramework.Attributes.AffiantToolNameAttribute`, honored by
+  `AffiantToolCatalog.FromType<T>()`. Lets a MAF tool method's LLM-visible name differ from its C#
+  method name — the MAF counterpart to Semantic Kernel's `[KernelFunction("name")]` override —
+  closing the gap that forced the Area-2 P1 Meridian branch to rename C# methods themselves to
+  snake_case just to get a `ToolNames`-constant-backed name. The override flows into both the
+  produced `AIFunction.Name` and the `AffiantToolDescriptor.FunctionName`. A method with no
+  `[AffiantToolName]` is unaffected — same two-argument `AIFunctionFactory.Create` call as before,
+  byte-identical behavior. Two methods resolving to the same effective name (an override colliding
+  with another method's name, or two overrides sharing a value) throws
+  `InvalidOperationException` naming the collision at catalog-build time, not silently. Documented
+  in `docs/adapters/microsoft-agent-framework.md` §4 and the new `docs/tool-authoring-guide.md`
+  §10 (SK vs MAF naming, side by side).
+
 ### Added — Area-1 field-provenance redesign: extraction fields, async resolvers, chain-merge fix, harness parity check
 
 Implements the gate-approved Area-1 redesign
