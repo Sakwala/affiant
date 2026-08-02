@@ -156,8 +156,32 @@ name when no explicit `[KernelFunction]` name is given; `AIFunctionFactory.Creat
 method named `CreateWidgetAsync` becomes tool `CreateWidgetAsync` on MAF but tool `CreateWidget`
 on an equivalent SK plugin. This is a permanent, structural naming asymmetry between the two
 backends — if you want identical tool names across an SK and a MAF host from the same domain
-type, avoid trailing `Async` in method names, or pass an explicit name at the `AIFunctionFactory`
-call site (`FromType<T>` does not currently accept a per-method name override).
+type, avoid trailing `Async` in method names, or use the name override below.
+
+**Naming override: `[AffiantToolName("name")]`.** Decorate a tool method with
+`Affiant.AgentFramework.Attributes.AffiantToolNameAttribute` to give it an LLM-visible name
+different from its C# method name — the MAF counterpart to SK's `[KernelFunction("name")]`
+override (closes
+[affiant#16](https://github.com/Sakwala/affiant/issues/16)). Feeds both the produced
+`AIFunction.Name` and the `AffiantToolDescriptor.FunctionName`, so every downstream reader
+(the tool registry, telemetry, extractor matching) sees the same overridden name:
+
+```csharp
+public sealed class ThingPlugin
+{
+    [AffiantToolName(ToolNames.SearchThing)]   // e.g. "search_thing"
+    public string SearchThing(string query) { /* ... */ }
+}
+```
+
+Because attribute arguments must be compile-time constants, the argument can be a
+`public const string` `ToolNames` member directly — the same discipline
+`[KernelFunction(ToolNames.X)]` already gives SK hosts (Area 2 gate ruling 2, "C-prime": the
+declaration site and every other reference to the tool's name share one symbol). A method with no
+`[AffiantToolName]` keeps today's behavior exactly — its tool name is the bare C# method name.
+`FromType<T>()` throws `InvalidOperationException` at catalog-build time (not silently) if an
+override is null/blank, or if two methods resolve to the same effective name (whether from a
+collision between two overrides, or an override colliding with another method's default name).
 
 **Each `AIFunction` resolves its invocation target from `AIFunctionArguments.Services` per call**,
 not from an instance the catalog holds. This is why `FromType<T>()` takes no instance and no
