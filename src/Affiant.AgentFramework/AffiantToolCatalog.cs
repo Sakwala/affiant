@@ -3,6 +3,7 @@ namespace Affiant.AgentFramework;
 using System.Reflection;
 using Affiant.Abstractions.Attributes;
 using Affiant.Abstractions.Models;
+using Affiant.AgentFramework.Attributes;
 using Microsoft.Extensions.AI;
 
 /// <summary>
@@ -16,6 +17,10 @@ using Microsoft.Extensions.AI;
 /// so <typeparamref name="T"/> is not constructed here — the host registers <typeparamref name="T"/>
 /// in its own DI container and MAF supplies the per-invocation service provider via
 /// <c>ChatClientAgent(..., services:)</c>.
+///
+/// A method's LLM-visible name defaults to its C# method name, and can be overridden with
+/// <see cref="Affiant.AgentFramework.Attributes.AffiantToolNameAttribute"/> — the MAF counterpart
+/// to Semantic Kernel's <c>[KernelFunction("name")]</c> override (see that attribute's docs).
 /// </summary>
 public sealed record AffiantToolCatalog(
     IReadOnlyList<AIFunction> Functions,
@@ -28,6 +33,7 @@ public sealed record AffiantToolCatalog(
         var functions = new List<AIFunction>();
         var descriptors = new List<AffiantToolDescriptor>();
         var seenNames = new HashSet<string>(StringComparer.Ordinal);
+        var seenLlmNames = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var method in typeof(T).GetMethods(BindingFlags.Public | BindingFlags.Instance))
         {
@@ -42,13 +48,39 @@ public sealed record AffiantToolCatalog(
                     "name), so overloads collapse to duplicate descriptors that later fail at registry time. " +
                     $"Rename one overload so each tool method on {typeof(T).Name} has a unique name.");
 
-            functions.Add(AIFunctionFactory.Create(method, ResolveTarget<T>));
+            // No-override path stays byte-identical to pre-affiant#16 behavior: same two-arg
+            // AIFunctionFactory.Create overload, no AIFunctionFactoryOptions constructed at all.
+            var nameOverride = method.GetCustomAttribute<AffiantToolNameAttribute>();
+            AIFunction function;
+            if (nameOverride is null)
+            {
+                function = AIFunctionFactory.Create(method, ResolveTarget<T>);
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(nameOverride.Name))
+                    throw new InvalidOperationException(
+                        $"AffiantToolCatalog.FromType<{typeof(T).Name}>(): method '{method.Name}' carries " +
+                        "[AffiantToolName] with a null/blank Name. Supply a non-empty override or remove the attribute.");
+
+                function = AIFunctionFactory.Create(
+                    method, ResolveTarget<T>, new AIFunctionFactoryOptions { Name = nameOverride.Name });
+            }
+
+            if (!seenLlmNames.Add(function.Name))
+                throw new InvalidOperationException(
+                    $"AffiantToolCatalog.FromType<{typeof(T).Name}>(): LLM-visible tool name '{function.Name}' " +
+                    $"is produced by more than one method on {typeof(T).Name} (method '{method.Name}' collides " +
+                    "with an earlier one — either an [AffiantToolName] override matches another method's " +
+                    "effective name, or two overrides share the same value). Give each tool a unique name.");
+
+            functions.Add(function);
 
             var write = method.GetCustomAttribute<AffiantWriteToolAttribute>();
             descriptors.Add(write is null
-                ? new AffiantToolDescriptor(method.Name, pluginName, Operation.ReadQuery, null, null)
+                ? new AffiantToolDescriptor(function.Name, pluginName, Operation.ReadQuery, null, null)
                 : new AffiantToolDescriptor(
-                    method.Name, pluginName,
+                    function.Name, pluginName,
                     new Operation(write.Operation),
                     write.EntityType,
                     write.InferenceStrategy));
