@@ -12,6 +12,59 @@ any *published* release (`docs/proposals/affiant-maf-adapter.md` §9).
 
 ## [Unreleased]
 
+### Fixed — ReviewGateFilter no longer silently loses a WriteProposal (affiant#22, area-3 P1a/P1d)
+
+- **Filing failure now surfaces to the model, the client, and the operator.** Previously,
+  `ReviewGateFilter` caught every non-cancellation exception from `ReviewGate.FileReviewAsync` and
+  only wrote a `LogError` — if the docket store threw before persisting, the proposal was gone with
+  no docket entry, no retry, and no signal anywhere, even though the model had already told the user
+  the action was filed for review. `ReviewGateFilter` now:
+  - Rewrites the tool result to a typed `ToolError` (new code `ToolErrorFilter.ReviewFilingFailedCode`
+    = `REVIEW_FILING_FAILED`) whose message states the proposal was **not** filed and **not** queued
+    for review.
+  - Best-effort broadcasts a `SystemNotification` on the same session-group transport channel used
+    for Evidence Cards (both hosts render `SystemNotification` since Area-2 P1) — guarded so a
+    broadcast failure here can never mask the `ToolError` already sealed onto the result.
+  - Emits an `affiant.review.filing_failed` OTel event (tagged `tool_error.code` +
+    `exception.type`) on the nearest ambient `Affiant.Framework` activity.
+  - `OperationCanceledException` still propagates unchanged — cancellation is not a filing failure.
+  - **Verified on both adapters:** MAF runs every neutral filter in one onion, so the rewritten
+    result is what `AffiantFunctionInvocationMiddleware` returns directly. SK runs
+    `ReviewGateFilter` in a separate completion-stage `pipeline.RunAsync` call with `ToolErrorFilter`
+    structurally absent from that seam (V4) — but because `ReviewGateFilter` now catches its own
+    filing failure and returns normally, nothing needs to escape that call for the rewrite to reach
+    `AutoFunctionInvocationContext.Result`, confirmed by a direct-construction test against the real
+    `AffiantAutoFunctionInvocationBridge`.
+- **Evidence Card broadcast failure after a successful filing no longer orphans the entry silently.**
+  `ReviewGate` now retries the Evidence Card broadcast once; if both attempts fail, the DocketEntry
+  (already durably `Pending`) is left as-is, an `affiant.review.broadcast_failed` OTel event fires,
+  and a best-effort `SystemNotification` goes out. Filing still reports success — the proposal
+  genuinely is filed and discoverable via `ListPendingBySessionAsync`, and reporting failure would
+  invite a caller to re-file, creating a duplicate docket entry.
+  - **Documented residual risk:** `DocketEntry` has no field marking whether the broadcast ever
+    succeeded — adding one would require an `IDocketStore` schema migration (a new column shared by
+    `SqliteDocketStore`/`PostgresDocketStore`'s EF entity), which is out of scope for this change.
+    The only durable signal today is the log line and the OTel event; the entry itself is
+    indistinguishable in the store from one whose broadcast succeeded on the first try. Area 5 (store
+    reconciliation) owns closing this gap. See `DocketEntry`'s class remarks and
+    `ReviewGate.BroadcastEvidenceCardWithRetryAsync`'s remarks.
+- **Telemetry honesty for RETURNED `ToolError`s (area-3 V6/P1d).** `ToolTracingFilter` previously
+  tagged every non-null tool result `tool_status="ok"`, even when the result was itself a `ToolError`
+  envelope (e.g. a host's redirect protocol, or `ReviewGateFilter`'s own filing-failure rewrite on
+  MAF's onion) — invisible to Jaeger. It now detects the `ToolEnvelope` `$type:"error"` discriminator
+  on the post-invocation result and, when found, tags `tool_status="error"` and emits the same
+  `affiant.tool_error` event shape `ToolErrorFilter` emits for thrown errors (`tool_error.code`,
+  `tool_error.retryable`, `exception.type`) — one operator-visible vocabulary for both thrown and
+  returned tool failures. Distinguished from a thrown error via the new sentinel
+  `ToolTracingFilter.ReturnedToolErrorExceptionType` ("ReturnedToolError") in the `exception.type` tag,
+  since no CLR exception exists to name for a returned envelope.
+- `AffiantTelemetry.FindAffiantActivity()` extracted from `ToolErrorFilter` (was a private method) so
+  all three emitters (`ToolErrorFilter`, `ReviewGateFilter`, `ReviewGate`) share the same "walk up to
+  the nearest `Affiant.Framework` span" logic instead of duplicating it.
+  - Mutation-locked: `ReviewGateFilterTests`, `AffiantFunctionInvocationMiddlewareTests` (MAF), and
+    `AffiantAutoFunctionInvocationBridgeReviewGateTests` (SK, new) all fail when `ReviewGateFilter`'s
+    catch block is reverted to log-only.
+
 ### Fixed — ApprovalPolicyEvaluator captive dependency (affiant#19)
 
 - **`ApprovalPolicyEvaluator` / `IApprovalPolicyEvaluator` are now registered `Scoped`** by
