@@ -1,8 +1,8 @@
 ---
 title: Tool Authoring Guide — Affiant Framework
-version: 1.1-alpha
+version: 1.2-alpha
 date: 2026-05-02
-status: v1.1 — incorporates Story 13.2 unfamiliar-developer feedback
+status: v1.2 — adds §10 (naming LLM-visible tools, SK vs MAF; Area 2 P2, 2026-08-02); v1.1 incorporated Story 13.2 unfamiliar-developer feedback
 scope: Framework developers writing plugins for Affiant
 audience: Developers unfamiliar with Affiant; estimated 30-minute read for understanding all six patterns
 related:
@@ -35,6 +35,7 @@ note: >
 7. [Testing](#7-testing)
 8. [Appendix: Quick Reference](#8-appendix-quick-reference)
 9. [Common Mistakes and Debugging](#9-common-mistakes-and-debugging)
+10. [Naming LLM-Visible Tools: SK vs MAF](#10-naming-llm-visible-tools-sk-vs-maf)
 
 ---
 
@@ -1102,6 +1103,64 @@ return new ToolError(toolName, DateTimeOffset.UtcNow,
 
 ---
 
+## 10. Naming LLM-Visible Tools: SK vs MAF
+
+**Every tool your plugin exposes has two names that can drift apart: the C# method name, and the
+name the LLM actually sees.** By default they're the same. Both backends let you override the
+LLM-visible name independently of the method name — and the Area 2 architecture review (gate
+ruling 2, "C-prime") standardizes *how*: the override should come from a `public const string`
+member of a per-host `ToolNames` class, never a bare string literal, so the declaration site and
+every other reference to that tool's name (prompts, telemetry, provenance tags, extractor
+matching) share one compiler-checked symbol. Renaming the constant then updates every call site at
+compile time; changing its value is a deliberate one-line diff.
+
+**Semantic Kernel:**
+
+```csharp
+public class RequestLeavePlugin
+{
+    [KernelFunction(ToolNames.RequestLeave)]   // e.g. "request_leave"
+    [Description("Propose a leave request...")]
+    public async Task<string> RequestLeaveAsync(/* ... */) { /* ... */ }
+}
+```
+
+`[KernelFunction]`'s constructor already accepts a `string`, so this needs no framework-side
+mechanism — just the discipline of feeding it a constant instead of a literal.
+
+**Microsoft Agent Framework:** `AffiantToolCatalog.FromType<T>()` has no `[KernelFunction]`-style
+marker at all (it reflects every public method — see the adapter guide,
+`docs/adapters/microsoft-agent-framework.md` §4), so before
+[affiant#16](https://github.com/Sakwala/affiant/issues/16) there was no way to give a tool an
+LLM-visible name different from its C# method name — hosts had to rename the *method itself* to
+the desired LLM-visible spelling, which works but fights normal C# naming conventions.
+`Affiant.AgentFramework.Attributes.AffiantToolNameAttribute` closes the gap:
+
+```csharp
+public sealed class ThingPlugin
+{
+    [AffiantToolName(ToolNames.SearchThing)]   // e.g. "search_thing"
+    public string SearchThing(string query) { /* ... */ }
+}
+```
+
+A method with no `[AffiantToolName]` keeps its bare C# method name as the LLM-visible name, exactly
+as before this attribute existed. Applying it with a null/blank name, or in a way that makes two
+methods resolve to the same effective name, throws `InvalidOperationException` at catalog-build
+time — loud, not silent.
+
+**Verifying the discipline held.** Hand-rolling a reflection test per host (enumerate every
+`[KernelFunction]`/tool method, assert its effective name is a `ToolNames` member, assert every
+`ToolNames` member maps to exactly one tool) works but is easy to under-maintain. Prefer
+`Affiant.Testing.ComplianceHarness.ComplianceHarness.AssertToolNameRegistryParity(toolNamesType,
+exposedToolNames)` (see that package's README) — it asserts the same bijection from one shared,
+tested implementation, given the one adapter-specific reflection step (SK: `[KernelFunction].Name`;
+MAF: `AffiantToolCatalog.Descriptors[].FunctionName`) that only your host code can perform.
+
+---
+
 *Prose: ~11 pages (~2,800 words). Code: ~700 lines (~12 pages at 60 lines/page). Total with code: ~23 pages, within the 30-page limit. Prose alone is digestible in 30 minutes.*
 
 *v1.1 additions (Story 13.2 feedback): host folder convention note (§4), extractor testability pattern (§4), marker interface clarification (§5.1), extending an existing IWriteExecutor walkthrough (§5.3), EF migration guidance (§5.3), ContextExtractor isolation test example (§7).*
+
+*v1.2 addition (Area 2 P2, 2026-08-02): naming LLM-visible tools, SK vs MAF, and the ToolNames/FabricKeys parity-check pattern (§10).*
