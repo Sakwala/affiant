@@ -39,6 +39,19 @@ If `result.Passed` is `false`, either:
 | `ITaskInferenceComplianceFixture` | Implement per strategy; provides `Cases` (input/expected pairs) |
 | `InferenceFixtureCase` | A single fixture case: `Name`, a `ChatHistory` input, `Arguments`, and an `Assertion` predicate over the produced `Affidavit` |
 
+### Opt-in parity checks
+
+These do not run inside `Verify()` — call them directly, typically in one line of your own test.
+All three generalize the same idea: a declared-names side (reflected from a constants class or a
+strategy) vs. a live/consumed-names side (supplied by the caller), reported as precise,
+member-naming violations.
+
+| Method | Boundary | Declared side | Live side (caller-supplied) |
+|--------|----------|----------------|------------------------------|
+| `AssertFieldSetParity(strategy, writeConsumedFieldNames)` | Evidence Card fields ↔ the write path | `ITaskInferenceStrategy.Fields` | Domain write method's parameter names |
+| `AssertToolNameRegistryParity(toolNamesType, exposedToolNames, exemptConstants?)` | LLM tool names ↔ a `ToolNames`-style class | Constants on `toolNamesType` | `[KernelFunction].Name` (SK) or `AffiantToolCatalog.Descriptors[].FunctionName` (MAF) |
+| `AssertFabricKeyParity(fabricKeysType, liveKeys, exemptConstants?)` | Fabric keys ↔ a `FabricKeys`-style class | Constants on `fabricKeysType` | Every key your extractors/resolvers/plugins actually read or write (hand-enumerated — see the method's XML docs for why) |
+
 ## Further Reading
 
 - [Affiant Framework Specification](https://github.com/affiant-dev/affiant/blob/main/packages/docs/affiant-framework-specification.md) — full framework guide including the seven normative rules and tool authoring patterns
