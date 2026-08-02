@@ -12,6 +12,31 @@ any *published* release (`docs/proposals/affiant-maf-adapter.md` §9).
 
 ## [Unreleased]
 
+### Fixed — ApprovalPolicyEvaluator captive dependency (affiant#19)
+
+- **`ApprovalPolicyEvaluator` / `IApprovalPolicyEvaluator` are now registered `Scoped`** by
+  `AddAffiantCore()` (was `Singleton`). The evaluator constructor-injects
+  `IEnumerable<IApprovalPolicy>`, and `Affiant.Policies`' `AddStandingOrder<TPolicy>()` /
+  `AddReferralRule<TRule>()` register policies `Scoped` by default — so a Singleton evaluator was a
+  captive dependency the moment any policy had a scoped dependency (a host `DbContext` being the
+  common case). Two symptoms, same root cause: hosts with `ValidateScopes`/`ValidateOnBuild` on (the
+  ASP.NET Core Development default) crashed at boot with "Cannot consume scoped service ... from
+  singleton 'ApprovalPolicyEvaluator'"; hosts without validation booted fine but the singleton
+  evaluator materialized the scoped policy list once from the root scope, turning a per-request
+  dependency like an EF `DbContext` into an undisposed, process-lifetime instance shared — unsafely,
+  since `DbContext` is not thread-safe — across every concurrent write evaluation.
+  - **Host impact:** none expected for hosts that resolve the evaluator (directly, or transitively
+    through `ReviewGate`) from a request/turn scope, which is the pattern this framework's docs and
+    tests already assume. Hosts that resolve `IApprovalPolicyEvaluator` from the *root* `IServiceProvider`
+    (bypassing DI-provided scopes) must switch to resolving it from a scope — resolving a Scoped
+    service from the root provider throws under `ValidateScopes` and is unsupported without it.
+  - Lock test: `ServiceCollectionExtensionsTests.ApprovalPolicyEvaluator_WithScopedPolicyDependency_ResolvesUnderRealHostValidation`
+    builds a provider with `ValidateScopes: true, ValidateOnBuild: true` — the exact settings a
+    Development host applies — plus a Scoped `IApprovalPolicy` stub with its own Scoped dependency,
+    and asserts construction succeeds, the evaluator resolves and evaluates inside a scope, and two
+    separate scopes get distinct policy-dependency instances (guarding the concurrency hazard, not
+    just the validation error).
+
 ### Added — Area-2 P2: tool-name and fabric-key parity checks; MAF tool-name override (affiant#16)
 
 Implements the P2 wave of the Area-2 typed-contracts review
