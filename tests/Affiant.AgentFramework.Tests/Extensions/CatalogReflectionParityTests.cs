@@ -3,6 +3,7 @@ namespace Affiant.AgentFramework.Tests.Extensions;
 using Affiant.Abstractions.Attributes;
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
+using Affiant.AgentFramework.Attributes;
 using Affiant.Core.Extensions;
 using Affiant.SemanticKernel.Extensions;
 using Microsoft.Extensions.DependencyInjection;
@@ -45,6 +46,28 @@ public class CatalogReflectionParityTests
         }
     }
 
+    /// <summary>
+    /// affiant#16: MAF's <see cref="AffiantToolNameAttribute"/> is the counterpart to SK's
+    /// <c>[KernelFunction("name")]</c> explicit-name override — an equivalent tool type on each
+    /// backend, one overridden by each mechanism, must expose the same LLM-visible name.
+    /// </summary>
+    [Fact]
+    public void FromType_AffiantToolNameOverride_MatchesSkKernelFunctionNameOverride()
+    {
+        var mafDescriptors = AffiantToolCatalog.FromType<OverriddenParityTools>().Descriptors;
+
+        var services = new ServiceCollection();
+        services.AddAffiantCore();
+        var builder = Kernel.CreateBuilder();
+        foreach (var sd in services) builder.Services.Add(sd);
+        builder.AddAffiantPluginsFromType<SkOverriddenParityTools>();
+        var registry = builder.Services.BuildServiceProvider().GetRequiredService<IAffiantToolRegistry>();
+        var skDescriptors = registry.All;
+
+        Assert.Contains(mafDescriptors, d => d.FunctionName == "search_widget");
+        Assert.Contains(skDescriptors, d => d.FunctionName == "search_widget");
+    }
+
     // ── Fixtures ─────────────────────────────────────────────────────────────
 
     private sealed class ParityTools
@@ -55,6 +78,18 @@ public class CatalogReflectionParityTests
         [KernelFunction]
         [AffiantWriteTool("WriteCreate", "Widget", typeof(FakeStrategy))]
         public string CreateWidget(string name) => "created:" + name;
+    }
+
+    private sealed class OverriddenParityTools
+    {
+        [AffiantToolName("search_widget")]
+        public string SearchWidget(string name) => "found:" + name;
+    }
+
+    private sealed class SkOverriddenParityTools
+    {
+        [KernelFunction("search_widget")]
+        public string SearchWidget(string name) => "found:" + name;
     }
 
     private sealed class FakeStrategy : ITaskInferenceStrategy
