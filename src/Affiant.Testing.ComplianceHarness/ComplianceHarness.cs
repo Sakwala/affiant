@@ -1,5 +1,6 @@
 namespace Affiant.Testing.ComplianceHarness;
 
+using System.Reflection;
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
 using Affiant.Core.Filters;
@@ -212,6 +213,184 @@ public static class ComplianceHarness
 
         return new FieldSetParityResult(errors.Count == 0, errors, warnings);
     }
+
+    /// <summary>
+    /// Generalizes <see cref="AssertFieldSetParity"/> to the LLM tool-name boundary (Area 2 gate
+    /// ruling 2, "C-prime": every LLM-exposed tool name is a deliberate <c>ToolNames</c>-style
+    /// constant). Asserts a bijection between <paramref name="toolNamesType"/>'s declared
+    /// constants and the tool names a host actually exposes to the LLM.
+    ///
+    /// <para><b>Why this takes an already-resolved name list instead of reflecting for you:</b>
+    /// this package depends only on <c>Affiant.Abstractions</c>/<c>Affiant.Core</c> (see the
+    /// framework spec's rationale — it is what lets one compliance suite run against both
+    /// interception backends), so it cannot itself walk <c>[KernelFunction]</c>-attributed methods
+    /// (that requires referencing <c>Microsoft.SemanticKernel</c>) or an
+    /// <c>AffiantToolCatalog</c> (that requires referencing the sibling adapter package
+    /// <c>Affiant.AgentFramework</c> — adapters may not reference each other either). The caller
+    /// performs the one adapter-specific reflection step and passes the resulting names here:</para>
+    /// <list type="bullet">
+    /// <item><b>SK:</b> <c>type.GetMethods(...).Select(m =&gt; m.GetCustomAttribute&lt;KernelFunctionAttribute&gt;()?.Name)</c>
+    /// — the attribute's explicit <c>Name</c>. SK's own default-naming fallback (bare method name,
+    /// optionally minus a trailing "Async") is deliberately NOT replicated here: a tool exposed
+    /// under that fallback is exactly the drift this check exists to catch, so pass the raw
+    /// effective name through rather than pre-normalizing it away.</item>
+    /// <item><b>MAF:</b> <c>AffiantToolCatalog.FromType&lt;T&gt;().Descriptors.Select(d =&gt; d.FunctionName)</c>
+    /// — already the post-<c>[AffiantToolName]</c>-override effective name.</item>
+    /// </list>
+    ///
+    /// This is capable of replacing a host's bespoke reflection exhaustiveness test (e.g. the
+    /// Area 2 P1 <c>ToolNamesExhaustivenessTests</c> pattern) without losing any assertion: that
+    /// pattern's "every exposed tool's effective name is a ToolNames member" and "every ToolNames
+    /// member maps to exactly one exposed tool" are exactly <see cref="ToolNameParityResult.UndeclaredTools"/>
+    /// and <see cref="ToolNameParityResult.OrphanConstants"/>/<see cref="ToolNameParityResult.AmbiguousConstants"/>
+    /// below. A host-specific concern that pattern also checks — e.g. "every exposed name is
+    /// snake_case" — is a content assertion orthogonal to parity and stays a host-side test.
+    /// </summary>
+    /// <param name="toolNamesType">
+    /// A type whose <c>public const string</c> fields are the declared tool-name registry (a
+    /// <c>ToolNames</c>-style class).
+    /// </param>
+    /// <param name="exposedToolNames">
+    /// The LLM-visible name of every tool the host currently registers, resolved via the
+    /// adapter-specific reflection described in the remarks above. Duplicate entries are
+    /// meaningful (they can produce an <see cref="ToolNameParityResult.AmbiguousConstants"/>
+    /// finding) — do not de-duplicate before calling.
+    /// </param>
+    /// <param name="exemptConstants">
+    /// <paramref name="toolNamesType"/> member names deliberately excluded from the
+    /// "must map to exactly one exposed tool" direction only (e.g. a name reserved for a tool
+    /// behind an unshipped feature flag). An exempted constant is still required to NOT collide
+    /// with another tool's name if it happens to be exposed — exemption only silences the
+    /// zero-matches (orphan) case. Defaults to empty.
+    /// </param>
+    public static ToolNameParityResult AssertToolNameRegistryParity(
+        Type toolNamesType,
+        IReadOnlyCollection<string> exposedToolNames,
+        IReadOnlyCollection<string>? exemptConstants = null)
+    {
+        ArgumentNullException.ThrowIfNull(toolNamesType);
+        ArgumentNullException.ThrowIfNull(exposedToolNames);
+
+        var exempt = new HashSet<string>(exemptConstants ?? [], StringComparer.Ordinal);
+        var declared = GetConstStringMembers(toolNamesType);
+        var declaredValues = new HashSet<string>(declared.Values, StringComparer.Ordinal);
+
+        var undeclaredTools = exposedToolNames
+            .Distinct(StringComparer.Ordinal)
+            .Where(name => !declaredValues.Contains(name))
+            .Select(name => new ParityViolation(
+                name,
+                $"tool \"{name}\" is exposed to the LLM but is not the value of any " +
+                $"{toolNamesType.Name} constant — add a constant and feed it into the tool's " +
+                "declaration site (or fix a raw-literal/default-named tool)."))
+            .ToList();
+
+        var orphanConstants = new List<ParityViolation>();
+        var ambiguousConstants = new List<ParityViolation>();
+
+        foreach (var (memberName, value) in declared)
+        {
+            var matches = exposedToolNames.Count(name => name == value);
+
+            if (matches == 0)
+            {
+                if (exempt.Contains(memberName)) continue;
+
+                orphanConstants.Add(new ParityViolation(
+                    memberName,
+                    $"{toolNamesType.Name}.{memberName} (\"{value}\") does not match any exposed " +
+                    "tool — orphaned constant left behind after a rename or removal."));
+            }
+            else if (matches > 1)
+            {
+                ambiguousConstants.Add(new ParityViolation(
+                    memberName,
+                    $"{toolNamesType.Name}.{memberName} (\"{value}\") matches {matches} exposed " +
+                    "tools — two tools cannot share one LLM-visible name."));
+            }
+        }
+
+        return new ToolNameParityResult(
+            undeclaredTools.Count == 0 && orphanConstants.Count == 0 && ambiguousConstants.Count == 0,
+            undeclaredTools, orphanConstants, ambiguousConstants);
+    }
+
+    /// <summary>
+    /// Generalizes <see cref="AssertFieldSetParity"/> to context-fabric keys (Area 2 paper P2).
+    /// Asserts a host's <paramref name="fabricKeysType"/> constants agree with the keys its
+    /// extractors/resolvers/plugins actually read from or write to <c>IContextFabric</c>: no
+    /// orphan constants, no undeclared (bare-literal) keys.
+    ///
+    /// <para><b>Why "live set" acquisition is an explicit parameter, not introspection:</b> unlike
+    /// tool names, which funnel through one adapter-specific enumeration point (a plugin type's
+    /// methods, or a tool catalog), fabric keys are read and written at arbitrary call sites
+    /// across a host's <c>IContextExtractor</c>/<c>IFieldResolver</c>/<c>IDeterministicFieldSource</c>
+    /// implementations and plugin bodies, into an untyped <c>IContextFabric</c> dictionary with no
+    /// central registry to reflect over. There is no honest way for this method to discover that
+    /// set at runtime. <paramref name="liveKeys"/> is therefore a caller-supplied enumeration —
+    /// the same tradeoff <see cref="AssertFieldSetParity"/> already makes for
+    /// <paramref name="liveKeys"/>'s sibling parameter there,
+    /// <c>writeConsumedFieldNames</c> — typically produced by grepping or by hand-walking the
+    /// host's extractor/resolver source for every fabric-key literal actually used. Consequence:
+    /// this check is only as good as that enumeration; a call site added later without updating
+    /// the list it feeds here is undetected.</para>
+    /// </summary>
+    /// <param name="fabricKeysType">
+    /// A type whose <c>public const string</c> fields are the declared fabric-key registry (a
+    /// <c>FabricKeys</c>-style class).
+    /// </param>
+    /// <param name="liveKeys">
+    /// Every fabric key the host's extractors/resolvers/plugins actually read or write —
+    /// caller-supplied (see remarks); duplicates are harmless (deduplicated internally).
+    /// </param>
+    /// <param name="exemptConstants">
+    /// <paramref name="fabricKeysType"/> member names deliberately excluded from the orphan check
+    /// (e.g. a key reserved for an extractor not yet wired up). Defaults to empty.
+    /// </param>
+    public static FabricKeyParityResult AssertFabricKeyParity(
+        Type fabricKeysType,
+        IReadOnlyCollection<string> liveKeys,
+        IReadOnlyCollection<string>? exemptConstants = null)
+    {
+        ArgumentNullException.ThrowIfNull(fabricKeysType);
+        ArgumentNullException.ThrowIfNull(liveKeys);
+
+        var exempt = new HashSet<string>(exemptConstants ?? [], StringComparer.Ordinal);
+        var declared = GetConstStringMembers(fabricKeysType);
+        var declaredValues = new HashSet<string>(declared.Values, StringComparer.Ordinal);
+        var live = new HashSet<string>(liveKeys, StringComparer.Ordinal);
+
+        var orphanConstants = declared
+            .Where(kv => !exempt.Contains(kv.Key) && !live.Contains(kv.Value))
+            .Select(kv => new ParityViolation(
+                kv.Key,
+                $"{fabricKeysType.Name}.{kv.Key} (\"{kv.Value}\") is declared but does not match " +
+                "any supplied live key — orphaned constant, or the live-key enumeration is stale."))
+            .ToList();
+
+        var undeclaredKeys = live
+            .Where(key => !declaredValues.Contains(key))
+            .Select(key => new ParityViolation(
+                key,
+                $"fabric key \"{key}\" is read/written by the host but is not the value of any " +
+                $"{fabricKeysType.Name} constant — a bare literal escaped the registry."))
+            .ToList();
+
+        return new FabricKeyParityResult(
+            orphanConstants.Count == 0 && undeclaredKeys.Count == 0, orphanConstants, undeclaredKeys);
+    }
+
+    /// <summary>
+    /// Reflects a type's <c>public const string</c> fields into a member-name→value map — the
+    /// shared acquisition step for <see cref="AssertToolNameRegistryParity"/> and
+    /// <see cref="AssertFabricKeyParity"/>'s <c>ToolNames</c>/<c>FabricKeys</c>-style constants
+    /// classes. Pure reflection over the supplied type only — never over an adapter's own types —
+    /// so it introduces no adapter-package dependency.
+    /// </summary>
+    private static IReadOnlyDictionary<string, string> GetConstStringMembers(Type type) =>
+        type.GetFields(BindingFlags.Public | BindingFlags.Static)
+            .Where(f => f.IsLiteral && !f.IsInitOnly && f.FieldType == typeof(string))
+            .ToDictionary(f => f.Name, f => (string)f.GetRawConstantValue()!, StringComparer.Ordinal);
 
     private enum CaseOutcome
     {
