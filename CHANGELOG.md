@@ -12,6 +12,59 @@ any *published* release (`docs/proposals/affiant-maf-adapter.md` §9).
 
 ## [Unreleased]
 
+### Added — Area-4 P4: `AffiantHub` is now `Hub<IAffiantHubClient>` — compile-time-checked client method calls
+
+- **`AffiantHub` derives from `Hub<IAffiantHubClient>` instead of the untyped `Hub`.** A hub
+  subclass's own `Clients.Caller`/`Clients.Group(...)`/etc. calls are now checked against
+  `Affiant.Transport.SignalR.Hubs.IAffiantHubClient` at compile time — `Clients.Caller.ReceiveToken(chunk)`
+  instead of the raw, typo-able `Clients.Caller.SendAsync("ReceiveToken", chunk)` string literal both
+  reference hosts' hot-path token-streaming code used exclusively before this change (the strongest
+  single piece of evidence in the whole area-4 investigation that the bypass was a shape gap, not
+  host laziness — the framework's own hub base didn't route through its own enum either, until now).
+- **`IAffiantHubClient`'s method names are locked to `TransportEventExtensions.ToClientEventName()`'s
+  outputs** — one method per `TransportEvent` member, same names. `AffiantHubTypedClientTests`
+  asserts the two sets are exactly equal (not a subset or superset either direction) via reflection,
+  so the interface and the enum mapping can't silently drift apart.
+- **Scope: C#-side compile-time safety only** — no TypeScript is generated or constrained.
+  `IStreamingTransport` (used by `AffiantHub.Transport` and every framework service broadcasting
+  from outside a hub context — `ReviewGate`, `ReviewGateFilter`, `DocketExpiryService`,
+  `UiGuidanceBridge`) stays deliberately untyped: those callers have no `Clients` to type against,
+  and two events (`AgentMessage`, `ContextUpdate`) genuinely have no dedicated payload record
+  anywhere in the framework, so their typed-client parameter stays `object` rather than inventing a
+  shape the framework doesn't otherwise define.
+- **One structural conflict found and resolved, not worked around:** the SignalR integration test
+  fixture's `TestAffiantHub` used to announce a client's own `Context.ConnectionId` via a test-only
+  `"ConnectionRegistered"` push — not a real `TransportEvent` member, so it has no place on
+  `IAffiantHubClient` and a typed `Hub<T>`'s `Clients` proxy structurally cannot carry it. Resolved
+  by removing the workaround entirely: `Microsoft.AspNetCore.SignalR.Client.HubConnection.ConnectionId`
+  is populated client-side after `StartAsync()`, so the server-side announcement was never necessary.
+  No BLOCKED boundary remains for this item.
+- Mutation-verified: renaming an `IAffiantHubClient` method reproduces a failure in
+  `AffiantHubTypedClientTests`'s name-lock test; restored byte-identical.
+
+### Changed — Area-4 P1g: framework spec §2.10 and §3.1 rewritten to match shipped code; Rule 6 corrected
+
+- **Spec §2.10 "Event Vocabulary"** was written 2026-04-11, 19 days before the real `TransportEvent`
+  enum was first implemented (2026-04-30), and was never reconciled afterward — it documented a
+  10-member enum sharing only 2 names with the shipped one. Rewritten 2026-08-04 to list the real,
+  post-this-wave 7-member enum and its real wire-name mapping (`EvidenceCardRequest` → `"ConfirmAction"`,
+  `EvidenceCardResponse` → `"EvidenceCardResponse"` (document-reserved), `AgentMessage` →
+  `"ReceiveToken"`, `ContextUpdate` → `"ContextUpdated"`, `SystemNotification` → `"SystemNotification"`,
+  `DocketExpiring` → `"DocketExpiring"`, `DocketExpired` → `"DocketExpired"`, `UiGuidance` →
+  `"GuideUI"`), with a historical note on the deleted `UserMessage` member.
+- **Spec §3.1 "Transport"** documented only `IStreamingTransport`'s original three methods and was
+  never updated for the same-day additions of the blocking-await method and its decision-delivery
+  counterpart. Rewritten to the real, post-this-wave interface, with the blocking
+  `AwaitEvidenceCardResponseAsync`'s document-reserved status and deadlock history stated plainly
+  (host-apps#25, redesign tracked as `affiant#29`), and an explanation of what was deleted
+  (`TransportMessage`, `ReceiveAsync`) and why.
+- **Rule 6's spec text corrected** to describe the now-real mechanism (P1f(b)): `UiGuidanceBridge`
+  now carries the wire path itself instead of the rule describing a discovery contract with no
+  framework-owned delivery mechanism behind it.
+- `CLAUDE.md`'s Rule 6 summary was checked and left unchanged — it describes only the discovery
+  contract (`IRouteRegistry`, never DOM inspection), which was already accurate and remains so; it
+  never claimed a specific wire-delivery mechanism, so it had nothing to correct.
+
 ### Added — Area-4 P1f(b): Rule 6 becomes real — framework-owned UI guidance wire path (`TransportEvent.UiGuidance`, `UiGuidanceBridge`)
 
 - **Rule 6 ("the LLM discovers guidable elements through `IRouteRegistry`, never DOM inspection")

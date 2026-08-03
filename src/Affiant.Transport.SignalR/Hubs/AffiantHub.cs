@@ -28,7 +28,21 @@ using Microsoft.AspNetCore.SignalR;
 /// no longer need a second, redundant DI resolution of <see cref="IStreamingTransport"/> — the base
 /// class already has it.
 /// </remarks>
-public abstract class AffiantHub(IChatSessionStore chatSessionStore, IStreamingTransport transport) : Hub
+/// <remarks>
+/// P4 (area-4, ruled 2026-08-04): now <c>Hub&lt;IAffiantHubClient&gt;</c> instead of the untyped
+/// <c>Hub</c> — <c>Clients.Caller</c>/<c>Clients.Group(...)</c>/etc. inside any hub subclass are
+/// strongly typed against <see cref="IAffiantHubClient"/>, whose method names are locked to
+/// <see cref="TransportEventExtensions.ToClientEventName"/>'s outputs. A subclass streaming a token
+/// now calls <c>Clients.Caller.ReceiveToken(chunk)</c> — compiler-checked — instead of the raw,
+/// typo-able <c>Clients.Caller.SendAsync("ReceiveToken", chunk)</c> string literal both reference
+/// hosts' hot-path streaming code used exclusively before this change. This is a C#-side-only
+/// safety net (no TypeScript is generated or constrained) and applies only to calls a hub subclass
+/// makes directly through its own <c>Clients</c> property — <see cref="IStreamingTransport"/>
+/// (used by <see cref="Transport"/> and by every framework service broadcasting from outside a hub
+/// context) stays deliberately untyped; see <see cref="IAffiantHubClient"/>'s own remarks for why.
+/// </remarks>
+public abstract class AffiantHub(IChatSessionStore chatSessionStore, IStreamingTransport transport)
+    : Hub<IAffiantHubClient>
 {
     protected IChatSessionStore ChatSessionStore { get; } = chatSessionStore;
 
