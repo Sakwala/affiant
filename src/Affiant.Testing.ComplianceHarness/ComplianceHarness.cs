@@ -381,6 +381,77 @@ public static class ComplianceHarness
     }
 
     /// <summary>
+    /// Generalizes <see cref="AssertFabricKeyParity"/> to <c>ToolError.Code</c> values (area-3 P2
+    /// ruling 4 — the Area-2 harness treatment applied to the framework's <c>ToolError</c> codes,
+    /// which had no shared constants class, no registry, and no contract test:
+    /// <c>docs/architecture-review/area-3-tool-calling-reliability.md</c> V6). Asserts a host's
+    /// <paramref name="toolErrorCodesType"/> constants agree with the codes actually emitted
+    /// somewhere in the process (framework emission sites, plus any host emission sites the caller
+    /// chooses to enumerate): no orphan constants, no undeclared (bare-literal) codes.
+    ///
+    /// <para><b>Additive, host-facing API:</b> the framework declares its own registry
+    /// (<c>Affiant.Abstractions.Models.ToolErrorCodes</c>) and can self-check it (see that type's
+    /// remarks); a host declares its own <c>ToolErrorCodes</c>-style class covering its domain codes
+    /// and calls this method the same way it would call <see cref="AssertToolNameRegistryParity"/>
+    /// or <see cref="AssertFabricKeyParity"/> — nothing here requires a host to migrate to the
+    /// framework's registry, and nothing about declaring this method breaks a host that has not
+    /// adopted it yet (it is opt-in, exactly like its two siblings).</para>
+    ///
+    /// <para><b>Why "live set" acquisition is an explicit parameter, not introspection:</b> same
+    /// tradeoff as <see cref="AssertFabricKeyParity"/>'s <c>liveKeys</c> — <c>ToolError.Code</c>
+    /// values are produced at arbitrary call sites (exception-mapping switches, filters that
+    /// directly construct a <see cref="ToolError"/>, hand-written JSON string
+    /// literals bypassing the type entirely) with no central registry to reflect over. There is no
+    /// honest way for this method to discover that set at runtime; <paramref name="emittedCodes"/>
+    /// is a caller-supplied enumeration, typically produced by grepping the codebase for every
+    /// distinct <c>Code:</c>/<c>"code":</c> emission site.</para>
+    /// </summary>
+    /// <param name="toolErrorCodesType">
+    /// A type whose <c>public const string</c> fields are the declared <c>ToolError.Code</c>
+    /// registry (a <c>ToolErrorCodes</c>-style class).
+    /// </param>
+    /// <param name="emittedCodes">
+    /// Every distinct <c>ToolError.Code</c> value actually emitted — caller-supplied (see remarks);
+    /// duplicates are harmless (deduplicated internally).
+    /// </param>
+    /// <param name="exemptConstants">
+    /// <paramref name="toolErrorCodesType"/> member names deliberately excluded from the orphan
+    /// check (e.g. a code reserved for an emission site not yet wired up). Defaults to empty.
+    /// </param>
+    public static ToolErrorCodeParityResult AssertToolErrorCodeRegistryParity(
+        Type toolErrorCodesType,
+        IReadOnlyCollection<string> emittedCodes,
+        IReadOnlyCollection<string>? exemptConstants = null)
+    {
+        ArgumentNullException.ThrowIfNull(toolErrorCodesType);
+        ArgumentNullException.ThrowIfNull(emittedCodes);
+
+        var exempt = new HashSet<string>(exemptConstants ?? [], StringComparer.Ordinal);
+        var declared = GetConstStringMembers(toolErrorCodesType);
+        var declaredValues = new HashSet<string>(declared.Values, StringComparer.Ordinal);
+        var emitted = new HashSet<string>(emittedCodes, StringComparer.Ordinal);
+
+        var orphanConstants = declared
+            .Where(kv => !exempt.Contains(kv.Key) && !emitted.Contains(kv.Value))
+            .Select(kv => new ParityViolation(
+                kv.Key,
+                $"{toolErrorCodesType.Name}.{kv.Key} (\"{kv.Value}\") is declared but does not match " +
+                "any supplied emitted code — orphaned constant, or the emitted-code enumeration is stale."))
+            .ToList();
+
+        var undeclaredCodes = emitted
+            .Where(code => !declaredValues.Contains(code))
+            .Select(code => new ParityViolation(
+                code,
+                $"ToolError code \"{code}\" is emitted but is not the value of any " +
+                $"{toolErrorCodesType.Name} constant — a bare literal escaped the registry."))
+            .ToList();
+
+        return new ToolErrorCodeParityResult(
+            orphanConstants.Count == 0 && undeclaredCodes.Count == 0, orphanConstants, undeclaredCodes);
+    }
+
+    /// <summary>
     /// Reflects a type's <c>public const string</c> fields into a member-name→value map — the
     /// shared acquisition step for <see cref="AssertToolNameRegistryParity"/> and
     /// <see cref="AssertFabricKeyParity"/>'s <c>ToolNames</c>/<c>FabricKeys</c>-style constants

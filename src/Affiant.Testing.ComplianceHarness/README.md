@@ -51,6 +51,7 @@ member-naming violations.
 | `AssertFieldSetParity(strategy, writeConsumedFieldNames)` | Evidence Card fields ↔ the write path | `ITaskInferenceStrategy.Fields` | Domain write method's parameter names |
 | `AssertToolNameRegistryParity(toolNamesType, exposedToolNames, exemptConstants?)` | LLM tool names ↔ a `ToolNames`-style class | Constants on `toolNamesType` | `[KernelFunction].Name` (SK) or `AffiantToolCatalog.Descriptors[].FunctionName` (MAF) |
 | `AssertFabricKeyParity(fabricKeysType, liveKeys, exemptConstants?)` | Fabric keys ↔ a `FabricKeys`-style class | Constants on `fabricKeysType` | Every key your extractors/resolvers/plugins actually read or write (hand-enumerated — see the method's XML docs for why) |
+| `AssertToolErrorCodeRegistryParity(toolErrorCodesType, emittedCodes, exemptConstants?)` | `ToolError.Code` values ↔ a `ToolErrorCodes`-style class | Constants on `toolErrorCodesType` | Every distinct code your exception-mapping/tool code actually emits (hand-enumerated, same tradeoff as fabric keys). The framework's own codes are declared in `Affiant.Abstractions.Models.ToolErrorCodes`; a host declares its own class for its domain codes and calls this the same way. |
 
 ## Further Reading
 
