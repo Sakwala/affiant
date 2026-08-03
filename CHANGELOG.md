@@ -12,6 +12,43 @@ any *published* release (`docs/proposals/affiant-maf-adapter.md` §9).
 
 ## [Unreleased]
 
+### Removed — Area-4 P1a/P1e: dead transport vocabulary deleted; blocking review path retired as document-reserved
+
+- **`TransportEvent.UserMessage` deleted.** Founding-commit symmetry filler paired with
+  `AgentMessage` in the same commit — never specified anywhere in the framework spec, never
+  emitted in production by the framework or either reference host (confirmed by the area-4
+  Decision-1 archaeology: `docs-area-4-d1-fw-intent.md` / `d1-host-bypass.md`, finding A). Inbound
+  chat text enters the framework as a SignalR hub RPC parameter (a host-defined
+  `SendMessage(message, conversationId)` method — SignalR's own client→server invoke pattern), not
+  a broadcast `TransportEvent`. Its round-trip contract test (`SignalRTransportContractTests.RoundTrip_UserMessage`)
+  is deleted with it — it validated a capability the framework never used.
+- **`TransportMessage` and `IStreamingTransport.ReceiveAsync` deleted**, along with the SignalR
+  implementation's `NotSupportedException` stub. Explicit second-transport scaffolding (the type's
+  own doc comment named "SignalR, WebSocket, etc.") for a second, pull-based transport that was
+  never built, never discussed anywhere in the design record, and — on the one transport that does
+  exist — was a dead-on-arrival `NotSupportedException`. Textbook speculative abstraction per this
+  repo's own `CLAUDE.md` ban.
+- **Blocking review path retired as document-reserved, not deleted.** `ReviewGate.FileReviewAsync`
+  (and the interface members it depends on) remain callable — kept because the underlying design
+  (a synchronous wait-for-external-event, mirroring the Azure Durable Functions
+  `WaitForExternalEvent` pattern; framework spec §4) is legitimate and has a real future use — but
+  their XML docs now state plainly, with the incident evidence inline, that this path structurally
+  deadlocks over the framework's only shipped transport (SignalR, default
+  `MaximumParallelInvocationsPerClient = 1`, host-apps#25) and is not the production default (P5a's
+  `ReviewGateFilter` calling the non-blocking `FileForReviewAsync` is). A sound redesign — the
+  decision traveling on a channel other than the blocked connection — is tracked in affiant#29
+  (design ticket, no implementation planned yet).
+- **`IStreamingTransport.AwaitEventAsync<T>` de-genericized to `AwaitEvidenceCardResponseAsync`.**
+  The generic type parameter only ever legally bound `EvidenceCardResponse` — every implementation
+  (the sole SignalR one) runtime-threw `NotSupportedException` for any other `T`, a compile-time
+  promise the framework never had a second use case to honor, and exactly the "orphaned reference
+  doesn't surface until you hit it" failure class this review area exists to eliminate. The
+  signature now states the one real contract directly; a caller can no longer even attempt
+  `AwaitEventAsync<SomeOtherType>()` and discover the lie at runtime.
+- **Breaking, pre-1.0 clean break.** Every affected test's fakes/stubs updated to the new
+  `IStreamingTransport` shape across `Affiant.Core.Tests`, `Affiant.SemanticKernel.Tests`,
+  `Affiant.AgentFramework.Tests`, `Affiant.Docket.Tests`, and `Affiant.Transport.SignalR.Tests`.
+
 ### Changed — Area-4 P5a: `ReviewGateFilter` is now non-blocking by default — the framework's own filing filter
 
 - **`ReviewGateFilter` (the neutral, both-adapters completion-stage filter) now calls the

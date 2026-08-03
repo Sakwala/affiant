@@ -142,7 +142,7 @@ public class ReviewGateFilterTests
     [Fact]
     public async Task RequiresReview_NeverCallsAwaitEventAsync_ProvingNonBlockingPath()
     {
-        // AwaitBlockingTransport throws the instant AwaitEventAsync is called — the blocking
+        // AwaitBlockingTransport throws the instant AwaitEvidenceCardResponseAsync is called — the blocking
         // FileReviewAsync path would call it and this test would fail; FileForReviewAsync never does.
         var docketStore = new FakeDocketStore();
         var transport = new AwaitBlockingTransport();
@@ -323,19 +323,17 @@ public class ReviewGateFilterTests
         public Task BroadcastToGroupAsync(string groupId, TransportEvent eventType, object payload, CancellationToken ct)
             => throw new InvalidOperationException("UnusedStreamingTransport.BroadcastToGroupAsync should not be called");
 
-        public IAsyncEnumerable<TransportMessage> ReceiveAsync(string connectionId, CancellationToken ct)
-            => throw new InvalidOperationException("UnusedStreamingTransport.ReceiveAsync should not be called");
-
-        public Task<T> AwaitEventAsync<T>(string sessionGroupId, Guid docketId, CancellationToken ct = default)
-            => throw new InvalidOperationException("UnusedStreamingTransport.AwaitEventAsync should not be called");
+        public Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default)
+            => throw new InvalidOperationException("UnusedStreamingTransport.AwaitEvidenceCardResponseAsync should not be called");
     }
 
     /// <summary>
     /// Allows SendAsync/BroadcastToGroupAsync (needed for the Evidence Card broadcast) but throws
-    /// the instant AwaitEventAsync is called — proves RequiresReview_NeverCallsAwaitEventAsync that
-    /// the filter genuinely calls the non-blocking ReviewGate.FileForReviewAsync, not the blocking
-    /// FileReviewAsync (which would call AwaitEventAsync and either throw here or hang forever on a
-    /// transport that doesn't).
+    /// the instant AwaitEvidenceCardResponseAsync is called — proves
+    /// RequiresReview_NeverCallsAwaitEventAsync_ProvingNonBlockingPath proves the filter genuinely calls the non-blocking
+    /// ReviewGate.FileForReviewAsync, not the blocking FileReviewAsync (which would call
+    /// AwaitEvidenceCardResponseAsync and either throw here or hang forever on a transport that
+    /// doesn't).
     /// </summary>
     private sealed class AwaitBlockingTransport : IStreamingTransport
     {
@@ -345,12 +343,9 @@ public class ReviewGateFilterTests
         public Task BroadcastToGroupAsync(string groupId, TransportEvent eventType, object payload, CancellationToken ct)
             => Task.CompletedTask;
 
-        public IAsyncEnumerable<TransportMessage> ReceiveAsync(string connectionId, CancellationToken ct)
-            => throw new InvalidOperationException("AwaitBlockingTransport.ReceiveAsync should not be called");
-
-        public Task<T> AwaitEventAsync<T>(string sessionGroupId, Guid docketId, CancellationToken ct = default)
+        public Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default)
             => throw new InvalidOperationException(
-                "AwaitEventAsync was called — the non-blocking FileForReviewAsync path must never do this.");
+                "AwaitEvidenceCardResponseAsync was called — the non-blocking FileForReviewAsync path must never do this.");
     }
 
     /// <summary>Records every broadcast; used to assert the best-effort SystemNotification path.</summary>
@@ -373,11 +368,8 @@ public class ReviewGateFilterTests
             return Task.CompletedTask;
         }
 
-        public IAsyncEnumerable<TransportMessage> ReceiveAsync(string connectionId, CancellationToken ct)
-            => throw new InvalidOperationException("RecordingStreamingTransport.ReceiveAsync should not be called");
-
-        public Task<T> AwaitEventAsync<T>(string sessionGroupId, Guid docketId, CancellationToken ct = default)
-            => throw new InvalidOperationException("RecordingStreamingTransport.AwaitEventAsync should not be called");
+        public Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default)
+            => throw new InvalidOperationException("RecordingStreamingTransport.AwaitEvidenceCardResponseAsync should not be called");
     }
 
     /// <summary>FileDocketEntryAsync always throws — simulates the docket store being down (FV-9).</summary>

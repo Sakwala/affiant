@@ -1,7 +1,6 @@
 namespace Affiant.Core.Tests.Services;
 
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
 using Affiant.Abstractions.Transport;
@@ -59,8 +58,8 @@ public class ReviewGateTests
         }
 
         /// <summary>
-        /// Never returns a response — <see cref="AwaitEventAsync{T}"/> only unblocks when
-        /// <paramref name="ct"/> is cancelled, so a real (short) TTL genuinely drives the
+        /// Never returns a response — <see cref="AwaitEvidenceCardResponseAsync"/> only unblocks
+        /// when <paramref name="ct"/> is cancelled, so a real (short) TTL genuinely drives the
         /// <c>CancelAfter</c> window instead of the fake short-circuiting synchronously.
         /// </summary>
         public void HangUntilCancelled() => _hangUntilCancelled = true;
@@ -93,15 +92,8 @@ public class ReviewGateTests
             return Task.CompletedTask;
         }
 
-        public async IAsyncEnumerable<TransportMessage> ReceiveAsync(
-            string connectionId,
-            [EnumeratorCancellation] CancellationToken ct)
-        {
-            await Task.CompletedTask;
-            yield break;
-        }
-
-        public async Task<T> AwaitEventAsync<T>(string sessionGroupId, Guid docketId, CancellationToken ct = default)
+        public async Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(
+            string sessionGroupId, Guid docketId, CancellationToken ct = default)
         {
             if (_simulateTimeout)
             {
@@ -122,10 +114,10 @@ public class ReviewGateTests
                 await Task.Delay(Timeout.InfiniteTimeSpan, ct);
             }
 
-            if (_responses.TryDequeue(out var response) && response is T typed)
-                return typed;
+            if (_responses.TryDequeue(out var response))
+                return response;
 
-            throw new InvalidOperationException($"FakeStreamingTransport: no queued response for {typeof(T).Name}");
+            throw new InvalidOperationException("FakeStreamingTransport: no queued EvidenceCardResponse");
         }
     }
 
@@ -591,7 +583,7 @@ public class ReviewGateTests
     public async Task FileForReviewAsync_NoWaiterRegistered_HandleDecisionAsync_SucceedsViaRestartPath()
     {
         var (gate, transport, store) = CreateGate(ReviewRequirement.ReviewerConfirmation);
-        transport.HasLiveWaiter = false; // FileForReviewAsync never calls AwaitEventAsync — no waiter exists
+        transport.HasLiveWaiter = false; // FileForReviewAsync never calls AwaitEvidenceCardResponseAsync — no waiter exists
 
         var (proposal, context) = CreateTestInput(Guid.NewGuid());
         var filing = await gate.FileForReviewAsync(proposal, context);

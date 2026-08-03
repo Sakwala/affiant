@@ -123,11 +123,8 @@ public sealed class CompletionStageOrderTests
         public Task BroadcastToGroupAsync(string groupId, TransportEvent eventType, object payload, CancellationToken ct)
             => throw new InvalidOperationException("BroadcastToGroupAsync should not be called");
 
-        public IAsyncEnumerable<TransportMessage> ReceiveAsync(string connectionId, CancellationToken ct)
-            => throw new InvalidOperationException("ReceiveAsync should not be called");
-
-        public Task<T> AwaitEventAsync<T>(string sessionGroupId, Guid docketId, CancellationToken ct = default)
-            => throw new InvalidOperationException("AwaitEventAsync should not be called");
+        public Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default)
+            => throw new InvalidOperationException("AwaitEvidenceCardResponseAsync should not be called");
     }
 
     private sealed class FakeDocketStore : IDocketStore

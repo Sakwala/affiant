@@ -219,10 +219,7 @@ public class AffiantFunctionInvocationMiddlewareTests
             return Task.CompletedTask;
         }
 
-        public IAsyncEnumerable<TransportMessage> ReceiveAsync(string connectionId, CancellationToken ct)
-            => throw new InvalidOperationException("should not be called");
-
-        public Task<T> AwaitEventAsync<T>(string sessionGroupId, Guid docketId, CancellationToken ct = default)
+        public Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default)
             => throw new InvalidOperationException("should not be called");
     }
 

@@ -8,21 +8,21 @@ using Xunit;
 
 /// <summary>
 /// Validates the bidirectional ReviewGate ↔ client handshake at the transport level:
-/// AwaitEventAsync blocks until TryDeliverResponse is called, either directly or via
+/// AwaitEvidenceCardResponseAsync blocks until TryDeliverResponse is called, either directly or via
 /// a hub method invoked by the client.
 /// </summary>
 [Collection("SignalR Transport")]
 public sealed class ReviewGateBidirectionalFlowTests(TransportIntegrationTestFixture fixture)
 {
-    [Fact(DisplayName = "TryDeliverResponse unblocks AwaitEventAsync")]
-    public async Task TryDeliverResponse_UnblocksAwaitEventAsync()
+    [Fact(DisplayName = "TryDeliverResponse unblocks AwaitEvidenceCardResponseAsync")]
+    public async Task TryDeliverResponse_UnblocksAwaitEvidenceCardResponseAsync()
     {
         var transport = fixture.Server.Services.GetRequiredService<IStreamingTransport>();
         var docketId = Guid.NewGuid();
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
         // Start awaiting before the response arrives
-        var awaitTask = transport.AwaitEventAsync<EvidenceCardResponse>("group-a", docketId, cts.Token);
+        var awaitTask = transport.AwaitEvidenceCardResponseAsync("group-a", docketId, cts.Token);
 
         // Ensure the TCS is registered before delivering
         await Task.Delay(20, cts.Token);
@@ -49,8 +49,8 @@ public sealed class ReviewGateBidirectionalFlowTests(TransportIntegrationTestFix
         await Task.CompletedTask;
     }
 
-    [Fact(DisplayName = "Hub SubmitDecision method routes approval back to AwaitEventAsync")]
-    public async Task HubSubmitDecision_RoutesApproval_ToAwaitEventAsync()
+    [Fact(DisplayName = "Hub SubmitDecision method routes approval back to AwaitEvidenceCardResponseAsync")]
+    public async Task HubSubmitDecision_RoutesApproval_ToAwaitEvidenceCardResponseAsync()
     {
         var transport = fixture.Server.Services.GetRequiredService<IStreamingTransport>();
         var docketId = Guid.NewGuid();
@@ -62,7 +62,7 @@ public sealed class ReviewGateBidirectionalFlowTests(TransportIntegrationTestFix
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
         // 1. Start awaiting the reviewer response
-        var awaitTask = transport.AwaitEventAsync<EvidenceCardResponse>(reviewGroup, docketId, cts.Token);
+        var awaitTask = transport.AwaitEvidenceCardResponseAsync(reviewGroup, docketId, cts.Token);
 
         // 2. Client receives the EvidenceCardRequest and submits a decision via the hub method
         var requestReceived = new TaskCompletionSource<bool>(
@@ -89,7 +89,7 @@ public sealed class ReviewGateBidirectionalFlowTests(TransportIntegrationTestFix
         // 4. Wait for the client to invoke SubmitDecision
         await requestReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        // 5. AwaitEventAsync should now be unblocked
+        // 5. AwaitEvidenceCardResponseAsync should now be unblocked
         var response = await awaitTask.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(ApprovalDecision.Approved, response.Decision);
         Assert.Equal(docketId, response.DocketId);
