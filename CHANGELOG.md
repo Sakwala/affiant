@@ -12,6 +12,42 @@ any *published* release (`docs/proposals/affiant-maf-adapter.md` §9).
 
 ## [Unreleased]
 
+### Added — Area-4 P1f(b): Rule 6 becomes real — framework-owned UI guidance wire path (`TransportEvent.UiGuidance`, `UiGuidanceBridge`)
+
+- **Rule 6 ("the LLM discovers guidable elements through `IRouteRegistry`, never DOM inspection")
+  previously had no framework wire path at all** — `IRouteRegistry` existed, but nothing broadcast
+  its contents to a client; the one reference host's own guidance feature reached the wire via a
+  hand-rolled `Clients.Group(...).SendAsync("GuideUI", ...)` call, entirely outside the framework's
+  transport abstraction. Ruled BUILD NOW (2026-08-04, against the position paper's docs-first
+  recommendation): the framework now carries this designed flow instead of leaving hosts to invent
+  it, consistent with the P5a/P5c precedent set earlier in this wave.
+- **`TransportEvent.UiGuidance`** added, mapped to wire method name **`"GuideUI"`** — the existing
+  reference host's client already listens for that exact name; the mapping preserves it deliberately
+  so that client keeps working unmodified once it migrates onto this mechanism.
+- **`Affiant.Abstractions.Transport.UiGuidancePayload`/`UiGuidanceStep`** — a typed payload pinned
+  from the reference host's own existing wire contract (its checked-in guidance tool output shape
+  and its client-side TypeScript interfaces, both read at framework main `fc46b95`), not invented:
+  `UiGuidancePayload(NavigateTo, Steps, Context)`; `UiGuidanceStep(ElementId, Title, Description,
+  PrefillValue, Side, HighlightPadding)`.
+- **`UiGuidanceBridge` (`Affiant.Core`) now assembles and broadcasts**, not just reads:
+  `BuildStep(elementId, description, prefillValue?, title?)` resolves `Side`/`HighlightPadding`/a
+  `Title` fallback from the `GuidableElement.Attributes` registered for `elementId` (the same
+  `"side"`/`"highlightPadding"`/`"displayName"` attribute-bag convention the reference host used ad
+  hoc — degrades to `"bottom"`/no-padding-asserted/`elementId` when unregistered, never throws) and
+  `BroadcastGuidanceAsync(sessionGroupId, payload, ct)` sends it via `IStreamingTransport`
+  (`TransportEvent.UiGuidance`). `Affiant.Core` depends only on `IStreamingTransport` (an
+  `Affiant.Abstractions` interface) — never the `Affiant.Transport.SignalR` package, preserving the
+  DAG layering invariant. **What stays host-owned**: per-step content (which fields to guide
+  through, prefill values, description text by provenance) — inherently domain-specific, mirroring
+  `ReviewGate`'s own framework-mechanism/host-content split.
+- `UiGuidanceBridge` now also gets a real `AddAffiantCore()` registration (Singleton — neither
+  constructor dependency is Scoped, so no captive-dependency risk), matching affiant#26's fix for
+  `ReviewGate` — a host no longer hand-registers it.
+- Tests: `UiGuidanceBridgeTests` (unit — attribute resolution, defaults, exact broadcast call);
+  `UiGuidanceBridgeWireTests` (real SignalR round trip proving `"GuideUI"` delivery with the pinned
+  JSON shape). Mutation-verified: routing the broadcast through the wrong `TransportEvent`
+  reproduces failures in both; restored byte-identical.
+
 ### Changed — Area-4 P1d: hub JSON serialization policy is now DECLARED, not inherited from ambient ASP.NET defaults — **`ApprovalDecision` now crosses the wire as a STRING, not an int**
 
 **Wire-visible break for any host that has already deserialized a raw `EvidenceCardResponse` off the

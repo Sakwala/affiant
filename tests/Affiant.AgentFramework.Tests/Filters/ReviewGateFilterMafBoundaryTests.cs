@@ -61,6 +61,10 @@ public class ReviewGateFilterMafBoundaryTests
         // same call — its default SchemaDrivenAffidavitProjection needs ITaskInferenceStrategy
         // resolvable for ValidateOnBuild below, even though this test never exercises inference.
         services.AddSingleton<ITaskInferenceStrategy>(new StubTaskInferenceStrategy());
+        // AddAffiantCore() also registers UiGuidanceBridge (area-4 P1f(b)), which needs
+        // IRouteRegistry resolvable for ValidateOnBuild below, even though this test never
+        // exercises guidance.
+        services.AddSingleton<IRouteRegistry>(new NoOpRouteRegistry());
 
         // Public Add* extension chain only — the same one item 4's SK ordering test uses,
         // AddAffiantAgentFramework() instead of AddAffiantSemanticKernel(). No MAF-specific filing
@@ -165,6 +169,14 @@ public class ReviewGateFilterMafBoundaryTests
         public string EntityName => "StubEntity";
         public IReadOnlyList<TaskInferenceField> Fields => [];
         public double? MinimumConfidenceThreshold => null;
+    }
+
+    private sealed class NoOpRouteRegistry : IRouteRegistry
+    {
+        public void Register(GuidableElement element) { }
+        public IReadOnlyList<GuidableElement> GetElementsForRoute(string route) => [];
+        public IReadOnlyList<GuidableElement> GetAllElements() => [];
+        public GuidableElement? GetElementById(string elementId) => null;
     }
 
     private sealed class StubRegistry : IAffiantToolRegistry

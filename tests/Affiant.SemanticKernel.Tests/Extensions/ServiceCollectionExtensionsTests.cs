@@ -197,6 +197,10 @@ public class ServiceCollectionExtensionsTests
         services.AddSingleton<IStreamingTransport>(new NoOpStreamingTransport());
         services.AddSingleton<IDocketStore>(new ThrowingDocketStore());
         services.AddSingleton<IReviewContextProvider>(new ConstantReviewContextProvider(BuildReviewContext()));
+        // AddAffiantCore() also registers UiGuidanceBridge (area-4 P1f(b)), which needs
+        // IRouteRegistry resolvable for ValidateOnBuild below, even though this test never
+        // exercises guidance.
+        services.AddSingleton<IRouteRegistry>(new NoOpRouteRegistry());
 
         services.AddAffiantCore(o => o.EnableObservability = false);
         services.AddAffiantSemanticKernel();
@@ -256,6 +260,14 @@ public class ServiceCollectionExtensionsTests
             Task.CompletedTask;
         public Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default) =>
             Task.FromCanceled<EvidenceCardResponse>(ct);
+    }
+
+    private sealed class NoOpRouteRegistry : IRouteRegistry
+    {
+        public void Register(GuidableElement element) { }
+        public IReadOnlyList<GuidableElement> GetElementsForRoute(string route) => [];
+        public IReadOnlyList<GuidableElement> GetAllElements() => [];
+        public GuidableElement? GetElementById(string elementId) => null;
     }
 
     private sealed class ThrowingDocketStore : IDocketStore
