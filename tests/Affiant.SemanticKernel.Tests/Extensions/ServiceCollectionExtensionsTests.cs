@@ -1,6 +1,8 @@
 namespace Affiant.SemanticKernel.Tests.Extensions;
 
 using Affiant.Abstractions.Interfaces;
+using Affiant.Abstractions.Models;
+using Affiant.Abstractions.Transport;
 using Affiant.Core.Extensions;
 using Affiant.Core.Filters;
 using Affiant.Core.Services;
@@ -8,7 +10,9 @@ using Affiant.SemanticKernel.Connectors;
 using Affiant.SemanticKernel.Extensions;
 using Affiant.SemanticKernel.Filters;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
+using Microsoft.SemanticKernel.ChatCompletion;
 using Xunit;
 
 /// <summary>
@@ -166,7 +170,122 @@ public class ServiceCollectionExtensionsTests
         Assert.Same(services, returned);
     }
 
+    // affiant#26 boot-honesty test: a host that calls ONLY the public Add* extensions — no manual
+    // ReviewGate/ReviewGateFilter/ApprovalPolicyEvaluator registration — must get a fully wired
+    // filing path. Registers just the two genuinely host-owned pieces every host has to supply
+    // regardless (IStreamingTransport, IDocketStore, IReviewContextProvider — none of these have a
+    // default framework implementation, by domain-agnostic design) plus AddAffiantCore() +
+    // AddAffiantSemanticKernel(), then drives the real AffiantAutoFunctionInvocationBridge (the
+    // actual seam ReviewGateFilter runs at) with a WriteProposal tool result.
+    //
+    // Proof that ReviewGate was actually resolved and invoked (not silently skipped, which is
+    // ReviewGateFilter's behavior when context.Services.GetService<ReviewGate>() returns null): the
+    // docket store is rigged to throw on filing, which ReviewGateFilter converts into a typed
+    // REVIEW_FILING_FAILED ToolError. A null ReviewGate would leave the original WriteProposal JSON
+    // untouched instead — this is the same shape check
+    // AffiantAutoFunctionInvocationBridgeReviewGateTests.cs uses, but built from only the public
+    // extension surface rather than a hand-assembled ServiceCollection.
+    [Fact]
+    public async Task AddAffiantCore_AddAffiantSemanticKernel_Alone_WireReviewGate_FilingFilterRuns()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        // The only host-owned pieces (no default framework implementation exists for any of these —
+        // by the domain-agnostic invariant, IReviewContextProvider in particular must always be
+        // host-supplied). Everything else below this line is the public Add* extension chain alone.
+        services.AddSingleton<IStreamingTransport>(new NoOpStreamingTransport());
+        services.AddSingleton<IDocketStore>(new ThrowingDocketStore());
+        services.AddSingleton<IReviewContextProvider>(new ConstantReviewContextProvider(BuildReviewContext()));
+
+        services.AddAffiantCore(o => o.EnableObservability = false);
+        services.AddAffiantSemanticKernel();
+
+        var sp = services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateScopes = true,
+            ValidateOnBuild = true
+        });
+
+        var pipeline = sp.GetRequiredService<ToolInvocationPipeline>();
+        var bridge = new AffiantAutoFunctionInvocationBridge(pipeline);
+
+        using var scope = sp.CreateScope();
+        var writeProposalJson =
+            """{"$type":"write","toolName":"DoWrite","timestamp":"2026-01-01T00:00:00Z","envelope":null}""";
+        var kernel = new Kernel(scope.ServiceProvider);
+        var function = KernelFunctionFactory.CreateFromMethod(() => "unused", "DoWrite");
+        var initialResult = new FunctionResult(function, writeProposalJson);
+        var chatMessage = new ChatMessageContent(AuthorRole.Assistant, "calling DoWrite");
+        var context = new AutoFunctionInvocationContext(kernel, function, initialResult, new ChatHistory(), chatMessage);
+
+        await bridge.OnAutoFunctionInvocationAsync(context, _ => Task.CompletedTask);
+
+        var resultText = context.Result.GetValue<object>() as string;
+        Assert.NotNull(resultText);
+        Assert.Contains("REVIEW_FILING_FAILED", resultText);
+        Assert.DoesNotContain("\"$type\":\"write\"", resultText); // proves ReviewGate ran, not skipped
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private static ReviewContext BuildReviewContext() => new(
+        SessionId: "session-boot-honesty",
+        TenantId: "tenant-default",
+        UserId: "user-123",
+        ReviewerUserId: "reviewer-456",
+        Affidavit: new Affidavit(
+            OperationType: "DoWrite",
+            EntityType: "TestEntity",
+            EntityId: null,
+            Fields: [],
+            AggregateConfidence: 1.0f,
+            Warnings: [],
+            RequiresConfirmation: true));
+
+    private sealed class ConstantReviewContextProvider(ReviewContext context) : IReviewContextProvider
+    {
+        public ReviewContext? BuildReviewContext(WriteProposal proposal) => context;
+    }
+
+    private sealed class NoOpStreamingTransport : IStreamingTransport
+    {
+        public Task SendAsync(string connectionId, TransportEvent eventType, object payload, CancellationToken ct) =>
+            Task.CompletedTask;
+        public Task BroadcastToGroupAsync(string groupId, TransportEvent eventType, object payload, CancellationToken ct) =>
+            Task.CompletedTask;
+        public async IAsyncEnumerable<TransportMessage> ReceiveAsync(
+            string connectionId, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+        {
+            await Task.CompletedTask;
+            yield break;
+        }
+        public Task<T> AwaitEventAsync<T>(string sessionGroupId, Guid docketId, CancellationToken ct) =>
+            Task.FromCanceled<T>(ct);
+    }
+
+    private sealed class ThrowingDocketStore : IDocketStore
+    {
+        public Task SaveContextAsync(string sessionId, ConversationContext context, CancellationToken ct) =>
+            Task.CompletedTask;
+        public Task<ConversationContext?> LoadContextAsync(string sessionId, CancellationToken ct) =>
+            Task.FromResult<ConversationContext?>(null);
+        public Task FileDocketEntryAsync(DocketEntry entry, CancellationToken ct) =>
+            throw new InvalidOperationException("simulated docket store outage");
+        public Task<DocketEntry?> GetDocketEntryAsync(Guid entryId, CancellationToken ct) =>
+            Task.FromResult<DocketEntry?>(null);
+        public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct) =>
+            Task.FromResult(0);
+        public Task UpdateAmendmentsAsync(
+            Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct) =>
+            Task.CompletedTask;
+        public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<DocketEntry>>([]);
+        public Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(DateTimeOffset expiresBeforeUtc, CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<DocketEntry>>([]);
+        public Task MarkExpiredAsync(IEnumerable<Guid> entryIds, CancellationToken ct) =>
+            Task.CompletedTask;
+    }
 
     private static ServiceProvider BuildMinimalProvider(
         Action<SemanticKernelOptions>? configure = null)
