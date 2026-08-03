@@ -12,6 +12,38 @@ any *published* release (`docs/proposals/affiant-maf-adapter.md` §9).
 
 ## [Unreleased]
 
+### Changed — Area-4 P1d: hub JSON serialization policy is now DECLARED, not inherited from ambient ASP.NET defaults — **`ApprovalDecision` now crosses the wire as a STRING, not an int**
+
+**Wire-visible break for any host that has already deserialized a raw `EvidenceCardResponse` off the
+wire expecting `decision` to be a JSON number.** `AddAffiantSignalR` now calls `.AddJsonProtocol(...)`
+explicitly, configuring:
+
+- **camelCase property naming** — unchanged in practice (this was already ASP.NET Core's
+  `JsonHubProtocol` default, `JsonSerializerDefaults.Web`), but now declared in framework source
+  instead of asserted only in a test comment. A host that later configures `.AddJsonProtocol(...)`
+  after `AddAffiantSignalR` can still override it — TryAdd semantics don't apply to protocol
+  configuration, so call order matters; configure yours after `AddAffiantSignalR` to win.
+- **A global `JsonStringEnumConverter`** — this is the wire-visible change.
+  `Affiant.Abstractions.Transport.ApprovalDecision` (the `EvidenceCardResponse.Decision` field) had
+  no `[JsonConverter]` attribute and previously crossed the wire as a bare integer (`0` = Approved,
+  `1` = Rejected) via `System.Text.Json`'s default enum handling — inconsistent with
+  `Affiant.Abstractions.Models.ProvenanceSource`, which is explicitly
+  `[JsonConverter(typeof(JsonStringEnumConverter))]`-attributed and always crossed as a string. Both
+  now cross as strings (`"Approved"`/`"Rejected"`), resolving the inconsistency V1 flagged. Any host
+  TypeScript that typed `decision` as `number` or compared it against `0`/`1` needs to change to the
+  string values on the next pin bump. `AffidavitFieldKind` is unaffected — it was already a plain
+  string constant, never a C# enum, by prior deliberate design.
+- The framework contract test now asserts the policy **from the configured `IOptions<JsonHubProtocolOptions>`**
+  (`SignalRJsonProtocolConfigurationTests`), not by observing a live round trip work and inferring
+  the policy from that (which cannot distinguish "we configured this" from "it happens to work via
+  an unrelated ambient default" — precisely the gap that let the inconsistency ship unnoticed).
+  A live-wire proof (`ApprovalDecision_CrossesTheWire_AsAString_NotAnInt`) additionally confirms the
+  actual bytes on the wire, not just the configured options object.
+- Mutation-verified: removing the `.AddJsonProtocol(...)` call reproduces failures in the
+  enum-converter and live-wire tests (the camelCase assertion still incidentally passes, since it
+  remains ASP.NET Core's ambient default — exactly the "accidental but real" behavior this change
+  makes deliberate instead); restored byte-identical.
+
 ### Changed — Area-4 P1c: `TransportEventExtensions.ToClientEventName()` is now `public` and total
 
 - **Every `TransportEvent` member now gets an explicit switch arm** — no `default`/discard

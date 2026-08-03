@@ -157,10 +157,10 @@ public sealed class SignalRTransportContractTests(TransportIntegrationTestFixtur
     [Fact(DisplayName = "AffidavitField metadata (D6) crosses the wire as lowercase kind/allowedValues/pattern")]
     public async Task EvidenceCardRequest_AffidavitFieldMetadata_SerializesToPinnedWireShape()
     {
-        // Pins the exact JSON shape the React client reads off ConfirmAction: the SignalR
-        // JsonHubProtocol's default JsonSerializerOptions (JsonSerializerDefaults.Web) camelCases
-        // property names, so AffidavitField.Kind/AllowedValues/Pattern must arrive as
-        // "kind" (lowercase string value), "allowedValues" (array), "pattern".
+        // Pins the exact JSON shape the React client reads off ConfirmAction: AddAffiantSignalR (P1d)
+        // now explicitly configures camelCase property naming on the hub JSON protocol, so
+        // AffidavitField.Kind/AllowedValues/Pattern must arrive as "kind" (lowercase string value),
+        // "allowedValues" (array), "pattern".
         var (client, connId) = await fixture.CreateConnectedClientAsync();
         await using var _ = client;
 
