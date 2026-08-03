@@ -42,17 +42,28 @@ namespace Affiant.Core.Filters;
 /// <c>Affiant.SemanticKernel.Filters.BridgeStages.CompletionStage</c> includes this filter alongside
 /// the two neutral completion-stage filters, so an exception from ANY completion-stage filter
 /// reaches the model as a typed <see cref="ToolError"/> with the same observable shape as an
-/// invocation-stage/MAF failure — never raw into SK's auto-invocation loop — without double-firing
-/// retries or telemetry for the tool's own failure: by the time SK's completion-stage bridge's
-/// terminal delegate (<c>next(context)</c>, which triggers the real invocation, itself already
-/// wrapped by this same filter at the invocation-stage seam) returns, either the tool's own failure
-/// was already resolved into a <see cref="ToolError"/> string there (no exception reaches this
-/// instance at the completion-stage seam at all), or the tool genuinely succeeded
-/// (<c>ToolExecuted</c> is <see langword="true"/> by the time a completion-stage filter could
-/// throw) — so this filter's retry branch is only ever reached here for a pre-tool-style failure
-/// that occurs before the nested invocation-stage call, which does not exist at this seam;
-/// completion-stage failures are therefore always handled by the surface-and-continue branch above,
-/// never retried.
+/// invocation-stage/MAF failure — never raw into SK's auto-invocation loop.
+/// </para>
+///
+/// <para>
+/// <b>Retry safety at the completion seam (area-3 P2 fix round — corrects a disproven claim).</b>
+/// An earlier version of these remarks claimed a completion-stage exception with
+/// <c>ToolExecuted == false</c> was "structurally impossible" to retry into a double execution.
+/// That claim was FALSE: two independent adversarial refuters reproduced <c>next(context)</c> being
+/// called twice at this seam. The completion-stage terminal's <c>next(context)</c>
+/// (<c>Affiant.SemanticKernel.Filters.AffiantAutoFunctionInvocationBridge</c>) is SK's OWN
+/// auto-invocation continuation, not the tool — it nested-invokes the real tool through a SEPARATE
+/// <see cref="ToolInvocationContext"/> at the invocation-stage seam. A host-registered SK filter
+/// outside Affiant's bridges (or SK's own argument binding) can throw before that nested invocation
+/// ever happens, leaving <c>ToolExecuted == false</c> on the completion-stage context — the retry
+/// branch below would then call SK's continuation a SECOND time, genuinely re-executing the tool.
+/// The real fix is <see cref="ToolInvocationContext.NextIsToolBody"/> (default
+/// <see langword="true"/>): the completion-stage bridge sets it <see langword="false"/> because its
+/// <c>next()</c> is not the tool body, and the retry branch below is gated on both
+/// <c>!ToolExecuted &amp;&amp; NextIsToolBody</c>. MAF's single onion and
+/// <c>ManualToolInvoker</c>'s completion terminal both leave it at the default
+/// <see langword="true"/> — <c>next()</c> genuinely IS (or trivially leads to) the tool there, so
+/// retrying is correct and unchanged. See that property's remarks for the full finding.
 /// </para>
 /// </summary>
 public class ToolErrorFilter(ILogger<ToolErrorFilter> logger) : IToolInvocationFilter
@@ -108,11 +119,26 @@ public class ToolErrorFilter(ILogger<ToolErrorFilter> logger) : IToolInvocationF
                 "Tool {FunctionName} failed with {ErrorCode} (retryable: {Retryable})",
                 context.FunctionName, toolError.Code, toolError.Retryable);
 
-            if (toolError.Retryable)
+            if (toolError.Retryable && !context.NextIsToolBody)
+            {
+                // Area-3 P2 fix round: retryable classification, but next() at this seam is NOT the
+                // tool body (SK completion stage) — retrying would re-invoke SK's own continuation a
+                // second time, genuinely re-executing the tool. Surface the ToolError without
+                // retrying; do not call next() again.
+                logger.LogWarning(
+                    "Tool {FunctionName} failed with retryable {ErrorCode} but this seam's next() " +
+                    "is not the tool body (NextIsToolBody=false) — surfacing without retry to avoid " +
+                    "double-executing the tool",
+                    context.FunctionName, toolError.Code);
+            }
+
+            if (toolError.Retryable && context.NextIsToolBody)
             {
                 // Retry exactly once — re-run the entire downstream filter chain. Safe: ToolExecuted
                 // is still false here (the exception above was caught by the second catch clause,
-                // which only matches when it is), so the tool has not produced a result yet.
+                // which only matches when it is), AND NextIsToolBody confirms next() re-runs only
+                // the tool body at this seam (area-3 P2 fix round) — so the tool has not produced a
+                // result yet and retrying cannot re-execute anything other than the tool itself.
                 try
                 {
                     await next(context);

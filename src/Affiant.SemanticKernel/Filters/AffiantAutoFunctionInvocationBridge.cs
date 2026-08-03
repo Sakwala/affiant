@@ -30,6 +30,15 @@ public sealed class AffiantAutoFunctionInvocationBridge(ToolInvocationPipeline p
             new Dictionary<string, object?>())
         {
             InitialTerminate = context.Terminate,
+            // Area-3 P2 fix round (corrects the disproven "structurally impossible" claim from
+            // ruling 1): this seam's next() below is SK's OWN auto-invocation continuation, not the
+            // tool — it nested-invokes the real tool through a SEPARATE ToolInvocationContext at
+            // the invocation-stage seam. If that continuation throws before the tool runs (a
+            // host-registered SK filter outside Affiant's bridges, or SK argument-binding, failing
+            // pre-tool), ToolExecuted is still false — without this flag ToolErrorFilter would
+            // retry by calling next() a second time, genuinely re-executing the tool for a failure
+            // that had nothing to do with it. See ToolInvocationContext.NextIsToolBody's remarks.
+            InitialNextIsToolBody = false,
         };
 
         object? toolProduced = null;
