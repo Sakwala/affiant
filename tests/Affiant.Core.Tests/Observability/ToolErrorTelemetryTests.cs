@@ -18,7 +18,13 @@ public class ToolErrorTelemetryTests
 {
     private static ActivityListener FrameworkListener() => new()
     {
-        ShouldListenTo = source => source.Name == AffiantTelemetry.AffiantActivitySource.Name,
+        // Named by literal, not AffiantTelemetry.AffiantActivitySource.Name: referencing the static
+        // field from inside ShouldListenTo can run AffiantTelemetry's static constructor re-entrantly
+        // from within ActivitySource's own constructor call graph (AddActivityListener notifies
+        // listeners synchronously as new sources are created), throwing NullReferenceException and
+        // poisoning the type for the whole test process. Same rationale as the listener in
+        // CrossAdapterCompletionStageFailureContractTests.
+        ShouldListenTo = source => source.Name == "Affiant.Framework",
         Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
     };
 
