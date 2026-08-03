@@ -91,6 +91,75 @@ public class ReviewGateFilterTests
         Assert.Equal("DoWrite", docketStore.Filed[0].OperationType);
     }
 
+    // ── P5a: non-blocking filing, RequiresReview vs Decided ─────────────────
+
+    [Fact]
+    public async Task Decided_StandingOrderAutoApprove_DoesNotTerminate_ResultUntouched()
+    {
+        // Control for the pair below: StandingOrderPolicy → Decided, not RequiresReview.
+        var docketStore = new FakeDocketStore();
+        var services = BuildReviewGateStack(docketStore).BuildServiceProvider();
+        using var scope = services.CreateScope();
+
+        var proposalJson = BuildWriteProposalJson("DoWrite");
+        var ctx = Ctx(scope.ServiceProvider, proposalJson);
+        await Filter.OnToolInvocationAsync(ctx, c => { c.Result = proposalJson; return Task.CompletedTask; });
+
+        Assert.False(ctx.Terminate);
+        Assert.Equal(proposalJson, ctx.Result); // untouched — model keeps the tool's own result
+    }
+
+    [Fact]
+    public async Task RequiresReview_NoStandingOrder_TerminatesTurn_WithTurnEndingMessage()
+    {
+        // No IApprovalPolicy registered → evaluator's built-in fallback is ReviewerConfirmation, so
+        // FileForReviewAsync returns RequiresReview (a human must act) instead of auto-deciding.
+        var docketStore = new FakeDocketStore();
+        var transport = new RecordingStreamingTransport();
+        var services = BuildReviewGateStack(docketStore, transport, registerStandingOrderPolicy: false)
+            .BuildServiceProvider();
+        using var scope = services.CreateScope();
+
+        var proposalJson = BuildWriteProposalJson("DoWrite");
+        var ctx = Ctx(scope.ServiceProvider, proposalJson);
+        await Filter.OnToolInvocationAsync(ctx, c => { c.Result = proposalJson; return Task.CompletedTask; });
+
+        Assert.True(ctx.Terminate);
+        var resultText = Assert.IsType<string>(ctx.Result);
+        Assert.NotEqual(proposalJson, resultText);
+        Assert.Contains("filed for review", resultText, StringComparison.OrdinalIgnoreCase);
+
+        // FileForReviewAsync itself already broadcasts the Evidence Card — proves the non-blocking
+        // path actually ran (not a no-op) without this filter doing any broadcasting of its own.
+        var evidenceCard = Assert.Single(
+            transport.Broadcasts, b => b.EventType == TransportEvent.EvidenceCardRequest);
+        Assert.Equal("session-test", evidenceCard.GroupId);
+
+        Assert.Single(docketStore.Filed);
+        Assert.Equal(ReviewStatus.Pending, docketStore.Filed[0].Status);
+    }
+
+    [Fact]
+    public async Task RequiresReview_NeverCallsAwaitEventAsync_ProvingNonBlockingPath()
+    {
+        // AwaitBlockingTransport throws the instant AwaitEventAsync is called — the blocking
+        // FileReviewAsync path would call it and this test would fail; FileForReviewAsync never does.
+        var docketStore = new FakeDocketStore();
+        var transport = new AwaitBlockingTransport();
+        var services = BuildReviewGateStack(docketStore, transport, registerStandingOrderPolicy: false)
+            .BuildServiceProvider();
+        using var scope = services.CreateScope();
+
+        var proposalJson = BuildWriteProposalJson("DoWrite");
+        var ctx = Ctx(scope.ServiceProvider, proposalJson);
+
+        var ex = await Record.ExceptionAsync(() =>
+            Filter.OnToolInvocationAsync(ctx, c => { c.Result = proposalJson; return Task.CompletedTask; }));
+
+        Assert.Null(ex);
+        Assert.True(ctx.Terminate);
+    }
+
     // ── P1a: filing failure (affiant#22 / FV-9) ──────────────────────────────
 
     private static ActivityListener FrameworkListener() => new()
@@ -216,7 +285,10 @@ public class ReviewGateFilterTests
             Warnings: [],
             RequiresConfirmation: false));
 
-    private ServiceCollection BuildReviewGateStack(IDocketStore docketStore, IStreamingTransport? transport = null)
+    private ServiceCollection BuildReviewGateStack(
+        IDocketStore docketStore,
+        IStreamingTransport? transport = null,
+        bool registerStandingOrderPolicy = true)
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -225,7 +297,8 @@ public class ReviewGateFilterTests
         services.AddScoped<ReviewGate>();
         services.AddSingleton(transport ?? new UnusedStreamingTransport());
         services.AddSingleton(docketStore);
-        services.AddSingleton<IApprovalPolicy>(new StandingOrderPolicy());
+        if (registerStandingOrderPolicy)
+            services.AddSingleton<IApprovalPolicy>(new StandingOrderPolicy());
         services.AddSingleton<IApprovalPolicyEvaluator, ApprovalPolicyEvaluator>();
         services.AddSingleton<IReviewContextProvider>(new ConstantReviewContextProvider(BuildReviewContext()));
         return services;
@@ -255,6 +328,29 @@ public class ReviewGateFilterTests
 
         public Task<T> AwaitEventAsync<T>(string sessionGroupId, Guid docketId, CancellationToken ct = default)
             => throw new InvalidOperationException("UnusedStreamingTransport.AwaitEventAsync should not be called");
+    }
+
+    /// <summary>
+    /// Allows SendAsync/BroadcastToGroupAsync (needed for the Evidence Card broadcast) but throws
+    /// the instant AwaitEventAsync is called — proves RequiresReview_NeverCallsAwaitEventAsync that
+    /// the filter genuinely calls the non-blocking ReviewGate.FileForReviewAsync, not the blocking
+    /// FileReviewAsync (which would call AwaitEventAsync and either throw here or hang forever on a
+    /// transport that doesn't).
+    /// </summary>
+    private sealed class AwaitBlockingTransport : IStreamingTransport
+    {
+        public Task SendAsync(string connectionId, TransportEvent eventType, object payload, CancellationToken ct)
+            => Task.CompletedTask;
+
+        public Task BroadcastToGroupAsync(string groupId, TransportEvent eventType, object payload, CancellationToken ct)
+            => Task.CompletedTask;
+
+        public IAsyncEnumerable<TransportMessage> ReceiveAsync(string connectionId, CancellationToken ct)
+            => throw new InvalidOperationException("AwaitBlockingTransport.ReceiveAsync should not be called");
+
+        public Task<T> AwaitEventAsync<T>(string sessionGroupId, Guid docketId, CancellationToken ct = default)
+            => throw new InvalidOperationException(
+                "AwaitEventAsync was called — the non-blocking FileForReviewAsync path must never do this.");
     }
 
     /// <summary>Records every broadcast; used to assert the best-effort SystemNotification path.</summary>
