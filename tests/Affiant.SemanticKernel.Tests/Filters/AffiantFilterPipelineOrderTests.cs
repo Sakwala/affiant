@@ -19,6 +19,16 @@ using Xunit;
 ///     3. ContextExtractor*, 4. ToolArgumentCaptureFilter, 5. InferenceTriggerFilter
 ///   Completion stage (SK IAutoFunctionInvocationFilter → AffiantAutoFunctionInvocationBridge):
 ///     6. TaskInferenceMergeFilter, 7. ReviewGateFilter
+///
+/// <see cref="NeutralFilters_RegisteredInCanonicalOrder"/> locks the FULL registered chain
+/// explicitly (area-3 P2 ruling 2) — including the ToolErrorFilter/DeterministicShortCircuit pair
+/// the position paper's evidence pack found undocumented-but-unenforced (area-3 V4:
+/// <c>AddAffiantCore()</c> used to register <c>DeterministicShortCircuit</c> before
+/// <c>ToolErrorFilter</c>, making it the actual outermost filter despite the spec and
+/// <c>ToolErrorFilter</c>'s own class doc both claiming the opposite, and this very test not
+/// checking the pair). Verified by self-mutation (swap the two registrations in
+/// <c>ServiceCollectionExtensions.AddAffiantCore</c>) that this assertion fails — see the FIX
+/// report for the quoted failure output.
 /// </summary>
 public class AffiantFilterPipelineOrderTests
 {
@@ -43,6 +53,7 @@ public class AffiantFilterPipelineOrderTests
 
         var toolErrorIdx = Array.FindIndex(filters, f => f is ToolErrorFilter);
         var shortCircuitIdx = Array.FindIndex(filters, f => f is DeterministicShortCircuit);
+        var tracingIdx = Array.FindIndex(filters, f => f is ToolTracingFilter);
         var toolArgCaptureIdx = Array.FindIndex(filters, f => f is ToolArgumentCaptureFilter);
         var inferTriggerIdx = Array.FindIndex(filters, f => f is InferenceTriggerFilter);
         var mergeIdx = Array.FindIndex(filters, f => f is TaskInferenceMergeFilter);
@@ -50,9 +61,39 @@ public class AffiantFilterPipelineOrderTests
 
         Assert.True(toolErrorIdx >= 0, "ToolErrorFilter must be registered");
         Assert.True(shortCircuitIdx >= 0, "DeterministicShortCircuit must be registered");
+        Assert.True(tracingIdx >= 0, "ToolTracingFilter must be registered");
         Assert.True(toolArgCaptureIdx >= 0, "ToolArgumentCaptureFilter must be registered");
         Assert.True(inferTriggerIdx >= 0, "InferenceTriggerFilter must be registered");
+        Assert.True(mergeIdx >= 0, "TaskInferenceMergeFilter must be registered");
+        Assert.True(reviewIdx >= 0, "ReviewGateFilter must be registered");
 
+        // Area-3 P2 ruling 2: ToolErrorFilter is now the genuine outermost neutral filter — it must
+        // precede EVERY other neutral filter, including DeterministicShortCircuit (the pair the
+        // position paper's evidence pack found undocumented-but-unenforced, area-3 V4). Locking the
+        // full chain, not just the previously-checked pairs, so no future registration-order
+        // regression can slip past this test the way this exact pair once did.
+        var canonicalChain = new (string Name, int Index)[]
+        {
+            ("ToolErrorFilter", toolErrorIdx),
+            ("DeterministicShortCircuit", shortCircuitIdx),
+            ("ToolTracingFilter", tracingIdx),
+            ("ToolArgumentCaptureFilter", toolArgCaptureIdx),
+            ("InferenceTriggerFilter", inferTriggerIdx),
+            ("ReviewGateFilter", reviewIdx),
+            ("TaskInferenceMergeFilter", mergeIdx),
+        };
+        for (var i = 1; i < canonicalChain.Length; i++)
+        {
+            var (prevName, prevIdx) = canonicalChain[i - 1];
+            var (name, idx) = canonicalChain[i];
+            Assert.True(prevIdx < idx,
+                $"{prevName} (idx {prevIdx}) must be registered BEFORE {name} (idx {idx}) — full " +
+                "canonical chain: " + string.Join(" < ", canonicalChain.Select(c => $"{c.Name}({c.Index})")));
+        }
+
+        // Individually-named assertions kept alongside the chain loop above (redundant on purpose —
+        // the loop is the lock; these are what a reader sees first without expanding the tuple array).
+        Assert.True(toolErrorIdx < shortCircuitIdx, "ToolErrorFilter must be outermost of the two (ruling 2)");
         Assert.True(toolErrorIdx < toolArgCaptureIdx);
         Assert.True(shortCircuitIdx < toolArgCaptureIdx);
         Assert.True(toolArgCaptureIdx < inferTriggerIdx);
