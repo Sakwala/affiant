@@ -47,7 +47,7 @@ any *published* release (`docs/proposals/affiant-maf-adapter.md` §9).
 - **Spec §2.10 "Event Vocabulary"** was written 2026-04-11, 19 days before the real `TransportEvent`
   enum was first implemented (2026-04-30), and was never reconciled afterward — it documented a
   10-member enum sharing only 2 names with the shipped one. Rewritten 2026-08-04 to list the real,
-  post-this-wave 7-member enum and its real wire-name mapping (`EvidenceCardRequest` → `"ConfirmAction"`,
+  post-this-wave 8-member enum and its real wire-name mapping (`EvidenceCardRequest` → `"ConfirmAction"`,
   `EvidenceCardResponse` → `"EvidenceCardResponse"` (document-reserved), `AgentMessage` →
   `"ReceiveToken"`, `ContextUpdate` → `"ContextUpdated"`, `SystemNotification` → `"SystemNotification"`,
   `DocketExpiring` → `"DocketExpiring"`, `DocketExpired` → `"DocketExpired"`, `UiGuidance` →

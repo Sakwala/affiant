@@ -324,7 +324,7 @@ public enum TransportEvent
 ```
 
 **Historical note.** The founding commit that first implemented this enum (2026-04-30) also
-defined a ninth member, `UserMessage`, added in the same commit and same line range as
+defined a `UserMessage` member (the fourth of its original eight), added in the same commit and same line range as
 `AgentMessage` with no independent design note. It was deleted 2026-08-04 (proposal P1a):
 inbound chat text has always entered the framework as a host-defined SignalR hub RPC method (for
 example `SendMessage(message, conversationId)` — SignalR's own client→server invoke pattern),
@@ -351,7 +351,8 @@ public interface IStreamingTransport
     Task SendAsync(string connectionId, TransportEvent eventType, object payload, CancellationToken ct);
 
     // Sends eventType to every client in the named SignalR group (a session group or a reviewer
-    // group — see AffiantHub, §3.7). Every framework service that pushes to a client (ReviewGate,
+    // group — the naming conventions and typed broadcast helpers live on the AffiantHub base class
+    // in Affiant.Transport.SignalR; see that class's XML docs). Every framework service that pushes to a client (ReviewGate,
     // ReviewGateFilter, DocketExpiryService, UiGuidanceBridge) uses this method, never a raw
     // SignalR Clients.Group(...).SendAsync(...) call.
     Task BroadcastToGroupAsync(string groupId, TransportEvent eventType, object payload, CancellationToken ct);
