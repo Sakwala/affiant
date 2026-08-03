@@ -108,6 +108,30 @@ public sealed class SignalRTransportContractTests(TransportIntegrationTestFixtur
         Assert.Equal(JsonValueKind.Object, element.ValueKind);
     }
 
+    [Fact(DisplayName = "P1b: SystemNotificationPayload serializes to the SAME wire shape the anonymous object it replaced did — {level, message}, camelCase, exactly two properties")]
+    public async Task SystemNotificationPayload_SerializesToUnchangedWireShape()
+    {
+        var (client, connId) = await fixture.CreateConnectedClientAsync();
+        await using var _ = client;
+
+        var received = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
+        client.On<JsonElement>(SystemNotifMethod, payload => received.TrySetResult(payload));
+
+        var transport = fixture.Server.Services.GetRequiredService<IStreamingTransport>();
+        await transport.SendAsync(connId, TransportEvent.SystemNotification,
+            new SystemNotificationPayload("warning", "Session expiring"), CancellationToken.None);
+
+        var element = await received.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(JsonValueKind.Object, element.ValueKind);
+
+        // Exactly {level, message} — no PascalCase leakage, no extra $type discriminator, no
+        // additional properties an existing host TS interface wouldn't already expect.
+        var propertyNames = element.EnumerateObject().Select(p => p.Name).OrderBy(n => n, StringComparer.Ordinal).ToList();
+        Assert.Equal(["level", "message"], propertyNames);
+        Assert.Equal("warning", element.GetProperty("level").GetString());
+        Assert.Equal("Session expiring", element.GetProperty("message").GetString());
+    }
+
     [Fact(DisplayName = "Payload round-trips as symmetric JSON")]
     public async Task Payload_SerializationIsSymmetric()
     {
