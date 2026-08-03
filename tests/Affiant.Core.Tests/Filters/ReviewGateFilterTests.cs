@@ -233,6 +233,12 @@ public class ReviewGateFilterTests
         var notification = Assert.Single(
             transport.Broadcasts, b => b.EventType == TransportEvent.SystemNotification);
         Assert.Equal("session-test", notification.GroupId);
+
+        // P1b: the call site migrated from an anonymous { level, message } object to the named
+        // SystemNotificationPayload record — same wire shape, now a real type.
+        var payload = Assert.IsType<SystemNotificationPayload>(notification.Payload);
+        Assert.Equal("error", payload.Level);
+        Assert.Contains("could not be filed for review", payload.Message);
     }
 
     [Fact]

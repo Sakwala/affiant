@@ -236,12 +236,10 @@ public sealed class ReviewGateFilter(ILogger<ReviewGateFilter> logger) : IComple
             await transport.BroadcastToGroupAsync(
                 sessionId,
                 TransportEvent.SystemNotification,
-                new
-                {
-                    level = "error",
-                    message = $"Your request to {toolName} could not be filed for review and was " +
-                              "not queued. Please try again."
-                },
+                new SystemNotificationPayload(
+                    "error",
+                    $"Your request to {toolName} could not be filed for review and was " +
+                    "not queued. Please try again."),
                 cancellationToken);
         }
         catch (Exception notifyEx)

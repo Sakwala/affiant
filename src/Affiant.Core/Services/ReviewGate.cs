@@ -413,12 +413,10 @@ public sealed class ReviewGate(
             await transport.BroadcastToGroupAsync(
                 sessionId,
                 TransportEvent.SystemNotification,
-                new
-                {
-                    level = "warning",
-                    message = $"Your request to {toolName} was filed for review, but reviewers were " +
-                              "not notified. It may need manual follow-up."
-                },
+                new SystemNotificationPayload(
+                    "warning",
+                    $"Your request to {toolName} was filed for review, but reviewers were " +
+                    "not notified. It may need manual follow-up."),
                 cancellationToken);
         }
         catch (Exception notifyEx)

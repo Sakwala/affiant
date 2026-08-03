@@ -12,6 +12,25 @@ any *published* release (`docs/proposals/affiant-maf-adapter.md` §9).
 
 ## [Unreleased]
 
+### Added — Area-4 P1b: `SystemNotificationPayload` — named record replacing the duplicated anonymous `{level, message}` object
+
+- New `Affiant.Abstractions.Transport.SystemNotificationPayload(string Level, string Message)`.
+  Both framework call sites that broadcast `TransportEvent.SystemNotification` — `ReviewGate`'s
+  best-effort broadcast-failure notification and `ReviewGateFilter`'s P1a filing-failure
+  notification — previously each defined their own identical anonymous `{ level, message }` object;
+  both now construct the same named record.
+- **Wire shape is unchanged on purpose.** Still camelCase `{level, message}`, still exactly those
+  two properties — existing host TypeScript keeps working across the pin bump with no client-side
+  change. Locked by `SystemNotificationPayload_SerializesToUnchangedWireShape` (real SignalR round
+  trip asserting the JSON has exactly `["level", "message"]` as its property set).
+- `Level` stays a plain `string`, not a C# enum — its allowed values (`"error"`/`"warning"`/`"info"`)
+  are meant to be pinned by the host-apps contract net's closed-set value fixtures (Area-2 P2d), not
+  by a framework-side type, deliberately avoiding the int-vs-string enum-serialization inconsistency
+  V1 documented between `ApprovalDecision` (int) and `ProvenanceSource` (string).
+- Mutation-verified: reverting either call site back to its anonymous object reproduces the
+  corresponding typed-payload assertion failure in `ReviewGateFilterTests`/`ReviewGateTests`;
+  restored byte-identical.
+
 ### Removed — Area-4 P1a/P1e: dead transport vocabulary deleted; blocking review path retired as document-reserved
 
 - **`TransportEvent.UserMessage` deleted.** Founding-commit symmetry filler paired with

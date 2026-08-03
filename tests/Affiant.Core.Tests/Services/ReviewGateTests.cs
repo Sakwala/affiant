@@ -756,7 +756,14 @@ public class ReviewGateTests
         var (proposal, context) = CreateTestInput(Guid.NewGuid());
         await gate.FileForReviewAsync(proposal, context);
 
-        Assert.Single(transport.SentEvents, e => e.EventType == TransportEvent.SystemNotification);
+        var notification = Assert.Single(
+            transport.SentEvents, e => e.EventType == TransportEvent.SystemNotification);
+
+        // P1b: ReviewGate's own call site migrated from an anonymous { level, message } object to
+        // the named SystemNotificationPayload record — same wire shape, now a real type.
+        var payload = Assert.IsType<SystemNotificationPayload>(notification.Payload);
+        Assert.Equal("warning", payload.Level);
+        Assert.Contains("reviewers were", payload.Message);
     }
 
     // ── D4: ResubmitAsync (framework half of issue #9) ───────────────────────
