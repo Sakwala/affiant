@@ -69,14 +69,40 @@ public sealed class SignalRStreamingTransport<THub>(IHubContext<THub> hubContext
     }
 }
 
-internal static class TransportEventExtensions
+/// <summary>
+/// Maps each <see cref="TransportEvent"/> member to the SignalR client method name it is dispatched
+/// under. <b>P1c (area-4, ruled 2026-08-04):</b> now <c>public</c> (was <c>internal</c>) and total —
+/// an explicit arm per enum member, no <c>default</c>/discard-to-<c>ToString()</c> fallthrough.
+/// Before this change, 4 of 8 members silently fell through to <c>evt.ToString()</c>, meaning a
+/// rename or reorder of those members silently renamed the wire method with no compiler signal, and
+/// the method being <c>internal</c> meant a host's own contract net could only reach it via
+/// reflection (which detects removal, not an output-string change). Both gaps are closed here:
+/// adding a <see cref="TransportEvent"/> member without a matching arm is a compile error (CS8509,
+/// "the switch expression does not handle all values of its input type" for the new NAMED member —
+/// this package's <c>TreatWarningsAsErrors</c> turns the warning into a build failure), and the
+/// method is directly callable — no reflection needed — by any code (including a host's own
+/// contract tests) that references this package.
+/// <para>
+/// The <c>#pragma</c> below suppresses only CS8524 — a distinct, unavoidable diagnostic every
+/// enum switch EXPRESSION without a discard arm triggers in C#, because enums admit any underlying
+/// integral value via casting (e.g. <c>(TransportEvent)99</c>), not just their named members; no
+/// finite set of named arms can ever satisfy it. Suppressing it does not weaken the guarantee this
+/// class exists for — CS8509 (a genuinely missing NAMED member) remains fully active and still
+/// fails the build.
+/// </para>
+/// </summary>
+public static class TransportEventExtensions
 {
-    internal static string ToClientEventName(this TransportEvent evt) => evt switch
+#pragma warning disable CS8524 // exhaustive over every NAMED TransportEvent member (CS8509 stays live); see class remarks for why this specific diagnostic is unavoidable for any enum switch expression.
+    public static string ToClientEventName(this TransportEvent evt) => evt switch
     {
-        TransportEvent.EvidenceCardRequest => "ConfirmAction",
-        TransportEvent.AgentMessage        => "ReceiveToken",
-        TransportEvent.ContextUpdate       => "ContextUpdated",
-        TransportEvent.SystemNotification  => "SystemNotification",
-        _                                  => evt.ToString()
+        TransportEvent.EvidenceCardRequest  => "ConfirmAction",
+        TransportEvent.EvidenceCardResponse => "EvidenceCardResponse",
+        TransportEvent.AgentMessage         => "ReceiveToken",
+        TransportEvent.ContextUpdate        => "ContextUpdated",
+        TransportEvent.SystemNotification   => "SystemNotification",
+        TransportEvent.DocketExpiring       => "DocketExpiring",
+        TransportEvent.DocketExpired        => "DocketExpired",
     };
+#pragma warning restore CS8524
 }
