@@ -26,7 +26,17 @@ any *published* release (`docs/proposals/affiant-maf-adapter.md` §9).
   future third completion-stage filter inherits the guarantee automatically. Cross-adapter parity
   proven by injecting the same failure through both adapters' real bridges
   (`CrossAdapterCompletionStageFailureContractTests`) and asserting the model-visible payload is
-  identical on both.
+  identical on both. **Shipped with the retry-safety flag gate from the start of this Unreleased
+  entry** — a fix-round adversarial review caught, on this same unreleased branch (never merged,
+  never published), that gating the completion-stage retry on `ToolExecuted` alone was insufficient:
+  SK's completion-stage `next()` is SK's own auto-invocation continuation, not the tool, so a
+  pre-tool-style failure there (`ToolExecuted` still false) could retry into a genuine second tool
+  execution. New `ToolInvocationContext.NextIsToolBody` (default `true`) closes this: SK's
+  completion-stage bridge sets it `false`, and `ToolErrorFilter`'s retry branch checks
+  `!ToolExecuted && NextIsToolBody`. MAF's single onion is unaffected (`next()` genuinely is the
+  tool there). Mutation-locked by `CompletionSeamRetrySafetyTests` (SK: `next()` called exactly
+  once, no retry; MAF control: `next()` called exactly twice, retry still fires — the asymmetry is
+  now deliberate and tested). See framework spec §3.12.9 "Retry safety at the completion seam."
 - **Ruling 2 — filter order: code now matches the spec.** Framework spec §3.12.4 and
   `ToolErrorFilter`'s own class doc both claimed `ToolErrorFilter` was outermost; `AddAffiantCore()`
   actually registered `DeterministicShortCircuit` first, making it the true outermost filter — a
@@ -66,10 +76,28 @@ any *published* release (`docs/proposals/affiant-maf-adapter.md` §9).
   of "4"). `ToolErrorFilter`/`ReviewGateFilter` now consume these constants.
   `Affiant.Testing.ComplianceHarness.ComplianceHarness.AssertToolErrorCodeRegistryParity` gives
   hosts the same opt-in, additive drift-detection `AssertToolNameRegistryParity`/
-  `AssertFabricKeyParity` already provide, for their own domain codes. Host-side adoption (their
-  ~10 codes, `ManualToolInvoker`'s hand-written `FUNCTION_NOT_FOUND` JSON literal, and the
-  mismatched bare-`"TIMEOUT"` assertion in `ToolEnvelopePolymorphismTests`) is explicitly deferred
-  to the area-3 closing wave — nothing here breaks a host that has not adopted it.
+  `AssertFabricKeyParity` already provide, for their own domain codes. Host-side adoption of a
+  host's own ~10 domain codes remains deferred to the area-3 closing wave — nothing here breaks a
+  host that has not adopted it.
+- **Ruling 4 (fix round, framework side complete) — scoping correction + a live emission lock.**
+  `ManualToolInvoker`'s hand-written `FUNCTION_NOT_FOUND` JSON literal was wrongly grouped with
+  host-side adoption above and deferred — it is a FRAMEWORK code; that scoping error is corrected
+  here. `ManualToolInvoker.CaptureAndInvokeAsync` now builds its not-found payload through the real
+  `ToolError` type consuming `ToolErrorCodes.FunctionNotFound`. The mismatched bare-`"TIMEOUT"`/
+  `"DB_CONN_TIMEOUT"` assertions in `ToolEnvelopePolymorphismTests` now assert
+  `ToolErrorCodes.DbTimeout`. Separately: an adversarial refuter proved by mutation that
+  `AssertToolErrorCodeRegistryParityTests.FrameworkRegistry_MatchesEveryCodeTheFrameworkActuallyEmits`
+  has zero power to catch a NEW bare-literal emission site — its "emitted" list is hand-typed from
+  the same `ToolErrorCodes` constants it checks against, so it can only ever catch an orphan. A
+  rogue `"RATE_LIMITED"` classification arm added to `ToolErrorFilter.MapExceptionToToolError`
+  failed nothing (306 relevant tests green). New
+  `Affiant.Testing.ComplianceHarness.Tests.AssertToolErrorCodeSourceScanTests` closes the gap: reads
+  `src/` from disk and fails on any bare literal in the three shapes a `ToolError`-code emission
+  site takes in this codebase (`Code: "LITERAL"`, a `(code, retryable)` classification-tuple arm, or
+  hand-rolled JSON `"code":"LITERAL"`) — proven to catch both the rogue-arm mutation and a reverted
+  `ManualToolInvoker` literal, restored byte-identical after each proof. The parity assertion is
+  kept (it still legitimately catches orphans the source scan cannot); its own remarks now document
+  the division of labor.
 - **Docs (P4 rider).** Framework spec §6 gains the Area 3 gating principle verbatim from the
   position paper (`docs/architecture-review/area-3-tool-calling-reliability.md`, external
   `affiant-chancery` review repo), with a glossary and an honest field-evidence note that ToolMode
@@ -82,6 +110,12 @@ any *published* release (`docs/proposals/affiant-maf-adapter.md` §9).
   called out as the anti-pattern (previously the reverse); the quick-reference minimal read/write
   tools in §8 corrected to match; §6 flags (does not fix) the pre-existing `Retryable: true`
   doc/code mismatch for directly-returned `ToolError`s (area-3 V6).
+- **Docs (fix round).** §3.12.9 gains "Retry safety at the completion seam," correcting the
+  disproven "structurally impossible"/"cannot double-fire" claims that shipped in the P2 landing
+  above with the `NextIsToolBody` mechanism that actually governs it; §3.12.4 cross-references it.
+  §2.4 records the `FUNCTION_NOT_FOUND` scoping correction and the new source-scan lock. The same
+  disproven claims in `ToolErrorFilter.cs`'s and `BridgeStages.cs`'s own XML remarks are corrected
+  in the source, not just the spec.
 
 ### Fixed — ReviewGateFilter no longer silently loses a WriteProposal (affiant#22, area-3 P1a/P1d)
 

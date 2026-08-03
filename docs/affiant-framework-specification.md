@@ -2,10 +2,15 @@
 
 > **Sworn provenance for every AI write.**  
 > **Version**: 1.0.0-spec  
-> **Last updated**: 2026-08-03 (§3.12.4 corrected to the now-enforced filter order; new §3.12.9
-> tool-body/post-processing failure policy; §6 gains the Area 3 gating principle; §7.5/tool-authoring-guide.md
-> corrected per affiant#21 — see `docs/architecture-review/area-3-tool-calling-reliability.md`
-> (external, in the `affiant-chancery` review repo) for the change that drove this update)  
+> **Last updated**: 2026-08-03, fix round (§3.12.9 gains the `NextIsToolBody` retry-safety
+> mechanism, correcting the disproven "structurally impossible" double-fire claim from the same-day
+> P2 ruling-1 landing below; §2.4 records `ManualToolInvoker`'s `FUNCTION_NOT_FOUND` scoping
+> correction — see two independent adversarial refuters' findings, `affiant-chancery` review repo)  
+> **Previously updated same day**: 2026-08-03, P2 landing (§3.12.4 corrected to the now-enforced
+> filter order; new §3.12.9 tool-body/post-processing failure policy; §6 gains the Area 3 gating
+> principle; §7.5/tool-authoring-guide.md corrected per affiant#21 — see
+> `docs/architecture-review/area-3-tool-calling-reliability.md` (external, in the `affiant-chancery`
+> review repo) for the change that drove this update)  
 > **Previously updated**: 2026-07-05 (§1 overview, §3.8, §3.12.1, §3.12.3, §3.12.4, §4 Package Mapping, §5 corrected/extended —
 > see `docs/proposals/affiant-maf-adapter.md` for the change that drove this update)  
 > **Authors**: Software Architect, Technical Product Manager, Principal Engineer, Technical Writer  
@@ -135,13 +140,29 @@ code could silently collide with a framework code
 `Affiant.Abstractions.Models.ToolErrorCodes` now declares every code the framework itself emits
 (`DB_TIMEOUT`, `UPSTREAM_UNAVAILABLE`, `VALIDATION_FAILED`, `UNKNOWN` — from
 `ToolErrorFilter.MapExceptionToToolError` — plus `REVIEW_FILING_FAILED` and `FUNCTION_NOT_FOUND`;
-see that type's own remarks for scope and the one deliberately-deferred exception,
-`ManualToolInvoker`'s hand-written `FUNCTION_NOT_FOUND` JSON literal). Hosts declare their own
-`ToolErrorCodes`-style class for their domain codes and opt into
+see that type's own remarks for scope). Hosts declare their own `ToolErrorCodes`-style class for
+their domain codes and opt into
 `Affiant.Testing.ComplianceHarness.ComplianceHarness.AssertToolErrorCodeRegistryParity` — the same
 additive, opt-in pattern as `AssertToolNameRegistryParity`/`AssertFabricKeyParity` — to get
 drift-failure the same way. Declaring this registry does not require any host to adopt it and does
-not change any code a host already has; host-side adoption is deferred to the Area 3 closing wave.
+not change any code a host already has; host-side adoption of a host's OWN domain codes is deferred
+to the Area 3 closing wave.
+
+**Framework-side adoption completed, fix round (2026-08-03).** `FUNCTION_NOT_FOUND` is a framework
+code — the P2 wave above wrongly grouped `ManualToolInvoker`'s hand-written JSON literal for it with
+host-side adoption and deferred it; that scoping error is corrected here.
+`ManualToolInvoker.CaptureAndInvokeAsync` now builds its not-found payload through the real
+`ToolError` type consuming this constant, not a hand-written JSON string. Because
+`AssertToolErrorCodeRegistryParity`'s `emittedCodes` parameter is caller-supplied by design, a
+self-check built from the same constants it verifies against can only ever catch an orphaned
+constant, never a new bare-literal emission site (proven by mutation: an adversarial refuter added a
+rogue `"RATE_LIMITED"` classification arm to `MapExceptionToToolError` and no existing test failed).
+`Affiant.Testing.ComplianceHarness.Tests.AssertToolErrorCodeSourceScanTests` closes that gap: it
+reads the framework's own `src/` tree from disk and fails on any bare string literal in the three
+shapes a `ToolError` code emission site can take in this codebase (a named `Code: "LITERAL"`
+argument, a `(code, retryable)` classification-tuple arm, or a hand-rolled JSON `"code":"LITERAL"`
+field) — proven to catch both the rogue-arm mutation and a reverted `ManualToolInvoker` literal, and
+restored byte-identical after each proof.
 
 **JSON polymorphism**: Use `[JsonDerivedType]` attributes (matching SK's own `KernelContent` pattern) to enable polymorphic deserialization in the filter pipeline. The `type` discriminator field distinguishes variants during deserialization.
 
@@ -817,7 +838,9 @@ structurally via the new `Affiant.Abstractions.Interfaces.ICompletionStageFilter
 (`TaskInferenceMergeFilter`/`ReviewGateFilter` implement it) rather than a closed type list, so a
 third completion-stage filter added later inherits the same guarantee automatically. See §3.12.9
 below for what "the same guarantee" actually resolves to for this class of failure — it is not
-simply "convert to `ToolError`."
+simply "convert to `ToolError`," and (fix round, 2026-08-03) not simply "never retried" either —
+see §3.12.9's "Retry safety at the completion seam" for the `NextIsToolBody` mechanism that
+actually governs it.
 
 *Source files:* `src/Affiant.Core/Services/ToolInvocationPipeline.cs`, `src/Affiant.Core/Extensions/ServiceCollectionExtensions.cs` (`AddAffiantCompletionFilters`), `src/Affiant.SemanticKernel/Filters/AffiantFilterPipeline.cs`, `src/Affiant.SemanticKernel/Filters/BridgeStages.cs`, `src/Affiant.Core/Filters/InferenceTriggerFilter.cs`, `src/Affiant.Core/Filters/ToolArgumentCaptureFilter.cs`, `src/Affiant.Core/Filters/TaskInferenceMergeFilter.cs`, `src/Affiant.Core/Filters/ToolErrorFilter.cs`, `src/Affiant.AgentFramework/Filters/AffiantFunctionInvocationMiddleware.cs`, `src/Affiant.AgentFramework/Extensions/ServiceCollectionExtensions.cs`
 
@@ -920,6 +943,37 @@ flips the flag). `ToolErrorFilter`'s catch clause branches on this flag:
   emits the `affiant.extractor.failed` OTel event (tags: `extractor.type`, `tool.name`,
   `exception.type`) via `AffiantTelemetry.RecordExtractorFailedEvent`.
 
+**Retry safety at the completion seam (fix round, 2026-08-03 — corrects a disproven claim).** The
+`ToolExecuted == false` retry branch above was, until this fix round, additionally believed
+"structurally impossible" to double-fire at SK's completion-stage seam. That claim was FALSE: two
+independent adversarial refuters reproduced it. SK's completion-stage terminal
+(`AffiantAutoFunctionInvocationBridge`)'s `next(context)` is SK's OWN auto-invocation continuation,
+not the tool — it nested-invokes the real tool through a SEPARATE `ToolInvocationContext` at the
+invocation-stage seam (§3.12.4). A real scenario this must guard against: a host-registered SK
+filter running outside Affiant's bridges (or SK's own argument-binding step) throws before that
+nested invocation ever happens. At that point `ToolExecuted` is still `false` (the tool never got a
+chance to run), so the retry branch above — reading `ToolExecuted` alone — would call
+`next(context)` a second time, calling SK's continuation again and genuinely re-executing the tool
+for a failure that had nothing to do with it.
+
+The fix: `Affiant.Abstractions.Models.ToolInvocationContext.NextIsToolBody` — a `bool`, default
+`true` — declares whether re-invoking `next(context)` at a given seam re-runs ONLY the tool body.
+`ToolErrorFilter`'s retry branch is gated on `!ToolExecuted && NextIsToolBody`; when a retryable
+exception arrives with `ToolExecuted == false` and `NextIsToolBody == false`, it is still converted
+to a typed `ToolError` (the one-failure-contract still holds — SK's auto-invoke loop never sees a
+raw exception) but `next()` is never called again.
+`AffiantAutoFunctionInvocationBridge` sets `NextIsToolBody = false` on the `ToolInvocationRequest`
+it builds for the completion stage — the one seam where `next()` is not the tool body. MAF's single
+onion (`AffiantFunctionInvocationMiddleware`) and `ManualToolInvoker`'s completion terminal both
+leave it at the default `true`: at MAF's seam `next()` genuinely IS the tool, so retrying there is
+correct, deliberate, and now explicitly tested (asymmetric with SK on purpose — see
+`tests/Affiant.AgentFramework.Tests/Filters/CompletionSeamRetrySafetyTests.cs`, which promotes both
+refuters' probes: the SK case asserts `next()` is called exactly once with no retry, and a MAF
+control case asserts the retry still fires there, twice, because `next()` really is the tool). The
+same class remarks in `ToolErrorFilter.cs` and `BridgeStages.cs` that carried the disproven
+"structurally impossible"/"cannot double-fire" claims have been corrected to describe this
+mechanism.
+
 **Gate ruling — extraction policy = surface-and-continue (2026-08-03).** Extraction is enrichment,
 not gating (see the Area 3 principle above): a fail-the-call policy for extractor bugs would mean
 the framework lies to the model about a tool call that actually succeeded, and — when classified
@@ -951,9 +1005,15 @@ result, the OTel event fires; a retryable tool failure: the tool runs exactly tw
 runs exactly once, on the final result) and by
 `tests/Affiant.AgentFramework.Tests/Filters/CrossAdapterCompletionStageFailureContractTests.cs`
 (the same injected completion-stage failure through both adapters' real bridges produces the
-identical model-visible payload — the tool's untouched genuine result).
+identical model-visible payload — the tool's untouched genuine result). The retry-safety fix
+(`NextIsToolBody`) is mutation-locked by
+`tests/Affiant.AgentFramework.Tests/Filters/CompletionSeamRetrySafetyTests.cs`: a real
+`AffiantAutoFunctionInvocationBridge` with a `next()` that throws a retryable exception before the
+tool runs calls `next()` exactly once (no retry, rewritten to a typed `ToolError`); the same
+scenario through `AffiantFunctionInvocationMiddleware`'s single onion calls `next()` exactly twice
+(the deliberate, documented asymmetry).
 
-*Source files:* `src/Affiant.Abstractions/Models/ToolInvocationContext.cs`, `src/Affiant.Core/Filters/ToolErrorFilter.cs`, `src/Affiant.Core/Filters/ContextExtractor.cs`, `src/Affiant.Core/Filters/TaskInferenceMergeFilter.cs`, `src/Affiant.Core/Observability/AffiantTelemetry.cs`
+*Source files:* `src/Affiant.Abstractions/Models/ToolInvocationContext.cs`, `src/Affiant.Core/Filters/ToolErrorFilter.cs`, `src/Affiant.Core/Filters/ContextExtractor.cs`, `src/Affiant.Core/Filters/TaskInferenceMergeFilter.cs`, `src/Affiant.Core/Observability/AffiantTelemetry.cs`, `src/Affiant.SemanticKernel/Filters/AffiantAutoFunctionInvocationBridge.cs`, `src/Affiant.SemanticKernel/Filters/BridgeStages.cs`, `src/Affiant.Core/Services/ToolInvocationPipeline.cs`
 
 ---
 
