@@ -3,6 +3,7 @@ namespace Affiant.Transport.SignalR.Hubs;
 using System.Diagnostics;
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
+using Affiant.Abstractions.Transport;
 using Affiant.Core.Observability;
 using Microsoft.AspNetCore.SignalR;
 
@@ -11,9 +12,33 @@ using Microsoft.AspNetCore.SignalR;
 /// session rehydration, and broadcaster helpers. Subclasses supply JWT extraction and
 /// domain-specific hub method handlers.
 /// </summary>
-public abstract class AffiantHub(IChatSessionStore chatSessionStore) : Hub
+/// <remarks>
+/// P5c (area-4 d1-host-bypass finding D): before this fix, <c>BroadcastToSessionAsync</c>/
+/// <c>BroadcastToReviewerAsync</c> took a raw <c>string method</c> and called
+/// <c>Clients.Group(...).SendAsync(method, ...)</c> directly — the framework's OWN hub base
+/// bypassing its OWN <see cref="TransportEvent"/>/<see cref="TransportEventExtensions.ToClientEventName"/>
+/// abstraction, exactly the pattern both hosts' hot-path token streaming does for the same
+/// structural reason (no need to thread a <c>connectionId</c>/DI-resolve <see cref="IStreamingTransport"/>
+/// separately when <c>Clients</c> is already in scope). Now both helpers take a typed
+/// <see cref="TransportEvent"/> and route through the injected <see cref="Transport"/>, so a rename
+/// of the wire method name lives in exactly one place
+/// (<see cref="TransportEventExtensions.ToClientEventName"/>) instead of also needing every hub
+/// subclass's string literals updated. <see cref="Transport"/> is also exposed directly so a
+/// subclass's own connection-scoped sends (e.g. per-token streaming to <c>Context.ConnectionId</c>)
+/// no longer need a second, redundant DI resolution of <see cref="IStreamingTransport"/> — the base
+/// class already has it.
+/// </remarks>
+public abstract class AffiantHub(IChatSessionStore chatSessionStore, IStreamingTransport transport) : Hub
 {
     protected IChatSessionStore ChatSessionStore { get; } = chatSessionStore;
+
+    /// <summary>
+    /// The same <see cref="IStreamingTransport"/> singleton the framework's own review/docket
+    /// services broadcast through — available here so a hub subclass's connection- or
+    /// group-scoped sends (including per-token streaming) can go through the one typed
+    /// abstraction instead of reaching for <c>Clients</c> directly with a raw method-name string.
+    /// </summary>
+    protected IStreamingTransport Transport { get; } = transport;
 
     public override Task OnConnectedAsync() => base.OnConnectedAsync();
 
@@ -41,21 +66,25 @@ public abstract class AffiantHub(IChatSessionStore chatSessionStore) : Hub
     protected Task RemoveFromReviewerGroupAsync(string reviewerId, CancellationToken cancellationToken = default)
         => Groups.RemoveFromGroupAsync(Context.ConnectionId, GetReviewerGroupName(reviewerId), cancellationToken);
 
-    protected Task BroadcastToSessionAsync(string sessionId, string method, object? data = null, CancellationToken cancellationToken = default)
-    {
-        var group = Clients.Group(GetSessionGroupName(sessionId));
-        return data is null
-            ? group.SendAsync(method, cancellationToken)
-            : group.SendAsync(method, data, cancellationToken);
-    }
+    /// <summary>
+    /// Broadcasts <paramref name="eventType"/> to every connection in <paramref name="sessionId"/>'s
+    /// group, via <see cref="Transport"/> — the same group-scoped, typed path
+    /// <see cref="Affiant.Core.Services.ReviewGate"/> uses for Evidence Cards. Both reference hosts
+    /// independently converged on <c>BroadcastToGroupAsync(conversationId, ...)</c> as their
+    /// session-broadcast shape (area-4 d1-fw-intent finding D); this is that path, first-class on
+    /// the hub base instead of hand-rolled per host.
+    /// </summary>
+    protected Task BroadcastToSessionAsync(
+        string sessionId, TransportEvent eventType, object payload, CancellationToken cancellationToken = default)
+        => Transport.BroadcastToGroupAsync(GetSessionGroupName(sessionId), eventType, payload, cancellationToken);
 
-    protected Task BroadcastToReviewerAsync(string reviewerId, string method, object? data = null, CancellationToken cancellationToken = default)
-    {
-        var group = Clients.Group(GetReviewerGroupName(reviewerId));
-        return data is null
-            ? group.SendAsync(method, cancellationToken)
-            : group.SendAsync(method, data, cancellationToken);
-    }
+    /// <summary>
+    /// Broadcasts <paramref name="eventType"/> to every connection in <paramref name="reviewerId"/>'s
+    /// reviewer group, via <see cref="Transport"/>. See <see cref="BroadcastToSessionAsync"/>'s remarks.
+    /// </summary>
+    protected Task BroadcastToReviewerAsync(
+        string reviewerId, TransportEvent eventType, object payload, CancellationToken cancellationToken = default)
+        => Transport.BroadcastToGroupAsync(GetReviewerGroupName(reviewerId), eventType, payload, cancellationToken);
 
     /// <summary>
     /// Opens a canonical <c>invoke_agent</c> span on the <c>Affiant.Framework</c> activity source

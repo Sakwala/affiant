@@ -12,6 +12,27 @@ any *published* release (`docs/proposals/affiant-maf-adapter.md` §9).
 
 ## [Unreleased]
 
+### Changed — Area-4 P5c: `AffiantHub`'s own broadcast helpers now route through `IStreamingTransport`, typed
+
+- **`AffiantHub.BroadcastToSessionAsync`/`BroadcastToReviewerAsync` took a raw `string method` and
+  called `Clients.Group(...).SendAsync(...)` directly** — the framework's own hub base bypassing its
+  own `TransportEvent`/`ToClientEventName()` abstraction, the single strongest piece of evidence in
+  the area-4 investigation that hosts' identical bypass (raw `Clients.Group(...).SendAsync("ReceiveToken", ...)`
+  literals) was a shape gap, not laziness. Both helpers now take a typed `TransportEvent` and a
+  required (non-null) `payload`, delegating to a newly-injected `IStreamingTransport Transport`
+  property on the hub base — the same `BroadcastToGroupAsync(groupId, ...)` path both hosts
+  independently converged on for their own session broadcasts, now first-class on the framework's
+  hub instead of hand-rolled per host. **Breaking**: `AffiantHub`'s constructor now requires an
+  `IStreamingTransport` (already registered by `AddAffiantSignalR`, so no new host wiring — only
+  hub subclasses that call `base(chatSessionStore)` directly must add the second argument), and the
+  two broadcast helpers' second parameter changed from `string method` to `TransportEvent eventType`
+  with `payload` no longer optional. Locked by `AffiantHubBroadcastHelperTests` (unit-level: a spy
+  transport proves the correct group name and `TransportEvent` reach `IStreamingTransport`;
+  integration-level: two real-SignalR round trips prove wire delivery through `ToClientEventName()`'s
+  mapping, including that the reviewer helper targets `reviewer:{id}`, not the bare id).
+  Mutation-verified: reverting the session helper to the old raw-`Clients.Group` bypass reproduces
+  both the unit and the integration test's failure; restored byte-identical.
+
 ### Fixed — Area-4 P5 prerequisites: completion-stage Terminate preserved across bridges; ReviewGate gets a real DI registration (affiant#25, affiant#26)
 
 - **affiant#25 — `AffiantAutoFunctionInvocationBridge` (SK) and `AffiantFunctionInvocationMiddleware`
