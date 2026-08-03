@@ -58,6 +58,7 @@ public sealed class ToolInvocationPipeline
                 Arguments = request.Arguments,
                 Result = request.InitialResult,
                 Terminate = request.InitialTerminate,
+                NextIsToolBody = request.InitialNextIsToolBody,
                 Services = provider,
                 ConversationId = request.ConversationId,
                 TurnNumber = request.TurnNumber,
@@ -93,6 +94,18 @@ public sealed record ToolInvocationRequest(
 {
     public object? InitialResult { get; init; }
     public bool InitialTerminate { get; init; }
+
+    /// <summary>
+    /// Seeds <see cref="ToolInvocationContext.NextIsToolBody"/>. Default <see langword="true"/> —
+    /// almost every seam's <c>next()</c> IS the tool body (or leads directly to it); the one
+    /// exception today is SK's completion-stage seam
+    /// (<see cref="Affiant.SemanticKernel.Filters.AffiantAutoFunctionInvocationBridge"/> in the
+    /// Affiant.SemanticKernel package — not referenced here to avoid a package-layering
+    /// dependency), which sets this <see langword="false"/> because its <c>next()</c> is SK's own
+    /// auto-invocation continuation, not the tool. See
+    /// <see cref="ToolInvocationContext.NextIsToolBody"/>'s remarks for the full area-3 P2 finding.
+    /// </summary>
+    public bool InitialNextIsToolBody { get; init; } = true;
     public string? ConversationId { get; init; }
     public int TurnNumber { get; init; }
     public IReadOnlyList<AffiantChatMessage> History { get; init; } = [];

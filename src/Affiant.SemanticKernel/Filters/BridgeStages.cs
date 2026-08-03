@@ -20,9 +20,29 @@ using Affiant.Core.Filters;
 /// <see cref="ToolErrorFilter"/> is NOT part of <see cref="IsCompletionStage"/> — it is added
 /// explicitly in <see cref="CompletionStage"/> only — so it is correctly excluded from neither
 /// stage: it already runs at the invocation stage (unaffected) and now ALSO runs at the completion
-/// stage. See <see cref="ToolErrorFilter"/>'s class remarks for why this cannot double-fire a
-/// retry that re-executes the underlying tool. Everything else — including host
-/// <see cref="ContextExtractor"/> subclasses — runs at the invocation stage only.
+/// stage.
+///
+/// <para>
+/// <b>Retry safety at this seam (area-3 P2 fix round — corrects a disproven claim).</b> An earlier
+/// version of these remarks claimed this participation "cannot double-fire a retry that re-executes
+/// the underlying tool." That was FALSE: at this seam, <c>next(context)</c> as seen by the terminal
+/// built in <c>AffiantAutoFunctionInvocationBridge</c> is SK's OWN auto-invocation continuation —
+/// not the tool — which nested-invokes the real tool through a separate
+/// <see cref="Affiant.Abstractions.Models.ToolInvocationContext"/> at the invocation-stage seam. If
+/// that continuation throws before the nested invocation happens,
+/// <see cref="Affiant.Abstractions.Models.ToolInvocationContext.ToolExecuted"/> is still
+/// <see langword="false"/>, and a naive retry would call the continuation a second time — genuinely
+/// re-executing the tool. Two independent adversarial refuters reproduced exactly this. The actual
+/// guard is <c>AffiantAutoFunctionInvocationBridge</c> setting
+/// <see cref="Affiant.Abstractions.Models.ToolInvocationContext.NextIsToolBody"/> to
+/// <see langword="false"/> on the <c>ToolInvocationRequest</c> it builds for this stage —
+/// <see cref="ToolErrorFilter"/>'s retry branch checks that flag alongside <c>ToolExecuted</c>. See
+/// <see cref="Affiant.Abstractions.Models.ToolInvocationContext.NextIsToolBody"/>'s remarks for the
+/// full finding.
+/// </para>
+///
+/// Everything else — including host <see cref="ContextExtractor"/> subclasses — runs at the
+/// invocation stage only.
 /// </summary>
 internal static class BridgeStages
 {

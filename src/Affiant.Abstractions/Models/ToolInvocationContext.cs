@@ -39,6 +39,42 @@ public sealed class ToolInvocationContext
     /// </summary>
     public bool ToolExecuted { get; set; }
 
+    /// <summary>
+    /// Declares what re-invoking <c>next(context)</c> actually re-runs at THIS seam. Default
+    /// <see langword="true"/>: <c>next()</c> IS the tool body (or the remainder of the onion
+    /// leading directly to it) — MAF's single onion and the core pipeline's terminal both satisfy
+    /// this, so a retry there only ever re-executes the real tool, never anything more.
+    ///
+    /// <para>
+    /// <b>Why this exists (area-3 P2 fix round, corrects the disproven "structurally impossible"
+    /// claim from ruling 1).</b> SK's completion-stage seam
+    /// (<c>Affiant.SemanticKernel.Filters.AffiantAutoFunctionInvocationBridge</c>) is the one place
+    /// this is <see langword="false"/>: its terminal's <c>next(context)</c> is SK's OWN
+    /// auto-invocation continuation, not the tool — that continuation nested-invokes the real tool
+    /// through a SEPARATE <c>ToolInvocationContext</c> at the invocation-stage seam. A real
+    /// scenario this must guard against: a host-registered SK filter that runs outside Affiant's
+    /// bridges (or SK's own argument-binding step) throws before the nested invocation-stage call
+    /// even happens. At that point <see cref="ToolExecuted"/> is still <see langword="false"/> (the
+    /// tool never got a chance to run), so without this flag <c>ToolErrorFilter</c> would classify
+    /// it as a genuine tool-body failure and retry by calling <c>next(context)</c> a SECOND time —
+    /// which calls SK's continuation again, genuinely re-executing the tool for a failure that had
+    /// nothing to do with it. Two independent adversarial refuters reproduced exactly this
+    /// (<c>nextCallCount == 2</c>) against the ruling-1 implementation that relied on
+    /// <see cref="ToolExecuted"/> alone.
+    /// </para>
+    ///
+    /// <para>
+    /// <c>ManualToolInvoker</c>'s completion-stage terminal does NOT need this set to
+    /// <see langword="false"/>: it sets <see cref="ToolExecuted"/> synchronously before anything
+    /// that can throw, and its terminal takes no <c>next()</c> of its own (the tool already ran via
+    /// <c>kernel.InvokeAsync</c> before the completion-stage pipeline call even starts) — so a
+    /// retry there is a harmless idempotent re-run of the terminal's own assignment, not a second
+    /// real tool execution. See <c>ToolErrorFilter</c>'s remarks for how this flag governs its
+    /// retry decision alongside <see cref="ToolExecuted"/>.
+    /// </para>
+    /// </summary>
+    public bool NextIsToolBody { get; set; } = true;
+
     /// <summary>The per-invocation DI scope owned by the pipeline runner.</summary>
     public required IServiceProvider Services { get; init; }
 
