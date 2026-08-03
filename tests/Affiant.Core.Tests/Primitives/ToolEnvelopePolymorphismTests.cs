@@ -63,10 +63,14 @@ public class ToolEnvelopePolymorphismTests
     [Fact]
     public void ToolError_deserializes_from_json_with_type_discriminator()
     {
+        // Area-3 P2 fix round: was the bare literal "DB_CONN_TIMEOUT", which matches no framework
+        // ToolErrorCodes constant — a mismatch this test's own generic serialization-roundtrip
+        // purpose didn't need but which invited confusion against the real registry. Asserts the
+        // actual framework constant instead (verify what the framework emits, don't invent a code).
         var original = new ToolError(
             ToolName: "SearchEmployees",
             Timestamp: DateTimeOffset.UtcNow,
-            Code: "DB_CONN_TIMEOUT",
+            Code: ToolErrorCodes.DbTimeout,
             Message: "Database connection failed",
             Retryable: true);
 
@@ -91,7 +95,7 @@ public class ToolEnvelopePolymorphismTests
         {
             new ReadResult("Search", DateTimeOffset.UtcNow, "Summary", "# Results", Array.Empty<EntityRef>()),
             new WriteProposal("Create", DateTimeOffset.UtcNow, new { }),
-            new ToolError("Search", DateTimeOffset.UtcNow, "TIMEOUT", "Timed out", true),
+            new ToolError("Search", DateTimeOffset.UtcNow, ToolErrorCodes.DbTimeout, "Timed out", true),
         };
 
         var json = JsonSerializer.Serialize(envelopes, s_opts);

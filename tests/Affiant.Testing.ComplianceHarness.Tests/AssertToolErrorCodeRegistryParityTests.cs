@@ -6,6 +6,22 @@ using Xunit;
 /// Tests for the opt-in <see cref="ComplianceHarness.AssertToolErrorCodeRegistryParity"/> (area-3
 /// P2 ruling 4, generalizing <see cref="ComplianceHarness.AssertFabricKeyParity"/> to
 /// <c>ToolError.Code</c> values).
+///
+/// <para>
+/// <b>Division of labor (area-3 P2 fix round, finding 2).</b> This parity assertion's
+/// <c>emittedCodes</c> parameter is caller-supplied by design (see
+/// <see cref="ComplianceHarness.AssertToolErrorCodeRegistryParity"/>'s own remarks) — so it can
+/// only ever catch an ORPHANED constant (a declared code nothing emits). It has ZERO power to catch
+/// a NEW bare-literal emission site: <see cref="FrameworkRegistry_MatchesEveryCodeTheFrameworkActuallyEmits"/>
+/// below hand-types its "emitted" list FROM the very same <c>ToolErrorCodes</c> constants it checks
+/// against, so it is tautological with respect to anything not already on that list. Refuter A
+/// proved this by mutation: a rogue <c>"RATE_LIMITED"</c> classification arm added to
+/// <c>ToolErrorFilter.MapExceptionToToolError</c> failed nothing here (306 relevant tests green).
+/// Catching that class of drift is <c>AssertToolErrorCodeSourceScanTests</c>' job — it reads
+/// <c>src/</c> from disk and greps for bare-literal emission shapes directly, with no caller-supplied
+/// list to go stale. Keep both: this test still legitimately catches orphans (a declared constant
+/// nothing emits any more, e.g. after a rename) that the source scan cannot.
+/// </para>
 /// </summary>
 public class AssertToolErrorCodeRegistryParityTests
 {
@@ -97,20 +113,22 @@ public class AssertToolErrorCodeRegistryParityTests
 
     // --- Framework self-check: the real Affiant.Abstractions.Models.ToolErrorCodes registry ---
     // against every code actually emitted by the framework today (enumerated by hand from the
-    // code, per area-3 P2 ruling 4 — not trusting the position paper's estimate of "4"). This is
-    // the self-parity lock: adding a rogue emission or deleting a declared constant must fail it
-    // (exercised as a real self-mutation against the framework source in the FIX report, not just
-    // this in-memory test — this test is the harness-shape lock that the self-mutation script
-    // drives against).
+    // code, per area-3 P2 ruling 4 — not trusting the position paper's estimate of "4"). This
+    // catches an ORPHAN (a declared constant nothing emits any more) — it does NOT catch a rogue
+    // NEW emission, because "emittedByFramework" below is hand-typed FROM these same constants
+    // (area-3 P2 fix round, finding 2 — see this class's own remarks for the division of labor with
+    // AssertToolErrorCodeSourceScanTests, which IS the self-mutation-proof lock for new emissions;
+    // proven by mutation in the FIX report: a rogue "RATE_LIMITED" arm added to
+    // ToolErrorFilter.MapExceptionToToolError does NOT fail this test, by construction).
 
     [Fact]
     public void FrameworkRegistry_MatchesEveryCodeTheFrameworkActuallyEmits()
     {
         // Enumerated from Affiant.Core.Filters.ToolErrorFilter.MapExceptionToToolError (4),
         // Affiant.Core.Filters.ReviewGateFilter's REVIEW_FILING_FAILED (P1a), and
-        // Affiant.SemanticKernel.Connectors.ManualToolInvoker's hand-written FUNCTION_NOT_FOUND
-        // JSON literal (still enumerable here even though the literal itself is out of scope for
-        // this wave — see ToolErrorCodes' own remarks).
+        // Affiant.SemanticKernel.Connectors.ManualToolInvoker's FUNCTION_NOT_FOUND (now built
+        // through the real ToolError type + this constant, area-3 P2 fix round — see ToolErrorCodes'
+        // own remarks).
         string[] emittedByFramework =
         [
             Affiant.Abstractions.Models.ToolErrorCodes.DbTimeout,
