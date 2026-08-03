@@ -12,6 +12,77 @@ any *published* release (`docs/proposals/affiant-maf-adapter.md` §9).
 
 ## [Unreleased]
 
+### Fixed — one failure contract across both adapters; filter order matches spec; extraction failures never touch a genuine tool result (area-3 P2)
+
+- **Ruling 1 — SK's completion stage is no longer a hole in the failure contract.** Previously, on
+  SK, `TaskInferenceMergeFilter`/`ReviewGateFilter` ran in a *second, separate*
+  `ToolInvocationPipeline.RunAsync` call with `ToolErrorFilter` structurally absent — an exception
+  surviving either filter propagated raw into SK's own auto-invocation loop, able to fault the
+  entire chat turn (not just one tool call), unlike MAF's single onion where `ToolErrorFilter`
+  already wrapped everything (area-3 V4). `Affiant.SemanticKernel.Filters.BridgeStages.CompletionStage`
+  now also includes `ToolErrorFilter`. Completion-stage filters are identified structurally via a
+  new `Affiant.Abstractions.Interfaces.ICompletionStageFilter` marker interface
+  (`TaskInferenceMergeFilter`/`ReviewGateFilter` implement it) instead of a closed type list, so a
+  future third completion-stage filter inherits the guarantee automatically. Cross-adapter parity
+  proven by injecting the same failure through both adapters' real bridges
+  (`CrossAdapterCompletionStageFailureContractTests`) and asserting the model-visible payload is
+  identical on both.
+- **Ruling 2 — filter order: code now matches the spec.** Framework spec §3.12.4 and
+  `ToolErrorFilter`'s own class doc both claimed `ToolErrorFilter` was outermost; `AddAffiantCore()`
+  actually registered `DeterministicShortCircuit` first, making it the true outermost filter — a
+  documented-but-unenforced order the pipeline-order test never actually checked (area-3 V4).
+  `AddAffiantCore()` now registers `ToolErrorFilter` first.
+  `AffiantFilterPipelineOrderTests.NeutralFilters_RegisteredInCanonicalOrder` now locks the FULL
+  7-filter chain (including `ToolTracingFilter`, previously untested) as one ordered sequence
+  instead of a subset of pairs; verified by self-mutation (swapping the two registrations back
+  reproduces the original bug and fails the test with a precise message naming both filters).
+  Consequence, handled deliberately: a bug in a host's `IIntentInterceptor`
+  (`DeterministicShortCircuit`'s dependency) is now also caught and converted to a typed
+  `ToolError` instead of propagating raw out of the neutral pipeline — previously it bypassed
+  `ToolErrorFilter` entirely.
+- **Ruling 3 — retry is scoped to the tool body; post-processing failures surface-and-continue,
+  never discard a result, never re-execute the tool (gate ruling: extraction policy =
+  surface-and-continue).** Previously, `ToolErrorFilter`'s retry-once wrapped the entire remaining
+  onion: a bug in a host `ContextExtractor` subclass or `TaskInferenceMergeFilter` could discard a
+  genuinely successful tool result and report failure to the model, or — if classified retryable —
+  execute the real tool a second time for a failure that had nothing to do with the tool
+  (area-3 V5). New `Affiant.Abstractions.Models.ToolInvocationContext.ToolExecuted` flag, set by
+  every bridge/middleware's terminal delegate the instant the real tool call succeeds, governs
+  `ToolErrorFilter`'s catch decision: `ToolExecuted == false` is a genuine tool-body failure
+  (existing map-and-retry-once behavior, unchanged); `ToolExecuted == true` is a post-processing
+  failure — `ToolErrorFilter` now never touches `Result` and never retries in that case, only logs
+  + emits an `affiant.extractor.failed` OTel event. `ContextExtractor`'s base class and
+  `TaskInferenceMergeFilter` additionally self-guard their own post-tool logic with the same
+  pattern (belt-and-suspenders with the `ToolErrorFilter` backstop above); `ReviewGateFilter`
+  already self-guarded as of P1a. Applies identically to both backends — the whole mechanism lives
+  in the neutral `Affiant.Core`/`Affiant.Abstractions` layer. Mutation-locked by
+  `ToolBodyVsPostProcessingTests` (counting fake tool + throwing extractor: tool runs once, model
+  sees the genuine result, OTel event fires; retryable tool failure: tool runs twice, extractor
+  runs exactly once, on the final result). See spec §3.12.9 (new) for the full design writeup.
+- **Ruling 4 (partial, framework side) — `ToolError.Code` registry.** New
+  `Affiant.Abstractions.Models.ToolErrorCodes` declares every code the framework itself emits
+  (`DB_TIMEOUT`, `UPSTREAM_UNAVAILABLE`, `VALIDATION_FAILED`, `UNKNOWN`, `REVIEW_FILING_FAILED`,
+  `FUNCTION_NOT_FOUND` — enumerated from the code per area-3 V6, not the position paper's estimate
+  of "4"). `ToolErrorFilter`/`ReviewGateFilter` now consume these constants.
+  `Affiant.Testing.ComplianceHarness.ComplianceHarness.AssertToolErrorCodeRegistryParity` gives
+  hosts the same opt-in, additive drift-detection `AssertToolNameRegistryParity`/
+  `AssertFabricKeyParity` already provide, for their own domain codes. Host-side adoption (their
+  ~10 codes, `ManualToolInvoker`'s hand-written `FUNCTION_NOT_FOUND` JSON literal, and the
+  mismatched bare-`"TIMEOUT"` assertion in `ToolEnvelopePolymorphismTests`) is explicitly deferred
+  to the area-3 closing wave — nothing here breaks a host that has not adopted it.
+- **Docs (P4 rider).** Framework spec §6 gains the Area 3 gating principle verbatim from the
+  position paper (`docs/architecture-review/area-3-tool-calling-reliability.md`, external
+  `affiant-chancery` review repo), with a glossary and an honest field-evidence note that ToolMode
+  forcing is entirely host-side (not present in this repo, so this document makes no claims about
+  its host-side test/trace evidence). §3.12.4 corrected to the now-enforced order and now cites the
+  full-chain lock test; new §3.12.9 documents the tool-body/post-processing policy. §2.4 documents
+  the new `ToolErrorCodes` registry. `docs/tool-authoring-guide.md` (v1.3-alpha): Section 2's
+  primary DbContext example inverted per affiant#21 — per-invocation scope-factory resolution is
+  now the default pattern for any `Scoped` plugin dependency, with direct constructor injection
+  called out as the anti-pattern (previously the reverse); the quick-reference minimal read/write
+  tools in §8 corrected to match; §6 flags (does not fix) the pre-existing `Retryable: true`
+  doc/code mismatch for directly-returned `ToolError`s (area-3 V6).
+
 ### Fixed — ReviewGateFilter no longer silently loses a WriteProposal (affiant#22, area-3 P1a/P1d)
 
 - **Filing failure now surfaces to the model, the client, and the operator.** Previously,

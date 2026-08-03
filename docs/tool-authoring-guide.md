@@ -1,8 +1,11 @@
 ---
 title: Tool Authoring Guide — Affiant Framework
-version: 1.2-alpha
+version: 1.3-alpha
 date: 2026-05-02
-status: v1.2 — adds §10 (naming LLM-visible tools, SK vs MAF; Area 2 P2, 2026-08-02); v1.1 incorporated Story 13.2 unfamiliar-developer feedback
+status: v1.3 — Section 2's DbContext example inverted to lead with per-invocation (scope-factory)
+  resolution, direct Scoped constructor injection now called out as the anti-pattern (affiant#21,
+  area-3 P2, 2026-08-03); v1.2 added §10 (naming LLM-visible tools, SK vs MAF; Area 2 P2,
+  2026-08-02); v1.1 incorporated Story 13.2 unfamiliar-developer feedback
 scope: Framework developers writing plugins for Affiant
 audience: Developers unfamiliar with Affiant; estimated 30-minute read for understanding all six patterns
 related:
@@ -78,13 +81,34 @@ This guide teaches you to write plugins for the Affiant framework. Plugins are t
 
 **Worked example — entity search read tool:**
 
+> **Corrected 2026-08-03 (affiant#21).** This section previously injected `HRPortalDbContext`
+> directly into the plugin's constructor as the *primary* example, with per-invocation resolution
+> demoted to an "if your plugin is registered as a singleton" alternative below it. That framing
+> was backwards and the guide's own fault, not a host mistake: `kernelBuilder.Plugins.AddFromType<T>()`
+> — the registration this very guide teaches — makes **every** SK plugin a root-cached singleton
+> (SK does not offer a per-invocation plugin lifetime), so constructor-injecting a `Scoped` service
+> such as a `DbContext` is **always** a captive dependency for any plugin registered this way, not
+> a conditional risk. Under `ServiceProviderOptions.ValidateScopes` (on by default in ASP.NET Core
+> Development) this throws at first invocation; with validation off, it silently pins one request's
+> `DbContext` for the process lifetime and shares it, unsynchronized, across every concurrent
+> conversation — a live concurrency hazard, not a hypothetical one. The HR reference host copied
+> this guide's original ordering faithfully and shipped seven plugin instances of the captive
+> pattern (see `affiant#19`'s second leg, `affiant#21`). **The rule, corrected:** per-invocation
+> resolution (`IServiceScopeFactory`, shown below) is the default for any plugin dependency with a
+> `Scoped` lifetime — not an opt-in alternative for singletons specifically, since every SK plugin
+> *is* effectively a singleton under this framework's own recommended registration path. Direct
+> constructor injection of a `Scoped` service into a plugin is the anti-pattern; call it out in
+> review the same way you would a captive-dependency bug anywhere else in the codebase.
+
 ```csharp
 // From (the private affiant-dev/affiant-host-apps repo): apps/HRPortal/src/HRPortal.Api/Agent/Plugins/SearchEmployeesPlugin.cs
 // Imports: using System.ComponentModel; using System.Text; using Affiant.Abstractions.Models;
-//          using Microsoft.SemanticKernel; using Microsoft.EntityFrameworkCore;
-// Dependencies: HRPortalDbContext (injected), HRPortal.Api.Models.Employee
+//          using Microsoft.Extensions.DependencyInjection; using Microsoft.SemanticKernel;
+//          using Microsoft.EntityFrameworkCore;
+// Dependencies: IServiceScopeFactory (injected — resolves HRPortalDbContext per invocation),
+//               HRPortal.Api.Models.Employee
 
-public class SearchEmployeesPlugin(HRPortalDbContext dbContext)
+public class SearchEmployeesPlugin(IServiceScopeFactory scopeFactory)
 {
     [KernelFunction, Description("Search for employees by name (partial match, case-insensitive), " +
         "email (exact), or department (exact). " +
@@ -100,6 +124,13 @@ public class SearchEmployeesPlugin(HRPortalDbContext dbContext)
 
         try
         {
+            // DbContext is Scoped; every SK plugin registered via AddFromType<T>() is a
+            // root-cached singleton, so a fresh scope per invocation is not optional — see the
+            // correction note above. Never inject HRPortalDbContext directly into this
+            // constructor.
+            using var scope = scopeFactory.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<HRPortalDbContext>();
+
             // Build a composable query — only add filters for parameters that were provided.
             var query = dbContext.Employees.AsNoTracking().AsQueryable();
 
@@ -167,7 +198,9 @@ public class SearchEmployeesPlugin(HRPortalDbContext dbContext)
 - Return empty `EntityRef[]` (not an error) when zero results are found — let the LLM reason about the empty result
 - `.ToJsonString()` serializes with the `$type` discriminator that the UI layer uses for polymorphic deserialization
 
-**Alternative: scope factory pattern.** If your plugin is registered as a singleton (e.g., in Meridian's `InventoryPlugin`), inject `IServiceScopeFactory` and create a scope per invocation to avoid sharing a disposed `DbContext` across requests:
+**The scope-factory pattern is the rule, not an alternative (affiant#21).** The worked example
+above already uses it. A second host example, for completeness — this is the same pattern, not a
+different one to choose between:
 
 ```csharp
 // From (the private affiant-dev/affiant-host-apps repo): apps/Meridian/src/Meridian.Api/Agent/Plugins/InventoryPlugin.cs (pattern excerpt)
@@ -175,8 +208,9 @@ public class InventoryPlugin(IServiceScopeFactory scopeFactory)
 {
     public async Task<string> SearchParts(...)
     {
-        // DbContext is scoped; create a fresh scope per invocation to avoid
-        // sharing a disposed context across concurrent requests.
+        // DbContext is scoped; every SK plugin is effectively a singleton (AddFromType<T>()
+        // has no per-invocation lifetime) — a fresh scope per invocation is mandatory, not
+        // situational. See the correction note earlier in this section (affiant#21).
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         // ... rest of query
@@ -184,7 +218,16 @@ public class InventoryPlugin(IServiceScopeFactory scopeFactory)
 }
 ```
 
-**When to use:** Every `[KernelFunction]` that fetches and presents existing data without mutating state.
+**Anti-pattern (do not do this):** `public class SearchEmployeesPlugin(HRPortalDbContext dbContext)`
+— constructor-injecting any `Scoped` dependency directly into a plugin class. It compiles, and it
+may even pass a quick manual test, which is exactly why it is dangerous: the failure is either a
+`ValidateScopes` startup/first-call crash (if host validation is on) or a silent shared-`DbContext`
+concurrency bug across every concurrent conversation (if it is off). There is no registration
+pattern taught in this guide under which direct `Scoped` constructor injection into a plugin is
+safe.
+
+**When to use the scope-factory pattern:** Every `[KernelFunction]` — read or write — that depends
+on a `Scoped` service (a `DbContext`, or any per-request dependency your host registers `Scoped`).
 
 ---
 
@@ -780,6 +823,17 @@ catch (Exception ex) when (ex is TimeoutException or DbUpdateException)
 | Transient failures: DB timeout, connection drop, rate limit | Permanent failures: record not found, validation error, business rule violation |
 | Framework retries once after backoff | Framework asks the LLM to handle the error |
 
+> **Known gap, flagged not fixed (area-3, V6/V4).** "Framework retries once after backoff" in the
+> right-hand column above describes `ToolErrorFilter`'s behavior for exceptions it *catches and
+> classifies itself* (§3.12.9 in the spec). A tool that follows Patterns 1–3 above — directly
+> returning a `ToolError` with `Retryable: true` rather than throwing, the pattern this section
+> teaches — is never retried by anything: `ToolErrorFilter`'s retry branch only runs from inside
+> its own `catch` clause, never on a `ToolError` a tool returns as a normal, non-throwing result.
+> This is a real doc/code mismatch for the documented, recommended pattern — not fixed as part of
+> the area-3 P2 wave (it changes tool-return semantics, which is a larger surface than the
+> pipeline-internal fixes P2 covers) and is called out here so a reader is not misled in the
+> meantime.
+
 **Anti-patterns:**
 
 - Throwing exceptions from plugins — never
@@ -930,7 +984,7 @@ Full SK pipeline wiring (registering the filter with a `Kernel` and calling via 
 ### Minimal read tool
 
 ```csharp
-public class MyReadPlugin(MyDbContext dbContext)
+public class MyReadPlugin(IServiceScopeFactory scopeFactory)
 {
     [KernelFunction, Description("...")]
     public async Task<string> SearchEntities(
@@ -939,6 +993,11 @@ public class MyReadPlugin(MyDbContext dbContext)
     {
         try
         {
+            // MyDbContext is Scoped; every SK plugin is effectively a singleton (Section 2,
+            // affiant#21) — resolve it per invocation, never via constructor injection.
+            using var scope = scopeFactory.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<MyDbContext>();
+
             var items = await dbContext.Entities.AsNoTracking()
                 .Where(e => filter == null || e.Name.Contains(filter))
                 .Take(50).ToListAsync(ct);
@@ -963,7 +1022,10 @@ public class MyReadPlugin(MyDbContext dbContext)
 ### Minimal write tool
 
 ```csharp
-public class MyWritePlugin(MyDbContext dbContext)
+// If this tool needs to read a Scoped dependency (e.g. MyDbContext, for a lookup before
+// building the proposal), inject IServiceScopeFactory and resolve it per invocation — see
+// Section 2 (affiant#21). This example needs no such dependency, so none is shown.
+public class MyWritePlugin
 {
     [KernelFunction, Description("...")]
     public async Task<string> CreateEntity(
@@ -1089,7 +1151,7 @@ return new ToolError(toolName, DateTimeOffset.UtcNow,
 
 **Cause:** Your test instantiates `DbContext` directly, but production code uses a scoped DI lifetime. The plugin is holding a reference to a `DbContext` that gets disposed between requests.
 
-**Fix:** Use the scope factory pattern (see Section 2, *Alternative: scope factory pattern*) so each invocation creates and disposes its own scope.
+**Fix:** Use the scope factory pattern (see Section 2 — this is the default pattern for any `Scoped` plugin dependency, not a situational alternative, as of the affiant#21 correction) so each invocation creates and disposes its own scope.
 
 ---
 

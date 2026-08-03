@@ -2,7 +2,11 @@
 
 > **Sworn provenance for every AI write.**  
 > **Version**: 1.0.0-spec  
-> **Last updated**: 2026-07-05 (§1 overview, §3.8, §3.12.1, §3.12.3, §3.12.4, §4 Package Mapping, §5 corrected/extended —
+> **Last updated**: 2026-08-03 (§3.12.4 corrected to the now-enforced filter order; new §3.12.9
+> tool-body/post-processing failure policy; §6 gains the Area 3 gating principle; §7.5/tool-authoring-guide.md
+> corrected per affiant#21 — see `docs/architecture-review/area-3-tool-calling-reliability.md`
+> (external, in the `affiant-chancery` review repo) for the change that drove this update)  
+> **Previously updated**: 2026-07-05 (§1 overview, §3.8, §3.12.1, §3.12.3, §3.12.4, §4 Package Mapping, §5 corrected/extended —
 > see `docs/proposals/affiant-maf-adapter.md` for the change that drove this update)  
 > **Authors**: Software Architect, Technical Product Manager, Principal Engineer, Technical Writer  
 > **Status**: Ready for implementation  
@@ -123,6 +127,21 @@ public sealed record ToolError(
     bool Retryable                 // Whether the framework should retry once
 ) : ToolEnvelope(ToolName, Timestamp);
 ```
+
+**`ToolError.Code` registry (added 2026-08-03, area-3 P2 ruling 4).** `Code` is a bare `string` —
+until this addition it had no enum, no shared constants class, and no contract test, so a host
+code could silently collide with a framework code
+(`docs/architecture-review/area-3-tool-calling-reliability.md` V6, `affiant-chancery` review repo).
+`Affiant.Abstractions.Models.ToolErrorCodes` now declares every code the framework itself emits
+(`DB_TIMEOUT`, `UPSTREAM_UNAVAILABLE`, `VALIDATION_FAILED`, `UNKNOWN` — from
+`ToolErrorFilter.MapExceptionToToolError` — plus `REVIEW_FILING_FAILED` and `FUNCTION_NOT_FOUND`;
+see that type's own remarks for scope and the one deliberately-deferred exception,
+`ManualToolInvoker`'s hand-written `FUNCTION_NOT_FOUND` JSON literal). Hosts declare their own
+`ToolErrorCodes`-style class for their domain codes and opt into
+`Affiant.Testing.ComplianceHarness.ComplianceHarness.AssertToolErrorCodeRegistryParity` — the same
+additive, opt-in pattern as `AssertToolNameRegistryParity`/`AssertFabricKeyParity` — to get
+drift-failure the same way. Declaring this registry does not require any host to adopt it and does
+not change any code a host already has; host-side adoption is deferred to the Area 3 closing wave.
 
 **JSON polymorphism**: Use `[JsonDerivedType]` attributes (matching SK's own `KernelContent` pattern) to enable polymorphic deserialization in the filter pipeline. The `type` discriminator field distinguishes variants during deserialization.
 
@@ -730,12 +749,39 @@ host-facing surface.
 > a property of the one neutral `ToolInvocationPipeline` (§3.12.3) that both backends run,
 > rather than of an SK-specific filter chain. The onion-order mechanics (registration order,
 > pre-/post-`next()` split) are asserted backend-free by
-> `tests/Affiant.Core.Tests/Services/ToolInvocationPipelineTests.cs`; the concrete 7-step order
-> for the SK bridge specifically remains locked by `AffiantFilterPipelineOrderTests`
-> (`tests/Affiant.SemanticKernel.Tests/Filters/AffiantFilterPipelineOrderTests.cs`). The MAF
-> bridge reproduces the identical order at its one middleware seam (no separate order-lock test
-> is needed there because MAF has no stage split to get wrong — see
-> `docs/adapters/microsoft-agent-framework.md`).
+> `tests/Affiant.Core.Tests/Services/ToolInvocationPipelineTests.cs`.
+>
+> **Correction (2026-08-03, area-3 P2 ruling 2).** From 2026-07-05 until this correction, this
+> section's claim that steps 1–2 below (`ToolErrorFilter` outermost, `DeterministicShortCircuit`
+> second) were "locked" by `AffiantFilterPipelineOrderTests` was **false**: `AddAffiantCore()`
+> actually registered `DeterministicShortCircuit` *before* `ToolErrorFilter`, making
+> `DeterministicShortCircuit` the true outermost filter, and the cited test never asserted the
+> relative order of that specific pair (only that each preceded `ToolArgumentCaptureFilter`) — a
+> documented guarantee that was neither true in code nor caught by the test that claimed to lock
+> it. See `docs/architecture-review/area-3-tool-calling-reliability.md` (`affiant-chancery` review
+> repo) V4 for the full finding. **Fixed**: `AddAffiantCore()` now registers `ToolErrorFilter`
+> first; `AffiantFilterPipelineOrderTests.NeutralFilters_RegisteredInCanonicalOrder`
+> (`tests/Affiant.SemanticKernel.Tests/Filters/AffiantFilterPipelineOrderTests.cs`) now asserts the
+> **full** 7-filter chain (including `ToolTracingFilter`, previously untested in this diagram
+> entirely — see the note below) as a single ordered sequence, not a subset of pairs, and is
+> verified by self-mutation (swapping the two registrations back reproduces the original bug and
+> fails the test) to actually catch this class of regression. The MAF bridge reproduces the
+> identical order at its one middleware seam (no separate order-lock test is needed there for the
+> *stage-split* concern because MAF has no stage split to get wrong — see
+> `docs/adapters/microsoft-agent-framework.md` — but the `ToolErrorFilter`/`DeterministicShortCircuit`
+> ordering bug above applied to MAF identically, since both backends share `AddAffiantCore()`; MAF
+> needed no adapter-side fix, only the shared Core one).
+>
+> **`ToolTracingFilter` (undocumented step, area-3 V4/V7).** A third pre-tool filter,
+> `ToolTracingFilter`, is registered by `AddAffiantCore()` between `DeterministicShortCircuit` and
+> the host's `ContextExtractor` subclasses — it creates the `execute_tool` OTel span (§3.12.5) that
+> wraps everything inward of it. It was previously invisible in this diagram; the diagram below now
+> includes it. Consequence worth knowing: `ToolTracingFilter` sits *inside*
+> `DeterministicShortCircuit`, so a short-circuited call (an `IIntentInterceptor` match) never gets
+> an `execute_tool` span — this was true before the 2026-08-03 fix and remains true after it (moving
+> `ToolErrorFilter` outermost did not change `ToolTracingFilter`'s position relative to
+> `DeterministicShortCircuit`); a short-circuited call's *exceptions*, however, are now caught by
+> `ToolErrorFilter` regardless (see the paragraph below).
 
 The canonical 7-step filter pipeline order is expressed as an onion over the neutral
 `IToolInvocationFilter` contract (§3.12.3); each backend's bridge decides which segment of the
@@ -745,6 +791,8 @@ onion fires at which of its framework's native seams:
 Pre-tool (SK: IFunctionInvocationFilter · MAF: same middleware seam, earlier in the onion):
   1. ToolErrorFilter
   2. DeterministicShortCircuit
+  2a. ToolTracingFilter (undocumented until 2026-08-03 — see the note above; sits between
+      DeterministicShortCircuit and the host ContextExtractor subclasses)
   3. ContextExtractor* (host-registered)
   4. ToolArgumentCaptureFilter
   5. InferenceTriggerFilter
@@ -758,7 +806,20 @@ Post-tool (SK: IAutoFunctionInvocationFilter · MAF: same middleware seam, later
 
 Steps 4 and 5 are the L2 additions. `ToolArgumentCaptureFilter` (step 4) must precede `InferenceTriggerFilter` (step 5) so that captured arguments are available to `ITaskInferenceStrategy` implementations during inference. `TaskInferenceMergeFilter` (step 6) merges deferred inference results from the `ContextFabric` into the final Affidavit via `IAffidavitProjection`; its merge must **complete** before `ReviewGateFilter` (step 7) files the review, so the reviewer sees a fully-merged Affidavit. Because both are post-tool filters, achieving "merge completes before review files" requires `ReviewGateFilter` to be the **outer** (earlier-entered) of the two and `TaskInferenceMergeFilter` the **inner** (later-entered, so its post-work runs first on the unwind). This ordering is fixed in one place — `AddAffiantCompletionFilters()` in `Affiant.Core` — which both backends' registration calls, so the SK bridge and the MAF adapter cannot drift on it. On SK, steps 1–5 fire at `IFunctionInvocationFilter` and steps 6–7 at `IAutoFunctionInvocationFilter` — two native seams. On MAF, all seven fire at MAF's single function-calling middleware seam, in the same relative order, because MAF has no equivalent two-position split (§3.12.3). Steps 1–3 and 7 were part of the L1 pipeline; see §3.10 Task Inference Strategy and §7 Tool Authoring Guide for their documentation.
 
-*Source files:* `src/Affiant.Core/Services/ToolInvocationPipeline.cs`, `src/Affiant.Core/Extensions/ServiceCollectionExtensions.cs` (`AddAffiantCompletionFilters`), `src/Affiant.SemanticKernel/Filters/AffiantFilterPipeline.cs`, `src/Affiant.Core/Filters/InferenceTriggerFilter.cs`, `src/Affiant.Core/Filters/ToolArgumentCaptureFilter.cs`, `src/Affiant.Core/Filters/TaskInferenceMergeFilter.cs`, `src/Affiant.AgentFramework/Filters/AffiantFunctionInvocationMiddleware.cs`, `src/Affiant.AgentFramework/Extensions/ServiceCollectionExtensions.cs`
+**SK completion-stage failure contract (2026-08-03, area-3 P2 ruling 1).** Before this fix, steps
+6–7 above ran, on SK, in a *second, separate* `ToolInvocationPipeline.RunAsync` call
+(`Affiant.SemanticKernel.Filters.BridgeStages.CompletionStage`) that contained only those two
+filters — `ToolErrorFilter` was structurally absent from that call, so an exception surviving
+either filter propagated raw into SK's own auto-invocation loop (able to fault the entire chat
+turn, not just the one tool call), unlike MAF's single onion where `ToolErrorFilter` already
+wrapped everything. `BridgeStages.CompletionStage` now also includes `ToolErrorFilter`, identified
+structurally via the new `Affiant.Abstractions.Interfaces.ICompletionStageFilter` marker interface
+(`TaskInferenceMergeFilter`/`ReviewGateFilter` implement it) rather than a closed type list, so a
+third completion-stage filter added later inherits the same guarantee automatically. See §3.12.9
+below for what "the same guarantee" actually resolves to for this class of failure — it is not
+simply "convert to `ToolError`."
+
+*Source files:* `src/Affiant.Core/Services/ToolInvocationPipeline.cs`, `src/Affiant.Core/Extensions/ServiceCollectionExtensions.cs` (`AddAffiantCompletionFilters`), `src/Affiant.SemanticKernel/Filters/AffiantFilterPipeline.cs`, `src/Affiant.SemanticKernel/Filters/BridgeStages.cs`, `src/Affiant.Core/Filters/InferenceTriggerFilter.cs`, `src/Affiant.Core/Filters/ToolArgumentCaptureFilter.cs`, `src/Affiant.Core/Filters/TaskInferenceMergeFilter.cs`, `src/Affiant.Core/Filters/ToolErrorFilter.cs`, `src/Affiant.AgentFramework/Filters/AffiantFunctionInvocationMiddleware.cs`, `src/Affiant.AgentFramework/Extensions/ServiceCollectionExtensions.cs`
 
 #### 3.12.5 Observability Contract
 
@@ -819,6 +880,80 @@ coalesces tuples across concurrent conversations the way a singleton fabric did.
 The idempotency contract is asserted end-to-end by `InferenceIdempotencyIntegrationTests` (`tests/Affiant.SemanticKernel.Tests/Integration/InferenceIdempotencyIntegrationTests.cs`, landed in Story 16.6).
 
 *Source files:* `src/Affiant.Core/Filters/InferenceTriggerFilter.cs`
+
+#### 3.12.9 Tool-Body vs. Post-Processing Failure Policy
+
+> Added 2026-08-03, area-3 P2 ruling 3. Fixes the finding at
+> `docs/architecture-review/area-3-tool-calling-reliability.md` V5 (`affiant-chancery` review
+> repo, written against commit `399c193`, before this fix): `ToolErrorFilter`'s retry-once wrapped
+> the *entire remaining onion*, not just the tool call, so a bug in a post-tool filter (a host
+> `ContextExtractor` subclass, or `TaskInferenceMergeFilter`) could discard a genuinely successful
+> tool result and report failure to the model, or — if the exception happened to classify as
+> retryable — cause the real tool to execute a second time for a failure that had nothing to do
+> with the tool.
+
+**The distinction.** Every neutral filter (§3.12.3) is either "tool body" or "post-processing"
+relative to one tool call, not by filter *type* but by **when its own logic runs relative to the
+real tool invocation**:
+
+- **Tool body**: `DeterministicShortCircuit` (a pre-tool gate that decides whether the tool runs at
+  all) and the actual tool invocation itself (the terminal delegate each bridge/middleware
+  supplies). A failure here means the tool has not (yet) produced a result.
+- **Post-processing**: any filter whose own logic runs strictly *after* the tool already returned
+  a value — host `ContextExtractor` subclasses, `TaskInferenceMergeFilter`, `ReviewGateFilter`. A
+  failure here occurs *after* a genuine tool result already exists.
+
+**The mechanism.** `Affiant.Abstractions.Models.ToolInvocationContext.ToolExecuted` — a `bool`,
+default `false` — is set to `true` by the bridge/middleware's terminal delegate the instant the
+real tool call succeeds, **before** any post-processing filter's own logic runs (this ordering is
+guaranteed by construction: post-processing filters call `await next(context)` first, and the
+terminal — reached only once every filter between it and the caller has called `next`— is what
+flips the flag). `ToolErrorFilter`'s catch clause branches on this flag:
+
+- `ToolExecuted == false` when caught: a genuine tool-body failure (the tool has not succeeded on
+  this attempt). Existing behavior, unchanged: map to a typed `ToolError`, retry once if the
+  mapped code is classified retryable.
+- `ToolExecuted == true` when caught: a post-processing failure — the tool already succeeded and
+  `ToolInvocationContext.Result` already holds its genuine output. Per the gate ruling below,
+  `ToolErrorFilter` **never touches `Result`, never retries** (a retry here would call `next()`
+  again, re-executing the already-succeeded tool — exactly the V5 hazard), and only logs +
+  emits the `affiant.extractor.failed` OTel event (tags: `extractor.type`, `tool.name`,
+  `exception.type`) via `AffiantTelemetry.RecordExtractorFailedEvent`.
+
+**Gate ruling — extraction policy = surface-and-continue (2026-08-03).** Extraction is enrichment,
+not gating (see the Area 3 principle above): a fail-the-call policy for extractor bugs would mean
+the framework lies to the model about a tool call that actually succeeded, and — when classified
+retryable — silently double-executes the real tool. Under surface-and-continue, the tool result
+stands, the `ContextFabric` misses one fact (recoverable in a later turn), and the loss is fully
+operator-visible via the OTel event. `ContextExtractor` (its base class, `Affiant.Core.Filters`)
+and `TaskInferenceMergeFilter` each additionally self-guard their own post-tool logic with the
+identical catch-log-emit pattern (belt-and-suspenders with `ToolErrorFilter`'s `ToolExecuted`-gated
+backstop above — see each type's own class remarks for why both layers exist); `ReviewGateFilter`
+already self-guarded its own filing failure as of P1a (2026-08-03 morning, area-3 P1,
+affiant#22/FV-9) — its filing-failure `ToolError` rewrite is a deliberate, documented exception to
+"never report tool failure to the model" specifically because a lost `WriteProposal` genuinely is
+the review gate itself failing, not enrichment failing (see `ReviewGateFilter`'s own class remarks
+for the reasoning).
+
+**Applies identically to both backends.** This entire mechanism lives in the neutral
+`Affiant.Core`/`Affiant.Abstractions` layer — `ToolInvocationContext.ToolExecuted`,
+`ToolErrorFilter`'s branch, `ContextExtractor`'s and `TaskInferenceMergeFilter`'s self-guarding —
+so MAF's single onion and SK's two-stage split (§3.12.3, §3.12.4) both inherit it without any
+adapter-specific code. Each bridge/middleware's terminal delegate sets `ToolExecuted = true` at its
+own point of tool success: `AffiantFunctionInvocationBridge` and
+`AffiantAutoFunctionInvocationBridge` (SK), `AffiantFunctionInvocationMiddleware` (MAF), and
+`ManualToolInvoker` (which sets it unconditionally before its completion-stage pipeline call,
+since its tool already ran via `kernel.InvokeAsync` beforehand).
+
+Mutation-locked by `tests/Affiant.Core.Tests/Services/ToolBodyVsPostProcessingTests.cs` (counting
+fake tool + throwing `ContextExtractor`: the tool runs exactly once, the model sees the genuine
+result, the OTel event fires; a retryable tool failure: the tool runs exactly twice, the extractor
+runs exactly once, on the final result) and by
+`tests/Affiant.AgentFramework.Tests/Filters/CrossAdapterCompletionStageFailureContractTests.cs`
+(the same injected completion-stage failure through both adapters' real bridges produces the
+identical model-visible payload — the tool's untouched genuine result).
+
+*Source files:* `src/Affiant.Abstractions/Models/ToolInvocationContext.cs`, `src/Affiant.Core/Filters/ToolErrorFilter.cs`, `src/Affiant.Core/Filters/ContextExtractor.cs`, `src/Affiant.Core/Filters/TaskInferenceMergeFilter.cs`, `src/Affiant.Core/Observability/AffiantTelemetry.cs`
 
 ---
 
@@ -956,6 +1091,45 @@ These rules are non-negotiable. Every implementation, code review, and plugin au
 > **`IRouteRegistry` is the single supported guidance model (corrected 2026-07-31).** A host registers each guidable element once, in one place, keyed by a stable `ElementId` (e.g. `HRPortalRouteRegistry`/`MeridianRouteRegistry` implementing `IRouteRegistry` — §3.7). Every layer above that registration — the `UiGuidancePlugin`-style tool the LLM calls, the transport payload it returns, and the frontend renderer that ultimately highlights the element — refers to the element **only by `ElementId`**. Nothing above the registration may hold, construct, or pass through a raw CSS/DOM selector string; a plugin field named `elementSelector` (or equivalent) is non-conformant regardless of who set its value. Selector-based UI guidance — where the LLM, a plugin, or a transport payload carries a `document.querySelector`-style string instead of an `ElementId` — is **unsupported**, not merely discouraged: it is the exact anti-pattern this rule exists to prevent, and there is no accepted fallback or transitional shape for it. The *frontend* renderer may still translate a registered `ElementId` into a concrete DOM selector (e.g. `` `[data-guide='${elementId}']` ``) as its own presentation-layer detail — that translation is UI-layer, happens once, after the `IRouteRegistry` lookup, and is not the thing this rule bans. What Rule 6 bans is selector authorship or transport above that translation point. This clarification was prompted by a 2026-07-31 audit of Meridian's `UiGuidancePlugin`, which built `[data-guide='...']` selector strings directly in the tool the LLM invoked — see the private `affiant-host-apps` repository, issue #9, for the host-side fix.
 
 **Rule 7: Every Affidavit field carries provenance, no exceptions.** If a field's provenance is unknown, it must be tagged `ProvenanceSource.Empty` — never omitted. The Evidence Card renders provenance as visual indicators (green for UserStated, amber for Inferred, grey for Default). *Rationale*: Missing provenance is indistinguishable from "the framework forgot to track it" versus "the AI made this up." *Anti-pattern*: Fields without provenance tags that the UI renders identically to user-confirmed values.
+
+> **The Area 3 gating principle (ratified 2026-08-03, verbatim from the ecosystem architecture
+> review's Area 3 position paper — `docs/architecture-review/area-3-tool-calling-reliability.md`
+> in the `affiant-chancery` review repo).** This is not an eighth normative rule with its own
+> number — it is the load-bearing generalization Rules 3, 4, and 7 above already imply, made
+> explicit because the review found the framework violating it in three separate places
+> (§3.12.4's filter-order drift, §3.12.9's retry/extraction hazard, and a P1-fixed silent
+> `ReviewGateFilter` failure — see the CHANGELOG's "Area 3" entries):
+>
+> *"Anything that gates a write must be pipeline-guaranteed: a deterministic check in the tool or
+> an intent interceptor in the pipeline. Tool-choice steering (prompts, ToolMode forcing) is UX
+> optimization — it may improve the path, it must never be load-bearing for safety. And every
+> failure on the gated path must surface — to the model as a typed ToolError, to the user as a
+> visible state, to the operator as telemetry. No silent branch anywhere between 'model proposed'
+> and 'human decided.'"*
+>
+> **Glossary for readers without the review's context:** *"gates a write"* = anything standing
+> between the model proposing a write (calling a `WriteCreate`/`WriteUpdate` tool, §3.11.1) and a
+> human actually confirming it via `ReviewGate` (§2.7, §4 Layer 4) — e.g. a redirect that refuses
+> to call the write tool at all when a precondition is unmet. *"Deterministic check in the tool"*
+> = an in-tool guard the tool itself always runs, regardless of what the model intended (a plain
+> `if` statement before the tool returns a `WriteProposal`). *"Intent interceptor in the pipeline"*
+> = `IIntentInterceptor`/`DeterministicShortCircuit` (§3.8) — a pipeline-level guard that runs
+> before the model's tool call is even executed. *"ToolMode forcing"* = telling the LLM provider
+> it MUST call a specific tool on its next turn (a provider API feature; not a framework
+> primitive — no `Affiant.*` package implements or wraps it as of this writing). *"Load-bearing
+> for safety"* = a mechanism whose failure would let an unsafe write through; UX mechanisms may
+> fail without consequence to safety, only to convenience/speed.
+>
+> **Field-evidence status of ToolMode forcing (as of 2026-08-03):** this repository contains no
+> `ToolMode`/tool-choice-forcing code or documentation — the pilot referenced above
+> (`Affiant:LookupToolModeEnforcement`) is entirely host-side (the private `affiant-host-apps`
+> repository's Meridian host), not a framework primitive, and this document cannot make claims
+> about host-side test/trace evidence it does not contain. The framework-side implication of this
+> ruling is narrower and fully covered by the code in this repository: `DeterministicShortCircuit`/
+> `IIntentInterceptor` (§3.8) is the one pipeline-level gating primitive the framework ships, and
+> per this principle it — not any prompt or tool-choice API — is what a host should reach for when
+> a write must be gated deterministically. See the private `affiant-host-apps` repository's own
+> documentation for that repo's field-evidence status on ToolMode forcing specifically.
 
 ---
 
