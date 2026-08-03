@@ -46,6 +46,7 @@ public sealed class AffiantFunctionInvocationMiddleware(
 
         object? toolProduced = null;
         var toolRan = false;
+        var downstreamTerminate = false;
 
         var resultContext = await pipeline.RunAsync(
             request,
@@ -54,6 +55,12 @@ public sealed class AffiantFunctionInvocationMiddleware(
             {
                 toolProduced = await next(context, cancellationToken).ConfigureAwait(false);
                 toolRan = true;
+                // affiant#25 (same class as the SK bridge): next() above is whatever MAF middleware
+                // is registered further down agent.AsBuilder()'s chain (a host middleware, or the
+                // real tool invocation) — a host middleware there can set context.Terminate = true
+                // before returning. Capture it now so the neutral filters' own Terminate verdict
+                // below cannot silently discard it.
+                downstreamTerminate = context.Terminate;
                 neutral.Result = toolProduced;
                 // Area-3 P2 ruling 3: mark the tool as executed the instant it succeeds, before any
                 // wrapping filter's post-next() logic (TaskInferenceMergeFilter, ReviewGateFilter,
@@ -67,7 +74,8 @@ public sealed class AffiantFunctionInvocationMiddleware(
             context.Arguments?.Services,
             cancellationToken).ConfigureAwait(false);
 
-        context.Terminate = resultContext.Terminate;
+        // affiant#25: OR, never overwrite — see AffiantAutoFunctionInvocationBridge's identical fix.
+        context.Terminate = resultContext.Terminate || downstreamTerminate;
 
         return !toolRan || !ReferenceEquals(resultContext.Result, toolProduced)
             ? resultContext.Result

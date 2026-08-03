@@ -43,6 +43,7 @@ public sealed class AffiantAutoFunctionInvocationBridge(ToolInvocationPipeline p
 
         object? toolProduced = null;
         var toolRan = false;
+        var downstreamTerminate = false;
 
         var resultContext = await pipeline.RunAsync(
             request,
@@ -51,6 +52,13 @@ public sealed class AffiantAutoFunctionInvocationBridge(ToolInvocationPipeline p
             {
                 await next(context);
                 toolRan = true;
+                // affiant#25: next(context) above is SK's OWN remaining auto-invocation chain — any
+                // IAutoFunctionInvocationFilter a host or the framework registers AFTER this bridge
+                // runs nested inside that call and can set context.Terminate = true for its own
+                // reasons before returning control here. Capture that decision now, before the
+                // neutral completion-stage filters (TaskInferenceMergeFilter, ReviewGateFilter) get
+                // a chance to have their own (unrelated) Terminate verdict overwrite it below.
+                downstreamTerminate = context.Terminate;
                 toolProduced = context.Result?.GetValue<object>();
                 neutral.Result = toolProduced;
                 // Area-3 P2 ruling 3/1: by the time this terminal returns, the real tool call (which
@@ -72,6 +80,12 @@ public sealed class AffiantAutoFunctionInvocationBridge(ToolInvocationPipeline p
             context.Result = new FunctionResult(context.Function, resultContext.Result);
         }
 
-        context.Terminate = resultContext.Terminate;
+        // affiant#25: OR, never overwrite — either side (a downstream SK filter, or Affiant's own
+        // completion-stage filters) can independently want the turn to end, and either verdict must
+        // survive. Prior code unconditionally assigned resultContext.Terminate here, silently
+        // discarding a downstream filter's Terminate=true whenever the neutral pipeline itself had
+        // no opinion — this forced HR Portal's kernel.AutoFunctionInvocationFilters.Insert(0, ...)
+        // workaround (running its filter BEFORE this bridge instead of after, the normal position).
+        context.Terminate = resultContext.Terminate || downstreamTerminate;
     }
 }
