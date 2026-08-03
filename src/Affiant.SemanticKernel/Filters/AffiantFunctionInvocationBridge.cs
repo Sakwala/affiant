@@ -46,6 +46,10 @@ public sealed class AffiantFunctionInvocationBridge(ToolInvocationPipeline pipel
                 toolRan = true;
                 toolProduced = context.Result?.GetValue<object>();
                 neutral.Result = toolProduced;
+                // Area-3 P2 ruling 3: mark the tool as executed the instant it succeeds, before any
+                // wrapping filter's post-next() logic runs — governs ToolErrorFilter's tool-body vs.
+                // post-processing catch decision.
+                neutral.ToolExecuted = true;
             },
             // Run every filter (and the conversation-scoped fabric) in the kernel's own scope so the
             // invocation and auto-invocation stages of one turn share a single fabric instance, and

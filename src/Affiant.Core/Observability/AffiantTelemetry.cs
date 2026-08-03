@@ -61,6 +61,34 @@ public static class AffiantTelemetry
         }
         return null;
     }
+
+    /// <summary>
+    /// Emits the <c>affiant.extractor.failed</c> span event (area-3 P2 ruling 3 — gate ruling
+    /// "extractor policy = surface-and-continue"): a post-tool filter/extractor (a
+    /// <c>ContextExtractor</c> subclass, <c>TaskInferenceMergeFilter</c>, or — as a generic backstop
+    /// — anything <c>ToolErrorFilter</c> catches after <c>ToolInvocationContext.ToolExecuted</c> is
+    /// already <see langword="true"/>) threw after the tool already produced a genuine result. The
+    /// tool's result is never touched by this event's emission — it is purely an operator-visible
+    /// record that post-processing lost a fact, not a signal to the model or a retry trigger.
+    /// </summary>
+    /// <param name="extractorType">
+    /// The concrete post-tool filter type that failed (e.g. <c>GetType().Name</c> of the
+    /// <c>ContextExtractor</c> subclass), or a fixed sentinel when the specific filter is not known
+    /// (the generic <c>ToolErrorFilter</c> backstop path — see its remarks).
+    /// </param>
+    /// <param name="toolName">The tool call the failed post-processing was attached to.</param>
+    /// <param name="ex">The caught exception — never rethrown by the caller.</param>
+    public static void RecordExtractorFailedEvent(string extractorType, string toolName, Exception ex)
+    {
+        var target = FindAffiantActivity() ?? Activity.Current;
+        target?.AddEvent(new ActivityEvent("affiant.extractor.failed",
+            tags: new ActivityTagsCollection
+            {
+                { "extractor.type", extractorType },
+                { "tool.name", toolName },
+                { "exception.type", ex.GetType().Name },
+            }));
+    }
 }
 
 /// <summary>

@@ -33,7 +33,7 @@ using Microsoft.Extensions.Logging;
 /// is not a filing failure.
 /// </para>
 /// </summary>
-public sealed class ReviewGateFilter(ILogger<ReviewGateFilter> logger) : IToolInvocationFilter
+public sealed class ReviewGateFilter(ILogger<ReviewGateFilter> logger) : ICompletionStageFilter
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {

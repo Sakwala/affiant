@@ -3,6 +3,7 @@ namespace Affiant.Core.Filters;
 using System.Text.Json;
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
+using Affiant.Core.Observability;
 using Affiant.Core.Services;
 using Microsoft.Extensions.Logging;
 
@@ -16,6 +17,17 @@ using Microsoft.Extensions.Logging;
 /// - JSON deserialization of the ToolEnvelope
 /// - Tool-name matching via abstract MatchesTool
 /// - EmitEntity helper that upserts into ContextFabric with structured logging
+///
+/// <para>
+/// <b>Extractor-failure policy (area-3 P2 ruling 3, gate ruling "surface-and-continue"):</b> a bug
+/// in a host's <see cref="ExtractAsync"/> override runs strictly after the tool has already produced
+/// its result (<c>await next(context)</c> above already returned). Such a failure must never discard
+/// that genuine result, never cause the tool to be re-executed, and never be reported to the model as
+/// a tool failure — it is enrichment, not gating. This method therefore catches every
+/// non-cancellation exception from <see cref="ExtractAsync"/> itself, logs it, and emits an
+/// <c>affiant.extractor.failed</c> OTel event naming the concrete extractor type and the tool —
+/// <see cref="ToolInvocationContext.Result"/> is left exactly as the tool produced it.
+/// </para>
 /// </summary>
 public abstract class ContextExtractor : IToolInvocationFilter
 {
@@ -60,7 +72,18 @@ public abstract class ContextExtractor : IToolInvocationFilter
 
         if (readResult is null || readResult.Entities.Length == 0) return;
 
-        await ExtractAsync(readResult, context);
+        try
+        {
+            await ExtractAsync(readResult, context);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            AffiantTelemetry.RecordExtractorFailedEvent(GetType().Name, context.FunctionName, ex);
+            Logger.LogError(ex,
+                "ContextExtractor {ExtractorType} failed for tool {FunctionName} — the tool's " +
+                "result is preserved and NOT reported as a failure to the model (surface-and-continue)",
+                GetType().Name, context.FunctionName);
+        }
     }
 
     /// <summary>

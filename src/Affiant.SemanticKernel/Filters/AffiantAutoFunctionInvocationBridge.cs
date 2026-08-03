@@ -44,6 +44,14 @@ public sealed class AffiantAutoFunctionInvocationBridge(ToolInvocationPipeline p
                 toolRan = true;
                 toolProduced = context.Result?.GetValue<object>();
                 neutral.Result = toolProduced;
+                // Area-3 P2 ruling 3/1: by the time this terminal returns, the real tool call (which
+                // happens inside `next(context)`, nested through the invocation-stage bridge/onion)
+                // has already completed. Marking it here — before ReviewGateFilter/
+                // TaskInferenceMergeFilter's own post-next() logic runs — means a completion-stage
+                // filter's own failure is always classified as post-processing by ToolErrorFilter's
+                // ToolExecuted-gated catch, never as a retryable tool-body failure that would
+                // re-execute the tool a second time.
+                neutral.ToolExecuted = true;
             },
             // Same kernel scope as the invocation stage — see AffiantFunctionInvocationBridge — so the
             // completion-stage merge writes to, and the review gate reads, the same conversation fabric.
