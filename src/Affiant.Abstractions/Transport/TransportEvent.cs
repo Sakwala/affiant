@@ -49,5 +49,14 @@ public enum TransportEvent
     /// to <see cref="Models.ReviewStatus.Expired"/> without a reviewer decision. Payload:
     /// <see cref="DocketExpiredNotification"/>.
     /// </summary>
-    DocketExpired = 6
+    DocketExpired = 6,
+
+    /// <summary>
+    /// Framework-mediated UI guidance walkthrough (normative Rule 6, built 2026-08-04 per the area-4
+    /// Decision-1 ruling item 4). Maps to the wire method name <c>"GuideUI"</c> — the reference host's
+    /// client already listens for that name, and the mapping deliberately preserves it (see
+    /// <see cref="Affiant.Transport.SignalR.Transport.TransportEventExtensions.ToClientEventName"/>)
+    /// so an existing client keeps working unmodified. Payload: <see cref="UiGuidancePayload"/>.
+    /// </summary>
+    UiGuidance = 7
 }

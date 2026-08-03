@@ -5,6 +5,7 @@ using Affiant.Abstractions.Models;
 using Affiant.Core.Filters;
 using Affiant.Core.Observability;
 using Affiant.Core.Services;
+using Affiant.Core.UiBridge;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -40,11 +41,11 @@ public static class ServiceCollectionExtensions
     /// </list>
     /// No <c>IApprovalPolicy</c> is registered by default. Hosts must call
     /// <c>AddAffiantPolicies()</c> from Affiant.Policies to declare their policy graph.
-    /// <c>ReviewGate</c> is registered here too (affiant#26) — see the dedicated remarks below.
-    /// Services whose lifetimes depend on adapter-specific types outside <c>Affiant.Abstractions</c>
-    /// (<c>SessionRehydrator</c> needs SK's <c>ChatHistory</c>; <c>UiGuidanceBridge</c> is a thin
-    /// pass-through a host wires directly onto its own transport call sites) are intentionally
-    /// omitted and must be registered directly by the host with the appropriate lifetime.
+    /// <c>ReviewGate</c> and <c>UiGuidanceBridge</c> are registered here too (affiant#26; area-4
+    /// P1f(b)) — see their dedicated remarks below. Services whose lifetimes depend on
+    /// adapter-specific types outside <c>Affiant.Abstractions</c> (<c>SessionRehydrator</c> needs
+    /// SK's <c>ChatHistory</c>) are intentionally omitted and must be registered directly by the
+    /// host with the appropriate lifetime.
     /// <para>
     /// <b>ReviewGate (affiant#26):</b> registered <b>Scoped</b> here, matching
     /// <c>ApprovalPolicyEvaluator</c>'s lifetime (affiant#19) — it constructor-injects
@@ -62,6 +63,16 @@ public static class ServiceCollectionExtensions
     /// <c>context.Services.GetService&lt;ReviewGate&gt;()</c> (not <c>GetRequiredService</c>) and
     /// silently no-ops when it is absent, so a host that forgot the manual registration got no error,
     /// only silently-unfiled write proposals.
+    /// </para>
+    /// <para>
+    /// <b>UiGuidanceBridge (area-4 P1f(b), Rule 6 built 2026-08-04):</b> registered <b>Singleton</b>
+    /// — unlike <c>ReviewGate</c>, neither constructor dependency (<c>IRouteRegistry</c>,
+    /// <c>IStreamingTransport</c>) is Scoped, so no captive-dependency risk exists. Both are, again,
+    /// <c>Affiant.Abstractions</c> interfaces with no default implementation here — a host must still
+    /// register an <c>IRouteRegistry</c> implementation (there is none in the framework; the whole
+    /// point of Rule 6 is that guidable elements are host UI-layer registrations) and a streaming
+    /// transport (typically <c>Affiant.Transport.SignalR</c>'s <c>AddAffiantSignalR</c>) before
+    /// actually resolving it.
     /// </para>
     /// </remarks>
     /// <example>
@@ -122,6 +133,12 @@ public static class ServiceCollectionExtensions
         // same composition root; this TryAddScoped only removes the need to also hand-register
         // ReviewGate itself.
         services.TryAddScoped<ReviewGate>();
+
+        // Step 7: Rule 6 guidance bridge (area-4 P1f(b)). SINGLETON — see this method's remarks;
+        // neither constructor dependency is Scoped, unlike ReviewGate. Resolving it still requires
+        // the host to have registered IRouteRegistry and IStreamingTransport somewhere in the same
+        // composition root.
+        services.TryAddSingleton<UiGuidanceBridge>();
 
         // Backend-neutral pipeline runner — owns canonical filter order + per-invocation DI scope.
         services.TryAddSingleton<ToolInvocationPipeline>();

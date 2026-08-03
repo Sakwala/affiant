@@ -37,6 +37,7 @@ public class TransportEventExtensionsExhaustivenessTests
         [TransportEvent.SystemNotification] = "SystemNotification",
         [TransportEvent.DocketExpiring] = "DocketExpiring",
         [TransportEvent.DocketExpired] = "DocketExpired",
+        [TransportEvent.UiGuidance] = "GuideUI",
     };
 
     [Fact]
@@ -59,6 +60,7 @@ public class TransportEventExtensionsExhaustivenessTests
     [InlineData(TransportEvent.SystemNotification, "SystemNotification")]
     [InlineData(TransportEvent.DocketExpiring, "DocketExpiring")]
     [InlineData(TransportEvent.DocketExpired, "DocketExpired")]
+    [InlineData(TransportEvent.UiGuidance, "GuideUI")]
     public void ToClientEventName_MatchesPinnedWireName(TransportEvent evt, string expectedWireName)
     {
         // Direct call — no reflection. Before P1c, ToClientEventName() was internal and a host's

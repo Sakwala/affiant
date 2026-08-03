@@ -103,6 +103,7 @@ public static class TransportEventExtensions
         TransportEvent.SystemNotification   => "SystemNotification",
         TransportEvent.DocketExpiring       => "DocketExpiring",
         TransportEvent.DocketExpired        => "DocketExpired",
+        TransportEvent.UiGuidance           => "GuideUI",
     };
 #pragma warning restore CS8524
 }
