@@ -1,3 +1,4 @@
+using Affiant.Abstractions.Models;
 using Affiant.Core.Services;
 using Affiant.SemanticKernel.Filters;
 using Microsoft.Extensions.Logging;
@@ -33,11 +34,24 @@ public class ManualToolInvoker(ToolInvocationPipeline pipeline, ILogger<ManualTo
             logger.LogWarning(ex,
                 "[ManualToolInvoker] Function {Plugin}.{Function} not found in kernel plugins",
                 pluginName, functionName);
+
+            // Area-3 P2 fix round (finding 2 scoping correction): FUNCTION_NOT_FOUND is a FRAMEWORK
+            // code — the original P2 wave wrongly grouped this literal with host-side adoption and
+            // deferred it. Built through the real ToolError type + ToolErrorCodes.FunctionNotFound,
+            // not a hand-written JSON string, so it is caught by the source-scan lock
+            // (AssertToolErrorCodeSourceScanTests) like every other framework emission site.
+            var notFound = new ToolError(
+                ToolName: functionName,
+                Timestamp: DateTimeOffset.UtcNow,
+                Code: ToolErrorCodes.FunctionNotFound,
+                Message: $"Function '{functionName}' is not available.",
+                Retryable: false);
+
             return new FunctionResultContent(
                 callId: functionCall.Id,
                 pluginName: pluginName,
                 functionName: functionName,
-                result: $"{{\"$type\":\"error\",\"toolName\":\"{functionName}\",\"code\":\"FUNCTION_NOT_FOUND\",\"message\":\"Function '{functionName}' is not available.\",\"retryable\":false}}");
+                result: notFound.ToJsonString());
         }
 
         var arguments = new KernelArguments();

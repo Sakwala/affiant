@@ -405,6 +405,17 @@ public static class ComplianceHarness
     /// honest way for this method to discover that set at runtime; <paramref name="emittedCodes"/>
     /// is a caller-supplied enumeration, typically produced by grepping the codebase for every
     /// distinct <c>Code:</c>/<c>"code":</c> emission site.</para>
+    ///
+    /// <para><b>Division of labor (area-3 P2 fix round, finding 2).</b> Because
+    /// <paramref name="emittedCodes"/> is caller-supplied, this method can only ever detect
+    /// ORPHANED constants (declared but not present in the supplied set) — a caller that derives
+    /// its "emitted" list from the same constants class it checks against gets no protection
+    /// against a NEW bare-literal emission site (proven by mutation: see
+    /// <c>Affiant.Testing.ComplianceHarness.Tests.AssertToolErrorCodeRegistryParityTests</c>'s own
+    /// remarks). Catching undeclared, drifting-forward emissions is a live source-scan's job (see
+    /// <c>Affiant.Testing.ComplianceHarness.Tests.AssertToolErrorCodeSourceScanTests</c> for the
+    /// framework's own) — this method remains the right tool for the orphan half of the
+    /// contract.</para>
     /// </summary>
     /// <param name="toolErrorCodesType">
     /// A type whose <c>public const string</c> fields are the declared <c>ToolError.Code</c>

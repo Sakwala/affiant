@@ -10,12 +10,24 @@ namespace Affiant.Abstractions.Models;
 /// own <c>ToolErrorCodes</c>-style class and call
 /// <c>Affiant.Testing.ComplianceHarness.ComplianceHarness.AssertToolErrorCodeRegistryParity</c>
 /// against it, the same additive pattern <c>AssertToolNameRegistryParity</c>/
-/// <c>AssertFabricKeyParity</c> already establish. Host-side adoption (their own codes,
-/// <c>ManualToolInvoker</c>'s hand-written <see cref="FunctionNotFound"/> JSON literal, and the
-/// mismatched bare-<c>"TIMEOUT"</c> test assertion in
-/// <c>Affiant.Core.Tests.Primitives.ToolEnvelopePolymorphismTests</c>) is explicitly deferred to the
-/// Area-3 closing wave — declaring this registry must not break any host or in-repo test at the
-/// next pin bump before they choose to adopt it.</para>
+/// <c>AssertFabricKeyParity</c> already establish. Host-side adoption of a host's OWN domain codes
+/// is still deferred to the Area-3 closing wave (declaring this registry must not break any host at
+/// the next pin bump before they choose to adopt it).</para>
+///
+/// <para><b>Framework-side adoption is complete as of the area-3 P2 fix round (2026-08-03).</b>
+/// <c>ManualToolInvoker</c>'s hand-written <see cref="FunctionNotFound"/> JSON literal was corrected
+/// scope: it is a framework code, not host-side adoption — grouping it with host adoption in the P2
+/// wave that introduced this registry was a scoping error, corrected here.
+/// <c>ManualToolInvoker.CaptureAndInvokeAsync</c> now builds its not-found payload through the real
+/// <see cref="ToolError"/> type consuming this constant. The mismatched bare-<c>"TIMEOUT"</c>/
+/// <c>"DB_CONN_TIMEOUT"</c> test assertions in
+/// <c>Affiant.Core.Tests.Primitives.ToolEnvelopePolymorphismTests</c> were also fixed to assert
+/// <see cref="DbTimeout"/>. A source-scan lock
+/// (<c>Affiant.Testing.ComplianceHarness.Tests.AssertToolErrorCodeSourceScanTests</c>) now catches
+/// any FUTURE bare-literal framework emission site the hand-typed
+/// <c>AssertToolErrorCodeRegistryParityTests.FrameworkRegistry_...</c> self-check cannot (that test
+/// supplies its "emitted" list from these same constants, so it can only catch orphans — see this
+/// registry's own division-of-labor note there).</para>
 ///
 /// <para><b>Enumerated from the code, not the position paper's count.</b> The position paper
 /// (<c>docs/architecture-review/area-3-tool-calling-reliability.md</c>, V6) estimated "4" framework
