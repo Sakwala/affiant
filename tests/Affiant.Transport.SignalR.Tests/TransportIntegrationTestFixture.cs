@@ -60,13 +60,13 @@ public sealed class TransportIntegrationTestFixture : IAsyncLifetime
                 })
             .Build();
 
-        var connIdTcs = new TaskCompletionSource<string>(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-
-        connection.On<string>("ConnectionRegistered", id => connIdTcs.TrySetResult(id));
-
         await connection.StartAsync(ct);
-        var connectionId = await connIdTcs.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+        // P4 (area-4): AffiantHub is now Hub<IAffiantHubClient>, whose typed Clients proxy
+        // structurally cannot carry a test-only "ConnectionRegistered" push (not a real
+        // TransportEvent member) — read the connection's own id client-side instead, which is
+        // simpler than the round trip it replaces.
+        var connectionId = connection.ConnectionId
+            ?? throw new InvalidOperationException("HubConnection.ConnectionId was null after StartAsync.");
 
         if (groupId is not null)
             await connection.InvokeAsync("JoinGroup", groupId, ct);

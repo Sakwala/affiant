@@ -279,23 +279,57 @@ public sealed record GuidableElement(
 
 ### 2.10 Event Vocabulary (Enum)
 
-The transport layer uses an explicit enum for all events — never stringly-typed.
+> **Rewritten 2026-08-04 (area-4 architecture review, proposal P1g) to match the shipped enum.**
+> The previous revision of this section was written 2026-04-11 — 19 days *before* the real
+> `TransportEvent` enum was first implemented (2026-04-30) — and was never reconciled with the
+> code afterward: it listed six members that were never built (`AgentTyping`, `AgentChunk`,
+> `ToolCallStarted`, `ToolCallCompleted`, `SessionRehydrated`, `Error`) and omitted two that were
+> (`AgentMessage`, `ContextUpdate`). Anyone reading the prior revision to understand the transport
+> contract was reading a document that predated the artifacts it claimed to describe.
+
+**`TransportEvent`** — the framework's explicit enum for all server→client wire events; a plain
+integer internally, never serialized as an integer over the wire. Each member is translated to a
+SignalR client method name (the string the browser's `connection.on(methodName, ...)` handler is
+registered under) by `TransportEventExtensions.ToClientEventName()` (package
+`Affiant.Transport.SignalR`) — a *total* mapping: every member has an explicit case, adding a new
+member without a matching case is a compiler error, and the method is `public`, so a host's own
+contract tests can call it directly instead of only through reflection.
 
 ```csharp
 public enum TransportEvent
 {
-    AgentTyping,          // Agent is processing (typing indicator)
-    AgentChunk,           // Streaming text chunk
-    ToolCallStarted,      // A tool invocation has begun
-    ToolCallCompleted,    // A tool invocation has completed
-    EvidenceCardRequest,  // Evidence Card sent to reviewer
-    EvidenceCardResponse, // Reviewer responded to Evidence Card
-    UiGuidance,           // UI walkthrough step
-    SessionRehydrated,    // Session restored from persistence
-    DocketExpiring,       // Warning: a DocketEntry is about to expire
-    Error                 // Framework-level error
+    EvidenceCardRequest,   // -> "ConfirmAction" — framework broadcasts a write proposal awaiting
+                           // human review to the UI. Payload: the EvidenceCardRequest record
+                           // (Affiant.Abstractions.Transport), carrying the Affidavit under review.
+    EvidenceCardResponse,  // -> "EvidenceCardResponse" — reserved for the document-reserved
+                           // blocking review path (§3.1); production traffic delivers the
+                           // reviewer's decision through a host hub RPC method instead, never
+                           // this broadcast direction.
+    AgentMessage,          // -> "ReceiveToken" — one streamed text chunk from the agent.
+    ContextUpdate,         // -> "ContextUpdated" — framework notifies the UI that conversation
+                           // context changed.
+    SystemNotification,    // -> "SystemNotification" — transient notification (error, warning,
+                           // info). Payload: Affiant.Abstractions.Transport.SystemNotificationPayload
+                           // (Level, Message) — Level is a plain string, not a C# enum; its
+                           // allowed values are pinned by the host contract net, not this type.
+    DocketExpiring,        // -> "DocketExpiring" — a Pending DocketEntry (§2.7) is approaching
+                           // its review TTL. Payload: DocketExpiringNotification.
+    DocketExpired,         // -> "DocketExpired" — a Pending DocketEntry transitioned to Expired
+                           // without a reviewer decision. Payload: DocketExpiredNotification.
+    UiGuidance             // -> "GuideUI" — starts a UI guidance walkthrough (Rule 6, §6).
+                           // Payload: Affiant.Abstractions.Transport.UiGuidancePayload. The wire
+                           // name "GuideUI" is pinned to match a reference host's existing client
+                           // listener — see §6's Rule 6 note for why.
 }
 ```
+
+**Historical note.** The founding commit that first implemented this enum (2026-04-30) also
+defined a ninth member, `UserMessage`, added in the same commit and same line range as
+`AgentMessage` with no independent design note. It was deleted 2026-08-04 (proposal P1a):
+inbound chat text has always entered the framework as a host-defined SignalR hub RPC method (for
+example `SendMessage(message, conversationId)` — SignalR's own client→server invoke pattern),
+never as a broadcast `TransportEvent`; the member had no production emitter in the framework or
+either reference host it was checked against.
 
 ---
 
@@ -305,14 +339,59 @@ These are the extension points that host applications and optional adapters impl
 
 ### 3.1 Transport
 
+> **Rewritten 2026-08-04 (area-4 architecture review, proposal P1g) to match the shipped interface.**
+> The previous revision, written 2026-04-11, documented only `IStreamingTransport`'s first-cut three
+> methods and was never updated for the same-day (2026-04-30) additions of a blocking-await method
+> and its decision-delivery counterpart.
+
 ```csharp
 public interface IStreamingTransport
 {
+    // Sends eventType to the single client identified by connectionId.
     Task SendAsync(string connectionId, TransportEvent eventType, object payload, CancellationToken ct);
+
+    // Sends eventType to every client in the named SignalR group (a session group or a reviewer
+    // group — see AffiantHub, §3.7). Every framework service that pushes to a client (ReviewGate,
+    // ReviewGateFilter, DocketExpiryService, UiGuidanceBridge) uses this method, never a raw
+    // SignalR Clients.Group(...).SendAsync(...) call.
     Task BroadcastToGroupAsync(string groupId, TransportEvent eventType, object payload, CancellationToken ct);
-    IAsyncEnumerable<TransportMessage> ReceiveAsync(string connectionId, CancellationToken ct);
+
+    // Document-reserved (proposal P1a) — see the remarks below. Not the production default.
+    Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(
+        string sessionGroupId, Guid docketId, CancellationToken ct = default);
+
+    // Routes a reviewer's decision to a live AwaitEvidenceCardResponseAsync waiter for docketId.
+    // Returns false (the default) if no waiter exists — the caller should use the docket-replay
+    // path (ReviewGate.HandleDecisionAsync) instead.
+    bool TryDeliverResponse(Guid docketId, EvidenceCardResponse response) => false;
 }
 ```
+
+**`AwaitEvidenceCardResponseAsync` — document-reserved, not the production path.** This method
+blocks the calling task until the reviewer's `EvidenceCardResponse` for `docketId` arrives. It
+backs `ReviewGate.FileReviewAsync` — the blocking half of the review state machine, and the
+"intentional async cycle" named in §4 Layer 4 below. It is proven, in a live production session
+(2026-07-31, incident `affiant-host-apps#25`), to deadlock over the framework's only shipped
+transport: SignalR's `HubOptions.MaximumParallelInvocationsPerClient` defaults to `1` and is never
+overridden by either reference host, so the one hub invocation blocked here awaiting a decision
+holds the connection's only invocation slot — the very slot the decision's own delivery (a
+separate hub RPC invocation, e.g. `ApproveAction`) needs in order to arrive. The production default
+is `ReviewGateFilter` (§6 Rule 3) calling the non-blocking `ReviewGate.FileForReviewAsync` instead
+and ending the model's turn when a decision requires human review; the eventual decision then
+reaches `ReviewGate.HandleDecisionAsync` through a separate hub RPC, never through this method's
+await. A sound redesign of the blocking path — the decision traveling on a channel other than the
+blocked connection — is tracked as a design ticket, `affiant#29` (filed 2026-08-04, no
+implementation planned as of that date); do not reach for `AwaitEvidenceCardResponseAsync` in new
+code until it lands.
+
+**What this interface no longer includes.** A prior revision of this section also declared
+`IAsyncEnumerable<TransportMessage> ReceiveAsync(string connectionId, CancellationToken ct)`, and
+the framework once shipped a matching `TransportMessage` double-JSON envelope type. Both were
+deleted 2026-08-04 (proposal P1a): they were scaffolding for a second, pull-based transport (the
+`TransportMessage` type's own doc comment named "SignalR, WebSocket, etc." as the intended targets)
+that was never built in the three months since the framework's first commit; the framework's one
+shipped transport implementation had thrown `NotSupportedException` unconditionally from
+`ReceiveAsync` since the method was first written, and no call site anywhere ever reached it.
 
 ### 3.2 Persistence
 
@@ -1148,7 +1227,9 @@ These rules are non-negotiable. Every implementation, code review, and plugin au
 
 **Rule 6: `data-guide` contracts are UI-layer registrations, not LLM-layer concerns.** The agent discovers guidable UI elements through the `IRouteRegistry`, not by inspecting the DOM or asking the user. *Rationale*: LLMs cannot reliably generate CSS selectors, and DOM structures change between deployments. *Anti-pattern*: Prompting the LLM to "find the button labeled Save" by generating a querySelector.
 
-> **`IRouteRegistry` is the single supported guidance model (corrected 2026-07-31).** A host registers each guidable element once, in one place, keyed by a stable `ElementId` (e.g. `HRPortalRouteRegistry`/`MeridianRouteRegistry` implementing `IRouteRegistry` — §3.7). Every layer above that registration — the `UiGuidancePlugin`-style tool the LLM calls, the transport payload it returns, and the frontend renderer that ultimately highlights the element — refers to the element **only by `ElementId`**. Nothing above the registration may hold, construct, or pass through a raw CSS/DOM selector string; a plugin field named `elementSelector` (or equivalent) is non-conformant regardless of who set its value. Selector-based UI guidance — where the LLM, a plugin, or a transport payload carries a `document.querySelector`-style string instead of an `ElementId` — is **unsupported**, not merely discouraged: it is the exact anti-pattern this rule exists to prevent, and there is no accepted fallback or transitional shape for it. The *frontend* renderer may still translate a registered `ElementId` into a concrete DOM selector (e.g. `` `[data-guide='${elementId}']` ``) as its own presentation-layer detail — that translation is UI-layer, happens once, after the `IRouteRegistry` lookup, and is not the thing this rule bans. What Rule 6 bans is selector authorship or transport above that translation point. This clarification was prompted by a 2026-07-31 audit of Meridian's `UiGuidancePlugin`, which built `[data-guide='...']` selector strings directly in the tool the LLM invoked — see the private `affiant-host-apps` repository, issue #9, for the host-side fix.
+> **`IRouteRegistry` is the single supported guidance model (corrected 2026-07-31).** A host registers each guidable element once, in one place, keyed by a stable `ElementId` (e.g. `HRPortalRouteRegistry`/`MeridianRouteRegistry` implementing `IRouteRegistry` — §3.7). Every layer above that registration — the `UiGuidancePlugin`-style tool the LLM calls, the transport payload it returns, and the frontend renderer that ultimately highlights the element — refers to the element **only by `ElementId`**. Nothing above the registration may hold, construct, or pass through a raw CSS/DOM selector string; a plugin field named `elementSelector` (or equivalent) is non-conformant regardless of who set its value. Selector-based UI guidance — where the LLM, a plugin, or a transport payload carries a `document.querySelector`-style string instead of an `ElementId` — is **unsupported**, not merely discouraged: it is the exact anti-pattern this rule exists to prevent, and there is no accepted fallback or transitional shape for it. The *frontend* renderer may still translate a registered `ElementId` into a concrete DOM selector (e.g. `` `[data-guide='${elementId}']` ``) as its own presentation-layer detail — that translation is UI-layer, happens once, after the `IRouteRegistry` lookup, and is not the thing this rule bans. What Rule 6 bans is selector authorship or transport above that translation point. This clarification was prompted by a 2026-07-31 audit of a reference host's `UiGuidancePlugin`, which built `[data-guide='...']` selector strings directly in the tool the LLM invoked — see the private `affiant-host-apps` repository, issue #9, for the host-side fix.
+
+> **The wire path is now a framework mechanism, not host folklore (built 2026-08-04, area-4 architecture review P1f(b)).** Until 2026-08-04, this rule described a real discovery contract (`IRouteRegistry`) with no framework-owned way to actually deliver a guidance walkthrough to a client: the only implementation anywhere was a reference host hand-rolling a raw SignalR broadcast (`Clients.Group(...).SendAsync("GuideUI", ...)`) directly, bypassing the framework's transport abstraction entirely. As of 2026-08-04, `Affiant.Core.UiBridge.UiGuidanceBridge` carries the wire path itself: `BuildStep(elementId, description, prefillValue?, title?)` resolves a step's popover placement and highlight padding from the `GuidableElement.Attributes` registered for `elementId`, and `BroadcastGuidanceAsync(sessionGroupId, payload, ct)` sends the assembled `Affiant.Abstractions.Transport.UiGuidancePayload` through `IStreamingTransport` as `TransportEvent.UiGuidance` (wire method name `"GuideUI"` — preserved deliberately so an existing client keeps working unmodified; see §2.10 and §3.1). What stays host-owned is exactly what Rule 6 was always about: per-step *content* (which fields to guide through, prefill values, description text) is domain-specific and is composed by the host's own guidance tool before being handed to `UiGuidanceBridge` — the framework now carries the mechanism, never the content, mirroring `ReviewGate`'s own split between framework-owned filing and host-owned review context (§6 Rule 3, §4 Layer 4).
 
 **Rule 7: Every Affidavit field carries provenance, no exceptions.** If a field's provenance is unknown, it must be tagged `ProvenanceSource.Empty` — never omitted. The Evidence Card renders provenance as visual indicators (green for UserStated, amber for Inferred, grey for Default). *Rationale*: Missing provenance is indistinguishable from "the framework forgot to track it" versus "the AI made this up." *Anti-pattern*: Fields without provenance tags that the UI renders identically to user-confirmed values.
 

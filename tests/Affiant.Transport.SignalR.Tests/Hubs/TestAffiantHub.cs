@@ -6,20 +6,18 @@ using Affiant.Transport.SignalR.Hubs;
 using Microsoft.AspNetCore.SignalR;
 
 /// <summary>
-/// Minimal concrete hub for integration tests. Broadcasts the connection ID on connect
-/// so tests can target specific connections with SendAsync, and exposes helpers for
-/// group join and bidirectional decision routing.
+/// Minimal concrete hub for integration tests. Exposes helpers for group join and bidirectional
+/// decision routing. Tests read their own connectionId client-side off
+/// <see cref="Microsoft.AspNetCore.SignalR.Client.HubConnection.ConnectionId"/> after
+/// <c>StartAsync()</c> — P4 (area-4) made <c>AffiantHub</c> a <c>Hub&lt;IAffiantHubClient&gt;</c>,
+/// whose typed <c>Clients</c> proxy structurally cannot carry a test-only, non-<see cref="TransportEvent"/>
+/// event like a former "ConnectionRegistered" announcement; the client-side property removes the
+/// need for one entirely rather than adding a framework-vocabulary member for a test concern.
 /// </summary>
 public sealed class TestAffiantHub(
     IChatSessionStore chatSessionStore,
     IStreamingTransport transport) : AffiantHub(chatSessionStore, transport)
 {
-    public override async Task OnConnectedAsync()
-    {
-        await base.OnConnectedAsync();
-        await Clients.Caller.SendAsync("ConnectionRegistered", Context.ConnectionId);
-    }
-
     /// <summary>Adds the calling connection to a named SignalR group.</summary>
     public Task JoinGroup(string groupId)
         => Groups.AddToGroupAsync(Context.ConnectionId, groupId);
@@ -35,6 +33,14 @@ public sealed class TestAffiantHub(
     /// <summary>Test-invokable wrapper over the protected, typed <c>BroadcastToReviewerAsync</c> (P5c).</summary>
     public Task BroadcastReviewer(string reviewerId, TransportEvent eventType, object payload)
         => BroadcastToReviewerAsync(reviewerId, eventType, payload);
+
+    /// <summary>
+    /// P4 (area-4): calls the caller's own typed <see cref="IAffiantHubClient.ReceiveToken"/> method
+    /// directly — the compile-time-checked shape a hub subclass's hot-path token streaming now has
+    /// available, in place of the raw <c>Clients.Caller.SendAsync("ReceiveToken", chunk)</c> string
+    /// literal both reference hosts used exclusively before this change.
+    /// </summary>
+    public Task StreamToken(string chunk) => Clients.Caller.ReceiveToken(chunk);
 
     /// <summary>
     /// Routes a reviewer decision back to any live AwaitEvidenceCardResponseAsync waiter.
