@@ -12,6 +12,33 @@ any *published* release (`docs/proposals/affiant-maf-adapter.md` §9).
 
 ## [Unreleased]
 
+### Changed — Area-4 P1c: `TransportEventExtensions.ToClientEventName()` is now `public` and total
+
+- **Every `TransportEvent` member now gets an explicit switch arm** — no `default`/discard
+  fallthrough to `evt.ToString()`. Before this change, 4 of 8 members (now 3 of 7, after P1a's
+  `UserMessage` deletion) silently fell through to `.ToString()`, meaning a rename or reorder of
+  those members would silently rename the SignalR wire method with zero compiler signal — exactly
+  the drift class this review area exists to eliminate. Adding a `TransportEvent` member without a
+  matching arm is now a build failure (CS8509, turned into an error by this package's
+  `TreatWarningsAsErrors`).
+- **`TransportEvent` renumbered contiguously** (`EvidenceCardRequest=0` … `DocketExpired=6`, no gap
+  where `UserMessage` used to sit at 3) — required for the switch to be provably exhaustive over
+  every *named* member without a discard arm; the enum's integer values are never serialized over
+  the wire (only the mapped string method name is), so this carries no wire risk.
+- **`ToClientEventName()` is now `public`** (was `internal`) — a host's own contract net can call it
+  directly instead of reaching it only through reflection, which detected removal but not an
+  output-string change.
+- A `#pragma warning disable CS8524` brackets the switch — a distinct, unavoidable diagnostic every
+  enum switch *expression* without a discard arm triggers in C# (enums admit any underlying integral
+  value via casting, not just named members). Suppressing it does not weaken the guarantee: CS8509
+  (a genuinely missing *named* member) remains fully active.
+- `TransportEventExtensionsExhaustivenessTests` pins the exact current wire-name mapping for every
+  member directly (no reflection) and asserts every named `TransportEvent` value has a pinned
+  expectation. Mutation-verified twice: (1) adding an enum member without a matching arm reproduces
+  CS8509 at build time; (2) silently changing an existing arm's output string reproduces test
+  failures in both the new exhaustiveness tests and the existing round-trip contract tests; both
+  restored byte-identical.
+
 ### Added — Area-4 P1b: `SystemNotificationPayload` — named record replacing the duplicated anonymous `{level, message}` object
 
 - New `Affiant.Abstractions.Transport.SystemNotificationPayload(string Level, string Message)`.

@@ -15,8 +15,10 @@ using Xunit;
 [Collection("SignalR Transport")]
 public sealed class SignalRTransportContractTests(TransportIntegrationTestFixture fixture)
 {
-    // Client method names are defined by TransportEventExtensions.ToClientEventName()
-    // (internal to the transport assembly). These constants document the client contract.
+    // Client method names are defined by TransportEventExtensions.ToClientEventName() (public
+    // since P1c — see TransportEventExtensionsExhaustivenessTests for the direct, non-reflective
+    // assertion against every named TransportEvent member). These constants document the client
+    // contract for the round-trip tests below.
     private const string ConfirmActionMethod    = "ConfirmAction";
     private const string EvidenceCardRespMethod = "EvidenceCardResponse";
     private const string ReceiveTokenMethod     = "ReceiveToken";
