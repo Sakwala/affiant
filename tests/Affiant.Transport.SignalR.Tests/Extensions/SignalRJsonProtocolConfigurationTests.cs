@@ -68,7 +68,9 @@ public class SignalRJsonProtocolConfigurationTests
             var response = new EvidenceCardResponse(Guid.NewGuid(), ApprovalDecision.Approved);
             await transport.SendAsync(connId, TransportEvent.EvidenceCardResponse, response, CancellationToken.None);
 
-            var element = await received.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            // 30s, not 5s: under full-solution parallel test load the real Kestrel/SignalR round
+            // trip flaked once at 5s (refuter lens 6, 2026-08-04); the timeout only bounds hangs.
+            var element = await received.Task.WaitAsync(TimeSpan.FromSeconds(30));
 
             var decision = element.GetProperty("decision");
             Assert.Equal(JsonValueKind.String, decision.ValueKind);
