@@ -40,9 +40,29 @@ public static class ServiceCollectionExtensions
     /// </list>
     /// No <c>IApprovalPolicy</c> is registered by default. Hosts must call
     /// <c>AddAffiantPolicies()</c> from Affiant.Policies to declare their policy graph.
-    /// Services whose lifetimes depend on host-scoped adapter registrations
-    /// (<c>ReviewGate</c>, <c>SessionRehydrator</c>, <c>TaskInferenceMergeFilter</c>, <c>UiGuidanceBridge</c>)
-    /// are intentionally omitted and must be registered directly by the host with the appropriate lifetime.
+    /// <c>ReviewGate</c> is registered here too (affiant#26) — see the dedicated remarks below.
+    /// Services whose lifetimes depend on adapter-specific types outside <c>Affiant.Abstractions</c>
+    /// (<c>SessionRehydrator</c> needs SK's <c>ChatHistory</c>; <c>UiGuidanceBridge</c> is a thin
+    /// pass-through a host wires directly onto its own transport call sites) are intentionally
+    /// omitted and must be registered directly by the host with the appropriate lifetime.
+    /// <para>
+    /// <b>ReviewGate (affiant#26):</b> registered <b>Scoped</b> here, matching
+    /// <c>ApprovalPolicyEvaluator</c>'s lifetime (affiant#19) — it constructor-injects
+    /// <c>IApprovalPolicyEvaluator</c> (itself Scoped), so a Singleton <c>ReviewGate</c> would be a
+    /// captive dependency the instant a policy carries a Scoped dependency (e.g. a host
+    /// <c>DbContext</c>), exactly the failure mode affiant#19 already fixed for the evaluator itself.
+    /// <c>ReviewGate</c>'s other two constructor dependencies — <c>IStreamingTransport</c> and
+    /// <c>IDocketStore</c> — are both <c>Affiant.Abstractions</c> interfaces with no default
+    /// implementation in this package; <c>TryAddScoped</c> here does not require them to already be
+    /// registered (DI resolves lazily at first use, not at registration time), it only requires the
+    /// host to have registered <em>some</em> implementation (typically via
+    /// <c>Affiant.Transport.SignalR</c>'s <c>AddAffiantSignalR</c> and <c>Affiant.Docket</c>'s
+    /// <c>AddAffiantDocket</c>) before actually resolving <c>ReviewGate</c>. Before this fix, every
+    /// host had to hand-register <c>ReviewGate</c> itself — <c>ReviewGateFilter</c> resolves it via
+    /// <c>context.Services.GetService&lt;ReviewGate&gt;()</c> (not <c>GetRequiredService</c>) and
+    /// silently no-ops when it is absent, so a host that forgot the manual registration got no error,
+    /// only silently-unfiled write proposals.
+    /// </para>
     /// </remarks>
     /// <example>
     /// <code>
@@ -95,6 +115,13 @@ public static class ServiceCollectionExtensions
         // No default IApprovalPolicy registered here — hosts declare their policy graph
         // via AddAffiantPolicies() in Affiant.Policies. The evaluator's built-in fallback
         // returns ReviewerConfirmation when no policy matches.
+
+        // Step 6: Review state machine (affiant#26). SCOPED — see this method's remarks for why
+        // (mirrors ApprovalPolicyEvaluator's affiant#19 captive-dependency fix). Resolving it still
+        // requires the host to have registered IStreamingTransport and IDocketStore somewhere in the
+        // same composition root; this TryAddScoped only removes the need to also hand-register
+        // ReviewGate itself.
+        services.TryAddScoped<ReviewGate>();
 
         // Backend-neutral pipeline runner — owns canonical filter order + per-invocation DI scope.
         services.TryAddSingleton<ToolInvocationPipeline>();

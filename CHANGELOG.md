@@ -12,6 +12,34 @@ any *published* release (`docs/proposals/affiant-maf-adapter.md` §9).
 
 ## [Unreleased]
 
+### Fixed — Area-4 P5 prerequisites: completion-stage Terminate preserved across bridges; ReviewGate gets a real DI registration (affiant#25, affiant#26)
+
+- **affiant#25 — `AffiantAutoFunctionInvocationBridge` (SK) and `AffiantFunctionInvocationMiddleware`
+  (MAF) no longer overwrite a downstream filter's decision to end the turn.** Both bridges
+  unconditionally assigned `context.Terminate = resultContext.Terminate` as their last line,
+  discarding any `Terminate = true` a completion filter registered *after* the bridge (the normal,
+  appended DI position) had set on the native context during its own `next()` call — the neutral
+  pipeline's own Terminate verdict silently won every time, even when it had no opinion. This forced
+  the host-apps `HRPortalReviewFilingFilter` workaround of inserting itself at
+  `kernel.AutoFunctionInvocationFilters[0]` (running *before* the bridge) just to make its own
+  termination signal survive. Fixed by capturing the native context's `Terminate` immediately after
+  `next()` returns and OR-ing it with the neutral pipeline's verdict, on both adapters. Locked by
+  `DownstreamTerminatePreservationTests` (drives both real bridges with a fake downstream
+  continuation that sets `Terminate = true`); mutation-verified (restoring either unconditional
+  overwrite reproduces the failure on the corresponding test).
+- **affiant#26 — `ReviewGate` now has a real registration in `AddAffiantCore()`.** Previously every
+  host had to hand-register `ReviewGate` itself, with no compile- or boot-time signal when they
+  forgot — `ReviewGateFilter` resolves it via `context.Services.GetService<ReviewGate>()` (not
+  `GetRequiredService`) and silently no-ops when absent, so a missed registration produced
+  silently-unfiled write proposals rather than an error. Registered **Scoped** — it constructor-
+  injects `IApprovalPolicyEvaluator` (Scoped since affiant#19), so a Singleton `ReviewGate` would be
+  a captive dependency the moment a host policy carries a Scoped dependency (e.g. a `DbContext`).
+  Locked by a boot-honesty test (`AddAffiantCore_AddAffiantSemanticKernel_Alone_WireReviewGate_FilingFilterRuns`)
+  that builds a provider from only the public `Add*` extensions plus the genuinely host-owned
+  interfaces (`IStreamingTransport`, `IDocketStore`, `IReviewContextProvider` — none have a default
+  framework implementation) and proves the real filing filter runs end to end, under
+  `ValidateScopes`/`ValidateOnBuild`.
+
 ### Fixed — one failure contract across both adapters; filter order matches spec; extraction failures never touch a genuine tool result (area-3 P2)
 
 - **Ruling 1 — SK's completion stage is no longer a hole in the failure contract.** Previously, on

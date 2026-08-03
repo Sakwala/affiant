@@ -48,6 +48,27 @@ public class ServiceCollectionExtensionsTests
         Assert.NotNull(sp.GetRequiredService<AffiantCoreOptions>());
     }
 
+    // affiant#26: ReviewGate now gets a real registration from AddAffiantCore() — a host no longer
+    // hand-registers it just so ReviewGateFilter's context.Services.GetService<ReviewGate>() finds
+    // something. Scoped (not the outer test's singleton-checking assertions) because it depends on
+    // the Scoped IApprovalPolicyEvaluator — resolved here inside a scope, matching real usage.
+    [Fact]
+    public void AddAffiantCore_registers_ReviewGate_AsScoped_ResolvableFromHostStubsAlone()
+    {
+        var sp = BuildWithStubs(o => o.EnableObservability = false).BuildServiceProvider();
+
+        using var scope = sp.CreateScope();
+        var gate = scope.ServiceProvider.GetRequiredService<ReviewGate>();
+        Assert.NotNull(gate);
+
+        // Distinct instances across scopes — Scoped, not accidentally Singleton (which would be a
+        // captive dependency on the Scoped ApprovalPolicyEvaluator inside it, affiant#19's class of
+        // bug recurring for ReviewGate specifically).
+        using var otherScope = sp.CreateScope();
+        var gateInOtherScope = otherScope.ServiceProvider.GetRequiredService<ReviewGate>();
+        Assert.NotSame(gate, gateInOtherScope);
+    }
+
     [Fact]
     public void AddAffiantCore_does_not_register_default_approval_policy()
     {
