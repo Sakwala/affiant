@@ -12,6 +12,57 @@ any *published* release (`docs/proposals/affiant-maf-adapter.md` §9).
 
 ## [Unreleased]
 
+### Changed — Area-4 P5a: `ReviewGateFilter` is now non-blocking by default — the framework's own filing filter
+
+- **`ReviewGateFilter` (the neutral, both-adapters completion-stage filter) now calls the
+  non-blocking `ReviewGate.FileForReviewAsync` instead of the blocking `ReviewGate.FileReviewAsync`.**
+  The blocking predecessor awaits a reviewer decision inline and structurally deadlocks over
+  single-connection SignalR (host-apps#25: `MaximumParallelInvocationsPerClient = 1` starves the
+  very `ApproveAction`/`RejectAction` invocation that would deliver the decision the blocked
+  `SendMessage` invocation is awaiting — "live approval has plausibly never once succeeded through
+  the browser UI"). Both reference hosts independently hand-built the non-blocking pattern this
+  filter now ships as the framework default (Meridian's `ChatHub`; HR Portal's bespoke
+  `HRPortalReviewFilingFilter`, which HR Portal had to write from scratch and re-derive the P1(a)
+  protocol for, purely because the framework's own filter was unusable at the time).
+- On `ReviewFilingResult.RequiresReview` (a human reviewer must act — the Evidence Card is already
+  broadcast by `FileForReviewAsync` itself), the filter now sets `Terminate = true` and ends the
+  turn with a model-facing message. On `ReviewFilingResult.Decided` (already resolved without a
+  client round trip — StandingOrder auto-approval, Referral escalation, or idempotent replay), the
+  filter does **not** terminate — the tool's own original result is left untouched and the model
+  continues normally.
+- **Runs identically on both adapters with zero adapter-specific code** — `ReviewGateFilter` is a
+  neutral `ICompletionStageFilter`, registered once by the shared
+  `AddAffiantCompletionFilters()` helper that both `AddAffiantSkFilters()` (SK) and
+  `AddAffiantAgentFramework()` (MAF) call. `ReviewGateFilterMafBoundaryTests` pins this — the MAF
+  seam gets the identical non-blocking, terminating behavior through only the public
+  `AddAffiantCore()` + `AddAffiantAgentFramework()` chain, no MAF-specific filing filter needed.
+- **Registration order was never the problem for this filter, and item 1's affiant#25 fix makes
+  that provable, not assumed.** Unlike a host's own `IAutoFunctionInvocationFilter`, this filter
+  runs *inside* `AffiantAutoFunctionInvocationBridge`'s own neutral pipeline — its `Terminate`
+  decision is baked into the bridge's result before the bridge's own final assignment runs, so it
+  never competed for position in SK's filter list and never needed HR Portal's
+  `kernel.AutoFunctionInvocationFilters.Insert(0, ...)` workaround.
+  `ReviewGateFilterOrderingTests` proves this empirically: the real bridge, wired through the
+  standard *appended* `AddAffiantSemanticKernel()` DI chain with no special registration handling,
+  still ends the turn on `RequiresReview`.
+- **P1a filing-failure protocol (affiant#22) carried over intact** — typed `ReviewFilingFailed`
+  `ToolError` sealed first, `affiant.review.filing_failed` OTel event, best-effort guarded
+  `SystemNotification` broadcast, `OperationCanceledException` still propagates unchanged. Only the
+  filing call itself changed (`FileReviewAsync` → `FileForReviewAsync`); the failure path's ordering
+  and wording are unchanged.
+- Mutation-verified: disabling the `Terminate`/turn-ending-message branch reproduces failures in
+  `ReviewGateFilterTests`, `ReviewGateFilterOrderingTests` (SK), and `ReviewGateFilterMafBoundaryTests`
+  (MAF) simultaneously — proving the shared-filter design actually shares, not just compiles;
+  restored byte-identical.
+- **MAF boundary, documented not fixed (out of framework scope):** `Affiant.AgentFramework` places
+  no constraint on what a host's `AIFunction` body returns — same as SK. Meridian's specific write
+  tools (host code, read-only reference) emit plain JSON with no `$type` discriminator, deviating
+  from the documented tool-authoring contract (`docs/tool-authoring-guide.md`: "Always serialize the
+  return value with `.ToJsonString()`"), so `ReviewGateFilter`'s existing envelope-shape catch clause
+  silently skips them exactly as it did before this change — a host non-conformance issue, not
+  something this wave's rewrite could or should paper over from the framework side.
+  `ReviewGateFilterMafBoundaryTests.NonConformingPayload_...` pins this exact failure mode as a fact.
+
 ### Changed — Area-4 P5c: `AffiantHub`'s own broadcast helpers now route through `IStreamingTransport`, typed
 
 - **`AffiantHub.BroadcastToSessionAsync`/`BroadcastToReviewerAsync` took a raw `string method` and

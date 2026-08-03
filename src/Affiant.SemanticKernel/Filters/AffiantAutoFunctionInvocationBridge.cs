@@ -84,8 +84,9 @@ public sealed class AffiantAutoFunctionInvocationBridge(ToolInvocationPipeline p
         // completion-stage filters) can independently want the turn to end, and either verdict must
         // survive. Prior code unconditionally assigned resultContext.Terminate here, silently
         // discarding a downstream filter's Terminate=true whenever the neutral pipeline itself had
-        // no opinion — this forced HR Portal's kernel.AutoFunctionInvocationFilters.Insert(0, ...)
-        // workaround (running its filter BEFORE this bridge instead of after, the normal position).
+        // no opinion — this forced a host workaround of calling
+        // kernel.AutoFunctionInvocationFilters.Insert(0, ...) (running its filter BEFORE this
+        // bridge instead of after, the normal position).
         context.Terminate = resultContext.Terminate || downstreamTerminate;
     }
 }
