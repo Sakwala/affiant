@@ -37,7 +37,7 @@ public sealed class TestAffiantHub(
         => BroadcastToReviewerAsync(reviewerId, eventType, payload);
 
     /// <summary>
-    /// Routes a reviewer decision back to any live AwaitEventAsync waiter.
+    /// Routes a reviewer decision back to any live AwaitEvidenceCardResponseAsync waiter.
     /// Called by the test client to simulate the reviewer UI submitting an approval.
     /// </summary>
     public Task SubmitDecision(Guid docketId, bool approved)

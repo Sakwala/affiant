@@ -292,10 +292,7 @@ public sealed class DocketExpiryServiceTests
         public Task SendAsync(string connectionId, TransportEvent eventType, object payload, CancellationToken ct)
             => throw new InvalidOperationException("SpyStreamingTransport.SendAsync should not be called by DocketExpiryService");
 
-        public IAsyncEnumerable<TransportMessage> ReceiveAsync(string connectionId, CancellationToken ct)
-            => throw new InvalidOperationException("SpyStreamingTransport.ReceiveAsync should not be called by DocketExpiryService");
-
-        public Task<T> AwaitEventAsync<T>(string sessionGroupId, Guid docketId, CancellationToken ct = default)
-            => throw new InvalidOperationException("SpyStreamingTransport.AwaitEventAsync should not be called by DocketExpiryService");
+        public Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default)
+            => throw new InvalidOperationException("SpyStreamingTransport.AwaitEvidenceCardResponseAsync should not be called by DocketExpiryService");
     }
 }

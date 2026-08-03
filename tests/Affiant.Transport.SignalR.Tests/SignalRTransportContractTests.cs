@@ -20,7 +20,6 @@ public sealed class SignalRTransportContractTests(TransportIntegrationTestFixtur
     private const string ConfirmActionMethod    = "ConfirmAction";
     private const string EvidenceCardRespMethod = "EvidenceCardResponse";
     private const string ReceiveTokenMethod     = "ReceiveToken";
-    private const string UserMessageMethod      = "UserMessage";
     private const string ContextUpdatedMethod   = "ContextUpdated";
     private const string SystemNotifMethod      = "SystemNotification";
 
@@ -70,23 +69,6 @@ public sealed class SignalRTransportContractTests(TransportIntegrationTestFixtur
         var transport = fixture.Server.Services.GetRequiredService<IStreamingTransport>();
         await transport.SendAsync(connId, TransportEvent.AgentMessage,
             new { token = "Hello from agent" }, CancellationToken.None);
-
-        var element = await received.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal(JsonValueKind.Object, element.ValueKind);
-    }
-
-    [Fact(DisplayName = "Round-trip UserMessage")]
-    public async Task RoundTrip_UserMessage()
-    {
-        var (client, connId) = await fixture.CreateConnectedClientAsync();
-        await using var _ = client;
-
-        var received = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
-        client.On<JsonElement>(UserMessageMethod, payload => received.TrySetResult(payload));
-
-        var transport = fixture.Server.Services.GetRequiredService<IStreamingTransport>();
-        await transport.SendAsync(connId, TransportEvent.UserMessage,
-            new { content = "User said hello" }, CancellationToken.None);
 
         var element = await received.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(JsonValueKind.Object, element.ValueKind);

@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.SignalR;
 /// <summary>
 /// Singleton SignalR implementation of <see cref="IStreamingTransport"/>. Wraps
 /// <see cref="IHubContext{THub}"/> for broadcast and maintains an in-process TCS registry
-/// so <see cref="AwaitEventAsync{T}"/> can be unblocked by a later
+/// so <see cref="AwaitEvidenceCardResponseAsync"/> can be unblocked by a later
 /// <see cref="TryDeliverResponse"/> call from any hub instance.
 /// </summary>
 public sealed class SignalRStreamingTransport<THub>(IHubContext<THub> hubContext) : IStreamingTransport
@@ -23,16 +23,10 @@ public sealed class SignalRStreamingTransport<THub>(IHubContext<THub> hubContext
     public Task BroadcastToGroupAsync(string groupId, TransportEvent eventType, object payload, CancellationToken ct)
         => hubContext.Clients.Group(groupId).SendAsync(eventType.ToClientEventName(), payload, ct);
 
-    public IAsyncEnumerable<TransportMessage> ReceiveAsync(string connectionId, CancellationToken ct)
-        => throw new NotSupportedException(
-            "Pull-based receive is not supported over SignalR; use AwaitEventAsync instead.");
-
-    public async Task<T> AwaitEventAsync<T>(string sessionGroupId, Guid docketId, CancellationToken ct = default)
+    /// <summary>Document-reserved (P1a) — see <see cref="IStreamingTransport.AwaitEvidenceCardResponseAsync"/>'s docs.</summary>
+    public async Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(
+        string sessionGroupId, Guid docketId, CancellationToken ct = default)
     {
-        if (typeof(T) != typeof(EvidenceCardResponse))
-            throw new NotSupportedException(
-                $"AwaitEventAsync<{typeof(T).Name}> is not supported by SignalRStreamingTransport.");
-
         var tcs = new TaskCompletionSource<EvidenceCardResponse>(
             TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -51,7 +45,7 @@ public sealed class SignalRStreamingTransport<THub>(IHubContext<THub> hubContext
 
         try
         {
-            return (T)(object)await tcs.Task.WaitAsync(ct);
+            return await tcs.Task.WaitAsync(ct);
         }
         finally
         {
@@ -60,8 +54,8 @@ public sealed class SignalRStreamingTransport<THub>(IHubContext<THub> hubContext
     }
 
     /// <summary>
-    /// Routes a reviewer decision to the <see cref="AwaitEventAsync{T}"/> call blocking on
-    /// <paramref name="docketId"/>. Returns <c>true</c> if a live waiter was found;
+    /// Routes a reviewer decision to the <see cref="AwaitEvidenceCardResponseAsync"/> call blocking
+    /// on <paramref name="docketId"/>. Returns <c>true</c> if a live waiter was found;
     /// <c>false</c> if the host was restarted and the docket-replay path must be used.
     /// </summary>
     public bool TryDeliverResponse(Guid docketId, EvidenceCardResponse response)

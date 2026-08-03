@@ -14,13 +14,6 @@ internal sealed class NullStreamingTransport : IStreamingTransport
     public Task BroadcastToGroupAsync(string groupId, TransportEvent eventType, object payload, CancellationToken ct) =>
         Task.CompletedTask;
 
-    public async IAsyncEnumerable<TransportMessage> ReceiveAsync(
-        string connectionId, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
-    {
-        await Task.CompletedTask;
-        yield break;
-    }
-
-    public Task<T> AwaitEventAsync<T>(string sessionGroupId, Guid docketId, CancellationToken ct = default) =>
-        Task.FromCanceled<T>(ct);
+    public Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default) =>
+        Task.FromCanceled<EvidenceCardResponse>(ct);
 }

@@ -44,9 +44,39 @@ public sealed class ReviewGate(
         => FileForReviewCoreAsync(proposal, context, priorAmendments: null, cancellationToken);
 
     /// <summary>
-    /// File a review for the given <paramref name="proposal"/> and return the final outcome.
-    /// Delegates the filing + policy-evaluation work to <see cref="FileForReviewAsync"/> and adds
-    /// only the blocking await for a reviewer decision — behavior-preserving refactor for D1.
+    /// <b>Document-reserved (P1a, area-4 Decision-1 ruling 2026-08-04) — retired, not deleted.
+    /// Structurally deadlocks over the framework's only shipped transport; not the production
+    /// default.</b> File a review for the given <paramref name="proposal"/> and block until the
+    /// final outcome is known. Delegates the filing + policy-evaluation work to
+    /// <see cref="FileForReviewAsync"/> and adds only the blocking await for a reviewer decision.
+    /// <para>
+    /// <b>Why this deadlocks:</b> when policy requires a human reviewer, this method awaits
+    /// <see cref="IStreamingTransport.AwaitEvidenceCardResponseAsync"/> on the SAME call chain the
+    /// caller's own connection is holding open. Over SignalR — the framework's only shipped
+    /// transport — <c>HubOptions.MaximumParallelInvocationsPerClient</c> defaults to <c>1</c> and is
+    /// never overridden by either reference host, so the one hub invocation that could deliver the
+    /// reviewer's decision (e.g. an <c>ApproveAction</c>/<c>RejectAction</c> RPC) queues behind the
+    /// very invocation blocked here awaiting it — a same-connection deadlock proven live
+    /// (host-apps#25, Jaeger-traced 610.7s block; the incident's own words: "live approval has
+    /// plausibly never once succeeded through the browser UI"). Every call to this method that
+    /// requires human review will wait out <see cref="AffiantCoreOptions.DefaultDocketTtl"/> and
+    /// resolve as <see cref="ReviewOutcome.Expired"/> under that condition, not because the reviewer
+    /// failed to act, but because their decision cannot physically reach this awaiting call.
+    /// </para>
+    /// <para>
+    /// <b>What to use instead:</b> the production default is
+    /// <see cref="Affiant.Core.Filters.ReviewGateFilter"/> calling the non-blocking
+    /// <see cref="FileForReviewAsync"/> and ending the calling turn on
+    /// <see cref="ReviewFilingResult.RequiresReview"/> (P5a) — the eventual decision arrives through
+    /// a separate hub RPC routed to <see cref="HandleDecisionAsync"/>, never through this method's
+    /// own await. This method remains callable — kept because the underlying design (a synchronous
+    /// wait-for-external-event, mirroring the Azure Durable Functions <c>WaitForExternalEvent</c>
+    /// pattern; framework spec §4) is legitimate and has a real future use (a caller that must not
+    /// proceed to a dependent tool call until the write is confirmed) — but it needs the decision to
+    /// travel on a channel other than the blocked connection to be sound. That redesign is tracked in
+    /// affiant#29 (design ticket, no implementation planned yet); do not reach for this method in new
+    /// code until it lands.
+    /// </para>
     /// </summary>
     /// <param name="proposal">The proposed write operation awaiting review.</param>
     /// <param name="context">Session, tenant, user, and affidavit context for routing the review.</param>
@@ -71,7 +101,7 @@ public sealed class ReviewGate(
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(options.DefaultDocketTtl);
-            response = await transport.AwaitEventAsync<EvidenceCardResponse>(
+            response = await transport.AwaitEvidenceCardResponseAsync(
                 context.SessionId, entryId, cts.Token);
             logger.LogInformation(
                 "Received EvidenceCardResponse for DocketEntry {EntryId}: {Decision}",
