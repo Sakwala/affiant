@@ -28,10 +28,13 @@ public static class ServiceCollectionExtensions
     /// <b>Scoped</b> (affiant#19) — it constructor-injects <c>IEnumerable&lt;IApprovalPolicy&gt;</c>, and
     /// Affiant.Policies registers policies Scoped by default, so a singleton evaluator would be a
     /// captive dependency the moment a policy has a scoped dependency (e.g. a host <c>DbContext</c>).
-    /// The following services are registered as Singletons by this method:
+    /// The following services are registered as Singletons by this method, in this registration
+    /// (= onion entry / outermost-first) order (area-3 P2 ruling 2 — <c>ToolErrorFilter</c> is
+    /// registered before <c>DeterministicShortCircuit</c> so it is genuinely outermost, matching
+    /// framework spec §3.12.4):
     /// <list type="bullet">
-    /// <item><c>DeterministicShortCircuit</c> as <c>IToolInvocationFilter</c> — pre-LLM interception</item>
     /// <item><c>ToolErrorFilter</c> as <c>IToolInvocationFilter</c> — error handling with retry</item>
+    /// <item><c>DeterministicShortCircuit</c> as <c>IToolInvocationFilter</c> — pre-LLM interception</item>
     /// <item><c>ToolTracingFilter</c> as <c>IToolInvocationFilter</c> — per-tool <c>execute_tool</c> OTel span</item>
     /// <item><c>ToolInvocationPipeline</c> — backend-neutral runner owning canonical filter order</item>
     /// </list>
@@ -96,15 +99,22 @@ public static class ServiceCollectionExtensions
         // Backend-neutral pipeline runner — owns canonical filter order + per-invocation DI scope.
         services.TryAddSingleton<ToolInvocationPipeline>();
 
-        // Step 8: Pre-LLM intent interception
-        services.TryAddSingleton<DeterministicShortCircuit>();
-        services.TryAddEnumerable(
-            ServiceDescriptor.Singleton<IToolInvocationFilter, DeterministicShortCircuit>());
-
-        // Step 9: Error-handling filter (outermost in inner pipeline — wraps ToolTracingFilter)
+        // Step 1 / area-3 P2 ruling 2: Error-handling filter — registered FIRST so it is the
+        // genuine outermost neutral filter (framework spec §3.12.4 and ToolErrorFilter's own class
+        // doc both require this; before this fix, DeterministicShortCircuit was registered first
+        // and was the actual outermost filter — a documented-but-unenforced order the position
+        // paper's evidence pack flagged (area-3 V4) and AffiantFilterPipelineOrderTests now locks
+        // explicitly). Outermost means a bug in a host's IIntentInterceptor (which
+        // DeterministicShortCircuit invokes, next) also becomes a typed ToolError instead of
+        // propagating raw out of the neutral pipeline.
         services.TryAddSingleton<ToolErrorFilter>();
         services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IToolInvocationFilter, ToolErrorFilter>());
+
+        // Step 2: Pre-LLM intent interception — now wrapped by ToolErrorFilter (see above).
+        services.TryAddSingleton<DeterministicShortCircuit>();
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IToolInvocationFilter, DeterministicShortCircuit>());
 
         // Step 10: Per-tool OTel span — creates execute_tool span for all hosts automatically
         services.TryAddSingleton<ToolTracingFilter>();

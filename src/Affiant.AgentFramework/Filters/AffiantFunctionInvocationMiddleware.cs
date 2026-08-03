@@ -55,6 +55,11 @@ public sealed class AffiantFunctionInvocationMiddleware(
                 toolProduced = await next(context, cancellationToken).ConfigureAwait(false);
                 toolRan = true;
                 neutral.Result = toolProduced;
+                // Area-3 P2 ruling 3: mark the tool as executed the instant it succeeds, before any
+                // wrapping filter's post-next() logic (TaskInferenceMergeFilter, ReviewGateFilter,
+                // host ContextExtractor subclasses) runs on MAF's single onion — governs
+                // ToolErrorFilter's tool-body vs. post-processing catch decision.
+                neutral.ToolExecuted = true;
             },
             // Prefer the run's ambient scope when the host wired one onto the function arguments;
             // otherwise the pipeline owns a fresh scope per invocation, giving each tool call its own

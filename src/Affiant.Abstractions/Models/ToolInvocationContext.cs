@@ -25,6 +25,20 @@ public sealed class ToolInvocationContext
     /// <summary>Requests the backend stop the auto-invocation loop after this call.</summary>
     public bool Terminate { get; set; }
 
+    /// <summary>
+    /// Set by the bridge/middleware's terminal delegate the instant the real tool call finishes
+    /// (successfully) — before any filter's post-<c>next()</c> work runs. Distinguishes "tool body"
+    /// failures (a real tool call, or a pre-tool filter such as <c>DeterministicShortCircuit</c>,
+    /// threw — <see cref="ToolExecuted"/> is still <see langword="false"/>, retrying is safe because
+    /// the tool has not produced a result yet) from "post-processing" failures (a filter that only
+    /// runs after the tool already returned — e.g. a <c>ContextExtractor</c> subclass or
+    /// <c>TaskInferenceMergeFilter</c> — threw; <see cref="ToolExecuted"/> is <see langword="true"/>,
+    /// so <see cref="Result"/> already holds the tool's genuine output and must never be discarded
+    /// or retried into a second tool execution). See <c>ToolErrorFilter</c>'s remarks (area-3 P2
+    /// ruling 3) for how this flag governs its catch/retry decision.
+    /// </summary>
+    public bool ToolExecuted { get; set; }
+
     /// <summary>The per-invocation DI scope owned by the pipeline runner.</summary>
     public required IServiceProvider Services { get; init; }
 

@@ -63,6 +63,12 @@ public class ManualToolInvoker(ToolInvocationPipeline pipeline, ILogger<ManualTo
             neutral =>
             {
                 neutral.Result = produced;
+                // Area-3 P2 ruling 3: the tool already ran (kernel.InvokeAsync above) before this
+                // completion-stage pipeline call even starts — so ToolErrorFilter (now also part of
+                // BridgeStages.CompletionStage, ruling 1) must treat any exception from the
+                // completion-stage filters as post-processing, never as a retryable tool-body
+                // failure that would invoke kernel.InvokeAsync a second time.
+                neutral.ToolExecuted = true;
                 return Task.CompletedTask;
             },
             // Same kernel scope as the invocation stage fired by kernel.InvokeAsync above, so the
