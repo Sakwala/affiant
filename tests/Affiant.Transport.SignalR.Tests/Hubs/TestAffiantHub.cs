@@ -12,7 +12,7 @@ using Microsoft.AspNetCore.SignalR;
 /// </summary>
 public sealed class TestAffiantHub(
     IChatSessionStore chatSessionStore,
-    IStreamingTransport transport) : AffiantHub(chatSessionStore)
+    IStreamingTransport transport) : AffiantHub(chatSessionStore, transport)
 {
     public override async Task OnConnectedAsync()
     {
@@ -25,12 +25,24 @@ public sealed class TestAffiantHub(
         => Groups.AddToGroupAsync(Context.ConnectionId, groupId);
 
     /// <summary>
+    /// Test-invokable wrapper over the protected, typed <c>BroadcastToSessionAsync</c> (P5c) — lets
+    /// integration tests prove the hub base's own helper, not just the raw
+    /// <see cref="IStreamingTransport.BroadcastToGroupAsync"/> call, delivers correctly.
+    /// </summary>
+    public Task BroadcastSession(string sessionId, TransportEvent eventType, object payload)
+        => BroadcastToSessionAsync(sessionId, eventType, payload);
+
+    /// <summary>Test-invokable wrapper over the protected, typed <c>BroadcastToReviewerAsync</c> (P5c).</summary>
+    public Task BroadcastReviewer(string reviewerId, TransportEvent eventType, object payload)
+        => BroadcastToReviewerAsync(reviewerId, eventType, payload);
+
+    /// <summary>
     /// Routes a reviewer decision back to any live AwaitEventAsync waiter.
     /// Called by the test client to simulate the reviewer UI submitting an approval.
     /// </summary>
     public Task SubmitDecision(Guid docketId, bool approved)
     {
-        transport.TryDeliverResponse(docketId, new EvidenceCardResponse(
+        Transport.TryDeliverResponse(docketId, new EvidenceCardResponse(
             docketId,
             approved ? ApprovalDecision.Approved : ApprovalDecision.Rejected));
         return Task.CompletedTask;

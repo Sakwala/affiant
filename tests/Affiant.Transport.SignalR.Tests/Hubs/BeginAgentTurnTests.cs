@@ -18,7 +18,7 @@ public sealed class BeginAgentTurnTests
     /// </summary>
     private sealed class Harness : AffiantHub
     {
-        public Harness() : base(new NullChatSessionStore()) { }
+        public Harness() : base(new NullChatSessionStore(), new NullStreamingTransport()) { }
 
         public static Activity? Invoke(string conversationId, string? userIntent = null)
             => BeginAgentTurn(conversationId, userIntent);
