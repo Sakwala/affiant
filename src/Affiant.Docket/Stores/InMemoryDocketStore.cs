@@ -102,6 +102,16 @@ public sealed class InMemoryDocketStore : IDocketStore
         ct.ThrowIfCancellationRequested();
         var pending = _entries.Values
             .Where(e => e.SessionId == sessionId && e.Status == ReviewStatus.Pending)
+            .OrderBy(e => e.CreatedAt)
+            .ToList();
+        return Task.FromResult<IReadOnlyList<DocketEntry>>(pending);
+    }
+
+    public Task<IReadOnlyList<DocketEntry>> ListAllPendingAsync(CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var pending = _entries.Values
+            .Where(e => e.Status == ReviewStatus.Pending)
             .ToList();
         return Task.FromResult<IReadOnlyList<DocketEntry>>(pending);
     }

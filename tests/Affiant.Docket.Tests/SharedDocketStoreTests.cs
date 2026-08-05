@@ -304,4 +304,32 @@ public sealed class SharedDocketStoreTests
         var noParent = await store.GetResubmissionParentAsync(Guid.NewGuid(), CancellationToken.None);
         Assert.Null(noParent);
     }
+
+    // ── Case 7: ListPendingBySessionAsync ordering (Area-5 Decision 3 / P2d rider) ───
+
+    [Theory]
+    [ClassData(typeof(DocketStoreProviderFactory))]
+    public async Task ListPendingBySessionAsync_MultiplePendingEntries_OrderedByCreatedAtAscending(
+        IDocketStore store, string providerName)
+    {
+        Assert.NotEmpty(providerName);
+        var sessionId = Guid.NewGuid().ToString();
+        var now = DateTimeOffset.UtcNow;
+
+        // Filed out of chronological order — the store's own CreatedAt stamps decide the order,
+        // not insertion order.
+        var third = TestDocketEntry.CreateDefault(sessionId: sessionId) with { CreatedAt = now.AddMinutes(2) };
+        var first = TestDocketEntry.CreateDefault(sessionId: sessionId) with { CreatedAt = now };
+        var second = TestDocketEntry.CreateDefault(sessionId: sessionId) with { CreatedAt = now.AddMinutes(1) };
+
+        await store.FileDocketEntryAsync(third, CancellationToken.None);
+        await store.FileDocketEntryAsync(first, CancellationToken.None);
+        await store.FileDocketEntryAsync(second, CancellationToken.None);
+
+        var pending = await store.ListPendingBySessionAsync(sessionId, CancellationToken.None);
+
+        Assert.Equal(
+            [first.EntryId, second.EntryId, third.EntryId],
+            pending.Select(e => e.EntryId));
+    }
 }

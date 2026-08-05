@@ -11,8 +11,10 @@ namespace Affiant.Docket.Services;
 
 /// <summary>
 /// Background sweep that transitions overdue Pending <c>DocketEntry</c> rows to Expired and, when
-/// an <see cref="IStreamingTransport"/> is available, warns the UI as entries approach expiry and
-/// notifies it once they are marked expired (framework half of repo issue #10 / triage F0-A6).
+/// an <see cref="IStreamingTransport"/> is available, warns the UI as entries approach expiry,
+/// notifies it once they are marked expired (framework half of repo issue #10 / triage F0-A6), and
+/// unconditionally re-broadcasts every still-Pending entry's Evidence Card (Area-5 Decision 3,
+/// affiant#28 — at-least-once delivery by construction).
 /// </summary>
 /// <remarks>
 /// <paramref name="transport"/> is optional — the Affiant.Docket package must not hard-require a
@@ -54,7 +56,7 @@ public sealed class DocketExpiryService(
     /// instead of waiting for the background timer.
     /// </summary>
     /// <remarks>
-    /// Two independent phases run each tick:
+    /// Three independent phases run each tick:
     /// <list type="number">
     /// <item>Entries already past <c>ExpiresAt</c> are bulk-marked Expired; if a transport is
     /// registered, a <see cref="TransportEvent.DocketExpired"/> is broadcast per entry.</item>
@@ -63,6 +65,19 @@ public sealed class DocketExpiryService(
     /// re-queried every tick, so a warning is re-emitted on every tick the entry remains inside the
     /// window — clients must treat repeated warnings for the same docket id as idempotent (e.g. key
     /// a UI countdown off the notification's <c>ExpiresAt</c> rather than counting notifications).</item>
+    /// <item>
+    /// Every entry still <see cref="ReviewStatus.Pending"/> after phase 1 gets its
+    /// <see cref="TransportEvent.EvidenceCardRequest"/> re-broadcast — unconditionally, regardless of
+    /// whether the entry's filing-time broadcast reported success (Area-5 Decision 3, affiant#28).
+    /// This is the framework's chosen closure for the stranded-entry window a
+    /// <c>CardDelivered</c>-style flag can't honestly close (a SignalR group send to zero connected
+    /// members completes successfully): at-least-once by construction, applying the same
+    /// idempotent-repeat contract phase 2 already established for <c>DocketExpiring</c> to the card
+    /// itself, via the same builder <see cref="Affiant.Core.Services.ReviewGate"/>'s filing path and
+    /// <see cref="Affiant.Core.Services.ReviewGate.RebroadcastPendingCardsAsync"/> use, so all three
+    /// payloads for a given entry cannot drift. This closes redelivery-until-acted; it does not
+    /// prove a human saw the card.
+    /// </item>
     /// </list>
     /// </remarks>
     public async Task ExpireOverdueAsync(CancellationToken ct)
@@ -111,6 +126,22 @@ public sealed class DocketExpiryService(
                 await transport.BroadcastToGroupAsync(
                     entry.SessionId, TransportEvent.DocketExpiring,
                     new DocketExpiringNotification(entry.EntryId, entry.ExpiresAt), ct);
+            }
+        }
+
+        // Phase 3: unconditionally re-broadcast EvidenceCardRequest for every entry still Pending
+        // after phase 1 — Area-5 Decision 3, affiant#28. Re-queried every tick (phase 1 may have
+        // just expired some of last tick's candidates), so this is the redelivery mechanism, not a
+        // one-shot retry.
+        if (transport is not null)
+        {
+            var stillPending = await store.ListAllPendingAsync(ct);
+            foreach (var entry in stillPending)
+            {
+                var request = await EvidenceCardRequestFactory.CreateAsync(
+                    store, entry.EntryId, entry.Envelope, entry.ExpiresAt, ct);
+                await transport.BroadcastToGroupAsync(
+                    entry.SessionId, TransportEvent.EvidenceCardRequest, request, ct);
             }
         }
     }

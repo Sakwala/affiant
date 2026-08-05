@@ -134,8 +134,11 @@ public sealed class DocketExpiryServiceTests
     }
 
     [Fact]
-    public async Task ExpireOverdueAsync_EntryOutsideWarningWindow_NoBroadcast()
+    public async Task ExpireOverdueAsync_EntryOutsideWarningWindow_NoDocketExpiringBroadcast()
     {
+        // Outside the warning window means no DocketExpiring warning — but Area-5 Decision 3's
+        // unconditional EvidenceCardRequest re-broadcast (phase 3) still applies regardless of
+        // proximity to expiry; see the D3 tests below for that half of this tick's behavior.
         var store = new InMemoryDocketStore();
         var entry = TestDocketEntry.CreateDefault(expiresAt: DateTimeOffset.UtcNow.AddMinutes(10));
         await store.FileDocketEntryAsync(entry, CancellationToken.None);
@@ -145,7 +148,7 @@ public sealed class DocketExpiryServiceTests
 
         await expiryService.ExpireOverdueAsync(CancellationToken.None);
 
-        Assert.Empty(transport.Broadcasts);
+        Assert.DoesNotContain(transport.Broadcasts, b => b.EventType == TransportEvent.DocketExpiring);
     }
 
     [Fact]
@@ -211,6 +214,121 @@ public sealed class DocketExpiryServiceTests
         Assert.Equal(ReviewStatus.Expired, siblingEntry!.Status);
     }
 
+    // ── D3: at-least-once Evidence Card redelivery (Area-5 Decision 3, affiant#28) ───
+
+    [Fact]
+    public async Task ExpireOverdueAsync_PendingEntry_RebroadcastsEvidenceCardRequest_RegardlessOfFilingOutcome()
+    {
+        var store = new InMemoryDocketStore();
+        var sessionId = Guid.NewGuid().ToString();
+        // Models affiant#28's stranded-entry window: the entry is durably filed and Pending, but
+        // whatever broadcast happened at filing time reached zero group members (or never ran) —
+        // irrelevant here, since the sweep's re-broadcast is unconditional on that outcome.
+        var entry = TestDocketEntry.CreateDefault(sessionId: sessionId);
+        await store.FileDocketEntryAsync(entry, CancellationToken.None);
+
+        var transport = new SpyStreamingTransport();
+        var expiryService = BuildExpiryService(store, transport);
+
+        await expiryService.ExpireOverdueAsync(CancellationToken.None);
+
+        var broadcast = Assert.Single(
+            transport.Broadcasts, b => b.EventType == TransportEvent.EvidenceCardRequest);
+        Assert.Equal(sessionId, broadcast.GroupId);
+        var request = Assert.IsType<EvidenceCardRequest>(broadcast.Payload);
+        Assert.Equal(entry.EntryId, request.DocketId);
+        Assert.Equal(entry.ExpiresAt, request.RequiredBy);
+        Assert.Null(request.PriorAmendments);
+
+        var stillPending = await store.GetDocketEntryAsync(entry.EntryId, CancellationToken.None);
+        Assert.Equal(ReviewStatus.Pending, stillPending!.Status);
+    }
+
+    [Fact]
+    public async Task ExpireOverdueAsync_PendingEntry_RebroadcastsAgainOnNextTick()
+    {
+        // The client that missed the filing-time broadcast, and missed the first sweep tick's
+        // re-broadcast, still gets the card on the next tick — at-least-once, repeated until acted
+        // on or expired.
+        var store = new InMemoryDocketStore();
+        var entry = TestDocketEntry.CreateDefault();
+        await store.FileDocketEntryAsync(entry, CancellationToken.None);
+
+        var transport = new SpyStreamingTransport();
+        var expiryService = BuildExpiryService(store, transport);
+
+        await expiryService.ExpireOverdueAsync(CancellationToken.None);
+        await expiryService.ExpireOverdueAsync(CancellationToken.None);
+
+        Assert.Equal(2, transport.Broadcasts.Count(b =>
+            b.EventType == TransportEvent.EvidenceCardRequest
+            && ((EvidenceCardRequest)b.Payload).DocketId == entry.EntryId));
+    }
+
+    [Fact]
+    public async Task ExpireOverdueAsync_EntryExpiredThisTick_NoEvidenceCardRebroadcast()
+    {
+        // An entry that phase 1 just transitioned to Expired is no longer Pending by the time
+        // phase 3 runs its ListAllPendingAsync query — it must not also get a stray re-broadcast.
+        var store = new InMemoryDocketStore();
+        var entry = TestDocketEntry.CreateDefault(expiresAt: DateTimeOffset.UtcNow.AddSeconds(-5));
+        await store.FileDocketEntryAsync(entry, CancellationToken.None);
+
+        var transport = new SpyStreamingTransport();
+        var expiryService = BuildExpiryService(store, transport);
+
+        await expiryService.ExpireOverdueAsync(CancellationToken.None);
+
+        Assert.DoesNotContain(transport.Broadcasts, b => b.EventType == TransportEvent.EvidenceCardRequest);
+    }
+
+    [Fact]
+    public async Task ExpireOverdueAsync_NonPendingEntry_NoEvidenceCardRebroadcast()
+    {
+        var store = new InMemoryDocketStore();
+        var entry = TestDocketEntry.CreateDefault(status: ReviewStatus.Approved);
+        await store.FileDocketEntryAsync(entry, CancellationToken.None);
+
+        var transport = new SpyStreamingTransport();
+        var expiryService = BuildExpiryService(store, transport);
+
+        await expiryService.ExpireOverdueAsync(CancellationToken.None);
+
+        Assert.Empty(transport.Broadcasts);
+    }
+
+    [Fact]
+    public async Task ExpireOverdueAsync_PendingEntryFromResubmission_RebroadcastCarriesPriorAmendments()
+    {
+        // Same shared builder the filing path uses (EvidenceCardRequestFactory) — the sweep's
+        // re-broadcast for a resubmitted entry must carry the parent's amendments too.
+        var store = new InMemoryDocketStore();
+        var sessionId = Guid.NewGuid().ToString();
+        var priorAmendments = new Dictionary<string, object?> { ["title"] = "Edited before expiry" };
+
+        var childId = Guid.NewGuid();
+        var parent = TestDocketEntry.CreateDefault(sessionId: sessionId, status: ReviewStatus.Expired)
+            with
+        { Amendments = priorAmendments, ResubmittedTo = childId };
+        var child = TestDocketEntry.CreateDefault(entryId: childId, sessionId: sessionId);
+
+        await store.FileDocketEntryAsync(parent, CancellationToken.None);
+        await store.FileDocketEntryAsync(child, CancellationToken.None);
+
+        var transport = new SpyStreamingTransport();
+        var expiryService = BuildExpiryService(store, transport);
+
+        await expiryService.ExpireOverdueAsync(CancellationToken.None);
+
+        var broadcast = Assert.Single(
+            transport.Broadcasts,
+            b => b.EventType == TransportEvent.EvidenceCardRequest
+                 && ((EvidenceCardRequest)b.Payload).DocketId == childId);
+        var request = (EvidenceCardRequest)broadcast.Payload;
+        Assert.NotNull(request.PriorAmendments);
+        Assert.Equal("Edited before expiry", request.PriorAmendments!["title"]);
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────
 
     private static DocketExpiryService BuildExpiryService(
@@ -267,6 +385,9 @@ public sealed class DocketExpiryServiceTests
 
         public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct)
             => inner.ListPendingBySessionAsync(sessionId, ct);
+
+        public Task<IReadOnlyList<DocketEntry>> ListAllPendingAsync(CancellationToken ct)
+            => inner.ListAllPendingAsync(ct);
 
         public async Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(
             DateTimeOffset expiresBeforeUtc, CancellationToken ct)

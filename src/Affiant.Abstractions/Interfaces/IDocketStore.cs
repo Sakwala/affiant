@@ -118,7 +118,25 @@ public interface IDocketStore
     Task UpdateAmendmentsAsync(
         Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct);
 
+    /// <summary>
+    /// Returns every <see cref="ReviewStatus.Pending"/> entry for <paramref name="sessionId"/>,
+    /// ordered by <see cref="DocketEntry.CreatedAt"/> ascending — oldest-filed entry first (Area-5
+    /// Decision 3 / P2d rider, affiant#28). Both <c>SessionRehydrator</c> and
+    /// <c>ReviewGate.RebroadcastPendingCardsAsync</c> rely on this order to replay a session's
+    /// stranded reviews in the sequence they were originally filed.
+    /// </summary>
     Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct);
+
+    /// <summary>
+    /// Returns every <see cref="ReviewStatus.Pending"/> entry across all sessions, in no specified
+    /// order — the listing primitive <c>DocketExpiryService</c>'s sweep uses to re-broadcast
+    /// <see cref="Transport.TransportEvent.EvidenceCardRequest"/> unconditionally each tick,
+    /// independent of whether the entry's filing-time broadcast reported success (Area-5 Decision 3,
+    /// affiant#28). Unlike <see cref="ListPendingBySessionAsync"/>, this is not scoped to a session
+    /// and carries no ordering contract — callers that need a stable order per session should use
+    /// that method instead.
+    /// </summary>
+    Task<IReadOnlyList<DocketEntry>> ListAllPendingAsync(CancellationToken ct);
 
     /// <summary>
     /// Returns all pending entries whose <see cref="DocketEntry.ExpiresAt"/> is on or before

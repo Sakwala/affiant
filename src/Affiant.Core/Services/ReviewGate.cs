@@ -41,7 +41,7 @@ public sealed class ReviewGate(
         WriteProposal proposal,
         ReviewContext context,
         CancellationToken cancellationToken = default)
-        => FileForReviewCoreAsync(proposal, context, priorAmendments: null, cancellationToken);
+        => FileForReviewCoreAsync(proposal, context, cancellationToken);
 
     /// <summary>
     /// <b>Document-reserved (P1a, area-4 Decision-1 ruling 2026-08-04) — retired, not deleted.
@@ -261,7 +261,7 @@ public sealed class ReviewGate(
         ReviewFilingResult filing;
         try
         {
-            filing = await FileForReviewCoreAsync(proposal, context, entry.Amendments, cancellationToken);
+            filing = await FileForReviewCoreAsync(proposal, context, cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -285,6 +285,34 @@ public sealed class ReviewGate(
     }
 
     /// <summary>
+    /// Reconnect-side counterpart to <c>DocketExpiryService</c>'s sweep (Area-5 Decision 3
+    /// acceptance criterion 2, affiant#28): re-broadcasts an <see cref="EvidenceCardRequest"/> for
+    /// every entry <see cref="IDocketStore.ListPendingBySessionAsync"/> currently reports Pending in
+    /// <paramref name="sessionId"/>, oldest-filed first. Intended to be called from a host's
+    /// <c>RehydrateSession</c> hub RPC so a reconnecting client gets its stranded cards immediately
+    /// rather than waiting up to 30s for the next sweep tick — wiring that call site is host-wave
+    /// scope, not this method's.
+    /// </summary>
+    /// <remarks>
+    /// Uses the same <see cref="BroadcastEvidenceCardWithRetryAsync"/> retry/telemetry path the
+    /// filing-time broadcast uses, and the same <see cref="EvidenceCardRequestFactory"/> the sweep
+    /// uses, so a reconnect rebroadcast is indistinguishable in shape from either. Per the D3
+    /// ruling's explicit sign-off boundary: this closes "the client gets the card again on
+    /// reconnect," not "a human has seen it" — see <see cref="EvidenceCardRequest"/>'s docs.
+    /// </remarks>
+    public async Task RebroadcastPendingCardsAsync(string sessionId, CancellationToken cancellationToken)
+    {
+        var pending = await docketStore.ListPendingBySessionAsync(sessionId, cancellationToken);
+        foreach (var entry in pending)
+        {
+            var request = await EvidenceCardRequestFactory.CreateAsync(
+                docketStore, entry.EntryId, entry.Envelope, entry.ExpiresAt, cancellationToken);
+            await BroadcastEvidenceCardWithRetryAsync(
+                sessionId, entry.EntryId, entry.OperationType, request, cancellationToken);
+        }
+    }
+
+    /// <summary>
     /// Shared filing core for <see cref="FileForReviewAsync"/> and <see cref="ResubmitAsync"/>:
     /// idempotency check, DocketEntry filing, policy evaluation (StandingOrder / ReferralRequired
     /// short-circuits), and — when a human reviewer must act — the Evidence Card broadcast. Never
@@ -293,7 +321,6 @@ public sealed class ReviewGate(
     private async Task<ReviewFilingResult> FileForReviewCoreAsync(
         WriteProposal proposal,
         ReviewContext context,
-        IReadOnlyDictionary<string, object?>? priorAmendments,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(proposal);
@@ -354,8 +381,13 @@ public sealed class ReviewGate(
 
             // 4c. ReviewerConfirmation / MultiParty: send the Evidence Card. No waiter registered
             // here — that is the caller's choice (FileReviewAsync awaits it; FileForReviewAsync
-            // callers route the eventual decision through HandleDecisionAsync instead).
-            var request = new EvidenceCardRequest(entryId, context.Affidavit, expiresAt, priorAmendments);
+            // callers route the eventual decision through HandleDecisionAsync instead). Built via
+            // the shared factory (Area-5 Decision 3, affiant#28) so this payload and the sweep's
+            // re-broadcast payload for the same entry cannot drift — including PriorAmendments,
+            // re-derived here via the same resubmission reverse-lookup rather than threaded through
+            // as a parameter, so ResubmitAsync's own filing call needs no special case.
+            var request = await EvidenceCardRequestFactory.CreateAsync(
+                docketStore, entryId, context.Affidavit, expiresAt, cancellationToken);
             await BroadcastEvidenceCardWithRetryAsync(
                 context.SessionId, entryId, proposal.ToolName, request, cancellationToken);
 
