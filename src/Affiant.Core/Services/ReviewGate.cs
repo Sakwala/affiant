@@ -126,7 +126,7 @@ public sealed class ReviewGate(
                 var finalEntry = await docketStore.GetDocketEntryAsync(entryId, cancellationToken);
                 return finalEntry is null
                     ? new ReviewOutcome.Expired(entryId)
-                    : MapStatusToOutcome(finalEntry.Status, entryId);
+                    : finalEntry.Status.ToReviewOutcome(entryId);
             }
 
             await transport.BroadcastToGroupAsync(
@@ -157,7 +157,7 @@ public sealed class ReviewGate(
             var finalEntry = await docketStore.GetDocketEntryAsync(entryId, cancellationToken);
             return finalEntry is null
                 ? new ReviewOutcome.Expired(entryId)
-                : MapStatusToOutcome(finalEntry.Status, entryId);
+                : finalEntry.Status.ToReviewOutcome(entryId);
         }
 
         // This call won the approval race — persist the reviewer's amendments (if any) onto
@@ -253,7 +253,7 @@ public sealed class ReviewGate(
             // 1. Check for an existing entry (idempotency: same EntryId filed twice).
             var existing = await docketStore.GetDocketEntryAsync(entryId, cancellationToken);
             if (existing is not null && existing.Status != ReviewStatus.Pending)
-                return new ReviewFilingResult.Decided(MapStatusToOutcome(existing.Status, entryId));
+                return new ReviewFilingResult.Decided(existing.Status.ToReviewOutcome(entryId));
 
             // 2. File a new entry if one does not already exist.
             if (existing is null)
@@ -487,7 +487,7 @@ public sealed class ReviewGate(
             var current = await docketStore.GetDocketEntryAsync(entryId, cancellationToken);
             return current is null
                 ? (new ReviewOutcome.Expired(entryId), null)
-                : (MapStatusToOutcome(current.Status, entryId), createdAt);
+                : (current.Status.ToReviewOutcome(entryId), createdAt);
         }
 
         // This call won the transition race — persist the reviewer's amendments (if any).
@@ -503,14 +503,4 @@ public sealed class ReviewGate(
             "HandleDecisionAsync: DocketEntry {EntryId} {Decision} (restart path)", entryId, decision);
         return (outcome, createdAt);
     }
-
-    private static ReviewOutcome MapStatusToOutcome(ReviewStatus status, Guid docketId) =>
-        status switch
-        {
-            ReviewStatus.Approved => new ReviewOutcome.Approved(docketId),
-            ReviewStatus.Rejected => new ReviewOutcome.Rejected(docketId),
-            ReviewStatus.Expired => new ReviewOutcome.Expired(docketId),
-            ReviewStatus.Deferred => new ReviewOutcome.Referral(docketId, "deferred"),
-            _ => new ReviewOutcome.Expired(docketId)
-        };
 }
