@@ -26,6 +26,9 @@ public sealed class SessionRehydratorTests
         public Task SaveMessagesAsync(string sessionId, IReadOnlyList<AffiantChatMessage> messages, CancellationToken ct)
             => throw new InvalidOperationException("not used by SessionRehydrator");
 
+        public Task AppendMessagesAsync(string sessionId, IReadOnlyList<AffiantChatMessage> messages, CancellationToken ct)
+            => throw new InvalidOperationException("not used by SessionRehydrator");
+
         public Task<IReadOnlyList<AffiantChatMessage>> LoadMessagesAsync(string sessionId, CancellationToken ct)
             => Task.FromResult<IReadOnlyList<AffiantChatMessage>>([]);
 
