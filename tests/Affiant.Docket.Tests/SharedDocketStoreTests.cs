@@ -16,6 +16,9 @@ namespace Affiant.Docket.Tests;
 ///   Case 3 — Expiry idempotency: MarkExpiredAsync called twice does not corrupt state.
 ///   Case 4 — Amendments round-trip (issue #6): UpdateAmendmentsAsync persists reviewer edits,
 ///            including an explicit null value for a field the reviewer cleared.
+///   Case 5 — FileDocketEntryAsync idempotency (issue #32): a second filing call for an
+///            already-used EntryId is a no-op — the first payload and status survive
+///            untouched, even when the entry has already gone terminal.
 /// </summary>
 public sealed class SharedDocketStoreTests
 {
@@ -182,5 +185,53 @@ public sealed class SharedDocketStoreTests
         Assert.NotNull(retrieved!.Amendments);
         Assert.Single(retrieved.Amendments!);
         Assert.Equal("second-edit", retrieved.Amendments["primaryField"]?.ToString());
+    }
+
+    // ── Case 5: FileDocketEntryAsync idempotency (issue #32) ─────────────────
+
+    [Theory]
+    [ClassData(typeof(DocketStoreProviderFactory))]
+    public async Task FileDocketEntryAsync_SecondCallSameEntryId_IsNoOpAndPreservesFirstPayload(
+        IDocketStore store, string providerName)
+    {
+        Assert.NotEmpty(providerName);
+        var entryId = Guid.NewGuid();
+
+        var first = TestDocketEntry.CreateDefault(entryId: entryId, sessionId: "session-first");
+        await store.FileDocketEntryAsync(first, CancellationToken.None);
+
+        var second = TestDocketEntry.CreateDefault(entryId: entryId, sessionId: "session-second");
+        await store.FileDocketEntryAsync(second, CancellationToken.None);
+
+        var retrieved = await store.GetDocketEntryAsync(entryId, CancellationToken.None);
+
+        Assert.NotNull(retrieved);
+        Assert.Equal("session-first", retrieved.SessionId);
+        Assert.Equal(ReviewStatus.Pending, retrieved.Status);
+    }
+
+    [Theory]
+    [ClassData(typeof(DocketStoreProviderFactory))]
+    public async Task FileDocketEntryAsync_SecondCallOnTerminalEntry_DoesNotResetStatusOrPayload(
+        IDocketStore store, string providerName)
+    {
+        Assert.NotEmpty(providerName);
+        var entryId = Guid.NewGuid();
+
+        var first = TestDocketEntry.CreateDefault(entryId: entryId, sessionId: "session-first");
+        await store.FileDocketEntryAsync(first, CancellationToken.None);
+        await store.UpdateReviewStatusAsync(entryId, ReviewStatus.Approved, CancellationToken.None);
+
+        // A retried filing (or a race the store-level guard was meant to catch) arrives after
+        // the entry already went terminal. The documented contract — and issue #32's fix — say
+        // this must no-op, not silently revert the entry back to Pending with the new payload.
+        var second = TestDocketEntry.CreateDefault(entryId: entryId, sessionId: "session-second");
+        await store.FileDocketEntryAsync(second, CancellationToken.None);
+
+        var retrieved = await store.GetDocketEntryAsync(entryId, CancellationToken.None);
+
+        Assert.NotNull(retrieved);
+        Assert.Equal("session-first", retrieved.SessionId);
+        Assert.Equal(ReviewStatus.Approved, retrieved.Status);
     }
 }

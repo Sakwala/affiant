@@ -52,11 +52,25 @@ public interface IDocketStore
     /// <see cref="ReviewContext.Amendments"/> at filing time).
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Framework responsibility ends at persistence. Appending
     /// <see cref="ProvenanceTag"/> UserStated tags to each amended field's
     /// <see cref="ProvenanceChain"/> before the write reaches the domain store is the host's
     /// <see cref="IWriteExecutor"/> overlay's job — <c>IWriteExecutor.ExecuteAsync</c> already
     /// accepts the amendments dictionary for exactly that purpose.
+    /// </para>
+    /// <para><strong>No status guard — deliberate, do not add one.</strong></para>
+    /// <para>
+    /// Unlike <see cref="UpdateReviewStatusAsync"/>, this write carries no
+    /// <c>WHERE Status = 'Pending'</c> (or any other status) condition on any of the three
+    /// backends. That is intentional, not an oversight: <c>ReviewGate.HandleDecisionAsync</c>'s
+    /// restart path persists a reviewer's edits onto entries that are already
+    /// <see cref="ReviewStatus.Expired"/> — or otherwise no longer <c>Pending</c> — by the time a
+    /// late decision replays (late-amendment preservation, issue #8). A status-guarded write would
+    /// silently discard exactly the edits this method exists to preserve. Amendments are
+    /// non-terminal, append-only reviewer data, not a status transition, so last-write-wins
+    /// against any entry state is the framework's accepted conservatism here.
+    /// </para>
     /// </remarks>
     Task UpdateAmendmentsAsync(
         Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct);

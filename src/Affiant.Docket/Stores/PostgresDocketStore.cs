@@ -76,8 +76,32 @@ public sealed class PostgresDocketStore(
             return;
         }
 
-        db.Docket.Add(ToDocketEntity(entry));
-        await db.SaveChangesAsync(ct);
+        var entity = ToDocketEntity(entry);
+        db.Docket.Add(entity);
+
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException)
+        {
+            // The AnyAsync check above narrows but does not close the TOCTOU window — a
+            // concurrent caller with the same EntryId (the client-supplied id used for
+            // idempotent-retry filing) can win the race between the check and this insert.
+            // EntryId is the primary key, so that race surfaces as a unique-constraint
+            // violation here. Detach the failed insert so this DbContext doesn't keep retrying
+            // it on a later SaveChangesAsync, then confirm the row landed before degrading to
+            // the documented idempotent no-op — a genuine failure (not a race) must still throw.
+            db.Entry(entity).State = EntityState.Detached;
+
+            var wonByConcurrentCaller = await db.Docket.AsNoTracking()
+                .AnyAsync(d => d.EntryId == entry.EntryId, ct);
+            if (!wonByConcurrentCaller) throw;
+
+            logger.LogDebug(
+                "DocketEntry {EntryId} lost the filing race to a concurrent caller — degrading to idempotent no-op",
+                entry.EntryId);
+        }
     }
 
     public async Task<DocketEntry?> GetDocketEntryAsync(Guid entryId, CancellationToken ct)
