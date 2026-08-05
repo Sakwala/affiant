@@ -70,7 +70,7 @@ public interface IDocketStore
     /// it was superseded and by which new entry.
     /// </para>
     /// </remarks>
-    Task<int> TryConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct);
+    Task<int> ConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct);
 
     /// <summary>
     /// Reverse lookup for resubmission lineage: finds the <see cref="DocketEntry"/> whose

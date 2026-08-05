@@ -7,6 +7,7 @@ using Affiant.Abstractions.Transport;
 using Affiant.Core.Extensions;
 using Affiant.Core.Observability;
 using Affiant.Core.Services;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -175,7 +176,7 @@ public class ReviewGateTests
             }
         }
 
-        public Task<int> TryConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
+        public Task<int> ConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
             lock (_lock)
@@ -266,6 +267,73 @@ public class ReviewGateTests
     {
         public Task<ReviewRequirement> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
             => Task.FromResult(requirement);
+    }
+
+    /// <summary>Records every log call so a test can assert on level/message without a mocking library.</summary>
+    private sealed class CapturingLogger<T> : ILogger<T>
+    {
+        public List<(LogLevel Level, string Message, Exception? Exception)> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+            => Entries.Add((logLevel, formatter(state, exception), exception));
+    }
+
+    /// <summary>
+    /// Decorates an <see cref="IDocketStore"/> to cancel <paramref name="cts"/> the instant
+    /// <see cref="ConsumeForResubmitAsync"/> wins the claim — modeling a client disconnect
+    /// (e.g. a host's resubmit hub RPC threaded with its connection-aborted token, per the d2
+    /// evidence pack) landing right after <c>ResubmitAsync</c>'s consume commits but before the
+    /// fresh entry finishes filing.
+    /// </summary>
+    private sealed class CancelOnResubmitConsumeDocketStore(IDocketStore inner, CancellationTokenSource cts) : IDocketStore
+    {
+        public Task SaveContextAsync(string sessionId, ConversationContext context, CancellationToken ct)
+            => inner.SaveContextAsync(sessionId, context, ct);
+
+        public Task<ConversationContext?> LoadContextAsync(string sessionId, CancellationToken ct)
+            => inner.LoadContextAsync(sessionId, ct);
+
+        public Task FileDocketEntryAsync(DocketEntry entry, CancellationToken ct)
+            => inner.FileDocketEntryAsync(entry, ct);
+
+        public Task<DocketEntry?> GetDocketEntryAsync(Guid entryId, CancellationToken ct)
+            => inner.GetDocketEntryAsync(entryId, ct);
+
+        public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct)
+            => inner.UpdateReviewStatusAsync(entryId, status, ct);
+
+        public async Task<int> ConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
+        {
+            var result = await inner.ConsumeForResubmitAsync(entryId, newEntryId, ct);
+            if (result > 0)
+                cts.Cancel();
+            return result;
+        }
+
+        public Task<DocketEntry?> GetResubmissionParentAsync(Guid entryId, CancellationToken ct)
+            => inner.GetResubmissionParentAsync(entryId, ct);
+
+        public Task UpdateAmendmentsAsync(
+            Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct)
+            => inner.UpdateAmendmentsAsync(entryId, amendments, ct);
+
+        public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct)
+            => inner.ListPendingBySessionAsync(sessionId, ct);
+
+        public Task<IReadOnlyList<DocketEntry>> ListAllPendingAsync(CancellationToken ct)
+            => inner.ListAllPendingAsync(ct);
+
+        public Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(DateTimeOffset expiresBeforeUtc, CancellationToken ct)
+            => inner.ListExpiredAsync(expiresBeforeUtc, ct);
+
+        public Task MarkExpiredAsync(IEnumerable<Guid> entryIds, CancellationToken ct)
+            => inner.MarkExpiredAsync(entryIds, ct);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -974,6 +1042,46 @@ public class ReviewGateTests
         Assert.Equal("Edited before expiry", request.PriorAmendments!["title"]);
     }
 
+    // ── Refuter regression: the orphan-pointer log must fire on cancellation too ──
+
+    [Fact]
+    public async Task ResubmitAsync_FilingCancelledAfterConsumeWon_LogsErrorWithBothEntryIds_AndRethrows()
+    {
+        var transport = new FakeStreamingTransport();
+        var innerStore = new InMemoryDocketStore();
+        var evaluator = new FakeApprovalPolicyEvaluator(ReviewRequirement.ReviewerConfirmation);
+        var capturingLogger = new CapturingLogger<ReviewGate>();
+        using var cts = new CancellationTokenSource();
+        var store = new CancelOnResubmitConsumeDocketStore(innerStore, cts);
+        var gate = new ReviewGate(transport, store, evaluator, new AffiantCoreOptions(), capturingLogger);
+
+        var expiredEntry = new DocketEntry(
+            EntryId: Guid.NewGuid(),
+            SessionId: "session-test",
+            TenantId: "tenant-default",
+            UserId: "user-123",
+            ReviewerUserId: "reviewer-456",
+            OperationType: "CreateOrder",
+            Envelope: CreateTestInput().context.Affidavit,
+            Status: ReviewStatus.Expired,
+            CreatedAt: DateTimeOffset.UtcNow.AddMinutes(-20),
+            ExpiresAt: DateTimeOffset.UtcNow.AddMinutes(-10),
+            Amendments: null);
+        await innerStore.FileDocketEntryAsync(expiredEntry, default);
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => gate.ResubmitAsync(expiredEntry.EntryId, cts.Token));
+
+        // The consume already won and committed ResubmittedTo before cancellation landed — the
+        // documented orphaned-pointer trade-off (see ResubmitAsync's remarks).
+        var reread = await innerStore.GetDocketEntryAsync(expiredEntry.EntryId, default);
+        Assert.NotNull(reread!.ResubmittedTo);
+
+        var errorEntry = Assert.Single(capturingLogger.Entries, e => e.Level == LogLevel.Error);
+        Assert.Contains(expiredEntry.EntryId.ToString(), errorEntry.Message);
+        Assert.Contains(reread.ResubmittedTo.Value.ToString(), errorEntry.Message);
+    }
+
     [Fact]
     public async Task ResubmitAsync_NonExpiredEntry_ThrowsInvalidOperationException()
     {
@@ -1032,7 +1140,7 @@ public class ReviewGateTests
         }
 
         // Task.Run (not a sequential simulation) so both calls genuinely race the InMemoryDocketStore's
-        // lock inside TryConsumeForResubmitAsync — the concurrency pack's own named gap (zero
+        // lock inside ConsumeForResubmitAsync — the concurrency pack's own named gap (zero
         // Task.WhenAll usage anywhere in the store test suite).
         var first = Task.Run(TryResubmitAsync);
         var second = Task.Run(TryResubmitAsync);

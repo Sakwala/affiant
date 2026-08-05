@@ -58,7 +58,7 @@ public sealed class SessionRehydratorTests
         public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct)
             => throw new InvalidOperationException("not used by this test");
 
-        public Task<int> TryConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
+        public Task<int> ConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
             => throw new InvalidOperationException("not used by this test");
 
         public Task<DocketEntry?> GetResubmissionParentAsync(Guid entryId, CancellationToken ct)

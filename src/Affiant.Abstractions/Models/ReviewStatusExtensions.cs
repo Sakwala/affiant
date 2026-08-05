@@ -37,6 +37,17 @@ public static class ReviewStatusExtensions
     /// new NAMED member — promoted to an error by <c>TreatWarningsAsErrors</c>) instead of silently
     /// falling through.
     /// </para>
+    /// <para>
+    /// <b>D2 acceptance criterion 5 — reconciliation surfacing (open, not ruled by this wave):</b>
+    /// this mapping does not surface "resubmitted." It is keyed off a bare <see cref="ReviewStatus"/>,
+    /// and <see cref="ReviewStatus"/> never changes on the source entry when
+    /// <c>ReviewGate.ResubmitAsync</c> resubmits it — see <see cref="DocketEntry.ResubmittedTo"/>'s
+    /// remarks. Whether a host's status-reporting surface should report a distinct "resubmitted"
+    /// value by separately checking <c>ResubmittedTo != null</c> alongside whatever this method
+    /// returns is an open decision the d2 evidence pack's acceptance criterion 5 requires be made
+    /// and recorded — not silently left unresolved. Recorded here as exactly that: open, unruled,
+    /// and out of this framework wave's scope.
+    /// </para>
     /// </summary>
     /// <param name="status">The <see cref="DocketEntry.Status"/> to map.</param>
     /// <param name="docketId">The <see cref="DocketEntry.EntryId"/> to carry onto the returned outcome.</param>

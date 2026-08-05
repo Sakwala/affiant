@@ -227,7 +227,7 @@ public class ReviewGateFilterMafBoundaryTests
             return Task.FromResult(1);
         }
 
-        public Task<int> TryConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
+        public Task<int> ConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
         {
             if (!_entries.TryGetValue(entryId, out var existing)
                 || existing.Status != ReviewStatus.Expired

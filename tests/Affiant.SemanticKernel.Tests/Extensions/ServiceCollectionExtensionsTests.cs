@@ -282,7 +282,7 @@ public class ServiceCollectionExtensionsTests
             Task.FromResult<DocketEntry?>(null);
         public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct) =>
             Task.FromResult(0);
-        public Task<int> TryConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct) =>
+        public Task<int> ConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct) =>
             Task.FromResult(0);
         public Task<DocketEntry?> GetResubmissionParentAsync(Guid entryId, CancellationToken ct) =>
             Task.FromResult<DocketEntry?>(null);

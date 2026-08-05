@@ -59,7 +59,7 @@ public sealed class InMemoryDocketStore : IDocketStore
         }
     }
 
-    public Task<int> TryConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
+    public Task<int> ConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
 

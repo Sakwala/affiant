@@ -161,7 +161,7 @@ public class AffiantAutoFunctionInvocationBridgeReviewGateTests
         public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct)
             => Task.FromResult(0);
 
-        public Task<int> TryConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
+        public Task<int> ConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
             => Task.FromResult(0);
 
         public Task<DocketEntry?> GetResubmissionParentAsync(Guid entryId, CancellationToken ct)
@@ -211,7 +211,7 @@ public class AffiantAutoFunctionInvocationBridgeReviewGateTests
             return Task.FromResult(1);
         }
 
-        public Task<int> TryConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
+        public Task<int> ConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
         {
             if (!_entries.TryGetValue(entryId, out var existing)
                 || existing.Status != ReviewStatus.Expired

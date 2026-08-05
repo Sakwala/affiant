@@ -396,7 +396,7 @@ public class ReviewGateFilterTests
         public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct)
             => Task.FromResult(0);
 
-        public Task<int> TryConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
+        public Task<int> ConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
             => Task.FromResult(0);
 
         public Task<DocketEntry?> GetResubmissionParentAsync(Guid entryId, CancellationToken ct)
@@ -437,7 +437,7 @@ public class ReviewGateFilterTests
         public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct)
             => Task.FromResult(0);
 
-        public Task<int> TryConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
+        public Task<int> ConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
             => Task.FromResult(0);
 
         public Task<DocketEntry?> GetResubmissionParentAsync(Guid entryId, CancellationToken ct)
@@ -489,7 +489,7 @@ public class ReviewGateFilterTests
             return Task.CompletedTask;
         }
 
-        public Task<int> TryConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
+        public Task<int> ConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
         {
             var idx = Filed.FindIndex(e =>
                 e.EntryId == entryId && e.Status == ReviewStatus.Expired && e.ResubmittedTo is null);

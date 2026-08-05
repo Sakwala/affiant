@@ -58,8 +58,10 @@ public sealed class DocketExpiryService(
     /// <remarks>
     /// Three independent phases run each tick:
     /// <list type="number">
-    /// <item>Entries already past <c>ExpiresAt</c> are bulk-marked Expired; if a transport is
-    /// registered, a <see cref="TransportEvent.DocketExpired"/> is broadcast per entry.</item>
+    /// <item>Entries already past <c>ExpiresAt</c> are each CAS-transitioned to Expired one at a
+    /// time (not a single bulk statement — see method body); if a transport is registered, a
+    /// <see cref="TransportEvent.DocketExpired"/> is broadcast per entry this tick's own write
+    /// actually transitioned, never for one a concurrent decision already claimed.</item>
     /// <item>Entries still Pending but within <see cref="AffiantCoreOptions.DocketExpiryWarningWindow"/>
     /// of <c>ExpiresAt</c> get a <see cref="TransportEvent.DocketExpiring"/> broadcast. This set is
     /// re-queried every tick, so a warning is re-emitted on every tick the entry remains inside the
@@ -87,29 +89,35 @@ public sealed class DocketExpiryService(
 
         var now = DateTimeOffset.UtcNow;
 
-        // Phase 1: bulk-expire entries already past their deadline.
+        // Phase 1: expire entries already past their deadline, one CAS-guarded write at a time —
+        // not a single bulk MarkExpiredAsync statement — so this tick can tell, per entry, whether
+        // ITS OWN write is the one that actually transitioned Pending -> Expired. A concurrent
+        // decision (ReviewGate.HandleDecisionAsync's restart path, affiant#14) can independently
+        // win that same transition for an entry already in this tick's ListExpiredAsync snapshot;
+        // DocketExpiryBroadcaster may only be invoked by whichever caller's write affected the row
+        // (see its remarks) — re-verifying status after a bulk statement that reports no per-row
+        // outcome cannot tell the two apart and double-broadcasts DocketExpired.
         var expired = await store.ListExpiredAsync(now, ct);
         if (expired.Count > 0)
         {
-            var expiredIds = expired.Select(e => e.EntryId).ToList();
-            await store.MarkExpiredAsync(expiredIds, ct);
-            logger.LogInformation("Marked {Count} docket entries as expired", expiredIds.Count);
-
-            if (transport is not null)
+            var wonCount = 0;
+            foreach (var entry in expired)
             {
-                // MarkExpiredAsync applies the same WHERE Status = 'Pending' guard as
-                // UpdateReviewStatusAsync but reports no affected count, so a candidate collected
-                // in the ListExpiredAsync snapshot above may have already been approved/rejected
-                // by the time the bulk update ran. DocketExpiryBroadcaster re-verifies and only
-                // broadcasts if the entry is genuinely Expired now — shared with
-                // ReviewGate.HandleDecisionAsync's restart path (affiant#14) so this "never lie to
-                // the session group" idiom cannot drift between the two.
-                foreach (var entry in expired)
+                var rowsAffected = await store.UpdateReviewStatusAsync(
+                    entry.EntryId, ReviewStatus.Expired, ct);
+                if (rowsAffected == 0)
+                    continue; // lost the race to a concurrent transition — that caller owns the broadcast
+
+                wonCount++;
+                if (transport is not null)
                 {
                     await DocketExpiryBroadcaster.VerifyAndBroadcastIfExpiredAsync(
                         store, transport, entry.EntryId, ct);
                 }
             }
+
+            if (wonCount > 0)
+                logger.LogInformation("Marked {Count} docket entries as expired", wonCount);
         }
 
         // Phase 2: warn about entries approaching expiry (still Pending, not yet past deadline).
