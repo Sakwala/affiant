@@ -220,7 +220,10 @@ public sealed record DocketEntry(
     ReviewStatus Status,
     DateTimeOffset CreatedAt,
     DateTimeOffset ExpiresAt,                  // Default TTL: 10 minutes (configurable via Standing Order)
-    IReadOnlyDictionary<string, object?>? Amendments  // Fields the reviewer changed; null value = explicitly cleared
+    IReadOnlyDictionary<string, object?>? Amendments,  // Fields the reviewer changed; null value = explicitly cleared
+    Guid? ResubmittedTo = null                 // Set once, by TryConsumeForResubmitAsync, when this
+                                                // (Expired) entry is resubmitted — see "Resubmission
+                                                // and lineage" below
 );
 ```
 
@@ -240,6 +243,36 @@ already accepts the amendments dictionary for exactly that purpose. A test asser
 chain ends in `UserStated` therefore belongs in the host's test suite, once the overlay exists,
 not in `Affiant.Testing.ComplianceHarness` (which asserts task-inference extraction substance, an
 unrelated pipeline stage).
+
+**Resubmission and lineage (Area-5 Decision 2, affiant#31).** `ReviewGate.ResubmitAsync(expiredEntryId, ct)`
+lets a caller retry a review whose `DocketEntry` has already gone `Expired`: it mints a brand-new
+`EntryId`, clones the expired entry's `Envelope` and (as `EvidenceCardRequest.PriorAmendments`) its
+`Amendments` into a fresh `Pending` entry, and broadcasts a new Evidence Card. There is no
+`ReviewStatus.Resubmitted` — a resubmitted entry's `Status` stays `Expired` forever, matching the
+reference client's own product decision to never visually distinguish a resubmitted card from a
+plain expired one (the two facts — "why did this end" and "was it superseded" — are kept
+independent, matching how Temporal's Continue-As-New and Stripe's `parent` field each model
+supersession as a separate reference rather than an overloaded status).
+
+`ResubmittedTo` is a nullable `Guid` on the *source* (expired) entry, set exactly once via
+`IDocketStore.TryConsumeForResubmitAsync(entryId, newEntryId, ct)` — a guarded
+`WHERE Status = 'Expired' AND ResubmittedTo IS NULL` conditional update returning the same 0/1
+rows-affected idiom every other status transition uses. `ResubmitAsync` calls this guard *before*
+filing the new entry, so it — not the filing — is what two concurrent resubmit attempts on the same
+expired entry actually race on: exactly one call wins the claim; the other sees 0 rows affected and
+throws `InvalidOperationException`, the same shape as an unknown or non-Expired `expiredEntryId`.
+`ResubmittedTo` doubles as queryable lineage: `IDocketStore.GetResubmissionParentAsync(entryId, ct)`
+is the reverse lookup (find the entry whose `ResubmittedTo` equals a given entry's id), used to
+re-derive `PriorAmendments` for a freshly-resubmitted `Pending` entry on reconnect — closing a
+silent-loss window, since `EvidenceCardRequest.PriorAmendments` only ever travels on the original,
+transient resubmission broadcast and is never itself persisted onto the new entry's `Amendments`.
+
+Filing the new entry after a successful claim is not itself guarded by the same transaction — if it
+fails (store outage, cancellation), the source entry's `ResubmittedTo` is left pointing at an
+`EntryId` no `DocketEntry` row was ever created for. This is accepted as a documented, logged,
+operator-visible failure mode rather than compensated with an automatic rollback, since a rollback
+would itself need to race safely against a subsequent resubmit attempt — reopening the exact problem
+the guard exists to close. See `ReviewGate.ResubmitAsync`'s remarks for the full contract.
 
 ### 2.8 ReviewStep (Record) — Multi-Step Reviews
 

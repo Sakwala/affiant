@@ -46,6 +46,49 @@ public interface IDocketStore
     Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct);
 
     /// <summary>
+    /// Atomically claims <paramref name="entryId"/> for resubmission by recording
+    /// <paramref name="newEntryId"/> onto its <see cref="DocketEntry.ResubmittedTo"/> — the race
+    /// guard and lineage record for <c>ReviewGate.ResubmitAsync</c> (Area-5 Decision 2, affiant#31).
+    /// </summary>
+    /// <returns>
+    /// The number of rows affected (1 if this call won the claim, 0 if <paramref name="entryId"/>
+    /// was not found, is not <see cref="ReviewStatus.Expired"/>, or a concurrent caller already
+    /// claimed it — see remarks for the double-resubmit contract).
+    /// </returns>
+    /// <remarks>
+    /// <para><strong>Double-Resubmit Prevention Contract:</strong></para>
+    /// <para>
+    /// Implementations MUST enforce atomic read-before-write semantics with a guard condition
+    /// equivalent to <c>WHERE Status = 'Expired' AND ResubmittedTo IS NULL</c> — the same
+    /// 0/1-rows-affected CAS idiom <see cref="UpdateReviewStatusAsync"/> uses for its own guard —
+    /// so two concurrent calls for the same <paramref name="entryId"/> can never both succeed.
+    /// </para>
+    /// <para>
+    /// Unlike <see cref="UpdateReviewStatusAsync"/>, this does not transition <see cref="DocketEntry.Status"/>:
+    /// there is no <c>ReviewStatus.Resubmitted</c> by design (Area-5 Decision 2). The entry stays
+    /// <see cref="ReviewStatus.Expired"/>; <see cref="DocketEntry.ResubmittedTo"/> alone records that
+    /// it was superseded and by which new entry.
+    /// </para>
+    /// </remarks>
+    Task<int> TryConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct);
+
+    /// <summary>
+    /// Reverse lookup for resubmission lineage: finds the <see cref="DocketEntry"/> whose
+    /// <see cref="DocketEntry.ResubmittedTo"/> equals <paramref name="entryId"/> — i.e. the expired
+    /// entry that <paramref name="entryId"/> was resubmitted from, if any.
+    /// </summary>
+    /// <returns>The parent entry, or <c>null</c> if <paramref name="entryId"/> was not itself produced by a resubmission.</returns>
+    /// <remarks>
+    /// Closes the silent-loss window in <see cref="Transport.EvidenceCardRequest.PriorAmendments"/>:
+    /// that field only ever travels on the transient resubmission broadcast, never onto the new
+    /// entry's own <see cref="DocketEntry.Amendments"/>. A reconnect that arrives after the broadcast
+    /// was already consumed (or missed) uses this lookup to re-derive the same
+    /// <see cref="DocketEntry.Amendments"/> from the parent — see
+    /// <c>SessionRehydrator.RehydrateAsync</c>.
+    /// </remarks>
+    Task<DocketEntry?> GetResubmissionParentAsync(Guid entryId, CancellationToken ct);
+
+    /// <summary>
     /// Persist the reviewer's amendments onto a <see cref="DocketEntry"/> — the field values a
     /// human reviewer changed while acting on an Evidence Card (issue #6, the amendment
     /// round-trip). Overwrites any amendments previously recorded on the entry (e.g. from

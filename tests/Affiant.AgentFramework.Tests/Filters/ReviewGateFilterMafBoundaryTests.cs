@@ -227,6 +227,21 @@ public class ReviewGateFilterMafBoundaryTests
             return Task.FromResult(1);
         }
 
+        public Task<int> TryConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
+        {
+            if (!_entries.TryGetValue(entryId, out var existing)
+                || existing.Status != ReviewStatus.Expired
+                || existing.ResubmittedTo is not null)
+            {
+                return Task.FromResult(0);
+            }
+            _entries[entryId] = existing with { ResubmittedTo = newEntryId };
+            return Task.FromResult(1);
+        }
+
+        public Task<DocketEntry?> GetResubmissionParentAsync(Guid entryId, CancellationToken ct)
+            => Task.FromResult(_entries.Values.FirstOrDefault(e => e.ResubmittedTo == entryId));
+
         public Task UpdateAmendmentsAsync(
             Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct) =>
             Task.CompletedTask;

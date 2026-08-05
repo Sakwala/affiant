@@ -282,6 +282,10 @@ public class ServiceCollectionExtensionsTests
             Task.FromResult<DocketEntry?>(null);
         public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct) =>
             Task.FromResult(0);
+        public Task<int> TryConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct) =>
+            Task.FromResult(0);
+        public Task<DocketEntry?> GetResubmissionParentAsync(Guid entryId, CancellationToken ct) =>
+            Task.FromResult<DocketEntry?>(null);
         public Task UpdateAmendmentsAsync(
             Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct) =>
             Task.CompletedTask;

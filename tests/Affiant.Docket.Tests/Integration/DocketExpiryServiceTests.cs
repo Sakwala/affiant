@@ -255,6 +255,12 @@ public sealed class DocketExpiryServiceTests
         public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct)
             => inner.UpdateReviewStatusAsync(entryId, status, ct);
 
+        public Task<int> TryConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
+            => inner.TryConsumeForResubmitAsync(entryId, newEntryId, ct);
+
+        public Task<DocketEntry?> GetResubmissionParentAsync(Guid entryId, CancellationToken ct)
+            => inner.GetResubmissionParentAsync(entryId, ct);
+
         public Task UpdateAmendmentsAsync(
             Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct)
             => inner.UpdateAmendmentsAsync(entryId, amendments, ct);

@@ -22,11 +22,6 @@ public sealed class DocketStoreProviderFactory : IEnumerable<object[]>
     // Each factory instance is scoped to one [Theory] method by xUnit.
     private readonly List<SqliteConnection> _connections = [];
 
-    // xUnit discovers [Theory] methods concurrently; guard Postgres schema creation
-    // so only one factory runs EnsureCreated — subsequent factories reuse the tables.
-    private static readonly object s_pgSchemaLock = new();
-    private static bool s_pgSchemaCreated;
-
     public IEnumerator<object[]> GetEnumerator()
     {
         yield return [new InMemoryDocketStore(), "InMemory"];
@@ -54,21 +49,11 @@ public sealed class DocketStoreProviderFactory : IEnumerable<object[]>
 
     private static IDocketStore CreatePostgresStore()
     {
-        var cs = StaticPostgresContainer.GetConnectionString();
+        StaticPostgresContainer.EnsureSchemaCreated();
 
         var options = new DbContextOptionsBuilder<AffiantDbContext>()
-            .UseNpgsql(cs)
+            .UseNpgsql(StaticPostgresContainer.GetConnectionString())
             .Options;
-
-        lock (s_pgSchemaLock)
-        {
-            if (!s_pgSchemaCreated)
-            {
-                using var initDb = new AffiantDbContext(options);
-                initDb.Database.EnsureCreated();
-                s_pgSchemaCreated = true;
-            }
-        }
 
         return new PostgresDocketStore(
             new AffiantDbContext(options),

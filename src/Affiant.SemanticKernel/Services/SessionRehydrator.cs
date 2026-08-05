@@ -2,6 +2,7 @@ namespace Affiant.SemanticKernel.Services;
 
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
+using Affiant.Abstractions.Transport;
 using Affiant.SemanticKernel.Filters;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -59,7 +60,20 @@ public sealed class SessionRehydrator(
         // 4. Load pending Docket entries
         var pendingEntries = await docketStore.ListPendingBySessionAsync(sessionId, ct);
 
-        return new RehydrationResult(history, context, pendingEntries);
+        // 5. Re-derive PriorAmendments for any pending entry produced by a resubmission (Area-5
+        // Decision 2, affiant#31 D2 acceptance criterion 4). EvidenceCardRequest.PriorAmendments
+        // only ever travels on the transient resubmission broadcast, never onto the new entry's
+        // own DocketEntry.Amendments — a reconnect that arrives after that broadcast was already
+        // consumed (or missed) would otherwise silently lose "what the reviewer already agreed to."
+        var priorAmendments = new Dictionary<Guid, IReadOnlyDictionary<string, object?>>();
+        foreach (var pendingEntry in pendingEntries)
+        {
+            var parent = await docketStore.GetResubmissionParentAsync(pendingEntry.EntryId, ct);
+            if (parent?.Amendments is { Count: > 0 })
+                priorAmendments[pendingEntry.EntryId] = parent.Amendments;
+        }
+
+        return new RehydrationResult(history, context, pendingEntries, priorAmendments);
     }
 }
 
@@ -69,7 +83,16 @@ public sealed class SessionRehydrator(
 /// domain-agnostic conversation context (nullable for pre-migration sessions),
 /// and any pending Docket entries awaiting review.
 /// </summary>
+/// <param name="PriorAmendmentsByEntryId">
+/// For each entry in <see cref="PendingEntries"/> that was itself produced by
+/// <c>ReviewGate.ResubmitAsync</c>, the amendments a reviewer made on the expired entry it
+/// superseded — re-derived via <see cref="Affiant.Abstractions.Interfaces.IDocketStore.GetResubmissionParentAsync"/>
+/// since <see cref="EvidenceCardRequest.PriorAmendments"/> only ever travels on the original,
+/// transient resubmission broadcast. Entries not produced by a resubmission, or whose parent had
+/// no amendments, are absent from this dictionary — never present with a null or empty value.
+/// </param>
 public sealed record RehydrationResult(
     ChatHistory History,
     ConversationContext? Context,
-    IReadOnlyList<DocketEntry> PendingEntries);
+    IReadOnlyList<DocketEntry> PendingEntries,
+    IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, object?>> PriorAmendmentsByEntryId);
