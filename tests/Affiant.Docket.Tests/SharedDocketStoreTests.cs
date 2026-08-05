@@ -21,6 +21,14 @@ namespace Affiant.Docket.Tests;
 ///            untouched, even when the entry has already gone terminal.
 ///   Case 6 — TryConsumeForResubmitAsync double-resubmit race guard (affiant#31, Area-5 D2):
 ///            two genuinely concurrent claims for the same expired entry — exactly one wins.
+///   Case 7 — ListPendingBySessionAsync ordering (Area-5 Decision 3 / P2d rider).
+///   Case 8 — SaveContextAsync/LoadContextAsync round-trip (Area-5 P4 item I): the
+///            fabric-persistence path Area 3 built on IDocketStore, previously zero framework
+///            coverage on any backend (evidence pack area-5-store-parity.md §3 "escapes").
+///   Case 9 — Genuinely concurrent races beyond Case 6 (Area-5 P4 item I): double
+///            UpdateReviewStatusAsync CAS on one Pending entry, and double FileDocketEntryAsync
+///            on the same EntryId — both via Task.WhenAll against independent store instances,
+///            not sequential simulation.
 /// </summary>
 public sealed class SharedDocketStoreTests
 {
@@ -331,5 +339,130 @@ public sealed class SharedDocketStoreTests
         Assert.Equal(
             [first.EntryId, second.EntryId, third.EntryId],
             pending.Select(e => e.EntryId));
+    }
+
+    // ── Case 8: SaveContextAsync/LoadContextAsync round-trip (Area-5 P4 item I) ──
+
+    [Theory]
+    [ClassData(typeof(DocketStoreWithChatSessionProviderFactory))]
+    public async Task SaveContextAsync_ThenLoadContextAsync_RoundTripsEntities(
+        IDocketStore store, IChatSessionStore chatSessionStore, string providerName)
+    {
+        Assert.NotEmpty(providerName);
+        var session = await chatSessionStore.CreateAsync("tenant-001", "user-001", CancellationToken.None);
+        var sessionId = session.SessionId;
+        var entity = new EntityRef(
+            EntityType: "test-entity-type",
+            EntityId: "entity-001",
+            DisplayName: "Test Entity",
+            Fields: new Dictionary<string, object> { ["status"] = "active", ["count"] = 3 });
+        var context = new ConversationContext(
+            sessionId, new Dictionary<string, EntityRef> { ["entity-001"] = entity });
+
+        await store.SaveContextAsync(sessionId, context, CancellationToken.None);
+        var retrieved = await store.LoadContextAsync(sessionId, CancellationToken.None);
+
+        Assert.NotNull(retrieved);
+        Assert.Equal(sessionId, retrieved.SessionId);
+        Assert.Single(retrieved.Entities);
+
+        var roundTripped = retrieved.Entities["entity-001"];
+        Assert.Equal("test-entity-type", roundTripped.EntityType);
+        Assert.Equal("entity-001", roundTripped.EntityId);
+        Assert.Equal("Test Entity", roundTripped.DisplayName);
+        Assert.Equal("active", roundTripped.Fields["status"].ToString());
+        Assert.Equal("3", roundTripped.Fields["count"].ToString());
+    }
+
+    [Theory]
+    [ClassData(typeof(DocketStoreProviderFactory))]
+    public async Task LoadContextAsync_ForSessionWithNoSavedContext_ReturnsNull(
+        IDocketStore store, string providerName)
+    {
+        Assert.NotEmpty(providerName);
+
+        var result = await store.LoadContextAsync(Guid.NewGuid().ToString(), CancellationToken.None);
+
+        Assert.Null(result);
+    }
+
+    [Theory]
+    [ClassData(typeof(DocketStoreWithChatSessionProviderFactory))]
+    public async Task SaveContextAsync_CalledTwice_UpsertsOverPreviousContext(
+        IDocketStore store, IChatSessionStore chatSessionStore, string providerName)
+    {
+        Assert.NotEmpty(providerName);
+        var session = await chatSessionStore.CreateAsync("tenant-001", "user-001", CancellationToken.None);
+        var sessionId = session.SessionId;
+
+        var first = new ConversationContext(sessionId, new Dictionary<string, EntityRef>
+        {
+            ["entity-001"] = new EntityRef("type-a", "entity-001", "First", new Dictionary<string, object>())
+        });
+        await store.SaveContextAsync(sessionId, first, CancellationToken.None);
+
+        var second = new ConversationContext(sessionId, new Dictionary<string, EntityRef>
+        {
+            ["entity-002"] = new EntityRef("type-b", "entity-002", "Second", new Dictionary<string, object>())
+        });
+        await store.SaveContextAsync(sessionId, second, CancellationToken.None);
+
+        var retrieved = await store.LoadContextAsync(sessionId, CancellationToken.None);
+
+        Assert.NotNull(retrieved);
+        Assert.Single(retrieved.Entities);
+        Assert.True(retrieved.Entities.ContainsKey("entity-002"));
+        Assert.False(retrieved.Entities.ContainsKey("entity-001"));
+    }
+
+    // ── Case 9: Genuinely concurrent races beyond Case 6 (Area-5 P4 item I) ──
+
+    [Theory]
+    [ClassData(typeof(DocketStoreConcurrencyProviderFactory))]
+    public async Task UpdateReviewStatusAsync_GenuinelyConcurrentCallsOnPendingEntry_ExactlyOneWins(
+        IDocketStore storeA, IDocketStore storeB, string providerName)
+    {
+        Assert.NotEmpty(providerName);
+        var entry = TestDocketEntry.CreateDefault(status: ReviewStatus.Pending);
+        await storeA.FileDocketEntryAsync(entry, CancellationToken.None);
+
+        // Same shape as Case 6's resubmit race: two independent store instances (not one shared
+        // DbContext, not a sequential simulation) racing the store's own
+        // WHERE Status = 'Pending' CAS guard.
+        var firstTask = Task.Run(() =>
+            storeA.UpdateReviewStatusAsync(entry.EntryId, ReviewStatus.Approved, CancellationToken.None));
+        var secondTask = Task.Run(() =>
+            storeB.UpdateReviewStatusAsync(entry.EntryId, ReviewStatus.Rejected, CancellationToken.None));
+
+        var results = await Task.WhenAll(firstTask, secondTask);
+
+        Assert.Equal(1, results.Sum());
+
+        var updated = await storeA.GetDocketEntryAsync(entry.EntryId, CancellationToken.None);
+        Assert.NotNull(updated);
+        var expectedStatus = results[0] == 1 ? ReviewStatus.Approved : ReviewStatus.Rejected;
+        Assert.Equal(expectedStatus, updated.Status);
+    }
+
+    [Theory]
+    [ClassData(typeof(DocketStoreConcurrencyProviderFactory))]
+    public async Task FileDocketEntryAsync_GenuinelyConcurrentCallsSameEntryId_NoOpContractHoldsUnderRace(
+        IDocketStore storeA, IDocketStore storeB, string providerName)
+    {
+        Assert.NotEmpty(providerName);
+        var entryId = Guid.NewGuid();
+        var first = TestDocketEntry.CreateDefault(entryId: entryId, sessionId: "session-A");
+        var second = TestDocketEntry.CreateDefault(entryId: entryId, sessionId: "session-B");
+
+        var firstTask = Task.Run(() => storeA.FileDocketEntryAsync(first, CancellationToken.None));
+        var secondTask = Task.Run(() => storeB.FileDocketEntryAsync(second, CancellationToken.None));
+
+        // Neither call may throw — issue #32's fix degrades the loser to the idempotent no-op
+        // instead of propagating the unique-constraint violation. Task.WhenAll rethrows if either did.
+        await Task.WhenAll(firstTask, secondTask);
+
+        var retrieved = await storeA.GetDocketEntryAsync(entryId, CancellationToken.None);
+        Assert.NotNull(retrieved);
+        Assert.True(retrieved.SessionId is "session-A" or "session-B");
     }
 }
