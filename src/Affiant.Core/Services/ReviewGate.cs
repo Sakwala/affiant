@@ -441,10 +441,14 @@ public sealed class ReviewGate(
     /// </summary>
     /// <param name="amendments">
     /// Fields the reviewer changed while acting on the Evidence Card — see
-    /// <see cref="EvidenceCardResponse.Amendments"/>. Ignored on rejection. When the entry is no
-    /// longer Pending (or has expired) by the time this arrives, non-empty amendments are still
+    /// <see cref="EvidenceCardResponse.Amendments"/>. Ignored on rejection. When the entry is
+    /// already resolved (not Pending) by the time this arrives, non-empty amendments are still
     /// persisted before returning <see cref="ReviewOutcome.Expired"/> — see
     /// <see cref="ReviewOutcome.Expired.AmendmentsPreserved"/> (framework half of repo issue #8).
+    /// When the entry is still Pending but its TTL has lapsed ahead of the sweep, this call also
+    /// persists the <see cref="ReviewStatus.Expired"/> transition itself and broadcasts
+    /// <see cref="TransportEvent.DocketExpired"/> — see <see cref="DocketExpiryBroadcaster"/>
+    /// (affiant#14).
     /// </param>
     public async Task<(ReviewOutcome? Outcome, DateTimeOffset? EntryCreatedAt)> HandleDecisionAsync(
         Guid entryId,
@@ -458,25 +462,65 @@ public sealed class ReviewGate(
 
         // Restart path: no live waiter — replay through the docket store.
         var entry = await docketStore.GetDocketEntryAsync(entryId, cancellationToken);
-        if (entry is null || entry.Status != ReviewStatus.Pending || entry.ExpiresAt < DateTimeOffset.UtcNow)
+        if (entry is null || entry.Status != ReviewStatus.Pending)
         {
             logger.LogWarning(
-                "HandleDecisionAsync: DocketEntry {EntryId} not found, not pending, or expired", entryId);
+                "HandleDecisionAsync: DocketEntry {EntryId} not found or already resolved", entryId);
 
             // The entry can no longer transition to Approved/Rejected, but a reviewer may still
-            // have made edits before the window lapsed (or before this decision was delivered) —
-            // preserve them rather than silently dropping the reviewer's work (issue #8).
+            // have made edits before this decision was delivered — preserve them rather than
+            // silently dropping the reviewer's work (issue #8).
             var amendmentsPreserved = false;
             if (entry is not null && amendments is { Count: > 0 })
             {
                 await docketStore.UpdateAmendmentsAsync(entryId, amendments, cancellationToken);
                 amendmentsPreserved = true;
                 logger.LogInformation(
-                    "HandleDecisionAsync: persisted late amendments onto non-pending/expired DocketEntry {EntryId}",
+                    "HandleDecisionAsync: persisted late amendments onto non-pending DocketEntry {EntryId}",
                     entryId);
             }
 
             return (new ReviewOutcome.Expired(entryId, amendmentsPreserved), null);
+        }
+
+        if (entry.ExpiresAt < DateTimeOffset.UtcNow)
+        {
+            // affiant#14: the entry is still Pending in the store but its TTL has lapsed ahead of
+            // DocketExpiryService's 30s sweep. Persist Expired now (guarded) and broadcast —
+            // mirroring the sweep's own "guarded write, then verify before telling the group"
+            // idiom via the shared DocketExpiryBroadcaster — instead of reporting Expired without
+            // ever writing it, which left Pending-with-lapsed-TTL as the steady state for up to
+            // 30s and starved ResubmitAsync's Status == Expired guard for the whole window.
+            logger.LogWarning(
+                "HandleDecisionAsync: DocketEntry {EntryId} TTL lapsed before this decision arrived",
+                entryId);
+
+            var lateAmendmentsPreserved = false;
+            if (amendments is { Count: > 0 })
+            {
+                await docketStore.UpdateAmendmentsAsync(entryId, amendments, cancellationToken);
+                lateAmendmentsPreserved = true;
+                logger.LogInformation(
+                    "HandleDecisionAsync: persisted late amendments onto lapsed-TTL DocketEntry {EntryId}",
+                    entryId);
+            }
+
+            var expiryRowsAffected = await docketStore.UpdateReviewStatusAsync(
+                entryId, ReviewStatus.Expired, cancellationToken);
+
+            // Only the call whose own CAS affected a row may broadcast — see
+            // DocketExpiryBroadcaster's remarks. A repeat late decision on the same entry (double
+            // decision, retried hub invocation) affects 0 rows here and must not re-broadcast.
+            var lateFinalStatus = expiryRowsAffected > 0
+                ? await DocketExpiryBroadcaster.VerifyAndBroadcastIfExpiredAsync(
+                    docketStore, transport, entryId, cancellationToken)
+                : (await docketStore.GetDocketEntryAsync(entryId, cancellationToken))?.Status;
+
+            var lateOutcome = lateFinalStatus is ReviewStatus.Expired or null
+                ? new ReviewOutcome.Expired(entryId, lateAmendmentsPreserved)
+                : lateFinalStatus.Value.ToReviewOutcome(entryId);
+
+            return (lateOutcome, null);
         }
 
         var createdAt = entry.CreatedAt;

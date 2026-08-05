@@ -677,6 +677,116 @@ public class ReviewGateTests
         Assert.Null(createdAt);
     }
 
+    // ── affiant#14: restart path persists Expired + broadcasts on TTL lapse ──
+
+    private DocketEntry CreateLapsedEntry(ReviewContext context, Guid? entryId = null) => new(
+        EntryId: entryId ?? Guid.NewGuid(),
+        SessionId: context.SessionId,
+        TenantId: context.TenantId,
+        UserId: context.UserId,
+        ReviewerUserId: context.ReviewerUserId,
+        OperationType: "CreateOrder",
+        Envelope: context.Affidavit,
+        Status: ReviewStatus.Pending,
+        CreatedAt: DateTimeOffset.UtcNow.AddMinutes(-15),
+        ExpiresAt: DateTimeOffset.UtcNow.AddMinutes(-1), // lapsed — the sweep has not run yet
+        Amendments: null);
+
+    [Fact]
+    public async Task HandleDecisionAsync_LapsedTtlNotYetSwept_PersistsExpired_AndBroadcastsDocketExpired()
+    {
+        var (gate, transport, store) = CreateGate();
+        transport.HasLiveWaiter = false;
+
+        var (_, context) = CreateTestInput();
+        var lapsedEntry = CreateLapsedEntry(context);
+        await store.FileDocketEntryAsync(lapsedEntry, default);
+
+        var (outcome, createdAt) = await gate.HandleDecisionAsync(
+            lapsedEntry.EntryId, ApprovalDecision.Approved);
+
+        var expired = Assert.IsType<ReviewOutcome.Expired>(outcome);
+        Assert.False(expired.AmendmentsPreserved);
+        Assert.Null(createdAt);
+
+        // Durably persisted — not the pre-fix Pending steady state that lasted up to 30s.
+        var updated = await store.GetDocketEntryAsync(lapsedEntry.EntryId, default);
+        Assert.NotNull(updated);
+        Assert.Equal(ReviewStatus.Expired, updated.Status);
+
+        var broadcast = Assert.Single(transport.SentEvents, e => e.EventType == TransportEvent.DocketExpired);
+        var notification = Assert.IsType<DocketExpiredNotification>(broadcast.Payload);
+        Assert.Equal(lapsedEntry.EntryId, notification.DocketId);
+    }
+
+    [Fact]
+    public async Task HandleDecisionAsync_LapsedTtl_ResubmitAsyncSucceedsImmediately_NoSweepNeeded()
+    {
+        var (gate, transport, store) = CreateGate();
+        transport.HasLiveWaiter = false;
+
+        var (_, context) = CreateTestInput();
+        var lapsedEntry = CreateLapsedEntry(context);
+        await store.FileDocketEntryAsync(lapsedEntry, default);
+
+        await gate.HandleDecisionAsync(lapsedEntry.EntryId, ApprovalDecision.Rejected);
+
+        // No DocketExpiryService sweep runs in this test — ResubmitAsync must not need one.
+        var filing = await gate.ResubmitAsync(lapsedEntry.EntryId);
+
+        var requiresReview = Assert.IsType<ReviewFilingResult.RequiresReview>(filing);
+        Assert.NotEqual(lapsedEntry.EntryId, requiresReview.EntryId);
+    }
+
+    [Fact]
+    public async Task HandleDecisionAsync_RepeatedLateDecisions_Idempotent_NoSecondBroadcast_NoError()
+    {
+        var (gate, transport, store) = CreateGate();
+        transport.HasLiveWaiter = false;
+
+        var (_, context) = CreateTestInput();
+        var lapsedEntry = CreateLapsedEntry(context);
+        await store.FileDocketEntryAsync(lapsedEntry, default);
+
+        var (firstOutcome, _) = await gate.HandleDecisionAsync(lapsedEntry.EntryId, ApprovalDecision.Approved);
+        var (secondOutcome, _) = await gate.HandleDecisionAsync(lapsedEntry.EntryId, ApprovalDecision.Approved);
+
+        Assert.IsType<ReviewOutcome.Expired>(firstOutcome);
+        Assert.IsType<ReviewOutcome.Expired>(secondOutcome);
+
+        // Exactly one DocketExpired broadcast across both calls — the second (losing) call must
+        // not re-broadcast just because the entry is still genuinely Expired when it re-reads.
+        Assert.Single(transport.SentEvents, e => e.EventType == TransportEvent.DocketExpired);
+
+        var updated = await store.GetDocketEntryAsync(lapsedEntry.EntryId, default);
+        Assert.NotNull(updated);
+        Assert.Equal(ReviewStatus.Expired, updated.Status);
+    }
+
+    [Fact]
+    public async Task HandleDecisionAsync_LapsedTtlWithAmendments_PersistsBothStatusAndAmendments()
+    {
+        var (gate, transport, store) = CreateGate();
+        transport.HasLiveWaiter = false;
+
+        var (_, context) = CreateTestInput();
+        var lapsedEntry = CreateLapsedEntry(context);
+        await store.FileDocketEntryAsync(lapsedEntry, default);
+
+        var amendments = new Dictionary<string, object?> { ["title"] = "Late reviewer edit" };
+        var (outcome, _) = await gate.HandleDecisionAsync(
+            lapsedEntry.EntryId, ApprovalDecision.Approved, amendments);
+
+        var expired = Assert.IsType<ReviewOutcome.Expired>(outcome);
+        Assert.True(expired.AmendmentsPreserved);
+
+        var updated = await store.GetDocketEntryAsync(lapsedEntry.EntryId, default);
+        Assert.NotNull(updated);
+        Assert.Equal(ReviewStatus.Expired, updated.Status);
+        Assert.NotNull(updated.Amendments);
+        Assert.Equal("Late reviewer edit", updated.Amendments!["title"]);
+    }
+
     // ── P1a: Evidence Card broadcast retry (affiant#22 / FV-9) ───────────────
 
     private static ActivityListener FrameworkListener() => new()

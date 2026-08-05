@@ -2,6 +2,7 @@ using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
 using Affiant.Abstractions.Transport;
 using Affiant.Core.Extensions;
+using Affiant.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -81,21 +82,17 @@ public sealed class DocketExpiryService(
 
             if (transport is not null)
             {
+                // MarkExpiredAsync applies the same WHERE Status = 'Pending' guard as
+                // UpdateReviewStatusAsync but reports no affected count, so a candidate collected
+                // in the ListExpiredAsync snapshot above may have already been approved/rejected
+                // by the time the bulk update ran. DocketExpiryBroadcaster re-verifies and only
+                // broadcasts if the entry is genuinely Expired now — shared with
+                // ReviewGate.HandleDecisionAsync's restart path (affiant#14) so this "never lie to
+                // the session group" idiom cannot drift between the two.
                 foreach (var entry in expired)
                 {
-                    // MarkExpiredAsync applies the same WHERE Status = 'Pending' guard as
-                    // UpdateReviewStatusAsync but reports no affected count, so a candidate
-                    // collected in the ListExpiredAsync snapshot above may have already been
-                    // approved/rejected by the time the bulk update ran. Re-read the entry and
-                    // broadcast only if it is genuinely Expired now — otherwise we'd tell the
-                    // session group an entry expired when it actually didn't.
-                    var current = await store.GetDocketEntryAsync(entry.EntryId, ct);
-                    if (current?.Status != ReviewStatus.Expired)
-                        continue;
-
-                    await transport.BroadcastToGroupAsync(
-                        current.SessionId, TransportEvent.DocketExpired,
-                        new DocketExpiredNotification(current.EntryId), ct);
+                    await DocketExpiryBroadcaster.VerifyAndBroadcastIfExpiredAsync(
+                        store, transport, entry.EntryId, ct);
                 }
             }
         }
