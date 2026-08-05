@@ -38,6 +38,7 @@ public static class ServiceCollectionExtensions
     /// <item><c>DeterministicShortCircuit</c> as <c>IToolInvocationFilter</c> — pre-LLM interception</item>
     /// <item><c>ToolTracingFilter</c> as <c>IToolInvocationFilter</c> — per-tool <c>execute_tool</c> OTel span</item>
     /// <item><c>ToolInvocationPipeline</c> — backend-neutral runner owning canonical filter order</item>
+    /// <item><c>SessionLockRegistry</c> — per-session turn-serialization primitive (area-5 P3)</item>
     /// </list>
     /// No <c>IApprovalPolicy</c> is registered by default. Hosts must call
     /// <c>AddAffiantPolicies()</c> from Affiant.Policies to declare their policy graph.
@@ -142,6 +143,14 @@ public static class ServiceCollectionExtensions
 
         // Backend-neutral pipeline runner — owns canonical filter order + per-invocation DI scope.
         services.TryAddSingleton<ToolInvocationPipeline>();
+
+        // Area-5 P3: per-session turn-serialization primitive. SINGLETON — the registry's whole
+        // purpose is one shared set of per-session locks visible to every caller in the process
+        // (mirroring every concurrent caller for the same session id, not just callers within one
+        // scope); a Scoped or Transient registration would hand each caller its own dictionary and
+        // serialize nothing. See SessionLockRegistry's own XML docs for the single-process caveat and
+        // the unbounded-growth trade-off.
+        services.TryAddSingleton<SessionLockRegistry>();
 
         // Step 1 / area-3 P2 ruling 2: Error-handling filter — registered FIRST so it is the
         // genuine outermost neutral filter (framework spec §3.12.4 and ToolErrorFilter's own class
