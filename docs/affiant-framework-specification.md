@@ -207,7 +207,7 @@ public sealed record AffidavitField(
 A `DocketEntry` is a pending Affidavit awaiting review. The Docket is the durable review queue.
 
 ```csharp
-public enum ReviewStatus { Pending, Approved, Rejected, Amended, Expired, Cancelled }
+public enum ReviewStatus { Pending, Approved, Rejected, Expired, Deferred }
 
 public sealed record DocketEntry(
     Guid EntryId,                              // Idempotency key — prevents double-submit
@@ -229,8 +229,11 @@ public sealed record DocketEntry(
 than at filing time — `ReviewContext.Amendments` on `DocketEntry` creation is a distinct,
 earlier-stage input (e.g. pre-filled defaults). `ReviewGate` persists `EvidenceCardResponse.Amendments`
 onto the `DocketEntry` via `IDocketStore.UpdateAmendmentsAsync(entryId, amendments, ct)` once the
-approval transition has won the double-submit race (§ below, "Docket idempotency"). Framework
-responsibility ends there: appending a UserStated `ProvenanceTag` (`ProvenanceTag.FromUser`,
+approval transition has won the double-submit race (§ below, "Docket idempotency"). `Status` stays
+`Approved` throughout this round-trip — `ReviewStatus` has no distinct value for "approved with
+amendments" (nor for withdrawal); an amended approval is fully described by `Status == Approved`
+plus a non-null `Amendments`, and no code path ever transitions `Status` on account of an amendment.
+Framework responsibility ends there: appending a UserStated `ProvenanceTag` (`ProvenanceTag.FromUser`,
 Rule 7) to each amended field's `ProvenanceChain` before the write reaches the domain store is the
 host's `IWriteExecutor` overlay's job — `IWriteExecutor.ExecuteAsync(affidavit, amendments, ct)`
 already accepts the amendments dictionary for exactly that purpose. A test asserting the persisted
@@ -1518,7 +1521,7 @@ ChatMessages:
 Docket:
     EntryId (PK, GUID), SessionId (FK), TenantId, UserId, ReviewerUserId,
     OperationType, Affidavit (jsonb), ProvenanceChains (jsonb),
-    CreatedAt, ExpiresAt, Status (Pending|Approved|Rejected|Amended|Expired|Cancelled)
+    CreatedAt, ExpiresAt, Status (Pending|Approved|Rejected|Expired|Deferred)
 
 ConversationContext:
     SessionId (PK, FK), Entities (jsonb), FieldValues (jsonb),
