@@ -221,7 +221,7 @@ public sealed record DocketEntry(
     DateTimeOffset CreatedAt,
     DateTimeOffset ExpiresAt,                  // Default TTL: 10 minutes (configurable via Standing Order)
     IReadOnlyDictionary<string, object?>? Amendments,  // Fields the reviewer changed; null value = explicitly cleared
-    Guid? ResubmittedTo = null                 // Set once, by TryConsumeForResubmitAsync, when this
+    Guid? ResubmittedTo = null                 // Set once, by ConsumeForResubmitAsync, when this
                                                 // (Expired) entry is resubmitted — see "Resubmission
                                                 // and lineage" below
 );
@@ -255,7 +255,7 @@ independent, matching how Temporal's Continue-As-New and Stripe's `parent` field
 supersession as a separate reference rather than an overloaded status).
 
 `ResubmittedTo` is a nullable `Guid` on the *source* (expired) entry, set exactly once via
-`IDocketStore.TryConsumeForResubmitAsync(entryId, newEntryId, ct)` — a guarded
+`IDocketStore.ConsumeForResubmitAsync(entryId, newEntryId, ct)` — a guarded
 `WHERE Status = 'Expired' AND ResubmittedTo IS NULL` conditional update returning the same 0/1
 rows-affected idiom every other status transition uses. `ResubmitAsync` calls this guard *before*
 filing the new entry, so it — not the filing — is what two concurrent resubmit attempts on the same

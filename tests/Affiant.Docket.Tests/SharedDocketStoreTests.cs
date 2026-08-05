@@ -19,7 +19,7 @@ namespace Affiant.Docket.Tests;
 ///   Case 5 — FileDocketEntryAsync idempotency (issue #32): a second filing call for an
 ///            already-used EntryId is a no-op — the first payload and status survive
 ///            untouched, even when the entry has already gone terminal.
-///   Case 6 — TryConsumeForResubmitAsync double-resubmit race guard (affiant#31, Area-5 D2):
+///   Case 6 — ConsumeForResubmitAsync double-resubmit race guard (affiant#31, Area-5 D2):
 ///            two genuinely concurrent claims for the same expired entry — exactly one wins.
 ///   Case 7 — ListPendingBySessionAsync ordering (Area-5 Decision 3 / P2d rider).
 ///   Case 8 — SaveContextAsync/LoadContextAsync round-trip (Area-5 P4 item I): the
@@ -245,11 +245,11 @@ public sealed class SharedDocketStoreTests
         Assert.Equal(ReviewStatus.Approved, retrieved.Status);
     }
 
-    // ── Case 6: TryConsumeForResubmitAsync race guard (affiant#31, Area-5 D2) ────
+    // ── Case 6: ConsumeForResubmitAsync race guard (affiant#31, Area-5 D2) ────
 
     [Theory]
     [ClassData(typeof(DocketStoreConcurrencyProviderFactory))]
-    public async Task TryConsumeForResubmitAsync_GenuinelyConcurrentCalls_ExactlyOneWins(
+    public async Task ConsumeForResubmitAsync_GenuinelyConcurrentCalls_ExactlyOneWins(
         IDocketStore storeA, IDocketStore storeB, string providerName)
     {
         Assert.NotEmpty(providerName);
@@ -264,9 +264,9 @@ public sealed class SharedDocketStoreTests
         // two calls genuinely race the store's own WHERE Status = 'Expired' AND ResubmittedTo IS
         // NULL guard, exactly as two separate requests' own Scoped DbContexts would in production.
         var firstTask = Task.Run(() =>
-            storeA.TryConsumeForResubmitAsync(entry.EntryId, firstNewId, CancellationToken.None));
+            storeA.ConsumeForResubmitAsync(entry.EntryId, firstNewId, CancellationToken.None));
         var secondTask = Task.Run(() =>
-            storeB.TryConsumeForResubmitAsync(entry.EntryId, secondNewId, CancellationToken.None));
+            storeB.ConsumeForResubmitAsync(entry.EntryId, secondNewId, CancellationToken.None));
 
         var results = await Task.WhenAll(firstTask, secondTask);
 
@@ -280,14 +280,14 @@ public sealed class SharedDocketStoreTests
 
     [Theory]
     [ClassData(typeof(DocketStoreProviderFactory))]
-    public async Task TryConsumeForResubmitAsync_NonExpiredEntry_ReturnsZero(
+    public async Task ConsumeForResubmitAsync_NonExpiredEntry_ReturnsZero(
         IDocketStore store, string providerName)
     {
         Assert.NotEmpty(providerName);
         var entry = TestDocketEntry.CreateDefault(status: ReviewStatus.Pending);
         await store.FileDocketEntryAsync(entry, CancellationToken.None);
 
-        var rows = await store.TryConsumeForResubmitAsync(entry.EntryId, Guid.NewGuid(), CancellationToken.None);
+        var rows = await store.ConsumeForResubmitAsync(entry.EntryId, Guid.NewGuid(), CancellationToken.None);
 
         Assert.Equal(0, rows);
     }
@@ -302,7 +302,7 @@ public sealed class SharedDocketStoreTests
         await store.FileDocketEntryAsync(parent, CancellationToken.None);
 
         var childId = Guid.NewGuid();
-        var consumed = await store.TryConsumeForResubmitAsync(parent.EntryId, childId, CancellationToken.None);
+        var consumed = await store.ConsumeForResubmitAsync(parent.EntryId, childId, CancellationToken.None);
         Assert.Equal(1, consumed);
 
         var foundParent = await store.GetResubmissionParentAsync(childId, CancellationToken.None);

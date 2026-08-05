@@ -49,7 +49,7 @@ public record ReviewStep(
 ///
 /// <para>
 /// <b>Resubmission lineage (Area-5 Decision 2, affiant#31):</b> <see cref="ResubmittedTo"/> is set
-/// exactly once, by <see cref="Interfaces.IDocketStore.TryConsumeForResubmitAsync"/>, when this
+/// exactly once, by <see cref="Interfaces.IDocketStore.ConsumeForResubmitAsync"/>, when this
 /// entry — already <see cref="ReviewStatus.Expired"/> — is resubmitted for a fresh reviewer round.
 /// It carries two facts in one field: the atomic race guard that stops two concurrent resubmissions
 /// of the same entry from both minting a fresh <see cref="DocketEntry"/>, and the queryable answer
@@ -60,6 +60,19 @@ public record ReviewStep(
 /// resubmitted" apart from "this just expired" checks <c>ResubmittedTo != null</c> in addition to
 /// <see cref="Status"/> — see <c>ReviewGate.ResubmitAsync</c>'s remarks for the full guard/ordering
 /// contract.
+/// </para>
+///
+/// <para>
+/// <b>D2 acceptance criterion 5 — reconciliation surfacing (open, not ruled by this wave):</b> the
+/// d2 evidence pack's acceptance criteria ask whether a host's status-reporting surface (e.g. a
+/// chat hub's client-facing status mapping — host code, not part of this repository) should map an
+/// entry carrying a non-null <see cref="ResubmittedTo"/> to a distinct "resubmitted" wire value, or
+/// explicitly rule that out. That decision has not been made;
+/// do not assume either answer. This entry and <see cref="Interfaces.IDocketStore.GetResubmissionParentAsync"/>
+/// already expose everything a host needs to build that surface once the ruling lands — the
+/// framework's own <see cref="ReviewStatusExtensions.ToReviewOutcome"/> mapping does not surface it
+/// today (see that method's remarks), so a host cannot get it "for free" from this repository
+/// without the host-wave decision this note exists to keep visible.
 /// </para>
 ///
 /// Matches framework specification §2.7.

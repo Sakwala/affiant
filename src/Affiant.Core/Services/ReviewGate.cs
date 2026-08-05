@@ -195,11 +195,11 @@ public sealed class ReviewGate(
     /// <c>ReviewStatus.Resubmitted</c> — the source entry's <see cref="DocketEntry.Status"/> stays
     /// <see cref="ReviewStatus.Expired"/> forever, matching the client's own shipped decision to
     /// never visually distinguish a resubmitted card from a plain expired one. The new entry's id is
-    /// minted up front (<see cref="Guid.NewGuid"/>) precisely so <see cref="IDocketStore.TryConsumeForResubmitAsync"/>
+    /// minted up front (<see cref="Guid.NewGuid"/>) precisely so <see cref="IDocketStore.ConsumeForResubmitAsync"/>
     /// and the eventual filing both target the same, already-known id.
     /// </para>
     /// <para>
-    /// <b>Ordering and its failure mode:</b> the guard runs <i>before</i> filing — <see cref="IDocketStore.TryConsumeForResubmitAsync"/>
+    /// <b>Ordering and its failure mode:</b> the guard runs <i>before</i> filing — <see cref="IDocketStore.ConsumeForResubmitAsync"/>
     /// is the operation two concurrent callers actually race on, not the filing itself. The loser
     /// sees 0 rows affected and throws <see cref="InvalidOperationException"/>, the same shape as
     /// the not-found/not-Expired guards above (mirrored by hosts' existing "already processed or
@@ -238,7 +238,7 @@ public sealed class ReviewGate(
         // affiant#31: claim the source entry for newEntryId before filing anything else — the
         // guard, not the filing, is what two concurrent ResubmitAsync calls for the same expired
         // entry actually race on. See method remarks for the ordering trade-off this implies.
-        var consumed = await docketStore.TryConsumeForResubmitAsync(
+        var consumed = await docketStore.ConsumeForResubmitAsync(
             expiredEntryId, newEntryId, cancellationToken);
         if (consumed == 0)
         {
@@ -263,11 +263,16 @@ public sealed class ReviewGate(
         {
             filing = await FileForReviewCoreAsync(proposal, context, cancellationToken);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex)
         {
             // See method remarks: the consume above already committed ResubmittedTo = newEntryId
             // on the source entry. A filing failure here orphans that pointer — documented, not
-            // compensated.
+            // compensated. Deliberately catches OperationCanceledException too (not just other
+            // exceptions): a connection-tied token (a host's resubmit hub RPC threaded with its
+            // connection-aborted token per the d2 evidence pack) cancels FileForReviewCoreAsync
+            // exactly as readily as it throws, and the orphan is identical either way — the operator
+            // follow-up signal this log exists for must not go dark just because the cause was
+            // cancellation rather than a store outage.
             logger.LogError(ex,
                 "ResubmitAsync: DocketEntry {ExpiredEntryId} was claimed for resubmission as " +
                 "{NewEntryId}, but filing the new entry failed — ResubmittedTo now names an entry " +

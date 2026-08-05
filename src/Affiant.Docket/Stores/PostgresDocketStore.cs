@@ -124,7 +124,7 @@ public sealed class PostgresDocketStore(
             .ExecuteUpdateAsync(s => s.SetProperty(d => d.Status, status.ToString()), ct);
     }
 
-    public async Task<int> TryConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
+    public async Task<int> ConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
 

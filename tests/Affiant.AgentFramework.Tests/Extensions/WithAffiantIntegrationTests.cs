@@ -192,7 +192,7 @@ public class WithAffiantIntegrationTests
             return Task.CompletedTask;
         }
 
-        public Task<int> TryConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
+        public Task<int> ConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
         {
             var idx = Filed.FindIndex(e =>
                 e.EntryId == entryId && e.Status == ReviewStatus.Expired && e.ResubmittedTo is null);

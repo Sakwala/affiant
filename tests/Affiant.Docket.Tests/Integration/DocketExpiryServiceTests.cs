@@ -2,6 +2,7 @@ using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
 using Affiant.Abstractions.Transport;
 using Affiant.Core.Extensions;
+using Affiant.Core.Services;
 using Affiant.Docket.Services;
 using Affiant.Docket.Stores;
 using Affiant.Docket.Tests.Fixtures;
@@ -214,6 +215,40 @@ public sealed class DocketExpiryServiceTests
         Assert.Equal(ReviewStatus.Expired, siblingEntry!.Status);
     }
 
+    // ── Refuter regression: sweep must not re-broadcast DocketExpired for an entry a ──
+    // ── concurrent HandleDecisionAsync restart-path transition already won and broadcast ──
+
+    [Fact]
+    public async Task ExpireOverdueAsync_EntryExpiredByConcurrentDecisionBetweenListAndSweep_BroadcastsDocketExpiredExactlyOnce()
+    {
+        var inner = new InMemoryDocketStore();
+        var sessionId = Guid.NewGuid().ToString();
+        var now = DateTimeOffset.UtcNow;
+
+        var racer = TestDocketEntry.CreateDefault(sessionId: sessionId, expiresAt: now.AddSeconds(-5));
+        await inner.FileDocketEntryAsync(racer, CancellationToken.None);
+
+        var transport = new SpyStreamingTransport();
+
+        // Wraps the store to inject, right after the sweep's ListExpiredAsync snapshot is taken but
+        // before its own per-entry CAS write runs, the exact sequence
+        // ReviewGate.HandleDecisionAsync's restart path performs for a late decision on a
+        // lapsed-TTL entry (affiant#14): win the CAS to Expired, then broadcast via
+        // DocketExpiryBroadcaster — the same helper the sweep itself uses.
+        var racyStore = new ConcurrentDecisionRaceInjectingDocketStore(inner, transport, racer.EntryId);
+        var expiryService = BuildExpiryService(racyStore, transport);
+
+        await expiryService.ExpireOverdueAsync(CancellationToken.None);
+
+        var broadcastsForRacer = transport.Broadcasts.Count(
+            b => b.EventType == TransportEvent.DocketExpired
+                 && ((DocketExpiredNotification)b.Payload).DocketId == racer.EntryId);
+        Assert.Equal(1, broadcastsForRacer);
+
+        var racerEntry = await inner.GetDocketEntryAsync(racer.EntryId, CancellationToken.None);
+        Assert.Equal(ReviewStatus.Expired, racerEntry!.Status);
+    }
+
     // ── D3: at-least-once Evidence Card redelivery (Area-5 Decision 3, affiant#28) ───
 
     [Fact]
@@ -373,8 +408,8 @@ public sealed class DocketExpiryServiceTests
         public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct)
             => inner.UpdateReviewStatusAsync(entryId, status, ct);
 
-        public Task<int> TryConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
-            => inner.TryConsumeForResubmitAsync(entryId, newEntryId, ct);
+        public Task<int> ConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
+            => inner.ConsumeForResubmitAsync(entryId, newEntryId, ct);
 
         public Task<DocketEntry?> GetResubmissionParentAsync(Guid entryId, CancellationToken ct)
             => inner.GetResubmissionParentAsync(entryId, ct);
@@ -397,6 +432,74 @@ public sealed class DocketExpiryServiceTests
             {
                 _raced = true;
                 await inner.UpdateReviewStatusAsync(racingEntryId, ReviewStatus.Approved, ct);
+            }
+
+            return result;
+        }
+
+        public Task MarkExpiredAsync(IEnumerable<Guid> entryIds, CancellationToken ct)
+            => inner.MarkExpiredAsync(entryIds, ct);
+    }
+
+    /// <summary>
+    /// Decorates an <see cref="IDocketStore"/> to inject, immediately after the sweep's first
+    /// <see cref="ListExpiredAsync"/> snapshot, the exact sequence
+    /// <c>ReviewGate.HandleDecisionAsync</c>'s restart path performs for a late decision on a
+    /// lapsed-TTL entry (affiant#14): win the <see cref="ReviewStatus.Expired"/> CAS, then broadcast
+    /// via <see cref="DocketExpiryBroadcaster"/> — simulating a reviewer decision landing on
+    /// <paramref name="racingEntryId"/> in the window between the sweep's list snapshot and its own
+    /// per-entry expiry write.
+    /// </summary>
+    private sealed class ConcurrentDecisionRaceInjectingDocketStore(
+        IDocketStore inner, IStreamingTransport transport, Guid racingEntryId) : IDocketStore
+    {
+        private bool _raced;
+
+        public Task SaveContextAsync(string sessionId, ConversationContext context, CancellationToken ct)
+            => inner.SaveContextAsync(sessionId, context, ct);
+
+        public Task<ConversationContext?> LoadContextAsync(string sessionId, CancellationToken ct)
+            => inner.LoadContextAsync(sessionId, ct);
+
+        public Task FileDocketEntryAsync(DocketEntry entry, CancellationToken ct)
+            => inner.FileDocketEntryAsync(entry, ct);
+
+        public Task<DocketEntry?> GetDocketEntryAsync(Guid entryId, CancellationToken ct)
+            => inner.GetDocketEntryAsync(entryId, ct);
+
+        public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct)
+            => inner.UpdateReviewStatusAsync(entryId, status, ct);
+
+        public Task<int> ConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
+            => inner.ConsumeForResubmitAsync(entryId, newEntryId, ct);
+
+        public Task<DocketEntry?> GetResubmissionParentAsync(Guid entryId, CancellationToken ct)
+            => inner.GetResubmissionParentAsync(entryId, ct);
+
+        public Task UpdateAmendmentsAsync(
+            Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct)
+            => inner.UpdateAmendmentsAsync(entryId, amendments, ct);
+
+        public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct)
+            => inner.ListPendingBySessionAsync(sessionId, ct);
+
+        public Task<IReadOnlyList<DocketEntry>> ListAllPendingAsync(CancellationToken ct)
+            => inner.ListAllPendingAsync(ct);
+
+        public async Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(
+            DateTimeOffset expiresBeforeUtc, CancellationToken ct)
+        {
+            var result = await inner.ListExpiredAsync(expiresBeforeUtc, ct);
+            if (!_raced)
+            {
+                _raced = true;
+                var rowsAffected = await inner.UpdateReviewStatusAsync(
+                    racingEntryId, ReviewStatus.Expired, ct);
+                if (rowsAffected > 0)
+                {
+                    await DocketExpiryBroadcaster.VerifyAndBroadcastIfExpiredAsync(
+                        inner, transport, racingEntryId, ct);
+                }
             }
 
             return result;
