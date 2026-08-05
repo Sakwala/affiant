@@ -438,10 +438,26 @@ public interface IChatSessionStore
 {
     Task<ChatSession> CreateAsync(string tenantId, string userId, CancellationToken ct);
     Task<ChatSession?> GetAsync(string sessionId, CancellationToken ct);
-    Task SaveMessagesAsync(string sessionId, IReadOnlyList<ChatMessageContent> messages, CancellationToken ct);
-    Task<IReadOnlyList<ChatMessageContent>> LoadMessagesAsync(string sessionId, CancellationToken ct);
+    Task SaveMessagesAsync(string sessionId, IReadOnlyList<AffiantChatMessage> messages, CancellationToken ct);
+    Task AppendMessagesAsync(string sessionId, IReadOnlyList<AffiantChatMessage> messages, CancellationToken ct);
+    Task<IReadOnlyList<AffiantChatMessage>> LoadMessagesAsync(string sessionId, CancellationToken ct);
     Task DeleteAsync(string sessionId, CancellationToken ct);
 }
+```
+
+**Two write classes (Area-5 Decision, proposal P2a, affiant#27).** `SaveMessagesAsync` is the
+rehydration-class write: it replaces every message stored for a session in full, which the
+SQLite/Postgres implementations realize as delete-and-reinsert — a second concurrent
+`SaveMessagesAsync` call working from a stale snapshot can silently drop the first caller's
+messages. `AppendMessagesAsync` is the turn-save-class write added to close that window for the
+common case: it adds messages after whatever is already durable, continuing the session's
+`Ordinal` at `MAX + 1`, as one transaction, and never reuses `SaveMessagesAsync`'s delete-and-
+reinsert path. Turn-by-turn persistence must use `AppendMessagesAsync`; only rehydration-style
+callers that already hold the complete, authoritative message list (e.g. after a truncation pass on
+reconnect) use `SaveMessagesAsync`. `Affiant.EntityFramework` ships three implementations —
+`SqliteChatSessionStore`, `PostgresChatSessionStore`, and `InMemoryChatSessionStore` — bringing the
+chat-session side to the same three-store shape `IDocketStore` already has (`AddAffiantEntityFramework`
+selects one via `UsePostgres`/`UseSqlite`/`UseInMemory`).
 
 // The Docket — the durable review queue
 public interface IDocketStore
