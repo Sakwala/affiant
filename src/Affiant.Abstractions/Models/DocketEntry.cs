@@ -9,9 +9,7 @@ public enum ReviewStatus
     Pending,
     Approved,
     Rejected,
-    Amended,
     Expired,
-    Cancelled,
     /// <summary>Review delegated via Referral to another reviewer.</summary>
     Deferred
 }
