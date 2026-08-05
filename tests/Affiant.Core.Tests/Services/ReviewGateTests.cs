@@ -216,6 +216,19 @@ public class ReviewGateTests
             {
                 IReadOnlyList<DocketEntry> results = _entries.Values
                     .Where(e => e.SessionId == sessionId && e.Status == ReviewStatus.Pending)
+                    .OrderBy(e => e.CreatedAt)
+                    .ToList();
+                return Task.FromResult(results);
+            }
+        }
+
+        public Task<IReadOnlyList<DocketEntry>> ListAllPendingAsync(CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            lock (_lock)
+            {
+                IReadOnlyList<DocketEntry> results = _entries.Values
+                    .Where(e => e.Status == ReviewStatus.Pending)
                     .ToList();
                 return Task.FromResult(results);
             }
@@ -1041,5 +1054,94 @@ public class ReviewGateTests
         var newEntry = await store.GetDocketEntryAsync(requiresReview.EntryId, default);
         Assert.NotNull(newEntry);
         Assert.Equal(ReviewStatus.Pending, newEntry.Status);
+    }
+
+    // ── D3: RebroadcastPendingCardsAsync reconnect primitive (Area-5 Decision 3 criterion 2, affiant#28) ──
+
+    [Fact]
+    public async Task RebroadcastPendingCardsAsync_PendingEntryInSession_BroadcastsEvidenceCardForIt()
+    {
+        var (gate, transport, _) = CreateGate(ReviewRequirement.ReviewerConfirmation);
+        var (proposal, context) = CreateTestInput(Guid.NewGuid());
+
+        var filing = await gate.FileForReviewAsync(proposal, context);
+        var entryId = Assert.IsType<ReviewFilingResult.RequiresReview>(filing).EntryId;
+        transport.SentEvents.Clear(); // drop the filing-time broadcast — only the rebroadcast counts here
+
+        await gate.RebroadcastPendingCardsAsync(context.SessionId, CancellationToken.None);
+
+        var broadcast = Assert.Single(transport.SentEvents, e => e.EventType == TransportEvent.EvidenceCardRequest);
+        Assert.Equal(context.SessionId, broadcast.GroupId);
+        var request = Assert.IsType<EvidenceCardRequest>(broadcast.Payload);
+        Assert.Equal(entryId, request.DocketId);
+    }
+
+    [Fact]
+    public async Task RebroadcastPendingCardsAsync_NoPendingEntriesInSession_NoBroadcast()
+    {
+        var (gate, transport, _) = CreateGate();
+
+        await gate.RebroadcastPendingCardsAsync("session-with-nothing-pending", CancellationToken.None);
+
+        Assert.Empty(transport.SentEvents);
+    }
+
+    [Fact]
+    public async Task RebroadcastPendingCardsAsync_ApprovedEntry_NotRebroadcast()
+    {
+        var (gate, transport, _) = CreateGate(ReviewRequirement.ReviewerConfirmation);
+        transport.EnqueueResponse(new EvidenceCardResponse(Guid.Empty, ApprovalDecision.Approved));
+        var (proposal, context) = CreateTestInput(Guid.NewGuid());
+        await gate.FileReviewAsync(proposal, context);
+        transport.SentEvents.Clear();
+
+        await gate.RebroadcastPendingCardsAsync(context.SessionId, CancellationToken.None);
+
+        Assert.Empty(transport.SentEvents);
+    }
+
+    [Fact]
+    public async Task RebroadcastPendingCardsAsync_OtherSessionsPendingEntries_NotIncluded()
+    {
+        var (gate, transport, _) = CreateGate(ReviewRequirement.ReviewerConfirmation);
+        var (proposal, context) = CreateTestInput(Guid.NewGuid());
+        await gate.FileForReviewAsync(proposal, context);
+        transport.SentEvents.Clear();
+
+        await gate.RebroadcastPendingCardsAsync("a-completely-different-session", CancellationToken.None);
+
+        Assert.Empty(transport.SentEvents);
+    }
+
+    [Fact]
+    public async Task RebroadcastPendingCardsAsync_ResubmittedPendingEntry_CarriesPriorAmendments()
+    {
+        var (gate, transport, store) = CreateGate(ReviewRequirement.ReviewerConfirmation);
+        var priorAmendments = new Dictionary<string, object?> { ["title"] = "Edited before expiry" };
+        var expiredEntry = new DocketEntry(
+            EntryId: Guid.NewGuid(),
+            SessionId: "session-test",
+            TenantId: "tenant-default",
+            UserId: "user-123",
+            ReviewerUserId: "reviewer-456",
+            OperationType: "CreateOrder",
+            Envelope: CreateTestInput().context.Affidavit,
+            Status: ReviewStatus.Expired,
+            CreatedAt: DateTimeOffset.UtcNow.AddMinutes(-20),
+            ExpiresAt: DateTimeOffset.UtcNow.AddMinutes(-10),
+            Amendments: priorAmendments);
+        await store.FileDocketEntryAsync(expiredEntry, default);
+
+        var filing = await gate.ResubmitAsync(expiredEntry.EntryId);
+        var newEntryId = Assert.IsType<ReviewFilingResult.RequiresReview>(filing).EntryId;
+        transport.SentEvents.Clear();
+
+        await gate.RebroadcastPendingCardsAsync("session-test", CancellationToken.None);
+
+        var broadcast = Assert.Single(transport.SentEvents, e => e.EventType == TransportEvent.EvidenceCardRequest);
+        var request = Assert.IsType<EvidenceCardRequest>(broadcast.Payload);
+        Assert.Equal(newEntryId, request.DocketId);
+        Assert.NotNull(request.PriorAmendments);
+        Assert.Equal("Edited before expiry", request.PriorAmendments!["title"]);
     }
 }

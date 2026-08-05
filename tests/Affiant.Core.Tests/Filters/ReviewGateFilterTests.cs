@@ -409,6 +409,9 @@ public class ReviewGateFilterTests
         public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct)
             => Task.FromResult<IReadOnlyList<DocketEntry>>([]);
 
+        public Task<IReadOnlyList<DocketEntry>> ListAllPendingAsync(CancellationToken ct)
+            => Task.FromResult<IReadOnlyList<DocketEntry>>([]);
+
         public Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(DateTimeOffset expiresBeforeUtc, CancellationToken ct)
             => Task.FromResult<IReadOnlyList<DocketEntry>>([]);
 
@@ -445,6 +448,9 @@ public class ReviewGateFilterTests
             => Task.CompletedTask;
 
         public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct)
+            => Task.FromResult<IReadOnlyList<DocketEntry>>([]);
+
+        public Task<IReadOnlyList<DocketEntry>> ListAllPendingAsync(CancellationToken ct)
             => Task.FromResult<IReadOnlyList<DocketEntry>>([]);
 
         public Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(DateTimeOffset expiresBeforeUtc, CancellationToken ct)
@@ -502,6 +508,9 @@ public class ReviewGateFilterTests
             => Task.FromResult<ConversationContext?>(null);
 
         public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct)
+            => Task.FromResult<IReadOnlyList<DocketEntry>>([]);
+
+        public Task<IReadOnlyList<DocketEntry>> ListAllPendingAsync(CancellationToken ct)
             => Task.FromResult<IReadOnlyList<DocketEntry>>([]);
 
         public Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(DateTimeOffset expiresBeforeUtc, CancellationToken ct)

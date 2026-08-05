@@ -174,6 +174,9 @@ public class AffiantAutoFunctionInvocationBridgeReviewGateTests
         public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct)
             => Task.FromResult<IReadOnlyList<DocketEntry>>([]);
 
+        public Task<IReadOnlyList<DocketEntry>> ListAllPendingAsync(CancellationToken ct)
+            => Task.FromResult<IReadOnlyList<DocketEntry>>([]);
+
         public Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(DateTimeOffset expiresBeforeUtc, CancellationToken ct)
             => Task.FromResult<IReadOnlyList<DocketEntry>>([]);
 
@@ -228,6 +231,9 @@ public class AffiantAutoFunctionInvocationBridgeReviewGateTests
             => Task.CompletedTask;
 
         public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct)
+            => Task.FromResult<IReadOnlyList<DocketEntry>>([]);
+
+        public Task<IReadOnlyList<DocketEntry>> ListAllPendingAsync(CancellationToken ct)
             => Task.FromResult<IReadOnlyList<DocketEntry>>([]);
 
         public Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(DateTimeOffset expiresBeforeUtc, CancellationToken ct)

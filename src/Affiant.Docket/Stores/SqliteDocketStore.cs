@@ -161,9 +161,27 @@ public sealed class SqliteDocketStore(
     {
         ct.ThrowIfCancellationRequested();
 
+        // SQLite has no native DateTimeOffset type (see ListExpiredAsync's remarks) — the EF
+        // provider cannot translate an ORDER BY over it into SQL either, so the CreatedAt sort
+        // (Area-5 Decision 3 / P2d rider) happens client-side after loading the session's rows.
         var entities = await db.Docket
             .AsNoTracking()
             .Where(d => d.SessionId == sessionId && d.Status == ReviewStatus.Pending.ToString())
+            .ToListAsync(ct);
+
+        return entities
+            .OrderBy(d => d.CreatedAt)
+            .Select(ToDomainEntry)
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<DocketEntry>> ListAllPendingAsync(CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+
+        var entities = await db.Docket
+            .AsNoTracking()
+            .Where(d => d.Status == ReviewStatus.Pending.ToString())
             .ToListAsync(ct);
 
         return entities.Select(ToDomainEntry).ToList();

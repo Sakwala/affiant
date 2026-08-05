@@ -9,6 +9,23 @@ using Affiant.Abstractions.Transport;
 public interface IStreamingTransport
 {
     Task SendAsync(string connectionId, TransportEvent eventType, object payload, CancellationToken ct);
+
+    /// <summary>
+    /// Sends <paramref name="payload"/> to every connection currently in <paramref name="groupId"/>.
+    /// </summary>
+    /// <remarks>
+    /// <b>At-least-once, not exactly-once — and no receipt guarantee (Area-5 Decision 3, affiant#28).</b>
+    /// A completed, non-faulted task means only that the underlying transport call didn't throw; it
+    /// is not evidence that any client received or rendered <paramref name="payload"/>. In
+    /// particular, a <paramref name="groupId"/> with zero currently-connected members completes
+    /// successfully with zero recipients — the sole shipped implementation
+    /// (<c>SignalRStreamingTransport</c>, over ASP.NET Core SignalR) has no server-side way to detect
+    /// or report that case; SignalR group membership is not queryable and is not preserved across a
+    /// client's reconnect. Callers that need delivery to survive a temporarily-empty group must
+    /// re-broadcast rather than rely on this call's completion as a signal — see
+    /// <see cref="EvidenceCardRequest"/>'s docs for how the framework does that for the
+    /// <see cref="TransportEvent.EvidenceCardRequest"/> path specifically.
+    /// </remarks>
     Task BroadcastToGroupAsync(string groupId, TransportEvent eventType, object payload, CancellationToken ct);
 
     /// <summary>

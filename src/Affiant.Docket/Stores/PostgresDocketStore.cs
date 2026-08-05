@@ -164,6 +164,19 @@ public sealed class PostgresDocketStore(
         var entities = await db.Docket
             .AsNoTracking()
             .Where(d => d.SessionId == sessionId && d.Status == ReviewStatus.Pending.ToString())
+            .OrderBy(d => d.CreatedAt)
+            .ToListAsync(ct);
+
+        return entities.Select(ToDomainEntry).ToList();
+    }
+
+    public async Task<IReadOnlyList<DocketEntry>> ListAllPendingAsync(CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+
+        var entities = await db.Docket
+            .AsNoTracking()
+            .Where(d => d.Status == ReviewStatus.Pending.ToString())
             .ToListAsync(ct);
 
         return entities.Select(ToDomainEntry).ToList();

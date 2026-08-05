@@ -69,6 +69,15 @@ public sealed class SessionRehydratorTests
         {
             IReadOnlyList<DocketEntry> pending = Entries
                 .Where(e => e.SessionId == sessionId && e.Status == ReviewStatus.Pending)
+                .OrderBy(e => e.CreatedAt)
+                .ToList();
+            return Task.FromResult(pending);
+        }
+
+        public Task<IReadOnlyList<DocketEntry>> ListAllPendingAsync(CancellationToken ct)
+        {
+            IReadOnlyList<DocketEntry> pending = Entries
+                .Where(e => e.Status == ReviewStatus.Pending)
                 .ToList();
             return Task.FromResult(pending);
         }
