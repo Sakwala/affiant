@@ -31,12 +31,24 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public void AddAffiantEntityFramework_WithInMemory_RegistersInMemoryChatSessionStore()
+    {
+        var services = new ServiceCollection();
+        services.AddAffiantEntityFramework(o => o.UseInMemory());
+
+        var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IChatSessionStore));
+        Assert.NotNull(descriptor);
+        Assert.Equal(typeof(InMemoryChatSessionStore), descriptor.ImplementationType);
+        Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
+    }
+
+    [Fact]
     public void AddAffiantEntityFramework_WithoutProvider_Throws()
     {
         var services = new ServiceCollection();
         var ex = Assert.Throws<InvalidOperationException>(() =>
             services.AddAffiantEntityFramework(_ => { }));
 
-        Assert.Contains("UsePostgres or UseSqlite", ex.Message);
+        Assert.Contains("UsePostgres, UseSqlite, or UseInMemory", ex.Message);
     }
 }

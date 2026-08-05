@@ -58,6 +58,32 @@ public sealed class PostgresChatSessionStore(AffiantDbContext db) : IChatSession
         await db.SaveChangesAsync(ct);
     }
 
+    public async Task AppendMessagesAsync(string sessionId, IReadOnlyList<AffiantChatMessage> messages, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+
+        if (messages.Count == 0)
+            return;
+
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+
+        var maxOrdinal = await db.ChatMessages
+            .Where(m => m.SessionId == sessionId)
+            .MaxAsync(m => (int?)m.Ordinal, ct) ?? -1;
+
+        var session = await db.ChatSessions.FirstOrDefaultAsync(s => s.SessionId == sessionId, ct);
+        if (session is not null)
+            session.LastActivityAt = DateTimeOffset.UtcNow;
+
+        for (var i = 0; i < messages.Count; i++)
+        {
+            db.ChatMessages.Add(ToEntity(messages[i], sessionId, ordinal: maxOrdinal + 1 + i));
+        }
+
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+    }
+
     public async Task<IReadOnlyList<AffiantChatMessage>> LoadMessagesAsync(string sessionId, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
