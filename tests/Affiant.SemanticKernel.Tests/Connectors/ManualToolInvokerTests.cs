@@ -212,6 +212,18 @@ public class ManualToolInvokerTests
             return Task.CompletedTask;
         }
 
+        public Task<int> TryConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
+        {
+            var idx = Filed.FindIndex(e =>
+                e.EntryId == entryId && e.Status == ReviewStatus.Expired && e.ResubmittedTo is null);
+            if (idx < 0) return Task.FromResult(0);
+            Filed[idx] = Filed[idx] with { ResubmittedTo = newEntryId };
+            return Task.FromResult(1);
+        }
+
+        public Task<DocketEntry?> GetResubmissionParentAsync(Guid entryId, CancellationToken ct)
+            => Task.FromResult<DocketEntry?>(Filed.FirstOrDefault(e => e.ResubmittedTo == entryId));
+
         public Task SaveContextAsync(string sessionId, ConversationContext context, CancellationToken ct)
             => Task.CompletedTask;
 

@@ -47,6 +47,21 @@ public record ReviewStep(
 /// remarks for the full reasoning. Area 5 (store reconciliation) owns closing this gap.
 /// </para>
 ///
+/// <para>
+/// <b>Resubmission lineage (Area-5 Decision 2, affiant#31):</b> <see cref="ResubmittedTo"/> is set
+/// exactly once, by <see cref="Interfaces.IDocketStore.TryConsumeForResubmitAsync"/>, when this
+/// entry — already <see cref="ReviewStatus.Expired"/> — is resubmitted for a fresh reviewer round.
+/// It carries two facts in one field: the atomic race guard that stops two concurrent resubmissions
+/// of the same entry from both minting a fresh <see cref="DocketEntry"/>, and the queryable answer
+/// to "what did this become." There is deliberately no <c>ReviewStatus.Resubmitted</c> — <see cref="Status"/>
+/// stays <see cref="ReviewStatus.Expired"/> on the source entry forever, matching the client's own
+/// shipped decision to never visually distinguish a resubmitted card from a plain expired one. A
+/// host reconciliation surface (e.g. status-polling after a reconnect) that wants to tell "this was
+/// resubmitted" apart from "this just expired" checks <c>ResubmittedTo != null</c> in addition to
+/// <see cref="Status"/> — see <c>ReviewGate.ResubmitAsync</c>'s remarks for the full guard/ordering
+/// contract.
+/// </para>
+///
 /// Matches framework specification §2.7.
 /// </summary>
 public sealed record DocketEntry(
@@ -60,4 +75,5 @@ public sealed record DocketEntry(
     ReviewStatus Status,
     DateTimeOffset CreatedAt,
     DateTimeOffset ExpiresAt,
-    IReadOnlyDictionary<string, object?>? Amendments);
+    IReadOnlyDictionary<string, object?>? Amendments,
+    Guid? ResubmittedTo = null);

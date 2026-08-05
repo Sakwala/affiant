@@ -22,8 +22,10 @@ internal sealed class DocketEntityConfiguration : IEntityTypeConfiguration<Docke
         builder.Property(e => e.CreatedAt).IsRequired();
         builder.Property(e => e.ExpiresAt).IsRequired();
         builder.Property(e => e.Status).IsRequired().HasDefaultValue("Pending");
+        builder.Property(e => e.ResubmittedTo).IsRequired(false);
 
         builder.HasIndex(e => new { e.TenantId, e.Status });
         builder.HasIndex(e => new { e.SessionId, e.Status });
+        builder.HasIndex(e => e.ResubmittedTo);
     }
 }

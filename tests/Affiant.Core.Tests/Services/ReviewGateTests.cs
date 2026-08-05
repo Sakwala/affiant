@@ -121,82 +121,129 @@ public class ReviewGateTests
         }
     }
 
+    /// <summary>
+    /// All mutating/reading access is serialized under <see cref="_lock"/> — a plain
+    /// <see cref="Dictionary{TKey,TValue}"/> is not safe for concurrent access even to distinct
+    /// keys, and the D2 double-resubmit regression test below genuinely races two
+    /// <see cref="ReviewGate.ResubmitAsync"/> calls against one instance of this store.
+    /// </summary>
     private sealed class InMemoryDocketStore : IDocketStore
     {
         private readonly Dictionary<Guid, DocketEntry> _entries = [];
         private readonly Dictionary<string, ConversationContext> _contexts = [];
+        private readonly object _lock = new();
 
         public Task SaveContextAsync(string sessionId, ConversationContext context, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
-            _contexts[sessionId] = context;
+            lock (_lock) { _contexts[sessionId] = context; }
             return Task.CompletedTask;
         }
 
         public Task<ConversationContext?> LoadContextAsync(string sessionId, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
-            return Task.FromResult(_contexts.TryGetValue(sessionId, out var ctx) ? ctx : null);
+            lock (_lock) { return Task.FromResult(_contexts.TryGetValue(sessionId, out var ctx) ? ctx : null); }
         }
 
         public Task FileDocketEntryAsync(DocketEntry entry, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
-            if (!_entries.ContainsKey(entry.EntryId))
-                _entries[entry.EntryId] = entry;
+            lock (_lock)
+            {
+                if (!_entries.ContainsKey(entry.EntryId))
+                    _entries[entry.EntryId] = entry;
+            }
             return Task.CompletedTask;
         }
 
         public Task<DocketEntry?> GetDocketEntryAsync(Guid entryId, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
-            return Task.FromResult(_entries.TryGetValue(entryId, out var e) ? e : null);
+            lock (_lock) { return Task.FromResult(_entries.TryGetValue(entryId, out var e) ? e : null); }
         }
 
         public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
-            if (!_entries.TryGetValue(entryId, out var existing) || existing.Status != ReviewStatus.Pending)
-                return Task.FromResult(0);
-            _entries[entryId] = existing with { Status = status };
-            return Task.FromResult(1);
+            lock (_lock)
+            {
+                if (!_entries.TryGetValue(entryId, out var existing) || existing.Status != ReviewStatus.Pending)
+                    return Task.FromResult(0);
+                _entries[entryId] = existing with { Status = status };
+                return Task.FromResult(1);
+            }
+        }
+
+        public Task<int> TryConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            lock (_lock)
+            {
+                if (!_entries.TryGetValue(entryId, out var existing)
+                    || existing.Status != ReviewStatus.Expired
+                    || existing.ResubmittedTo is not null)
+                {
+                    return Task.FromResult(0);
+                }
+                _entries[entryId] = existing with { ResubmittedTo = newEntryId };
+                return Task.FromResult(1);
+            }
+        }
+
+        public Task<DocketEntry?> GetResubmissionParentAsync(Guid entryId, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            lock (_lock) { return Task.FromResult(_entries.Values.FirstOrDefault(e => e.ResubmittedTo == entryId)); }
         }
 
         public Task UpdateAmendmentsAsync(
             Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
-            if (_entries.TryGetValue(entryId, out var existing))
-                _entries[entryId] = existing with { Amendments = amendments };
+            lock (_lock)
+            {
+                if (_entries.TryGetValue(entryId, out var existing))
+                    _entries[entryId] = existing with { Amendments = amendments };
+            }
             return Task.CompletedTask;
         }
 
         public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
-            IReadOnlyList<DocketEntry> results = _entries.Values
-                .Where(e => e.SessionId == sessionId && e.Status == ReviewStatus.Pending)
-                .ToList();
-            return Task.FromResult(results);
+            lock (_lock)
+            {
+                IReadOnlyList<DocketEntry> results = _entries.Values
+                    .Where(e => e.SessionId == sessionId && e.Status == ReviewStatus.Pending)
+                    .ToList();
+                return Task.FromResult(results);
+            }
         }
 
         public Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(DateTimeOffset expiresBeforeUtc, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
-            IReadOnlyList<DocketEntry> results = _entries.Values
-                .Where(e => e.Status == ReviewStatus.Pending && e.ExpiresAt <= expiresBeforeUtc)
-                .ToList();
-            return Task.FromResult(results);
+            lock (_lock)
+            {
+                IReadOnlyList<DocketEntry> results = _entries.Values
+                    .Where(e => e.Status == ReviewStatus.Pending && e.ExpiresAt <= expiresBeforeUtc)
+                    .ToList();
+                return Task.FromResult(results);
+            }
         }
 
         public Task MarkExpiredAsync(IEnumerable<Guid> entryIds, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
             var ids = entryIds.ToHashSet();
-            foreach (var id in ids)
+            lock (_lock)
             {
-                if (_entries.TryGetValue(id, out var entry) && entry.Status == ReviewStatus.Pending)
-                    _entries[id] = entry with { Status = ReviewStatus.Expired };
+                foreach (var id in ids)
+                {
+                    if (_entries.TryGetValue(id, out var entry) && entry.Status == ReviewStatus.Pending)
+                        _entries[id] = entry with { Status = ReviewStatus.Expired };
+                }
             }
             return Task.CompletedTask;
         }
@@ -943,5 +990,56 @@ public class ReviewGateTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => gate.ResubmitAsync(Guid.NewGuid()));
+    }
+
+    // ── D2: double-resubmit race guard (affiant#31) ───────────────────────────
+
+    [Fact]
+    public async Task ResubmitAsync_GenuinelyConcurrentCallsOnSameExpiredEntry_ExactlyOneSucceeds_ExactlyOneNewPendingEntry()
+    {
+        var (gate, transport, store) = CreateGate(ReviewRequirement.ReviewerConfirmation);
+        var expiredEntry = new DocketEntry(
+            EntryId: Guid.NewGuid(),
+            SessionId: "session-test",
+            TenantId: "tenant-default",
+            UserId: "user-123",
+            ReviewerUserId: "reviewer-456",
+            OperationType: "CreateOrder",
+            Envelope: CreateTestInput().context.Affidavit,
+            Status: ReviewStatus.Expired,
+            CreatedAt: DateTimeOffset.UtcNow.AddMinutes(-20),
+            ExpiresAt: DateTimeOffset.UtcNow.AddMinutes(-10),
+            Amendments: null);
+        await store.FileDocketEntryAsync(expiredEntry, default);
+
+        async Task<ReviewFilingResult?> TryResubmitAsync()
+        {
+            try { return await gate.ResubmitAsync(expiredEntry.EntryId); }
+            catch (InvalidOperationException) { return null; }
+        }
+
+        // Task.Run (not a sequential simulation) so both calls genuinely race the InMemoryDocketStore's
+        // lock inside TryConsumeForResubmitAsync — the concurrency pack's own named gap (zero
+        // Task.WhenAll usage anywhere in the store test suite).
+        var first = Task.Run(TryResubmitAsync);
+        var second = Task.Run(TryResubmitAsync);
+        var results = await Task.WhenAll(first, second);
+
+        var successes = results.Where(r => r is not null).ToList();
+        var winner = Assert.Single(successes);
+        var requiresReview = Assert.IsType<ReviewFilingResult.RequiresReview>(winner);
+        Assert.NotEqual(expiredEntry.EntryId, requiresReview.EntryId);
+
+        // The loser threw before ever filing or broadcasting — only one Evidence Card exists.
+        Assert.Single(transport.SentEvents, e => e.EventType == TransportEvent.EvidenceCardRequest);
+
+        var sourceAfter = await store.GetDocketEntryAsync(expiredEntry.EntryId, default);
+        Assert.NotNull(sourceAfter);
+        Assert.Equal(ReviewStatus.Expired, sourceAfter.Status); // never resurrected — no ReviewStatus.Resubmitted
+        Assert.Equal(requiresReview.EntryId, sourceAfter.ResubmittedTo);
+
+        var newEntry = await store.GetDocketEntryAsync(requiresReview.EntryId, default);
+        Assert.NotNull(newEntry);
+        Assert.Equal(ReviewStatus.Pending, newEntry.Status);
     }
 }

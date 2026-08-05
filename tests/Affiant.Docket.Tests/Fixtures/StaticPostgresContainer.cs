@@ -1,3 +1,5 @@
+using Affiant.EntityFramework;
+using Microsoft.EntityFrameworkCore;
 using Testcontainers.PostgreSql;
 
 namespace Affiant.Docket.Tests.Fixtures;
@@ -11,7 +13,22 @@ internal static class StaticPostgresContainer
 {
     private static readonly Lazy<string> s_connectionString = new(Resolve, LazyThreadSafetyMode.ExecutionAndPublication);
 
+    // Lazy<T>'s own default thread-safety mode (ExecutionAndPublication) gives every caller —
+    // regardless of which ClassData factory or test class reaches it first — exactly one
+    // EnsureCreated run against the shared container, avoiding a second, independently-tracked
+    // "did I already create the schema" flag per factory.
+    private static readonly Lazy<bool> s_schemaCreated = new(() =>
+    {
+        var options = new DbContextOptionsBuilder<AffiantDbContext>().UseNpgsql(GetConnectionString()).Options;
+        using var db = new AffiantDbContext(options);
+        db.Database.EnsureCreated();
+        return true;
+    }, LazyThreadSafetyMode.ExecutionAndPublication);
+
     public static string GetConnectionString() => s_connectionString.Value;
+
+    /// <summary>Idempotently ensures the Affiant schema exists on the shared container. Safe to call from multiple ClassData factories.</summary>
+    public static void EnsureSchemaCreated() => _ = s_schemaCreated.Value;
 
     private static string Resolve()
     {

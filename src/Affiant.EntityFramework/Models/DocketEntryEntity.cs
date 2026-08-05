@@ -20,4 +20,5 @@ public class DocketEntryEntity
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset ExpiresAt { get; set; }
     public string Status { get; set; } = "Pending";
+    public Guid? ResubmittedTo { get; set; }
 }

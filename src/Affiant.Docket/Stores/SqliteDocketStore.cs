@@ -124,6 +124,28 @@ public sealed class SqliteDocketStore(
             .ExecuteUpdateAsync(s => s.SetProperty(d => d.Status, status.ToString()), ct);
     }
 
+    public async Task<int> TryConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+
+        return await db.Docket
+            .Where(d => d.EntryId == entryId
+                && d.Status == ReviewStatus.Expired.ToString()
+                && d.ResubmittedTo == null)
+            .ExecuteUpdateAsync(s => s.SetProperty(d => d.ResubmittedTo, newEntryId), ct);
+    }
+
+    public async Task<DocketEntry?> GetResubmissionParentAsync(Guid entryId, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+
+        var entity = await db.Docket
+            .AsNoTracking()
+            .FirstOrDefaultAsync(d => d.ResubmittedTo == entryId, ct);
+
+        return entity is null ? null : ToDomainEntry(entity);
+    }
+
     public async Task UpdateAmendmentsAsync(
         Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct)
     {
@@ -197,7 +219,8 @@ public sealed class SqliteDocketStore(
             : null,
         CreatedAt = entry.CreatedAt,
         ExpiresAt = entry.ExpiresAt,
-        Status = entry.Status.ToString()
+        Status = entry.Status.ToString(),
+        ResubmittedTo = entry.ResubmittedTo
     };
 
     private static DocketEntry ToDomainEntry(DocketEntryEntity entity)
@@ -221,7 +244,8 @@ public sealed class SqliteDocketStore(
             Status: Enum.Parse<ReviewStatus>(entity.Status),
             CreatedAt: entity.CreatedAt,
             ExpiresAt: entity.ExpiresAt,
-            Amendments: DeserializeAmendments(entity.AmendmentsJson));
+            Amendments: DeserializeAmendments(entity.AmendmentsJson),
+            ResubmittedTo: entity.ResubmittedTo);
     }
 
     private static IReadOnlyDictionary<string, object?>? DeserializeAmendments(string? json)
