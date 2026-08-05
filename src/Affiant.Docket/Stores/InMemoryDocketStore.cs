@@ -27,7 +27,14 @@ public sealed class InMemoryDocketStore : IDocketStore
     public Task FileDocketEntryAsync(DocketEntry entry, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        _entries[entry.EntryId] = entry;
+
+        // Same lock as the status-transition guard — first write wins, matching the
+        // documented idempotency contract (a second call for an existing EntryId is a no-op,
+        // not an overwrite, even onto an already-terminal entry).
+        lock (_statusLock)
+        {
+            _entries.TryAdd(entry.EntryId, entry);
+        }
         return Task.CompletedTask;
     }
 
