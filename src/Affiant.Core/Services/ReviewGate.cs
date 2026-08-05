@@ -511,7 +511,6 @@ public sealed class ReviewGate(
             ReviewStatus.Rejected => new ReviewOutcome.Rejected(docketId),
             ReviewStatus.Expired => new ReviewOutcome.Expired(docketId),
             ReviewStatus.Deferred => new ReviewOutcome.Referral(docketId, "deferred"),
-            ReviewStatus.Cancelled => new ReviewOutcome.Rejected(docketId, "Cancelled"),
             _ => new ReviewOutcome.Expired(docketId)
         };
 }
