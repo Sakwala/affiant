@@ -4,13 +4,73 @@ All notable changes to the Affiant framework are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-Nine packages (`Affiant.Abstractions`, `Affiant.Core`, `Affiant.SemanticKernel`,
-`Affiant.AgentFramework`, `Affiant.Docket`, `Affiant.EntityFramework`, `Affiant.Policies`,
-`Affiant.Transport.SignalR`, `Affiant.Testing.ComplianceHarness`) are versioned in lockstep as of
-2026-07-05; `Affiant.AgentFramework`'s NuGet ID reservation is pending, so it is not yet part of
-any *published* release (`docs/proposals/affiant-maf-adapter.md` §9).
+Ten packages (`Affiant.Abstractions`, `Affiant.Core`, `Affiant.SemanticKernel`,
+`Affiant.AgentFramework`, `Affiant.Extensions.AI`, `Affiant.Docket`, `Affiant.EntityFramework`,
+`Affiant.Policies`, `Affiant.Transport.SignalR`, `Affiant.Testing.ComplianceHarness`) are versioned
+in lockstep as of 2026-07-05 (`Affiant.Extensions.AI` joined the set 2026-08-20; see the
+`[Unreleased]` entry below); NuGet ID reservation is pending for both `Affiant.AgentFramework` and
+`Affiant.Extensions.AI`, so neither is yet part of any *published* release
+(`docs/proposals/affiant-maf-adapter.md` §9, `docs/overnight-mission-2026-08-20/meai-adapter-design.md`
+acceptance criterion 6 in the `affiant-chancery` repo).
 
 ## [Unreleased]
+
+### Added — `Affiant.Extensions.AI`: the Microsoft.Extensions.AI adapter, a third interception backend
+
+A new package, `Affiant.Extensions.AI`, bridges Affiant's backend-neutral tool-invocation pipeline
+to [Microsoft.Extensions.AI](https://www.nuget.org/packages/Microsoft.Extensions.AI) (`IChatClient`
++ `FunctionInvokingChatClient` + `AIFunction`, pinned to the verified-stable `10.9.0`) — the shared
+abstraction layer both Semantic Kernel and the Microsoft Agent Framework (MAF) sit on top of. A host
+built directly on Microsoft.Extensions.AI, with neither SK nor MAF, now gets the same provenance
+tagging, task inference and review-gate behavior `Affiant.SemanticKernel` and `Affiant.AgentFramework`
+already provide. Design brief:
+`docs/overnight-mission-2026-08-20/meai-adapter-design.md` in the `affiant-chancery` repo.
+
+- **Interception seam**: each `AIFunction` is wrapped in an `AffiantDelegatingAIFunction` — a
+  `DelegatingAIFunction` that runs the neutral pipeline and reads/writes
+  `FunctionInvokingChatClient.CurrentContext`, the same `AsyncLocal` mechanism MAF's own
+  function-invocation middleware uses internally. This is deliberately not the
+  `FunctionInvokingChatClient.FunctionInvoker` delegate property, which silently no-ops if a host
+  forgets to set it; the wrapper *is* the function, so even a custom loop calling
+  `AIFunction.InvokeAsync` directly still passes through Affiant.
+- **`Terminate` propagation is proven, not assumed.** The first commit on this feature is a
+  fail-first integration test (real `FunctionInvokingChatClient`, fake `IChatClient`) proving that
+  mutating `FunctionInvokingChatClient.CurrentContext.Terminate` from inside a wrapped `AIFunction`
+  reaches the loop's own termination check.
+- **`WithAffiant(this ChatOptions, IServiceProvider, AffiantToolCatalog)`** is the one supported way
+  to wire this adapter: it audits the tool list for provider-hosted tools Affiant cannot see
+  (`HostedWebSearchTool` and friends — throws at wire-up unless acknowledged via
+  `ExtensionsAIOptions.AcknowledgeUncoveredTools`), wraps every client-invoked `AIFunction`, and
+  guards against double-wrapping a catalog already wrapped by this adapter (a marker interface,
+  `IAffiantWrappedFunction`, throws at wire-up with an actionable message). It cannot detect being
+  double-wrapped together with `Affiant.AgentFramework` over the same catalog — MAF rewrites
+  `ChatOptions.Tools` with its own private wrapper type after this adapter's wire-up runs, and that
+  type carries no marker either package can see — so running both adapters over one tool catalog or
+  chat-client pipeline remains a documented constraint (package README, "One Affiant adapter per
+  tool catalog"), not a checked one.
+- **Shared code is copied, not referenced.** `AffiantToolCatalog` and the structured-output
+  inference port (`ExtensionsAIInferenceCompletionPort`) are the same code `Affiant.AgentFramework`
+  already carries at the Microsoft.Extensions.AI level — copied here (each file's header names its
+  source) rather than pulled in via `ProjectReference`, because inverting `Affiant.AgentFramework`
+  onto `Affiant.Extensions.AI` (the architecturally correct long-term shape, since MAF itself sits on
+  Microsoft.Extensions.AI) re-shapes a shipped adapter and amends the no-adapter-to-adapter-reference
+  layering invariant (`CLAUDE.md`, "Layering invariant") — deferred past beta by design, tracked in
+  a filed consolidation issue (Sakwala/affiant, "Invert Affiant.AgentFramework onto
+  Affiant.Extensions.AI post-beta").
+- **Provider-neutral by construction**: this package references `Microsoft.Extensions.AI` only —
+  never `Microsoft.Agents.AI`, never a concrete provider client (OpenAI, Azure, Gemini, ...). Which
+  `IChatClient` a host brings is the host's business.
+- Ships to the same Area-8 standard as every other package from birth: nupkg README +
+  `PackageReadmeFile`, XML docs, `PublicAPI.Shipped.txt`/`PublicAPI.Unshipped.txt`,
+  `EnablePackageValidation`, Sakwala metadata (all inherited from the shared
+  `Directory.Build.props`/`Directory.Build.targets` gates, same as the other nine packages).
+- `Affiant.Testing.ComplianceHarness`'s cross-backend parity suite now runs against three backends
+  (SK, MAF, Extensions.AI) via one added `yield return` in
+  `InferenceCompletionPortProviderFactory` plus a descriptor-parity test mirroring
+  `CatalogReflectionParityTests`.
+- **This PR bumps every package-count gate from nine to ten**: `ci.yml`'s produced-package check,
+  `CLAUDE.md`'s package list, this header, the README's "which packages" table and package table, and
+  the framework specification's package mapping — see each for the updated list.
 
 ### Added — Area-8 P4: public API baselines and package validation
 
