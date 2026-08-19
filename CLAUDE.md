@@ -7,7 +7,7 @@ This repository is the Affiant framework — the open-source .NET package set pu
 The framework ships as nine NuGet packages, all sharing one version via the root `Directory.Build.props`:
 `Affiant.Abstractions`, `Affiant.Core`, `Affiant.SemanticKernel`, `Affiant.AgentFramework`, `Affiant.Docket`, `Affiant.EntityFramework`, `Affiant.Policies`, `Affiant.Transport.SignalR`, `Affiant.Testing.ComplianceHarness`.
 
-Host applications that consume this framework (e.g. the Meridian aviation-MRO copilot and the HR Portal) live in the separate private `affiant-dev/affiant-host-apps` repository, which attaches this repo as a submodule at `./packages`. Nothing in this repo may reference host code.
+Host applications that consume this framework (e.g. the Meridian aviation-MRO copilot and the HR Portal) live in the separate private `Sakwala/affiant-host-apps` repository, which attaches this repo as a submodule at `./packages`. Nothing in this repo may reference host code.
 
 ## Source of truth
 
@@ -61,7 +61,7 @@ Grep for `WorkOrder`, `Aircraft`, `Meridian`, `HRPortal`, `LeaveRequest`, `Emplo
 - **Records** for all DTOs, models, and immutable value types. Classes only for services with behavior and mutable state. `readonly record struct` for small value types.
 - **Primary constructors** on services where all dependencies are captured by DI.
 - **`[JsonDerivedType]`** on `ToolEnvelope` for polymorphic serialization, using the `type` discriminator.
-- **Package IDs** must match the reserved names on nuget.org exactly (the eight listed above). Version is shared across all packages via the root `Directory.Build.props`.
+- **Package IDs** must match the reserved names on nuget.org exactly (the nine listed above under "What this is"). Version is shared across all packages via the root `Directory.Build.props`.
 
 ## Build, pack, test
 

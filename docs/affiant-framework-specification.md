@@ -15,7 +15,7 @@
 > see `docs/proposals/affiant-maf-adapter.md` for the change that drove this update)  
 > **Authors**: Software Architect, Technical Product Manager, Principal Engineer, Technical Writer  
 > **Status**: Ready for implementation  
-> **Repository**: github.com/affiant-dev/affiant  
+> **Repository**: github.com/Sakwala/affiant  
 > **Packages**: nuget.org/packages/Affiant.*
 
 ---
@@ -596,7 +596,7 @@ public interface ITaskInferenceStrategy
 
 ### 3.11 Tool Descriptor Registry
 
-> Added 2026-05-14 as part of Phase 3 Track A Epic 15 (stories 15.1–15.7). Closes the empty-Affidavit regression identified at commit `b72c1fa` (2026-04-30) and recorded in `docs/proposals/affiant-validator-handoff.md` (in the private affiant-dev/affiant-host-apps repo).
+> Added 2026-05-14 as part of Phase 3 Track A Epic 15 (stories 15.1–15.7). Closes the empty-Affidavit regression identified at commit `b72c1fa` (2026-04-30) and recorded in `docs/proposals/affiant-validator-handoff.md` (in the private Sakwala/affiant-host-apps repo).
 
 Every tool the framework orchestrates is described by an `AffiantToolDescriptor` record. The descriptor is the contract that the framework's L2 pipeline (§3.10 Task Inference Strategy) reads when classifying a tool invocation, and the input to the startup validator (§3.11.5 below) that ensures the descriptor registry is exhaustive at every host boot.
 
@@ -631,7 +631,7 @@ public sealed record Operation(string Kind)
 
 Four well-known static factories ship with the framework. A host needing a fifth kind constructs `new Operation("WriteUpsert")` or `new Operation("MyDomainKind")` without forcing a framework version bump. The framework's filters pattern-match on the four well-known instances; host-defined kinds pass through transparently.
 
-**Why open record, not enum?** A closed enum forces every host to wait for a framework release cadence to introduce a new operation kind. The open-record contract decouples host extensibility from framework release tempo. (Decision D27, documented in `docs/proposals/affiant-validator-handoff.md` (in the private affiant-dev/affiant-host-apps repo) §10 — D27 reads: "Operation as open record, not enum, to permit host-defined operation kinds without a framework version bump.")
+**Why open record, not enum?** A closed enum forces every host to wait for a framework release cadence to introduce a new operation kind. The open-record contract decouples host extensibility from framework release tempo. (Decision D27, documented in `docs/proposals/affiant-validator-handoff.md` (in the private Sakwala/affiant-host-apps repo) §10 — D27 reads: "Operation as open record, not enum, to permit host-defined operation kinds without a framework version bump.")
 
 #### 3.11.2 The `AffiantToolDescriptor` Field Set
 
@@ -712,7 +712,7 @@ public sealed class AffiantWriteToolAttribute : Attribute
 public async Task<string> CreateWorkOrderAsync(...)
 ```
 
-`AllowMultiple = false` is enforced — applying the attribute twice to the same method is a compile-time error. The attribute name, namespace, constructor parameter order, and `AllowMultiple` value are part of the public API contract ratified at HIL gate G0 (2026-05-14, `docs/implementation-artifacts/track-a/g0-descriptor-contract-approval.md` (in the private affiant-dev/affiant-host-apps repo) Item 4).
+`AllowMultiple = false` is enforced — applying the attribute twice to the same method is a compile-time error. The attribute name, namespace, constructor parameter order, and `AllowMultiple` value are part of the public API contract ratified at HIL gate G0 (2026-05-14, `docs/implementation-artifacts/track-a/g0-descriptor-contract-approval.md` (in the private Sakwala/affiant-host-apps repo) Item 4).
 
 #### 3.11.5 Hard Startup-Failure Semantics
 
@@ -734,9 +734,9 @@ The framework's `AffiantStartupValidator` (in `Affiant.SemanticKernel`) implemen
 
 **No WARN-and-continue.** Misconfiguration is a hard failure, not a warning log line. There is no `enableValidation: false` switch and there will not be one.
 
-The structural reason: before the validator existed, the framework silently produced empty Affidavits when a write tool was misclassified. An Affidavit with all fields at `ProvenanceSource.Empty` is indistinguishable from a read tool's correct provenance — the error was invisible at runtime and surfaced only in audit reviews. The 2026-04-30 regression at commit `b72c1fa` demonstrated that a warning-and-continue approach does not protect against this class of misconfiguration. The validator is the load-bearing fix. See also: PRD Task 6 preamble in `docs/architecture/phase-3-prd-a0-tool-descriptor-registry.md` (in the private affiant-dev/affiant-host-apps repo).
+The structural reason: before the validator existed, the framework silently produced empty Affidavits when a write tool was misclassified. An Affidavit with all fields at `ProvenanceSource.Empty` is indistinguishable from a read tool's correct provenance — the error was invisible at runtime and surfaced only in audit reviews. The 2026-04-30 regression at commit `b72c1fa` demonstrated that a warning-and-continue approach does not protect against this class of misconfiguration. The validator is the load-bearing fix. See also: PRD Task 6 preamble in `docs/architecture/phase-3-prd-a0-tool-descriptor-registry.md` (in the private Sakwala/affiant-host-apps repo).
 
-Both error-message shapes were ratified as part of the public API contract at HIL gate G0 (2026-05-14, `docs/implementation-artifacts/track-a/g0-descriptor-contract-approval.md` (in the private affiant-dev/affiant-host-apps repo) Item 5).
+Both error-message shapes were ratified as part of the public API contract at HIL gate G0 (2026-05-14, `docs/implementation-artifacts/track-a/g0-descriptor-contract-approval.md` (in the private Sakwala/affiant-host-apps repo) Item 5).
 
 #### 3.11.6 Adopter Integration Paths
 
@@ -752,7 +752,7 @@ The registry's idempotency contract (double-registration throws `InvalidOperatio
 
 ### 3.12 Inference Orchestration & Affidavit Projection
 
-> Added 2026-06-12 as part of Phase 3 Track A Epic 16 (stories 16.1–16.6), ratified 2026-05-05. Addresses the empty-Affidavit regression identified at commit `b72c1fa` (2026-04-30) and recorded in `docs/proposals/affiant-validator-handoff.md` (in the private affiant-dev/affiant-host-apps repo).
+> Added 2026-06-12 as part of Phase 3 Track A Epic 16 (stories 16.1–16.6), ratified 2026-05-05. Addresses the empty-Affidavit regression identified at commit `b72c1fa` (2026-04-30) and recorded in `docs/proposals/affiant-validator-handoff.md` (in the private Sakwala/affiant-host-apps repo).
 
 The L2 inference orchestration layer centralizes two responsibilities that were previously scattered across host implementations: (1) running structured-output inference *before* a write tool executes (pre-tool), so the LLM's intent is captured while the conversation history still reflects the user's unmodified request; and (2) building the resulting `Affidavit` directly from the `ContextFabric` — rather than from per-tool form-data structs that hosts previously had to maintain. The 2026-04-30 regression at commit `b72c1fa` demonstrated why both matters: when inference was decomposed into a post-tool filter, structured-output JSON was parsed from the tool's *return value* where it never existed, and every Affidavit produced was silently fully `ProvenanceSource.Empty`. L2 restores pre-tool inference as a framework concern, preventing the regression class entirely. The architecture was ratified 2026-05-05 (decision D21 — L2 over L1/L3 alternatives; see `docs/proposals/affiant-validator-handoff.md` §10 for the decision rationale).
 

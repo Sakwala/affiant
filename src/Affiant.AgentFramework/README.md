@@ -1,8 +1,8 @@
 # Affiant.AgentFramework
 
-Microsoft Agent Framework (MAF) adapter for the [Affiant framework](https://github.com/affiant-dev/affiant) — "sworn provenance for every AI write."
+Microsoft Agent Framework (MAF) adapter for the [Affiant framework](https://github.com/Sakwala/affiant) — "sworn provenance for every AI write."
 
-Bridges MAF's function-calling middleware (`Microsoft.Agents.AI` / `Microsoft.Extensions.AI`) into Affiant's backend-neutral tool-invocation pipeline (the same pipeline the `Affiant.SemanticKernel` adapter runs), so hosts building on MAF get the same provenance tagging, task inference, and review-gate behavior as SK hosts — for tools MAF's client-side middleware can see. See [`docs/adapters/microsoft-agent-framework.md`](https://github.com/affiant-dev/affiant/blob/main/docs/adapters/microsoft-agent-framework.md) for the coverage boundary (hosted/provider-side tools bypass MAF's middleware entirely) and full wiring guide.
+Bridges MAF's function-calling middleware (`Microsoft.Agents.AI` / `Microsoft.Extensions.AI`) into Affiant's backend-neutral tool-invocation pipeline (the same pipeline the `Affiant.SemanticKernel` adapter runs), so hosts building on MAF get the same provenance tagging, task inference, and review-gate behavior as SK hosts — for tools MAF's client-side middleware can see. See [`docs/adapters/microsoft-agent-framework.md`](https://github.com/Sakwala/affiant/blob/main/docs/adapters/microsoft-agent-framework.md) for the coverage boundary (hosted/provider-side tools bypass MAF's middleware entirely) and full wiring guide.
 
 ## Quick start
 
@@ -29,10 +29,10 @@ AIAgent agent = new ChatClientAgent(chatClient, instructions: "...", tools: cata
 
 ## Further reading
 
-- [Affiant Framework Specification](https://github.com/affiant-dev/affiant/blob/main/docs/affiant-framework-specification.md) — the full design contract, including the seven normative rules
-- [Tool Authoring Guide](https://github.com/affiant-dev/affiant/blob/main/docs/tool-authoring-guide.md) — write your first Affiant plugin pair
-- [`Affiant.AgentFramework` proposal](https://github.com/affiant-dev/affiant/blob/main/docs/proposals/affiant-maf-adapter.md) — the design this package implements
+- [Affiant Framework Specification](https://github.com/Sakwala/affiant/blob/main/docs/affiant-framework-specification.md) — the full design contract, including the seven normative rules
+- [Tool Authoring Guide](https://github.com/Sakwala/affiant/blob/main/docs/tool-authoring-guide.md) — write your first Affiant plugin pair
+- [`Affiant.AgentFramework` proposal](https://github.com/Sakwala/affiant/blob/main/docs/proposals/affiant-maf-adapter.md) — the design this package implements
 
 ---
 
-*Part of the [Affiant Framework](https://github.com/affiant-dev/affiant) | Apache-2.0 License*
+*Part of the [Affiant Framework](https://github.com/Sakwala/affiant) | Apache-2.0 License*

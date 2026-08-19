@@ -11,12 +11,12 @@ audience: Developers unfamiliar with Affiant; estimated 30-minute read for under
 related:
   - docs/affiant-framework-specification.md (full spec, sections 1–6 provide context)
   - docs/affiant-framework-specification.md §7 (this guide extracts §7 standalone)
-  - apps/HRPortal/src/HRPortal.Api/Plugins/ (read and write plugin examples; in the private affiant-dev/affiant-host-apps repo)
-  - apps/HRPortal/src/HRPortal.Api/Filters/ (context extractor examples; in the private affiant-dev/affiant-host-apps repo)
-  - apps/HRPortal/src/HRPortal.Api/FieldMappers/ (field mapper examples; in the private affiant-dev/affiant-host-apps repo)
-  - apps/HRPortal/src/HRPortal.Api/Agent/Services/ (write executor examples; in the private affiant-dev/affiant-host-apps repo)
+  - apps/HRPortal/src/HRPortal.Api/Plugins/ (read and write plugin examples; in the private Sakwala/affiant-host-apps repo)
+  - apps/HRPortal/src/HRPortal.Api/Filters/ (context extractor examples; in the private Sakwala/affiant-host-apps repo)
+  - apps/HRPortal/src/HRPortal.Api/FieldMappers/ (field mapper examples; in the private Sakwala/affiant-host-apps repo)
+  - apps/HRPortal/src/HRPortal.Api/Agent/Services/ (write executor examples; in the private Sakwala/affiant-host-apps repo)
 note: >
-  Worked examples cite host code (HR Portal, Meridian) that lives in the private affiant-dev/affiant-host-apps repo,
+  Worked examples cite host code (HR Portal, Meridian) that lives in the private Sakwala/affiant-host-apps repo,
   not in this public framework repo; they are reproduced to illustrate framework usage patterns.
   Host folder conventions (Plugins vs Agent/Plugins, Filters vs Agent/Extractors, FieldMappers vs Agent/FieldMappers)
   are host decisions — Affiant enforces only DI registration, not folder structure.
@@ -101,7 +101,7 @@ This guide teaches you to write plugins for the Affiant framework. Plugins are t
 > review the same way you would a captive-dependency bug anywhere else in the codebase.
 
 ```csharp
-// From (the private affiant-dev/affiant-host-apps repo): apps/HRPortal/src/HRPortal.Api/Agent/Plugins/SearchEmployeesPlugin.cs
+// From (the private Sakwala/affiant-host-apps repo): apps/HRPortal/src/HRPortal.Api/Agent/Plugins/SearchEmployeesPlugin.cs
 // Imports: using System.ComponentModel; using System.Text; using Affiant.Abstractions.Models;
 //          using Microsoft.Extensions.DependencyInjection; using Microsoft.SemanticKernel;
 //          using Microsoft.EntityFrameworkCore;
@@ -203,7 +203,7 @@ above already uses it. A second host example, for completeness — this is the s
 different one to choose between:
 
 ```csharp
-// From (the private affiant-dev/affiant-host-apps repo): apps/Meridian/src/Meridian.Api/Agent/Plugins/InventoryPlugin.cs (pattern excerpt)
+// From (the private Sakwala/affiant-host-apps repo): apps/Meridian/src/Meridian.Api/Agent/Plugins/InventoryPlugin.cs (pattern excerpt)
 public class InventoryPlugin(IServiceScopeFactory scopeFactory)
 {
     public async Task<string> SearchParts(...)
@@ -248,7 +248,7 @@ on a `Scoped` service (a `DbContext`, or any per-request dependency your host re
 **Worked example — multi-field write proposal with mixed provenance:**
 
 ```csharp
-// From (the private affiant-dev/affiant-host-apps repo): apps/HRPortal/src/HRPortal.Api/Agent/Plugins/RequestLeavePlugin.cs
+// From (the private Sakwala/affiant-host-apps repo): apps/HRPortal/src/HRPortal.Api/Agent/Plugins/RequestLeavePlugin.cs
 // Imports: using System.ComponentModel; using System.Diagnostics; using Affiant.Abstractions.Models;
 //          using Affiant.Core.Observability; using Microsoft.SemanticKernel;
 //          using Microsoft.EntityFrameworkCore;
@@ -406,7 +406,7 @@ public class RequestLeavePlugin(HRPortalDbContext dbContext, ILogger<RequestLeav
 **Worked example — read tool context extractor:**
 
 ```csharp
-// From (the private affiant-dev/affiant-host-apps repo): apps/HRPortal/src/HRPortal.Api/Agent/Extractors/EmployeeSearchExtractor.cs
+// From (the private Sakwala/affiant-host-apps repo): apps/HRPortal/src/HRPortal.Api/Agent/Extractors/EmployeeSearchExtractor.cs
 // Imports: using Affiant.Abstractions.Models; using Affiant.Core.Filters;
 //          using Affiant.Core.Services; using Microsoft.Extensions.Logging;
 //          using Microsoft.SemanticKernel;
@@ -441,7 +441,7 @@ The `ContextExtractor` base class wires `IFunctionInvocationFilter`, calling `aw
 
 ```csharp
 // In Program.cs / Startup.cs
-// From (the private affiant-dev/affiant-host-apps repo): apps/HRPortal/src/HRPortal.Api/Program.cs
+// From (the private Sakwala/affiant-host-apps repo): apps/HRPortal/src/HRPortal.Api/Program.cs
 builder.Services.AddScoped<IFunctionInvocationFilter, EmployeeSearchExtractor>();
 ```
 
@@ -500,7 +500,7 @@ Assert.True(fabric.Snapshot().ContainsKey(entityRef.EntityId));
 **Worked example — bidirectional field mapper:**
 
 ```csharp
-// From (the private affiant-dev/affiant-host-apps repo): apps/HRPortal/src/HRPortal.Api/Agent/FieldMappers/LeaveRequestFieldMapper.cs
+// From (the private Sakwala/affiant-host-apps repo): apps/HRPortal/src/HRPortal.Api/Agent/FieldMappers/LeaveRequestFieldMapper.cs
 // Imports: using Affiant.Abstractions.Models; using HRPortal.Api.Models;
 // Dependencies: ILeaveRequestFieldMapper (extends IFieldMapper<LeaveRequest>), ILogger
 
@@ -601,7 +601,7 @@ Use a host-specific interface only if the same `IWriteExecutor` injects multiple
 **Worked example — write executor with entity-type dispatch:**
 
 ```csharp
-// From (the private affiant-dev/affiant-host-apps repo): apps/HRPortal/src/HRPortal.Api/Agent/Services/HRWriteExecutor.cs
+// From (the private Sakwala/affiant-host-apps repo): apps/HRPortal/src/HRPortal.Api/Agent/Services/HRWriteExecutor.cs
 // Imports: using Affiant.Abstractions.Interfaces; using Affiant.Abstractions.Models;
 //          using HRPortal.Api.Agent.FieldMappers; using HRPortal.Api.Data;
 //          using Microsoft.EntityFrameworkCore;
@@ -707,7 +707,7 @@ If your host already has a write executor handling other entity types, follow th
 **Step 1 — add the new field mapper dependency to the primary constructor:**
 
 ```csharp
-// From (the private affiant-dev/affiant-host-apps repo): apps/HRPortal/src/HRPortal.Api/Agent/Services/HRWriteExecutor.cs
+// From (the private Sakwala/affiant-host-apps repo): apps/HRPortal/src/HRPortal.Api/Agent/Services/HRWriteExecutor.cs
 public class HRWriteExecutor(
     HRPortalDbContext dbContext,
     ILeaveRequestFieldMapper leaveRequestMapper,
@@ -856,7 +856,7 @@ catch (Exception ex) when (ex is TimeoutException or DbUpdateException)
 **Worked example — write plugin integration test:**
 
 ```csharp
-// From (the private affiant-dev/affiant-host-apps repo): apps/HRPortal/tests/HRPortal.Api.Tests/Agent/Plugins/RequestLeavePluginTests.cs
+// From (the private Sakwala/affiant-host-apps repo): apps/HRPortal/tests/HRPortal.Api.Tests/Agent/Plugins/RequestLeavePluginTests.cs
 // Imports: using System.Text.Json; using Affiant.Abstractions.Models;
 //          using HRPortal.Api.Agent.Plugins; using HRPortal.Api.Data;
 //          using Microsoft.Data.Sqlite; using Microsoft.EntityFrameworkCore;
@@ -964,7 +964,7 @@ public class RequestLeavePluginTests : IAsyncLifetime
 For extractors that only call `EmitEntity` (the common case), the read plugin integration test is sufficient. For extractors that also record field-level provenance via `ContextFabric.SetFieldChain`, expose a `public ProcessEntity(EntityRef entity)` method (see Section 4, *Testability*) and call it directly:
 
 ```csharp
-// From (the private affiant-dev/affiant-host-apps repo): apps/HRPortal/tests/HRPortal.Api.Tests/Agent/Integration/LeaveBalanceExtractorTests.cs
+// From (the private Sakwala/affiant-host-apps repo): apps/HRPortal/tests/HRPortal.Api.Tests/Agent/Integration/LeaveBalanceExtractorTests.cs
 var fabric    = new ContextFabric();
 var extractor = new LeaveBalanceExtractor(fabric, NullLogger<LeaveBalanceExtractor>.Instance);
 
