@@ -11,4 +11,4 @@ public record ReviewContext(
     string ReviewerUserId,
     Affidavit Affidavit,
     Guid? EntryId = null,
-    IReadOnlyDictionary<string, object>? Amendments = null);
+    IReadOnlyDictionary<string, object?>? Amendments = null);

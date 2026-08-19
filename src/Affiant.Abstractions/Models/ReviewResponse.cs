@@ -6,10 +6,15 @@ namespace Affiant.Abstractions.Models;
 /// </summary>
 public abstract record ReviewResponse;
 
-/// <summary>The reviewer approved the write, optionally amending field values first.</summary>
+/// <summary>
+/// The reviewer approved the write, optionally amending field values first. A key present with a
+/// <c>null</c> value means "clear this field" — the same amendments shape every other amendments
+/// carrier in the framework uses (<see cref="DocketEntry.Amendments"/>,
+/// <see cref="ReviewContext.Amendments"/>, <c>EvidenceCardResponse.Amendments</c>).
+/// </summary>
 public sealed record ReviewGranted(
     Guid EntryId,
-    Dictionary<string, object>? Amendments
+    IReadOnlyDictionary<string, object?>? Amendments
 ) : ReviewResponse;
 
 /// <summary>The reviewer rejected the write, optionally recording why.</summary>
