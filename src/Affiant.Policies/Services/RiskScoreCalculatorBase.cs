@@ -6,7 +6,7 @@ namespace Affiant.Policies.Services;
 /// Computes risk scores for Affidavits.
 /// Hosts subclass and override <see cref="ComputeAsync"/> for domain-specific scoring logic.
 /// </summary>
-public abstract class RiskScoreCalculator
+public abstract class RiskScoreCalculatorBase
 {
     /// <summary>
     /// Computes a numeric risk score (1 = low, 3 = high) for the given Affidavit.

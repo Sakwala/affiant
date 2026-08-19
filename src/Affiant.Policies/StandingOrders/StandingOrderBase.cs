@@ -18,7 +18,7 @@ namespace Affiant.Policies.StandingOrders;
 public abstract class StandingOrderBase : IApprovalPolicy
 {
     protected readonly ILogger Logger;
-    protected readonly RiskScoreCalculator RiskScorer;
+    protected readonly RiskScoreCalculatorBase RiskScorer;
 
     /// <summary>
     /// Risk score at or below which the Standing Order auto-approves.
@@ -26,7 +26,7 @@ public abstract class StandingOrderBase : IApprovalPolicy
     /// </summary>
     protected virtual int RiskThreshold => (int)RiskLevel.Low;
 
-    protected StandingOrderBase(RiskScoreCalculator riskScorer, ILogger? logger = null)
+    protected StandingOrderBase(RiskScoreCalculatorBase riskScorer, ILogger? logger = null)
     {
         RiskScorer = riskScorer ?? throw new ArgumentNullException(nameof(riskScorer));
         Logger = logger ?? NullLogger.Instance;

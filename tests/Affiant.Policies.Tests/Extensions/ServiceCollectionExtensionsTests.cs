@@ -30,7 +30,7 @@ public class ServiceCollectionExtensionsTests
             => Task.FromResult<string?>("manager-1");
     }
 
-    private sealed class CustomRiskCalculator : RiskScoreCalculator
+    private sealed class CustomRiskCalculator : RiskScoreCalculatorBase
     {
         public override Task<int> ComputeAsync(Affidavit affidavit, CancellationToken ct = default)
             => Task.FromResult(1); // always Low
@@ -46,7 +46,7 @@ public class ServiceCollectionExtensionsTests
         services.AddAffiantPolicies();
         var sp = services.BuildServiceProvider();
 
-        var calculator = sp.GetService<RiskScoreCalculator>();
+        var calculator = sp.GetService<RiskScoreCalculatorBase>();
         Assert.NotNull(calculator);
         Assert.IsType<DefaultRiskScoreCalculator>(calculator);
     }
@@ -117,7 +117,7 @@ public class ServiceCollectionExtensionsTests
         services.AddAffiantPolicies(p => p.SetRiskScoreCalculator<CustomRiskCalculator>());
         var sp = services.BuildServiceProvider();
 
-        var calculator = sp.GetRequiredService<RiskScoreCalculator>();
+        var calculator = sp.GetRequiredService<RiskScoreCalculatorBase>();
         Assert.IsType<CustomRiskCalculator>(calculator);
     }
 
@@ -127,12 +127,12 @@ public class ServiceCollectionExtensionsTests
         var services = new ServiceCollection();
 
         // Host registers their calculator first.
-        services.AddScoped<RiskScoreCalculator, CustomRiskCalculator>();
+        services.AddScoped<RiskScoreCalculatorBase, CustomRiskCalculator>();
         // AddAffiantPolicies should not overwrite it (TryAdd semantics).
         services.AddAffiantPolicies();
 
         var sp = services.BuildServiceProvider();
-        var calculator = sp.GetRequiredService<RiskScoreCalculator>();
+        var calculator = sp.GetRequiredService<RiskScoreCalculatorBase>();
         Assert.IsType<CustomRiskCalculator>(calculator);
     }
 }

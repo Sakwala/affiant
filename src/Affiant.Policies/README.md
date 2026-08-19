@@ -17,7 +17,7 @@ builder.Services.AddAffiantPolicies(policies =>
 });
 ```
 
-Implement `StandingOrderBase` for an auto-approval rule, `ReferralRuleBase` for an escalation rule, and override `RiskScoreCalculator` (registered by default as `DefaultRiskScoreCalculator`, `TryAddScoped` so a host override always wins) to change how risk feeds into either.
+Implement `StandingOrderBase` for an auto-approval rule, `ReferralRuleBase` for an escalation rule, and override `RiskScoreCalculatorBase` (registered by default as `DefaultRiskScoreCalculator`, `TryAddScoped` so a host override always wins) to change how risk feeds into either.
 
 ## Package contents
 
@@ -25,7 +25,7 @@ Implement `StandingOrderBase` for an auto-approval rule, `ReferralRuleBase` for 
 |---|---|
 | `Affiant.Policies.StandingOrders` | `StandingOrderBase` — the auto-approval rule contract |
 | `Affiant.Policies.Referrals` | `ReferralRuleBase` — the escalation-routing rule contract |
-| `Affiant.Policies.Services` | `RiskScoreCalculator` / `DefaultRiskScoreCalculator`, `RiskLevel` |
+| `Affiant.Policies.Services` | `RiskScoreCalculatorBase` / `DefaultRiskScoreCalculator`, `RiskLevel` |
 | `Affiant.Policies.Extensions` | `ServiceCollectionExtensions` — `AddAffiantPolicies`, the `PoliciesBuilder` fluent registration surface |
 
 ## Further reading

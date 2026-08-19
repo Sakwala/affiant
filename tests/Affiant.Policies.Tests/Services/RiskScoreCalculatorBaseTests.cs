@@ -4,9 +4,9 @@ using Affiant.Abstractions.Models;
 using Affiant.Policies.Services;
 using Xunit;
 
-public class RiskScoreCalculatorTests
+public class RiskScoreCalculatorBaseTests
 {
-    private readonly RiskScoreCalculator _calculator = new DefaultRiskScoreCalculator();
+    private readonly RiskScoreCalculatorBase _calculator = new DefaultRiskScoreCalculator();
 
     private static Affidavit MakeAffidavit(params AffidavitField[] fields) => new(
         OperationType: "Test",
