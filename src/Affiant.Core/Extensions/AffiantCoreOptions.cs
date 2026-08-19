@@ -38,4 +38,17 @@ public sealed class AffiantCoreOptions
     /// Set by the host application via AddAffiantCore(). Default: null (no system prompt injected).
     /// </summary>
     public string? SystemPrompt { get; set; }
+
+    /// <summary>
+    /// Explicit host acknowledgment that this application runs without a complete review loop — i.e.
+    /// no <c>IStreamingTransport</c> and/or no <c>IDocketStore</c> is registered anywhere, so
+    /// <see cref="Affiant.Core.Services.ReviewGate"/> cannot file a write proposal for review.
+    /// <see cref="Affiant.Core.Validation.AffiantWireUpValidator"/> throws at startup by default when
+    /// either is missing (area-8 ruling 6, 2026-08-20); setting this to <c>true</c> downgrades that to
+    /// one startup warning per missing contract, mirroring
+    /// <c>AgentFrameworkOptions.AcknowledgeUncoveredTools</c>'s explicit, auditable, never-silent
+    /// shape. Intended for a host that deliberately uses Affiant's read/inference half only.
+    /// Default: <c>false</c> (incomplete review wiring is refused).
+    /// </summary>
+    public bool AcknowledgeMissingReviewWiring { get; set; }
 }

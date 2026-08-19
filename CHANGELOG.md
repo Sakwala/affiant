@@ -12,6 +12,31 @@ any *published* release (`docs/proposals/affiant-maf-adapter.md` §9).
 
 ## [Unreleased]
 
+### Added — Area-8 P4: missing `ReviewGate` wiring now fails the host at startup
+
+`AddAffiantCore()` registers `ReviewGate`, which resolves `IStreamingTransport` and `IDocketStore`
+lazily. A host that forgot `Affiant.Transport.SignalR` or a Docket backend therefore started, served
+traffic and held a normal conversation with no error at all — the gap surfaced only when a tool first
+produced a `WriteProposal` and `ReviewGateFilter` tried to file it, mid-conversation, at the one
+moment provenance was supposed to be captured. That inverted the loudness rule the repo applies
+elsewhere (the MAF adapter's hosted-tool audit refuses at wire-up; `Affiant.SemanticKernel`'s
+`AffiantStartupValidator` refuses at startup).
+
+`AddAffiantCore()` now inserts `Affiant.Core.Validation.AffiantWireUpValidator` as the first
+`IHostedService`. At startup it asks the container (via `IServiceProviderIsService` — presence, not
+resolution, since `IDocketStore` is Scoped on both SQL backends) whether each contract is registered
+by *any* package, and throws `AffiantStartupException` naming every missing contract together with
+the call and package that supplies it. Registration order between `AddAffiantCore`,
+`AddAffiantDocket`, `AddAffiantEntityFramework` and `AddAffiantSignalR` is irrelevant to it — which is
+why the check is a startup hosted service rather than eager validation inside `AddAffiantCore` (both
+reference hosts register these packages in different orders, and half of those correct orders would
+fail an eager check).
+
+`AffiantCoreOptions.AcknowledgeMissingReviewWiring = true` downgrades the throw to one startup
+warning per missing contract, for a host that deliberately runs Affiant's read/inference half with no
+review loop. `Affiant.Core` gains one abstractions-only package reference,
+`Microsoft.Extensions.Hosting.Abstractions` (part of the ASP.NET Core shared framework).
+
 ### Changed — Area-8 P3: the SQL-backed `IDocketStore` implementations move to `Affiant.EntityFramework` (affiant#35)
 
 **Breaking for anyone calling `AddAffiantDocket(d => d.UseSqlite(...))` or `d.UsePostgres(...)`, and
