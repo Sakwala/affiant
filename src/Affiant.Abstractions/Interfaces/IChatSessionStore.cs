@@ -2,6 +2,24 @@ namespace Affiant.Abstractions.Interfaces;
 
 using Affiant.Abstractions.Models;
 
+/// <summary>
+/// Durable storage for chat sessions and their message history — the transcript the framework
+/// rehydrates when a user reconnects. Implement it to back sessions with your own store; in-memory,
+/// SQLite and PostgreSQL implementations ship in <c>Affiant.EntityFramework</c>.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Session identity and message history are stored separately on purpose: <see cref="GetAsync"/>
+/// answers "does this session exist and whose is it" without materializing a transcript, while
+/// <see cref="LoadMessagesAsync"/> pays for the full history only when a caller actually needs it.
+/// </para>
+/// <para>
+/// The two write members are <b>not</b> interchangeable, and picking the wrong one loses messages.
+/// <see cref="AppendMessagesAsync"/> is the turn-by-turn path and never re-touches a row that was
+/// already durable; <see cref="SaveMessagesAsync"/> is a full replace and accepts a documented loss
+/// window under concurrency. Read both members' remarks before implementing either.
+/// </para>
+/// </remarks>
 public interface IChatSessionStore
 {
     Task<ChatSession> CreateAsync(string tenantId, string userId, CancellationToken ct);
