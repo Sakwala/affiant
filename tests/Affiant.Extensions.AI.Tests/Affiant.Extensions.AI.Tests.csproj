@@ -7,7 +7,22 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Affiant.Extensions.AI\Affiant.Extensions.AI.csproj" />
+    <!-- MAF adapter reference is test-only, for the catalog reflection parity test comparing this
+         package's AffiantToolCatalog.FromType<T>() descriptors and [AffiantToolName] precedence
+         against Affiant.AgentFramework's, whose behaviour this package's catalog was copied from
+         and must not drift away from. This is not a src/-layering violation: only test projects may
+         reference two adapter packages at once (same arrangement as
+         Affiant.AgentFramework.Tests -> Affiant.SemanticKernel). PackageLayeringTests asserts the
+         shipped Affiant.Extensions.AI assembly itself carries no such reference. -->
+    <ProjectReference Include="..\..\src\Affiant.AgentFramework\Affiant.AgentFramework.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.AI" Version="10.9.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.4.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
