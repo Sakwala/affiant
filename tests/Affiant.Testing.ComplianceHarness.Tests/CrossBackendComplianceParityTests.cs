@@ -9,17 +9,20 @@ using Xunit;
 
 /// <summary>
 /// Cross-backend compliance parity (proposal affiant-maf-adapter.md §6): every ComplianceHarness
-/// fixture-case scenario and the AssertProvenanceIsSubstantive gate must behave identically whether
-/// the registered <see cref="IInferenceCompletionPort"/> is the SK bridge
-/// (SemanticKernelInferenceCompletionPort) or the MAF bridge (AgentFrameworkInferenceCompletionPort)
-/// — the guardrail that makes semantic drift between backends structurally impossible (proposal
-/// §4.1: "one pipeline, two bridges"). Each [Theory] runs once per backend via
+/// fixture-case scenario and the AssertProvenanceIsSubstantive gate must behave identically whichever
+/// <see cref="IInferenceCompletionPort"/> is registered — the SK bridge
+/// (SemanticKernelInferenceCompletionPort), the MAF bridge (AgentFrameworkInferenceCompletionPort),
+/// or the Microsoft.Extensions.AI bridge (ExtensionsAIInferenceCompletionPort, added 2026-08-20 by
+/// the M.E.AI adapter wave — design brief decision 7,
+/// <c>affiant-chancery/docs/overnight-mission-2026-08-20/meai-adapter-design.md</c>). This is the
+/// guardrail that makes semantic drift between backends structurally impossible (proposal §4.1: "one
+/// pipeline, N bridges"). Each [Theory] runs once per backend via
 /// <see cref="InferenceCompletionPortProviderFactory"/>; the scripted LLM edge for each backend
 /// answers the same fixed JSON a real model would for the scenario under test.
 ///
 /// These scenarios mirror (not duplicate the intent of) ComplianceHarnessFixtureCaseExecutionTests
 /// and AssertProvenanceIsSubstantiveTests, which already gate the neutral pipeline via the generic
-/// FakeInferenceCompletionPort; the point here is proving the two shipped bridges reproduce those
+/// FakeInferenceCompletionPort; the point here is proving every shipped bridge reproduces those
 /// same outcomes, not re-deriving new expectations. FakeCaseStrategy and FakeCaseFixture are the
 /// same internal fixtures ComplianceHarnessFixtureCaseExecutionTests.cs declares — reused here by
 /// assembly visibility, not redefined.
