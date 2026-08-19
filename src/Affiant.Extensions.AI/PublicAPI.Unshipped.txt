@@ -13,9 +13,22 @@ Affiant.Extensions.AI.AffiantToolCatalog.Functions.init -> void
 Affiant.Extensions.AI.Attributes.AffiantToolNameAttribute
 Affiant.Extensions.AI.Attributes.AffiantToolNameAttribute.AffiantToolNameAttribute(string! name) -> void
 Affiant.Extensions.AI.Attributes.AffiantToolNameAttribute.Name.get -> string!
+Affiant.Extensions.AI.Extensions.ChatOptionsExtensions
+Affiant.Extensions.AI.Extensions.ExtensionsAIOptions
+Affiant.Extensions.AI.Extensions.ExtensionsAIOptions.AcknowledgeUncoveredTools.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Affiant.Extensions.AI.Extensions.ExtensionsAIOptions.AcknowledgeUncoveredTools.set -> void
+Affiant.Extensions.AI.Extensions.ExtensionsAIOptions.ExtensionsAIOptions() -> void
+Affiant.Extensions.AI.Extensions.ServiceCollectionExtensions
+Affiant.Extensions.AI.Filters.AffiantDelegatingAIFunction
+Affiant.Extensions.AI.Filters.AffiantDelegatingAIFunction.AffiantDelegatingAIFunction(Microsoft.Extensions.AI.AIFunction! innerFunction, Affiant.Core.Services.ToolInvocationPipeline! pipeline, Affiant.Abstractions.Interfaces.IAffiantToolRegistry! registry) -> void
+Affiant.Extensions.AI.Filters.AffiantDelegatingAIFunction.AffiantInnerFunction.get -> Microsoft.Extensions.AI.AIFunction!
+Affiant.Extensions.AI.Filters.IAffiantWrappedFunction
+Affiant.Extensions.AI.Filters.IAffiantWrappedFunction.AffiantInnerFunction.get -> Microsoft.Extensions.AI.AIFunction!
 override Affiant.Extensions.AI.AffiantToolCatalog.Equals(object? obj) -> bool
 override Affiant.Extensions.AI.AffiantToolCatalog.GetHashCode() -> int
 override Affiant.Extensions.AI.AffiantToolCatalog.ToString() -> string!
 static Affiant.Extensions.AI.AffiantToolCatalog.FromType<T>(string? pluginName = null) -> Affiant.Extensions.AI.AffiantToolCatalog!
 static Affiant.Extensions.AI.AffiantToolCatalog.operator !=(Affiant.Extensions.AI.AffiantToolCatalog? left, Affiant.Extensions.AI.AffiantToolCatalog? right) -> bool
 static Affiant.Extensions.AI.AffiantToolCatalog.operator ==(Affiant.Extensions.AI.AffiantToolCatalog? left, Affiant.Extensions.AI.AffiantToolCatalog? right) -> bool
+static Affiant.Extensions.AI.Extensions.ChatOptionsExtensions.WithAffiant(this Microsoft.Extensions.AI.ChatOptions! options, System.IServiceProvider! services, Affiant.Extensions.AI.AffiantToolCatalog! catalog) -> Microsoft.Extensions.AI.ChatOptions!
+static Affiant.Extensions.AI.Extensions.ServiceCollectionExtensions.AddAffiantExtensionsAI(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Affiant.Extensions.AI.Extensions.ExtensionsAIOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
