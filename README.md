@@ -132,14 +132,16 @@ exceptions.** If the source is unknown, it is tagged `Empty` — it is never lef
 
 ## Quickstart
 
-Affiant has two interception backends — Semantic Kernel (SK) and Microsoft Agent Framework
-(MAF) — sitting on one shared, backend-neutral pipeline in `Affiant.Core`. Pick the one your
-host already uses; both walkthroughs below end at the same place, a filed `Affidavit` visible
-as a rendered Evidence Card (§"See your first Evidence Card" in each). If you are choosing
-between the two for a new host, MAF is Microsoft's current-generation SDK (GA 2026-04-03); SK
-remains fully supported and is what the reference example throughout this README uses.
+Affiant has three interception backends — Semantic Kernel (SK), Microsoft Agent Framework
+(MAF), and Microsoft.Extensions.AI (M.E.AI) — sitting on one shared, backend-neutral pipeline in
+`Affiant.Core`. Pick the one your host already uses; all three walkthroughs below end at the same
+place, a filed `Affidavit` visible as a rendered Evidence Card (§"See your first Evidence Card" in
+each). If you are choosing among the three for a new host: MAF is Microsoft's current-generation
+agent SDK (GA 2026-04-03); M.E.AI is the lower-level abstraction both SK and MAF sit on top of —
+pick it if your host talks to `IChatClient` directly and doesn't want an agent-framework dependency
+at all; SK remains fully supported and is what the reference example throughout this README uses.
 
-See ["Which of the 9 packages do I need?"](#which-of-the-9-packages-do-i-need) for the install
+See ["Which of the 10 packages do I need?"](#which-of-the-10-packages-do-i-need) for the install
 list per scenario, and ["Mandatory vs optional wiring"](#mandatory-vs-optional-wiring) for what
 happens if you skip a call — some gaps now fail loudly at startup, some don't yet.
 
@@ -394,11 +396,97 @@ dotnet add package Affiant.Policies --prerelease
 dotnet add package Affiant.Transport.SignalR --prerelease
 ```
 
+### Microsoft.Extensions.AI
+
+The M.E.AI adapter wires the same neutral pipeline through Microsoft.Extensions.AI's own
+function-calling seam — no agent framework required. Pick this if your host talks to `IChatClient`
+directly. `Affiant.SemanticKernel` and `Affiant.AgentFramework` both sit on top of
+Microsoft.Extensions.AI internally; this adapter targets that shared layer directly instead.
+
+**1. Register the framework:**
+
+```csharp
+builder.Services.AddAffiantCore();
+builder.Services.AddAffiantExtensionsAI();
+```
+
+Like the MAF adapter and unlike SK, there is no separate `AddAffiantInferenceOrchestration()` call
+— `AddAffiantExtensionsAI()` registers the equivalent inference-orchestration stack in the same
+call.
+
+**2. Declare an inference strategy and write the tool** — identical shape to the SK and MAF
+examples above (`ITaskInferenceStrategy`, `[AffiantWriteTool]`), because all three backends read the
+same `Affiant.Abstractions` contracts. Like MAF, this adapter reflects over a tool *type*, not
+per-method attributes for discovery — every public instance method becomes a callable tool:
+
+```csharp
+public sealed class LeaveTools(HrDbContext db)
+{
+    [AffiantWriteTool("WriteCreate", "LeaveRequest", typeof(LeaveTaskInferenceStrategy))]
+    [Description("Propose a leave request. Returns a WriteProposal for review; never writes directly.")]
+    public Task<string> RequestLeaveAsync(DateOnly startDate, DateOnly endDate, string leaveType, string reason)
+    {
+        // Same body as the SK/MAF examples: build the Affidavit's fields with their ProvenanceChain,
+        // wrap it in a WriteProposal, never touch the database directly.
+        // ...
+    }
+}
+```
+
+**3. Build the catalog and wire `ChatOptions`:**
+
+```csharp
+var catalog = AffiantToolCatalog.FromType<LeaveTools>();
+builder.Services.AddScoped<LeaveTools>();
+
+// The chat client must have UseFunctionInvocation() — that is the client that runs the tool loop
+// and publishes the per-call FunctionInvokingChatClient.CurrentContext Affiant's wrapper reads.
+IChatClient client = new ChatClientBuilder(innerClient)
+    .UseFunctionInvocation()
+    .Build(serviceProvider);
+
+var chatOptions = new ChatOptions { Tools = [.. catalog.Functions] }
+    .WithAffiant(serviceProvider, catalog);
+
+var response = await client.GetResponseAsync(messages, chatOptions);
+```
+
+`WithAffiant(...)` is the only supported way to attach Affiant here — the `ChatOptions`-extension
+counterpart of MAF's `AIAgent.WithAffiant`. It also runs the hosted-tool coverage audit (refuses at
+wire-up if the tool list carries a provider-side tool, such as a hosted web-search tool, that this
+adapter's client-side wrapper can't see; see `ExtensionsAIOptions.AcknowledgeUncoveredTools` to
+acknowledge one deliberately). **Wrapping returns a new `ChatOptions` instance — the pre-wrap
+`chatOptions` local (or whatever object you built before calling `WithAffiant`) silently bypasses
+Affiant if anything in your codebase uses it instead of the returned value.**
+
+**4. Complete the wiring, and 5. see your first Evidence Card** — identical to steps 5 and 6 of the
+SK quickstart above: same `AddAffiantEntityFramework`/`AddAffiantDocket`/`AddAffiantPolicies`/
+`AddAffiantSignalR` calls, same `EvidenceCardRequest` payload over the same transport, because all
+three backends terminate in the same backend-neutral `ReviewGate`.
+
+**One Affiant adapter per tool catalog.** Never wire both `Affiant.Extensions.AI` and
+`Affiant.AgentFramework` over the same tool catalog or chat-client pipeline — the neutral pipeline is
+not idempotent (double-tagged provenance, task inference fired twice, the same write proposal filed
+on the docket twice), and unlike the same-adapter double-wrap above, this specific cross-adapter case
+cannot be detected: MAF rewrites `ChatOptions.Tools` with its own private wrapper type after this
+adapter's wire-up has already run, and that type carries no marker either package can see.
+
+Install:
+
+```bash
+dotnet add package Affiant.Core --prerelease
+dotnet add package Affiant.Extensions.AI --prerelease
+dotnet add package Affiant.EntityFramework --prerelease  # or Affiant.Docket alone, in-memory only
+dotnet add package Affiant.Docket --prerelease            # always — the expiry sweep
+dotnet add package Affiant.Policies --prerelease
+dotnet add package Affiant.Transport.SignalR --prerelease
+```
+
 ---
 
-## Which of the 9 packages do I need?
+## Which of the 10 packages do I need?
 
-Affiant has no meta-package — nine granular packages, install only what your scenario needs
+Affiant has no meta-package — ten granular packages, install only what your scenario needs
 (the same shape as `Microsoft.Extensions.*` or Duende IdentityServer's core-plus-adapters split).
 
 | Your situation | Install |
@@ -408,7 +496,9 @@ Affiant has no meta-package — nine granular packages, install only what your s
 | Semantic Kernel host, SQL-backed (SQLite/PostgreSQL) production | same six, **+ `Affiant.EntityFramework`** (installed alongside `Affiant.Docket`, not instead of it — see the quickstart above) |
 | Microsoft Agent Framework host, in-memory/dev | `Affiant.Abstractions`, `Affiant.Core`, `Affiant.AgentFramework`, `Affiant.Docket`, `Affiant.Policies`, `Affiant.Transport.SignalR` |
 | Microsoft Agent Framework host, SQL-backed production | same six, **+ `Affiant.EntityFramework`** |
-| Either backend, proving your own write strategies carry real provenance in CI | add `Affiant.Testing.ComplianceHarness` to your **test** project only |
+| Microsoft.Extensions.AI host (no agent framework), in-memory/dev | `Affiant.Abstractions`, `Affiant.Core`, `Affiant.Extensions.AI`, `Affiant.Docket`, `Affiant.Policies`, `Affiant.Transport.SignalR` |
+| Microsoft.Extensions.AI host, SQL-backed production | same six, **+ `Affiant.EntityFramework`** |
+| Any backend, proving your own write strategies carry real provenance in CI | add `Affiant.Testing.ComplianceHarness` to your **test** project only |
 
 ## Mandatory vs optional wiring
 
@@ -424,7 +514,8 @@ use, and DI **ordering** mistakes (as opposed to missing registrations) are cove
 | `AddAffiantTool<TStrategy>()` / `AddAffiantReadTool()` | Per tool | N/A — this call *is* the registration |
 | `AddAffiantSemanticKernel()` | SK hosts only | `AffiantStartupValidator` throws at startup if a `[KernelFunction]` has no matching descriptor, or a registered inference strategy can't resolve from DI |
 | `AddAffiantInferenceOrchestration()` (SK) | Only if any write tool leaves a field for the model to infer (see the [Quickstart](#semantic-kernel)) | **Not enforced.** No validator checks its presence; a missing call means inference silently never fires, not an error |
-| `AddAffiantAgentFramework()` + `WithAffiant(...)` | MAF hosts only | The hosted-tool coverage audit throws at `WithAffiant()` call time if a hosted/provider-side tool is uncovered and unacknowledged |
+| `AddAffiantAgentFramework()` + `WithAffiant(...)` (on `AIAgent`) | MAF hosts only | The hosted-tool coverage audit throws at `WithAffiant()` call time if a hosted/provider-side tool is uncovered and unacknowledged |
+| `AddAffiantExtensionsAI()` + `WithAffiant(...)` (on `ChatOptions`) | M.E.AI hosts only | Same hosted-tool coverage audit, thrown at `WithAffiant()` call time; also refuses at wire-up if the tool list is already wrapped by this adapter (double-wrap guard) |
 | `AddAffiantDocket()` | Always — supplies the backend-neutral expiry sweep even when the store itself comes from `Affiant.EntityFramework` | **Enforced since `1.0.0-beta.1` (area-8 ruling 6):** `AddAffiantCore()`'s `AffiantWireUpValidator` throws at startup if no package registered an `IDocketStore` at all, naming both ways to supply one |
 | `AddAffiantEntityFramework()` | Only if SQL-backed persistence is wanted (in addition to, not instead of, `AddAffiantDocket()`) | Same `AffiantWireUpValidator` check as above — it doesn't care which package supplied `IDocketStore`, only that one did |
 | `AddAffiantPolicies()` | Recommended, not throw-enforced | Skipped: every write falls through to the built-in `ReviewerConfirmation` default policy — a working, if unopinionated, fallback, not a startup failure |
@@ -439,11 +530,11 @@ read/inference half with no review loop.
 
 ## The packages
 
-Nine co-versioned packages target `net10.0` (`Affiant.AgentFramework` joined the set 2026-07-05;
-its NuGet ID reservation is still pending, see [Beta status](#beta-status)). The dependency graph
-is a strict DAG rooted at `Affiant.Abstractions`, mirroring the
-`Microsoft.Extensions.*.Abstractions` / `Microsoft.Extensions.*` convention — depend only on what
-you need.
+Ten co-versioned packages target `net10.0` (`Affiant.AgentFramework` joined the set 2026-07-05,
+`Affiant.Extensions.AI` joined 2026-08-20; both packages' NuGet ID reservations are still pending,
+see [Beta status](#beta-status)). The dependency graph is a strict DAG rooted at
+`Affiant.Abstractions`, mirroring the `Microsoft.Extensions.*.Abstractions` / `Microsoft.Extensions.*`
+convention — depend only on what you need.
 
 | Package | Purpose | Depends on |
 |---------|---------|------------|
@@ -451,6 +542,7 @@ you need.
 | `Affiant.Core` | Concrete services: `ContextFabric`, `ReviewGate`, task-inference merge, the deterministic short-circuit, the backend-neutral tool-invocation pipeline, DI wiring. | Abstractions |
 | `Affiant.SemanticKernel` | Semantic Kernel interception bridge — translates SK's function-invocation filter pipeline into the neutral pipeline; connector capabilities, structured-output inference. | Core |
 | `Affiant.AgentFramework` | Microsoft Agent Framework (MAF) interception bridge — translates MAF's function-calling middleware into the same neutral pipeline; tool catalog reflection, hosted-tool coverage audit. See [`docs/adapters/microsoft-agent-framework.md`](docs/adapters/microsoft-agent-framework.md). | Core |
+| `Affiant.Extensions.AI` | Microsoft.Extensions.AI (M.E.AI) interception bridge — the lower-level abstraction both SK and MAF sit on top of. Wraps each `AIFunction` in a `DelegatingAIFunction` that runs the neutral pipeline at M.E.AI's own function-calling seam; tool catalog reflection, hosted-tool coverage audit, double-wrap guard. Provider-neutral: references `Microsoft.Extensions.AI` only, never a concrete provider client. One adapter per tool catalog — never wire this alongside `Affiant.AgentFramework` over the same tools. | Core |
 | `Affiant.Docket` | The review queue's backend-neutral half — `InMemoryDocketStore` plus the background expiry sweep that re-broadcasts still-pending Evidence Cards. Pulls no database driver. | Abstractions, Core |
 | `Affiant.EntityFramework` | EF Core persistence for sessions and dockets — row-per-message schema, migrations, and the SQLite/Postgres `IChatSessionStore` **and** `IDocketStore` implementations. | Abstractions, Core |
 | `Affiant.Policies` | Fluent approval policy graph — Standing Orders (auto-approval), Referrals (escalation), reviewer confirmation, risk scoring. | Core |
@@ -489,17 +581,22 @@ Affiant complements Microsoft's agent stack; it does not compete with it.
 - **Microsoft Agent Framework (MAF) approval gates the *call*.** Affiant records provenance
   and evidence for each *field*. Approval-gating and field-level provenance are orthogonal;
   you can run both.
-- **Semantic Kernel and Microsoft Agent Framework, both first-class (as of 2026-07-05).** The
-  interception thesis — provenance tagging, task inference, review gating — is defined once,
-  backend-neutrally, in `Affiant.Core`; `Affiant.SemanticKernel` and `Affiant.AgentFramework`
-  are thin bridges over SK's function-invocation filter pipeline and MAF's function-calling
-  middleware (`FunctionInvocationContext`) respectively. Earlier planning assumed a MAF port
-  could stay confined to a new `Affiant.SemanticKernel`-adjacent package with no other changes;
-  that premise turned out to be false — `Affiant.Core` and `Affiant.Abstractions` still carried
-  direct Semantic Kernel dependencies, which a second backend could not share. Extracting a
-  genuinely neutral pipeline out of that coupling was the actual work; see
-  `docs/proposals/affiant-maf-adapter.md` for the design and
-  `docs/adapters/microsoft-agent-framework.md` for the host-facing guide.
+- **Semantic Kernel, Microsoft Agent Framework, and Microsoft.Extensions.AI, all three
+  first-class** (MAF joined 2026-07-05; M.E.AI joined 2026-08-20). The interception thesis —
+  provenance tagging, task inference, review gating — is defined once, backend-neutrally, in
+  `Affiant.Core`; `Affiant.SemanticKernel`, `Affiant.AgentFramework`, and `Affiant.Extensions.AI`
+  are thin bridges over SK's function-invocation filter pipeline, MAF's function-calling middleware
+  (`FunctionInvocationContext`), and M.E.AI's own `FunctionInvokingChatClient` seam respectively.
+  Earlier planning assumed a MAF port could stay confined to a new
+  `Affiant.SemanticKernel`-adjacent package with no other changes; that premise turned out to be
+  false — `Affiant.Core` and `Affiant.Abstractions` still carried direct Semantic Kernel
+  dependencies, which a second backend could not share. Extracting a genuinely neutral pipeline out
+  of that coupling was the actual work, and it is what let the third backend (M.E.AI) land as
+  "just" a new adapter package with no changes to `Affiant.Core`; see
+  `docs/proposals/affiant-maf-adapter.md` for the MAF design,
+  `docs/adapters/microsoft-agent-framework.md` for the MAF host-facing guide, and
+  `docs/overnight-mission-2026-08-20/meai-adapter-design.md` (`affiant-chancery` repo) for the M.E.AI
+  design brief.
 - **Locally-invoked MCP tool writes flow through the same seam.** MCP tools that *your
   client* invokes funnel through the same function-invocation context, so an adapter
   intercepts those writes for free — field-level provenance for local MCP tool writes.
@@ -514,7 +611,7 @@ Affiant complements Microsoft's agent stack; it does not compete with it.
 
 ## Versioning & compatibility
 
-Affiant follows [SemVer 2.0](https://semver.org/spec/v2.0.0.html). The nine packages version
+Affiant follows [SemVer 2.0](https://semver.org/spec/v2.0.0.html). The ten packages version
 **in lockstep** — one version number for all of them, since `2026-07-05` — mechanics and the
 per-release detail are in the [CHANGELOG](CHANGELOG.md)'s header; not repeated here.
 
@@ -531,14 +628,14 @@ per-release detail are in the [CHANGELOG](CHANGELOG.md)'s header; not repeated h
   prose, including the concrete migration. "No stability promise" describes what's allowed to
   break, not permission to leave a break undocumented.
 - **After `1.0.0` GA, standard SemVer applies:** a breaking change requires a major-version bump
-  across all nine packages (lockstep means one package's break is every package's major bump); a
+  across all ten packages (lockstep means one package's break is every package's major bump); a
   deprecation gets an `[Obsolete]` attribute with a removal-target version stated in its message
   before removal, not simultaneous with it (see `IDeterministicFieldSource`'s current
   `[Obsolete]`-then-scheduled-removal treatment in the CHANGELOG for the pattern in practice).
 - **What actually enforces this, mechanically, as of `1.0.0-beta.1`:** every packable project
   carries `PublicAPI.Shipped.txt`/`PublicAPI.Unshipped.txt` baselines and references
   `Microsoft.CodeAnalysis.PublicApiAnalyzers` — an undeclared or silently-deleted public member
-  fails the build (`RS0016`/`RS0017`). `EnablePackageValidation` is on for all nine packages,
+  fails the build (`RS0016`/`RS0017`). `EnablePackageValidation` is on for all ten packages,
   diffing the packed public surface against `PackageValidationBaselineVersion` once one is set
   (deliberately unset today — there is no published version yet to diff against). Together these
   catch *accidental* drift; they do not and cannot enforce the *policy* above, which is about
