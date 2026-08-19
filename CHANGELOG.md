@@ -12,6 +12,76 @@ any *published* release (`docs/proposals/affiant-maf-adapter.md` §9).
 
 ## [Unreleased]
 
+### Changed — Area-8 P2: eight data types move out of `Affiant.Abstractions.Interfaces` into `.Models`
+
+**Source-breaking for anyone with `using Affiant.Abstractions.Interfaces;` who referenced these
+unqualified without also importing `.Models`. Binary-clean and behavior-identical; no member
+signature changed as part of this move.** `ChatSession`, `ConversationContext`, `ReviewRequirement`,
+`ReviewResponse` (and its `ReviewGranted` / `ReviewDenied` / `ReviewExpired` cases) and
+`TaskInferenceField` are plain data, but each was hand-added next to the interface that first needed
+it. The package's own folder convention is "Interfaces = contracts, Models = data", and the drift
+meant a `using Affiant.Abstractions.Models;` alone did not get you `ReviewRequirement` or
+`ChatSession` for no principled reason. Pre-1.0 is the last cheap moment: after beta, every host
+implementing `IApprovalPolicy` or `IChatSessionStore` has the old namespace baked into shipped code.
+Fix at a call site is a `using` addition, nothing more.
+
+### Changed — Area-8 P2: every amendments dictionary is now `IReadOnlyDictionary<string, object?>`
+
+Three divergent shapes existed for the same "reviewer edits to a proposed write" payload. This is
+not cosmetic: a non-nullable value type cannot represent "set this field to null", which is why a
+host consuming the old `IWriteExecutor` contract had to filter null-valued entries out before
+calling it, silently dropping explicit clear-field amendments.
+
+- `IWriteExecutor.ExecuteAsync`'s `amendments` parameter: `Dictionary<string, object>?` →
+  `IReadOnlyDictionary<string, object?>?`. **Breaking for implementers** (`Dictionary<,>` is an
+  invariant concrete type). Update the signature; a key present with a `null` value now means
+  "clear this field", distinct from the key being absent.
+- `ReviewContext.Amendments` and `ReviewGranted.Amendments`: widened to the same shape. Non-breaking
+  for producers — `IReadOnlyDictionary<,>` is covariant in its value type, so existing construction
+  sites compile unchanged.
+
+`DocketEntry.Amendments`, `IDocketStore.UpdateAmendmentsAsync`, `EvidenceCardRequest.PriorAmendments`
+and `EvidenceCardResponse.Amendments` already used this shape and are unaffected.
+
+### Changed — Area-8 P2: `RiskScoreCalculator` renamed to `RiskScoreCalculatorBase`
+
+**Breaking for any host that subclassed it** (none known). It is an abstract extensibility base with
+the same shape as its siblings `ReferralRuleBase` and `StandingOrderBase`, and was the only one of
+the three whose name did not say so. `SetRiskScoreCalculator<T>()` keeps its name — it names the
+role being set, not the base type.
+
+### Removed — Area-8 P2: dead and deprecated-on-arrival public surface
+
+- `FunctionNameInferenceTrigger` (`Affiant.Core.Triggers`) deleted. It carried
+  `[Obsolete("... will be removed before v1.0.0")]` from the day it was written and had zero usage
+  outside its own unit tests. Shipping a type marked deprecated in the first public package is
+  strictly worse than shipping nothing. Use `WriteIntentInferenceTrigger` with `[AffiantWriteTool]`
+  decoration; a host that genuinely needs allowlist triggering implements `IInferenceTrigger` itself.
+- `AffiantCoreOptions.PrimaryProvider` and `.FallbackProvider` deleted. Nothing read either property
+  anywhere, and their doc comment ("Passed to the SK kernel for automatic provider selection") was
+  false: provider selection is governed by the separate `Affiant.Core.Services.SemanticKernelOptions`
+  pair of the same names, configured through `AddAffiantSemanticKernel`. That class is unaffected.
+- The five per-provider `IConnectorCapabilities` classes in
+  `Affiant.SemanticKernel.Connectors.Capabilities` (`AzureOpenAiCapabilities`,
+  `GoogleGeminiCapabilities`, `OllamaCapabilities`, `OpenAiCapabilities`,
+  `OpenAiCompatibleCapabilities`) are now `internal`. Each was constructed exactly once, inside
+  `CapabilityRegistry`; `CapabilityRegistry.Resolve(string)` returns the interface and never a
+  concrete type, so no adopter code path could observe them. `CapabilityRegistry` itself stays
+  public and DI-resolvable.
+
+**Deliberately not removed:** `IDeterministicFieldSource` stays `[Obsolete]` in this release despite
+the same policy conflict, because a live host still implements it. Its removal is scheduled for
+beta.2 and tracked as its own issue.
+
+### Added — Area-8 P2: type summaries on the primary adopter-facing Abstractions interfaces
+
+`IDocketStore`, `IApprovalPolicy`, `IChatSessionStore`, `IWriteExecutor` and `IContextFabric` each
+gained a type-level `<summary>`/`<remarks>` covering what the contract is for, whether an adopter
+implements or merely consumes it, which package ships a ready implementation, and the trap where one
+exists (`IDocketStore`'s rows-affected atomicity obligations, `IChatSessionStore`'s
+append-vs-replace split, `IApprovalPolicy`'s null-means-defer chain semantics). These now reach
+adopters' IntelliSense, since XML documentation generation was enabled in the same release.
+
 ### Fixed — Area-5 refuter round: double-broadcast race, SQLite migration drift, cancellation logging, D2 disclosure
 
 Adversarial refuter pass over the Area-5 Docket-store-semantics wave (below), fixing four
