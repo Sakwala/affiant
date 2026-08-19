@@ -9,6 +9,7 @@
     <Project Path="src/Affiant.Docket/Affiant.Docket.csproj" />
     <Project Path="src/Affiant.Policies/Affiant.Policies.csproj" />
     <Project Path="src/Affiant.Testing.ComplianceHarness/Affiant.Testing.ComplianceHarness.csproj" />
+    <Project Path="src/Affiant.Extensions.AI/Affiant.Extensions.AI.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Affiant.TestInfrastructure/Affiant.TestInfrastructure.csproj" />

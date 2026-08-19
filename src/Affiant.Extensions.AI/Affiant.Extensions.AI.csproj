@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <PackageId>Affiant.Extensions.AI</PackageId>
+    <Description>Microsoft.Extensions.AI adapter for the Affiant framework — wraps each AIFunction in a DelegatingAIFunction that runs the backend-neutral tool-invocation pipeline at Microsoft.Extensions.AI's own function-calling seam, plus tool catalog reflection, a structured-output inference port, and hosted-tool coverage auditing. Provider-neutral: references Microsoft.Extensions.AI only, never a concrete provider client.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <!-- Unit-test access to internal edge helpers (message conversions, hosted-tool audit). -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Affiant.Extensions.AI.Tests" />
+  </ItemGroup>
+
+  <!-- Framework layering: the adapter depends on Core (which pulls in Abstractions) and nothing
+       else beginning with Affiant. In particular there is deliberately NO ProjectReference onto
+       Affiant.AgentFramework, even though the Microsoft Agent Framework sits on top of
+       Microsoft.Extensions.AI and inverting the two packages is the correct long-term shape: that
+       inversion re-shapes a shipped adapter and amends the no-adapter-to-adapter-reference
+       invariant Area-8 just re-established, so it is deliberately deferred (design brief
+       affiant-chancery docs/overnight-mission-2026-08-20/meai-adapter-design.md, decision 3). The
+       code the two adapters share is copied, with a header comment on each copy naming its source
+       file, and a consolidation issue tracks the eventual inversion. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Affiant.Core\Affiant.Core.csproj" />
+  </ItemGroup>
+
+  <!-- Microsoft.Extensions.AI ONLY. No Microsoft.Agents.AI, and no provider client
+       (Microsoft.Extensions.AI.OpenAI, Google.GenAI, ...) — provider choice belongs to the host. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.AI" Version="10.9.0" />
+  </ItemGroup>
+
+  <!-- Zero references to other adapter packages or host apps -->
+
+</Project>

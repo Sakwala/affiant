@@ -1,0 +1,21 @@
+Affiant.Extensions.AI.Adapters.ExtensionsAIInferenceCompletionPort
+Affiant.Extensions.AI.Adapters.ExtensionsAIInferenceCompletionPort.CompleteStructuredAsync(Affiant.Abstractions.Models.InferenceCompletionRequest! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Text.Json.JsonElement>!
+Affiant.Extensions.AI.Adapters.ExtensionsAIInferenceCompletionPort.ExtensionsAIInferenceCompletionPort(Microsoft.Extensions.AI.IChatClient! chatClient, Microsoft.Extensions.Logging.ILogger<Affiant.Extensions.AI.Adapters.ExtensionsAIInferenceCompletionPort!>! logger) -> void
+Affiant.Extensions.AI.AffiantToolCatalog
+Affiant.Extensions.AI.AffiantToolCatalog.<Clone>$() -> Affiant.Extensions.AI.AffiantToolCatalog!
+Affiant.Extensions.AI.AffiantToolCatalog.AffiantToolCatalog(System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.AI.AIFunction!>! Functions, System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.AffiantToolDescriptor!>! Descriptors) -> void
+Affiant.Extensions.AI.AffiantToolCatalog.Deconstruct(out System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.AI.AIFunction!>! Functions, out System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.AffiantToolDescriptor!>! Descriptors) -> void
+Affiant.Extensions.AI.AffiantToolCatalog.Descriptors.get -> System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.AffiantToolDescriptor!>!
+Affiant.Extensions.AI.AffiantToolCatalog.Descriptors.init -> void
+Affiant.Extensions.AI.AffiantToolCatalog.Equals(Affiant.Extensions.AI.AffiantToolCatalog? other) -> bool
+Affiant.Extensions.AI.AffiantToolCatalog.Functions.get -> System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.AI.AIFunction!>!
+Affiant.Extensions.AI.AffiantToolCatalog.Functions.init -> void
+Affiant.Extensions.AI.Attributes.AffiantToolNameAttribute
+Affiant.Extensions.AI.Attributes.AffiantToolNameAttribute.AffiantToolNameAttribute(string! name) -> void
+Affiant.Extensions.AI.Attributes.AffiantToolNameAttribute.Name.get -> string!
+override Affiant.Extensions.AI.AffiantToolCatalog.Equals(object? obj) -> bool
+override Affiant.Extensions.AI.AffiantToolCatalog.GetHashCode() -> int
+override Affiant.Extensions.AI.AffiantToolCatalog.ToString() -> string!
+static Affiant.Extensions.AI.AffiantToolCatalog.FromType<T>(string? pluginName = null) -> Affiant.Extensions.AI.AffiantToolCatalog!
+static Affiant.Extensions.AI.AffiantToolCatalog.operator !=(Affiant.Extensions.AI.AffiantToolCatalog? left, Affiant.Extensions.AI.AffiantToolCatalog? right) -> bool
+static Affiant.Extensions.AI.AffiantToolCatalog.operator ==(Affiant.Extensions.AI.AffiantToolCatalog? left, Affiant.Extensions.AI.AffiantToolCatalog? right) -> bool
