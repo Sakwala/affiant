@@ -132,15 +132,38 @@ exceptions.** If the source is unknown, it is tagged `Empty` — it is never lef
 
 ## Quickstart
 
-Affiant plugs into a Semantic Kernel host through dependency injection. Three pieces wire a
-write tool with full provenance.
+Affiant has two interception backends — Semantic Kernel (SK) and Microsoft Agent Framework
+(MAF) — sitting on one shared, backend-neutral pipeline in `Affiant.Core`. Pick the one your
+host already uses; both walkthroughs below end at the same place, a filed `Affidavit` visible
+as a rendered Evidence Card (§"See your first Evidence Card" in each). If you are choosing
+between the two for a new host, MAF is Microsoft's current-generation SDK (GA 2026-04-03); SK
+remains fully supported and is what the reference example throughout this README uses.
+
+See ["Which of the 9 packages do I need?"](#which-of-the-9-packages-do-i-need) for the install
+list per scenario, and ["Mandatory vs optional wiring"](#mandatory-vs-optional-wiring) for what
+happens if you skip a call — some gaps now fail loudly at startup, some don't yet.
+
+### Semantic Kernel
 
 **1. Register the framework** (`Affiant.Core` + the Semantic Kernel adapter):
 
 ```csharp
 builder.Services.AddAffiantCore();
 builder.Services.AddAffiantSemanticKernel();
+builder.Services.AddAffiantInferenceOrchestration();
 ```
+
+`AddAffiantInferenceOrchestration()` is what powers the `Inferred` row of the
+[determinism hierarchy](#the-determinism-hierarchy) above — it wires the pre-tool filters that
+ask the model for structured output on fields your tool call didn't receive directly, so an
+`Affidavit` field can honestly carry `ProvenanceSource.Inferred` instead of being silently
+absent. **Required if any write tool leaves a field for the model to infer rather than always
+receiving it as a typed argument or looking it up itself; skip it only if every field on every
+write tool always arrives as `UserStated`, `External`, or `Computed`** — the worked example
+below is exactly that simpler case (every field comes straight off the tool call's parameters),
+so it would run without this line, but almost every real host needs it and the line is shown
+here so you don't discover it's missing from a cold read of this README, which is what
+happened before this section was rewritten (see the CHANGELOG's Area-8 entries).
 
 **2. Declare an inference strategy** — the field schema for one writable entity. This is the
 domain-specific contract the framework uses to request structured output from the model and
@@ -225,21 +248,192 @@ builder.Services.AddAffiantTool<LeaveTaskInferenceStrategy>(
     functionName: "request_leave", operation: Operation.WriteCreate, entityType: "LeaveRequest");
 ```
 
-From here you add an `IFieldMapper<T>` (Affidavit ↔ your domain model) and an `IWriteExecutor`
-(the one place `SaveChanges` runs), plus a persistence backend — `AddAffiantEntityFramework(ef =>
-ef.UseSqlite(cs))` for a durable `IDocketStore`/`IChatSessionStore` pair, or
-`AddAffiantDocket(d => d.UseInMemory())` for a process-local one, and `AddAffiantDocket()` either
-way for the expiry sweep — a policy graph (`AddAffiantPolicies`), and a transport
-(`AddAffiantSignalR`). Read tools follow the same shape and return a `ReadResult`. The full
-walkthrough — read tools, context extraction, field mapping, error handling, and testing — is
-in [`docs/tool-authoring-guide.md`](docs/tool-authoring-guide.md).
+**5. Complete the wiring** — persistence, policy, transport. You also still need an
+`IFieldMapper<T>` (Affidavit ↔ your domain model, host-authored) and an `IWriteExecutor` (the
+one place `SaveChanges` runs, also host-authored) — both are covered in
+[`docs/tool-authoring-guide.md`](docs/tool-authoring-guide.md), not shown here since they are
+domain-specific. What every host needs regardless of domain:
+
+```csharp
+// Persistence — pick ONE store for IDocketStore + IChatSessionStore, but AddAffiantDocket()
+// is needed either way, for the backend-neutral expiry sweep:
+builder.Services.AddAffiantEntityFramework(ef => ef.UseSqlite(connectionString)); // durable
+// -- or, for a process-local store with nothing surviving a restart (dev/test only) --
+// builder.Services.AddAffiantDocket(d => d.UseInMemory());
+builder.Services.AddAffiantDocket();
+
+// Policy graph — governs auto-approval / escalation / reviewer-confirmation routing.
+// Omit this and every write falls through to the built-in ReviewerConfirmation default.
+builder.Services.AddAffiantPolicies();
+
+// Transport — SignalR is the only shipped IStreamingTransport. THub is host-authored,
+// subclassing AffiantHub.
+builder.Services.AddAffiantSignalR<MyChatHub>();
+```
+
+```csharp
+// In the request pipeline section, after app.Build():
+app.MapAffiantSignalR<MyChatHub>();
+```
+
+Read tools follow the same shape as the write tool above and return a `ReadResult` instead of a
+`WriteProposal`. The full walkthrough — read tools, context extraction, field mapping, error
+handling, and testing — is in [`docs/tool-authoring-guide.md`](docs/tool-authoring-guide.md). If
+you are also registering your own filters alongside these calls, read
+[`docs/di-registration-order.md`](docs/di-registration-order.md) first — two registration-order
+rules exist that no startup check catches yet.
+
+**6. See your first Evidence Card.** Affiant ships no bundled UI — "rendered" here means the
+framework has done its job: `ReviewGate` filed the `Affidavit` on the Docket and pushed an
+`EvidenceCardRequest` down the transport to whichever client is in the reviewer's SignalR group.
+Concretely, once a client is connected and in that group, this is the payload it receives, over
+the wire, unprompted:
+
+```jsonc
+// Client-side: connection.on("ConfirmAction", payload => { /* render it */ });
+// TransportEvent.EvidenceCardRequest's wire name is "ConfirmAction" (see TransportEventExtensions).
+{
+  "docketId": "5b1e8f2a-...-9c3d",
+  "affidavit": { /* the WriteProposal's Affidavit — see "What a write looks like" above */ },
+  "requiredBy": "2026-08-20T09:39:11Z",
+  "priorAmendments": null
+}
+```
+
+Turning that payload into an on-screen card — the actual `<affiant-evidence-card>`-shaped UI a
+human reviewer clicks Approve/Reject on — is host territory; neither reference host application
+ships a bundled or reusable web component for it as of this release (each renders its own). What
+this Quickstart gets you to is the point where that payload exists and is on the wire, which is
+everything the framework itself is responsible for. From there, `EvidenceCardResponse` (the
+reviewer's decision, including any field amendments) travels back the same transport and
+`ReviewGate.HandleDecisionAsync` picks it up.
 
 Install:
 
 ```bash
 dotnet add package Affiant.Core --prerelease
 dotnet add package Affiant.SemanticKernel --prerelease
+dotnet add package Affiant.EntityFramework --prerelease  # or Affiant.Docket alone, in-memory only
+dotnet add package Affiant.Docket --prerelease            # always — the expiry sweep
+dotnet add package Affiant.Policies --prerelease
+dotnet add package Affiant.Transport.SignalR --prerelease
 ```
+
+### Microsoft Agent Framework
+
+The MAF adapter wires the same neutral pipeline through MAF's function-calling middleware
+instead of SK's filter pipeline. Full reference:
+[`docs/adapters/microsoft-agent-framework.md`](docs/adapters/microsoft-agent-framework.md).
+
+**1. Register the framework:**
+
+```csharp
+builder.Services.AddAffiantCore();
+builder.Services.AddAffiantAgentFramework();
+```
+
+Unlike the SK adapter, there is no separate `AddAffiantInferenceOrchestration()` call for MAF —
+`AddAffiantAgentFramework()` registers the equivalent inference-orchestration stack in the same
+call (see the package's own XML `<summary>` on `AddAffiantAgentFramework` for the exact
+one-call-covers-both-of-SK's-two-calls mapping).
+
+**2. Declare an inference strategy and write the tool** — identical shape to the SK example
+above (`ITaskInferenceStrategy`, `[AffiantWriteTool]`), because both backends read the same
+`Affiant.Abstractions` contracts. MAF reflects over a tool *type*, not per-method attributes for
+discovery, and has no `[KernelFunction]`-equivalent marker — every public instance method
+becomes a callable tool, so a MAF tool type's public surface should contain only tool methods:
+
+```csharp
+public sealed class LeaveTools(HrDbContext db)
+{
+    [AffiantWriteTool("WriteCreate", "LeaveRequest", typeof(LeaveTaskInferenceStrategy))]
+    [Description("Propose a leave request. Returns a WriteProposal for review; never writes directly.")]
+    public Task<string> RequestLeaveAsync(DateOnly startDate, DateOnly endDate, string leaveType, string reason)
+    {
+        // Same body as the SK example: build the Affidavit's fields with their ProvenanceChain,
+        // wrap it in a WriteProposal, never touch the database directly.
+        // ...
+    }
+}
+```
+
+**3. Build the catalog and wrap the agent:**
+
+```csharp
+var catalog = AffiantToolCatalog.FromType<LeaveTools>();
+builder.Services.AddScoped<LeaveTools>();
+
+// ... after the service provider and IChatClient exist:
+AIAgent agent = new ChatClientAgent(
+        chatClient, instructions: "...", tools: catalog.Functions.Cast<AITool>().ToList(),
+        services: serviceProvider)
+    .WithAffiant(serviceProvider, catalog);
+```
+
+`WithAffiant(...)` is the only supported way to attach Affiant to an `AIAgent` — it also runs the
+hosted-tool coverage audit (refuses at wire-up time if the wrapped agent carries a provider-side
+tool, such as a hosted web-search tool, that MAF's client-side middleware can't see and Affiant
+therefore cannot swear to; see `AgentFrameworkOptions.AcknowledgeUncoveredTools` to acknowledge
+one deliberately). **Wrapping produces a new `AIAgent` instance — the pre-wrap `agent` local
+silently bypasses Affiant if anything in your codebase calls it instead of the wrapped return
+value.**
+
+**4. Complete the wiring, and 5. see your first Evidence Card** — identical to steps 5 and 6 of
+the SK quickstart above: same `AddAffiantEntityFramework`/`AddAffiantDocket`/`AddAffiantPolicies`/
+`AddAffiantSignalR` calls, same `EvidenceCardRequest` payload over the same transport, because
+both backends terminate in the same backend-neutral `ReviewGate`.
+
+Install:
+
+```bash
+dotnet add package Affiant.Core --prerelease
+dotnet add package Affiant.AgentFramework --prerelease
+dotnet add package Affiant.EntityFramework --prerelease  # or Affiant.Docket alone, in-memory only
+dotnet add package Affiant.Docket --prerelease            # always — the expiry sweep
+dotnet add package Affiant.Policies --prerelease
+dotnet add package Affiant.Transport.SignalR --prerelease
+```
+
+---
+
+## Which of the 9 packages do I need?
+
+Affiant has no meta-package — nine granular packages, install only what your scenario needs
+(the same shape as `Microsoft.Extensions.*` or Duende IdentityServer's core-plus-adapters split).
+
+| Your situation | Install |
+|---|---|
+| Implementing a contract only (e.g. your own `IDocketStore`), no runtime wiring | `Affiant.Abstractions` |
+| Semantic Kernel host, in-memory/dev, nothing survives a restart | `Affiant.Abstractions`, `Affiant.Core`, `Affiant.SemanticKernel`, `Affiant.Docket`, `Affiant.Policies`, `Affiant.Transport.SignalR` |
+| Semantic Kernel host, SQL-backed (SQLite/PostgreSQL) production | same six, **+ `Affiant.EntityFramework`** (installed alongside `Affiant.Docket`, not instead of it — see the quickstart above) |
+| Microsoft Agent Framework host, in-memory/dev | `Affiant.Abstractions`, `Affiant.Core`, `Affiant.AgentFramework`, `Affiant.Docket`, `Affiant.Policies`, `Affiant.Transport.SignalR` |
+| Microsoft Agent Framework host, SQL-backed production | same six, **+ `Affiant.EntityFramework`** |
+| Either backend, proving your own write strategies carry real provenance in CI | add `Affiant.Testing.ComplianceHarness` to your **test** project only |
+
+## Mandatory vs optional wiring
+
+No single `Add*` call wires everything — reconstructed here in one table instead of scattered
+across throw sites and XML `<remarks>`. "Enforced?" states what happens **today** (`1.0.0-beta.1`)
+if you skip a required call; some gaps now fail loudly at startup, some remain silent until first
+use, and DI **ordering** mistakes (as opposed to missing registrations) are covered separately in
+[`docs/di-registration-order.md`](docs/di-registration-order.md), not this table.
+
+| Call | Required? | If skipped, enforced how? |
+|---|---|---|
+| `AddAffiantCore()` | Always, first | `AddAffiantTool<T>`/`AddAffiantReadTool` throw at registration time naming the fix |
+| `AddAffiantTool<TStrategy>()` / `AddAffiantReadTool()` | Per tool | N/A — this call *is* the registration |
+| `AddAffiantSemanticKernel()` | SK hosts only | `AffiantStartupValidator` throws at startup if a `[KernelFunction]` has no matching descriptor, or a registered inference strategy can't resolve from DI |
+| `AddAffiantInferenceOrchestration()` (SK) | Only if any write tool leaves a field for the model to infer (see the [Quickstart](#semantic-kernel)) | **Not enforced.** No validator checks its presence; a missing call means inference silently never fires, not an error |
+| `AddAffiantAgentFramework()` + `WithAffiant(...)` | MAF hosts only | The hosted-tool coverage audit throws at `WithAffiant()` call time if a hosted/provider-side tool is uncovered and unacknowledged |
+| `AddAffiantDocket()` | Always — supplies the backend-neutral expiry sweep even when the store itself comes from `Affiant.EntityFramework` | **Enforced since `1.0.0-beta.1` (area-8 ruling 6):** `AddAffiantCore()`'s `AffiantWireUpValidator` throws at startup if no package registered an `IDocketStore` at all, naming both ways to supply one |
+| `AddAffiantEntityFramework()` | Only if SQL-backed persistence is wanted (in addition to, not instead of, `AddAffiantDocket()`) | Same `AffiantWireUpValidator` check as above — it doesn't care which package supplied `IDocketStore`, only that one did |
+| `AddAffiantPolicies()` | Recommended, not throw-enforced | Skipped: every write falls through to the built-in `ReviewerConfirmation` default policy — a working, if unopinionated, fallback, not a startup failure |
+| `AddAffiantSignalR<THub>()` + `app.MapAffiantSignalR<THub>()` | Always (the only shipped transport) | **Enforced since `1.0.0-beta.1`:** the same `AffiantWireUpValidator` throws at startup if no package registered `IStreamingTransport`, naming the fix |
+| Host filter registration order relative to `AddAffiantCore()`/`AddAffiantSemanticKernel()` | Two specific orderings, if you register your own filters | **Not enforced.** See [`docs/di-registration-order.md`](docs/di-registration-order.md) |
+
+`AffiantCoreOptions.AcknowledgeMissingReviewWiring = true` downgrades the `AffiantWireUpValidator`
+throw to a startup warning per missing contract, for a host deliberately running Affiant's
+read/inference half with no review loop.
 
 ---
 
@@ -318,18 +512,52 @@ Affiant complements Microsoft's agent stack; it does not compete with it.
 
 ---
 
+## Versioning & compatibility
+
+Affiant follows [SemVer 2.0](https://semver.org/spec/v2.0.0.html). The nine packages version
+**in lockstep** — one version number for all of them, since `2026-07-05` — mechanics and the
+per-release detail are in the [CHANGELOG](CHANGELOG.md)'s header; not repeated here.
+
+**What a prerelease tag promises, stated explicitly because SemVer itself doesn't define it:**
+
+- **Between any two prerelease tags (`-alpha.N` → `-alpha.N+1`, or `-beta.N` → `-beta.N+1`), the
+  public API carries no stability promise.** A prerelease consumer has opted in
+  (`dotnet add package --prerelease` or an explicit version) and should expect that a type
+  shape, a DI extension signature, or a package boundary can change in the very next prerelease
+  tag with no deprecation window — pin the exact version, don't float on `--prerelease`, and
+  read the CHANGELOG before bumping.
+- **A breaking prerelease change is still always documented** — every Area-8 breaking change in
+  the current `[Unreleased]` CHANGELOG section is labeled `!` in its commit and spelled out in
+  prose, including the concrete migration. "No stability promise" describes what's allowed to
+  break, not permission to leave a break undocumented.
+- **After `1.0.0` GA, standard SemVer applies:** a breaking change requires a major-version bump
+  across all nine packages (lockstep means one package's break is every package's major bump); a
+  deprecation gets an `[Obsolete]` attribute with a removal-target version stated in its message
+  before removal, not simultaneous with it (see `IDeterministicFieldSource`'s current
+  `[Obsolete]`-then-scheduled-removal treatment in the CHANGELOG for the pattern in practice).
+- **What actually enforces this, mechanically, as of `1.0.0-beta.1`:** every packable project
+  carries `PublicAPI.Shipped.txt`/`PublicAPI.Unshipped.txt` baselines and references
+  `Microsoft.CodeAnalysis.PublicApiAnalyzers` — an undeclared or silently-deleted public member
+  fails the build (`RS0016`/`RS0017`). `EnablePackageValidation` is on for all nine packages,
+  diffing the packed public surface against `PackageValidationBaselineVersion` once one is set
+  (deliberately unset today — there is no published version yet to diff against). Together these
+  catch *accidental* drift; they do not and cannot enforce the *policy* above, which is about
+  what a maintainer is allowed to change on purpose between tags — that's a human commitment,
+  recorded here and in the CHANGELOG, not a build gate.
+
 ## Beta status
 
 This is `1.0.0-beta.1`. Earlier `1.0.0-alpha.*` versions were internal and were never
 published.
 
 The API has been exercised by two independent first-party host applications, but it has not
-yet reached 1.0 GA and **will change before it does**. Adopt on this basis:
+yet reached 1.0 GA. Adopt on this basis:
 
 - **Trust the invariant.** Every Affidavit field carries provenance, no exceptions. That
   contract is stable and is enforced by the ComplianceHarness.
-- **Expect API evolution.** Type shapes, DI extension signatures, and package boundaries may
-  change between beta and 1.0.0. Pin the version; read the [CHANGELOG](CHANGELOG.md).
+- **Expect API evolution between prerelease tags** — see
+  ["Versioning & compatibility"](#versioning--compatibility) above for exactly what that does
+  and doesn't promise.
 - **`Affiant.AgentFramework` ships in this repo but is not yet on nuget.org.** The NuGet ID
   reservation and its inclusion in the co-versioned publish set are separate, still-pending
   maintainer/operator steps (`docs/proposals/affiant-maf-adapter.md` §9). Build it from source
