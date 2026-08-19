@@ -20,12 +20,30 @@ using Microsoft.Extensions.DependencyInjection;
 /// </summary>
 internal static class AffiantTestHost
 {
+    /// <param name="approvalPolicy">
+    /// The approval policy <c>ApprovalPolicyEvaluator</c> consults. Defaults to a standing order, so
+    /// a filed proposal auto-approves and resolves synchronously — the "already decided, nothing to
+    /// wait for" half of the review gate. Pass a policy returning
+    /// <see cref="ReviewRequirement.ReviewerConfirmation"/> to exercise the other half (a human must
+    /// act, so the turn ends and an Evidence Card goes out). It is a constructor parameter rather
+    /// than something a <paramref name="configure"/> callback can add, because
+    /// <c>ApprovalPolicyEvaluator</c> takes the FIRST registered policy that returns a requirement —
+    /// a policy appended later could never win.
+    /// </param>
+    /// <param name="transport">
+    /// The streaming transport <c>ReviewGate</c> broadcasts Evidence Cards on. Defaults to one that
+    /// throws on every call, so a test that does not expect any client traffic fails loudly rather
+    /// than silently tolerating it.
+    /// </param>
     public static ServiceProvider Build(
         IChatClient chatClient,
         FakeDocketStore docketStore,
         object toolInstance,
         Action<IServiceCollection>? configure = null,
-        Action<ExtensionsAIOptions>? configureAdapter = null)
+        Action<ExtensionsAIOptions>? configureAdapter = null,
+        IApprovalPolicy? approvalPolicy = null,
+        IStreamingTransport? transport = null,
+        IChatClient? inferenceChatClient = null)
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -49,12 +67,18 @@ internal static class AffiantTestHost
         // ExtensionsAIInferenceCompletionPort resolves IChatClient — required because a registered
         // write-intent tool makes InferenceTriggerFilter construct TaskInferenceRunner (and
         // therefore the port) merely by being resolved from the filter enumerable.
-        services.AddSingleton(chatClient);
+        //
+        // Defaults to the same client the chat loop runs on, which is fine for tests that only care
+        // about what the tool did. Tests that use the loop client's call count as a
+        // loop-continuation witness must pass a SEPARATE inferenceChatClient: task inference for a
+        // write tool is a real extra completion call, so a shared client's count would silently
+        // conflate "the loop went back to the model" with "inference ran".
+        services.AddSingleton(inferenceChatClient ?? chatClient);
 
         services.AddScoped<ReviewGate>();
-        services.AddSingleton<IStreamingTransport>(new UnusedStreamingTransport());
+        services.AddSingleton(transport ?? new UnusedStreamingTransport());
         services.AddSingleton<IDocketStore>(docketStore);
-        services.AddSingleton<IApprovalPolicy>(new StandingOrderPolicy());
+        services.AddSingleton(approvalPolicy ?? new StandingOrderPolicy());
         services.AddSingleton<IApprovalPolicyEvaluator, ApprovalPolicyEvaluator>();
         services.AddSingleton<IReviewContextProvider>(new DelegatingReviewContextProvider(
             _ => BuildReviewContext()));
@@ -107,6 +131,76 @@ internal static class AffiantTestHost
         public Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default)
             => throw new InvalidOperationException("UnusedStreamingTransport.AwaitEvidenceCardResponseAsync should not be called");
     }
+}
+
+/// <summary>
+/// Stand-in for the structured-extraction LLM edge, kept separate from the chat loop's own client so
+/// a test can use that client's call count as a loop-continuation witness. Always answers an empty
+/// JSON object: task inference finds nothing to merge, which is exactly what these tests want — the
+/// inference call must happen (it is part of the real write path) without contributing anything the
+/// review-gate assertions would have to account for.
+/// </summary>
+internal sealed class StubInferenceChatClient : IChatClient
+{
+    public int CallCount { get; private set; }
+
+    public Task<ChatResponse> GetResponseAsync(
+        IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        CallCount++;
+        return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, "{}")));
+    }
+
+    public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+        IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("Structured-output inference never streams.");
+
+    public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+    public void Dispose()
+    {
+    }
+}
+
+/// <summary>
+/// Approval policy demanding a human reviewer, so <c>ReviewGate.FileForReviewAsync</c> takes its
+/// <c>RequiresReview</c> branch: file the entry as Pending, broadcast the Evidence Card, and hand
+/// <c>ReviewGateFilter</c> the verdict that ends the model's turn. The counterpart of
+/// <c>AffiantTestHost</c>'s default standing order.
+/// </summary>
+internal sealed class ReviewerConfirmationPolicy : IApprovalPolicy
+{
+    public Task<ReviewRequirement?> EvaluateAsync(
+        Affidavit affidavit, CancellationToken cancellationToken = default)
+        => Task.FromResult<ReviewRequirement?>(ReviewRequirement.ReviewerConfirmation);
+}
+
+/// <summary>
+/// <see cref="IStreamingTransport"/> that records every broadcast instead of throwing, so a test can
+/// assert the Evidence Card actually left the framework. <see cref="IStreamingTransport.TryDeliverResponse"/>
+/// is deliberately left at its interface default (<c>false</c>, "no live waiter"): the non-blocking
+/// filing path registers no waiter, so a decision arriving later must travel
+/// <c>ReviewGate.HandleDecisionAsync</c>'s restart path and land in the docket store — which is the
+/// half of the round trip these tests need to observe.
+/// </summary>
+internal sealed class RecordingStreamingTransport : IStreamingTransport
+{
+    public readonly List<(string GroupId, TransportEvent Event, object Payload)> Broadcasts = [];
+
+    public Task SendAsync(string connectionId, TransportEvent eventType, object payload, CancellationToken ct)
+        => Task.CompletedTask;
+
+    public Task BroadcastToGroupAsync(string groupId, TransportEvent eventType, object payload, CancellationToken ct)
+    {
+        Broadcasts.Add((groupId, eventType, payload));
+        return Task.CompletedTask;
+    }
+
+    public Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(
+        string sessionGroupId, Guid docketId, CancellationToken ct = default)
+        => throw new InvalidOperationException(
+            "RecordingStreamingTransport.AwaitEvidenceCardResponseAsync should not be called — the " +
+            "framework's default filing path is non-blocking and never awaits a response inline.");
 }
 
 /// <summary>In-memory <see cref="IDocketStore"/> recording everything filed through it.</summary>
