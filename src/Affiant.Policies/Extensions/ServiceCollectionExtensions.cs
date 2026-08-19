@@ -30,8 +30,8 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         Action<PoliciesBuilder>? configure = null)
     {
-        // Register the default RiskScoreCalculator unless the host has overridden it.
-        services.TryAddScoped<RiskScoreCalculator, DefaultRiskScoreCalculator>();
+        // Register the default RiskScoreCalculatorBase unless the host has overridden it.
+        services.TryAddScoped<RiskScoreCalculatorBase, DefaultRiskScoreCalculator>();
 
         configure?.Invoke(new PoliciesBuilder(services));
 
@@ -82,14 +82,14 @@ public sealed class PoliciesBuilder
     }
 
     /// <summary>
-    /// Replaces the registered <see cref="RiskScoreCalculator"/> with a custom implementation.
+    /// Replaces the registered <see cref="RiskScoreCalculatorBase"/> with a custom implementation.
     /// Call before <see cref="AddStandingOrder{TPolicy}"/> if Standing Orders depend on the scorer.
     /// </summary>
     public PoliciesBuilder SetRiskScoreCalculator<TCalculator>(ServiceLifetime lifetime = ServiceLifetime.Scoped)
-        where TCalculator : RiskScoreCalculator
+        where TCalculator : RiskScoreCalculatorBase
     {
-        _services.RemoveAll<RiskScoreCalculator>();
-        _services.Add(new ServiceDescriptor(typeof(RiskScoreCalculator), typeof(TCalculator), lifetime));
+        _services.RemoveAll<RiskScoreCalculatorBase>();
+        _services.Add(new ServiceDescriptor(typeof(RiskScoreCalculatorBase), typeof(TCalculator), lifetime));
         return this;
     }
 
