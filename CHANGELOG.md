@@ -70,8 +70,11 @@ role being set, not the base type.
   public and DI-resolvable.
 
 **Deliberately not removed:** `IDeterministicFieldSource` stays `[Obsolete]` in this release despite
-the same policy conflict, because a live host still implements it. Its removal is scheduled for
-beta.2 and tracked as its own issue.
+the same policy conflict, because a live host still implements it (the Meridian reference app's
+`AircraftLocationFieldSource`). Removing it now would mean rewriting a worked adopter example for
+zero adopter-visible gain while the `[Obsolete]` attribute already warns at compile time. Its
+removal, and the migration to `IFieldResolver` that must precede it, are scheduled for `1.0.0-beta.2`
+and tracked as affiant#37.
 
 ### Added — Area-8 P2: type summaries on the primary adopter-facing Abstractions interfaces
 
