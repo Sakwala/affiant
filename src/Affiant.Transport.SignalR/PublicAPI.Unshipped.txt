@@ -1,0 +1,44 @@
+Affiant.Transport.SignalR.Extensions.ServiceCollectionExtensions
+Affiant.Transport.SignalR.Hubs.AffiantHub
+Affiant.Transport.SignalR.Hubs.AffiantHub.AddToReviewerGroupAsync(string! reviewerId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Affiant.Transport.SignalR.Hubs.AffiantHub.AddToSessionGroupAsync(string! sessionId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Affiant.Transport.SignalR.Hubs.AffiantHub.AffiantHub(Affiant.Abstractions.Interfaces.IChatSessionStore! chatSessionStore, Affiant.Abstractions.Interfaces.IStreamingTransport! transport) -> void
+Affiant.Transport.SignalR.Hubs.AffiantHub.BroadcastToReviewerAsync(string! reviewerId, Affiant.Abstractions.Transport.TransportEvent eventType, object! payload, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Affiant.Transport.SignalR.Hubs.AffiantHub.BroadcastToSessionAsync(string! sessionId, Affiant.Abstractions.Transport.TransportEvent eventType, object! payload, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Affiant.Transport.SignalR.Hubs.AffiantHub.ChatSessionStore.get -> Affiant.Abstractions.Interfaces.IChatSessionStore!
+Affiant.Transport.SignalR.Hubs.AffiantHub.RehydrateSessionAsync(string! sessionId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.AffiantChatMessage!>!>!
+Affiant.Transport.SignalR.Hubs.AffiantHub.RemoveFromReviewerGroupAsync(string! reviewerId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Affiant.Transport.SignalR.Hubs.AffiantHub.RemoveFromSessionGroupAsync(string! sessionId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Affiant.Transport.SignalR.Hubs.AffiantHub.Transport.get -> Affiant.Abstractions.Interfaces.IStreamingTransport!
+Affiant.Transport.SignalR.Hubs.IAffiantHubClient
+Affiant.Transport.SignalR.Hubs.IAffiantHubClient.ConfirmAction(Affiant.Abstractions.Transport.EvidenceCardRequest! payload) -> System.Threading.Tasks.Task!
+Affiant.Transport.SignalR.Hubs.IAffiantHubClient.ContextUpdated(object! payload) -> System.Threading.Tasks.Task!
+Affiant.Transport.SignalR.Hubs.IAffiantHubClient.DocketExpired(Affiant.Abstractions.Transport.DocketExpiredNotification! payload) -> System.Threading.Tasks.Task!
+Affiant.Transport.SignalR.Hubs.IAffiantHubClient.DocketExpiring(Affiant.Abstractions.Transport.DocketExpiringNotification! payload) -> System.Threading.Tasks.Task!
+Affiant.Transport.SignalR.Hubs.IAffiantHubClient.EvidenceCardResponse(Affiant.Abstractions.Transport.EvidenceCardResponse! payload) -> System.Threading.Tasks.Task!
+Affiant.Transport.SignalR.Hubs.IAffiantHubClient.GuideUI(Affiant.Abstractions.Transport.UiGuidancePayload! payload) -> System.Threading.Tasks.Task!
+Affiant.Transport.SignalR.Hubs.IAffiantHubClient.ReceiveToken(object! payload) -> System.Threading.Tasks.Task!
+Affiant.Transport.SignalR.Hubs.IAffiantHubClient.SystemNotification(Affiant.Abstractions.Transport.SystemNotificationPayload! payload) -> System.Threading.Tasks.Task!
+Affiant.Transport.SignalR.SignalROptions
+Affiant.Transport.SignalR.SignalROptions.EnableDetailedErrors.get -> bool
+Affiant.Transport.SignalR.SignalROptions.EnableDetailedErrors.set -> void
+Affiant.Transport.SignalR.SignalROptions.HubEndpoint.get -> string!
+Affiant.Transport.SignalR.SignalROptions.HubEndpoint.set -> void
+Affiant.Transport.SignalR.SignalROptions.MaximumMessageSize.get -> int
+Affiant.Transport.SignalR.SignalROptions.MaximumMessageSize.set -> void
+Affiant.Transport.SignalR.SignalROptions.SignalROptions() -> void
+Affiant.Transport.SignalR.Transport.SignalRStreamingTransport<THub>
+Affiant.Transport.SignalR.Transport.SignalRStreamingTransport<THub>.AwaitEvidenceCardResponseAsync(string! sessionGroupId, System.Guid docketId, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Affiant.Abstractions.Transport.EvidenceCardResponse!>!
+Affiant.Transport.SignalR.Transport.SignalRStreamingTransport<THub>.BroadcastToGroupAsync(string! groupId, Affiant.Abstractions.Transport.TransportEvent eventType, object! payload, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
+Affiant.Transport.SignalR.Transport.SignalRStreamingTransport<THub>.SendAsync(string! connectionId, Affiant.Abstractions.Transport.TransportEvent eventType, object! payload, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
+Affiant.Transport.SignalR.Transport.SignalRStreamingTransport<THub>.SignalRStreamingTransport(Microsoft.AspNetCore.SignalR.IHubContext<THub!>! hubContext) -> void
+Affiant.Transport.SignalR.Transport.SignalRStreamingTransport<THub>.TryDeliverResponse(System.Guid docketId, Affiant.Abstractions.Transport.EvidenceCardResponse! response) -> bool
+Affiant.Transport.SignalR.Transport.TransportEventExtensions
+override Affiant.Transport.SignalR.Hubs.AffiantHub.OnConnectedAsync() -> System.Threading.Tasks.Task!
+override Affiant.Transport.SignalR.Hubs.AffiantHub.OnDisconnectedAsync(System.Exception? exception) -> System.Threading.Tasks.Task!
+static Affiant.Transport.SignalR.Extensions.ServiceCollectionExtensions.AddAffiantSignalR<THub>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Affiant.Transport.SignalR.SignalROptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Affiant.Transport.SignalR.Extensions.ServiceCollectionExtensions.MapAffiantSignalR<THub>(this Microsoft.AspNetCore.Builder.WebApplication! app, System.Action<Affiant.Transport.SignalR.SignalROptions!>? configureOptions = null) -> Microsoft.AspNetCore.Builder.WebApplication!
+static Affiant.Transport.SignalR.Hubs.AffiantHub.BeginAgentTurn(string! conversationId, string? userIntent = null) -> System.Diagnostics.Activity?
+static Affiant.Transport.SignalR.Transport.TransportEventExtensions.ToClientEventName(this Affiant.Abstractions.Transport.TransportEvent evt) -> string!
+virtual Affiant.Transport.SignalR.Hubs.AffiantHub.GetReviewerGroupName(string! reviewerId) -> string!
+virtual Affiant.Transport.SignalR.Hubs.AffiantHub.GetSessionGroupName(string! sessionId) -> string!

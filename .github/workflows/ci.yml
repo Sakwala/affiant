@@ -18,7 +18,12 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Build framework packages
+      # This step is also the public-API drift gate. Every packable project declares its surface in
+      # PublicAPI.Shipped.txt/PublicAPI.Unshipped.txt (Microsoft.CodeAnalysis.PublicApiAnalyzers,
+      # wired centrally in Directory.Build.targets); an undeclared public member reports RS0016 and
+      # a declared-but-missing one RS0017, both of which fail this build under
+      # TreatWarningsAsErrors. See CLAUDE.md, "The public API is declared, not inferred".
+      - name: Build framework packages (also enforces public-API baselines)
         run: dotnet build Affiant.slnx -c Release
 
       - name: Run framework tests

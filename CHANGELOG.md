@@ -12,6 +12,25 @@ any *published* release (`docs/proposals/affiant-maf-adapter.md` §9).
 
 ## [Unreleased]
 
+### Added — Area-8 P4: public API baselines and package validation
+
+Every packable project now carries `PublicAPI.Shipped.txt` + `PublicAPI.Unshipped.txt` and
+references `Microsoft.CodeAnalysis.PublicApiAnalyzers` (centrally, from `Directory.Build.targets`).
+The whole current surface — 1,768 entries across the nine packages, post-P2/P3 — is declared in the
+unshipped files; the shipped files are empty because nothing has been published yet, which is the
+tool's convention for a prerelease surface. Because `TreatWarningsAsErrors` is on, an undeclared
+public member (`RS0016`) or a declared-but-deleted one (`RS0017`) **fails the build**, so CI's
+existing `dotnet build -c Release` step enforces API drift with no workflow change: an API change now
+has to show up in the diff as an API change.
+
+Baselines are nullable-annotated (`#nullable enable` heads each shipped file), so a nullability change
+counts as an API change too. `RS0041` is scoped off for `src/Affiant.EntityFramework/Migrations/*.cs`
+in a new `.editorconfig` — EF Core scaffolds migrations with nullable disabled, and that generated
+code is never hand-edited.
+
+`EnablePackageValidation` is on for all nine packages. `PackageValidationBaselineVersion` is
+deliberately unset until there is a published version to diff against.
+
 ### Added — Area-8 P4: missing `ReviewGate` wiring now fails the host at startup
 
 `AddAffiantCore()` registers `ReviewGate`, which resolves `IStreamingTransport` and `IDocketStore`
