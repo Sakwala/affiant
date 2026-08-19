@@ -12,6 +12,148 @@ any *published* release (`docs/proposals/affiant-maf-adapter.md` §9).
 
 ## [Unreleased]
 
+### Fixed — Area-5 refuter round: double-broadcast race, SQLite migration drift, cancellation logging, D2 disclosure
+
+Adversarial refuter pass over the Area-5 Docket-store-semantics wave (below), fixing four
+CONFIRMED/HIGH findings:
+
+- `DocketExpiryService`'s sweep no longer double-broadcasts `DocketExpired` for one entry when a
+  concurrent `ReviewGate.HandleDecisionAsync` restart-path transition (affiant#14) independently
+  wins the same status change between the sweep's snapshot and its own write. The sweep now
+  CAS-transitions each entry individually and only broadcasts for the call whose own write
+  affected the row.
+- SQLite hosts with an already-provisioned database never picked up the new `ResubmittedTo`
+  column (below) — `AffiantMigrator`'s SQLite branch used `EnsureCreatedAsync`, which no-ops
+  against an existing database file regardless of schema drift. A narrow, idempotent
+  `HealSqliteDriftAsync` step now adds the column and its index directly when a pre-existing
+  Docket table is missing it.
+- `ReviewGate.ResubmitAsync`'s orphan-pointer error log excluded `OperationCanceledException`, so
+  a connection-tied cancellation during resubmission left only a generic warning with no
+  correlated entry ids. Cancellation now logs at Error like any other exception on that path.
+- Area-5 Decision 2's acceptance criterion 5 (surfacing "resubmitted" during reconciliation) was
+  neither implemented nor disclosed as deferred. Now recorded explicitly, in `DocketEntry`'s and
+  `ReviewStatusExtensions`' remarks, as an open, unruled, host-wave-scope decision.
+- `IDocketStore.TryConsumeForResubmitAsync` renamed to `ConsumeForResubmitAsync` — a rows-affected
+  `Task<int>` return under a `Try` prefix broke the `TryXxx` naming convention its own sibling
+  `UpdateReviewStatusAsync` (the identical CAS idiom) already followed.
+- **Known, recorded deviation, not fixed here:** `Affiant.Docket` hard-references
+  `Affiant.EntityFramework` — an adapter-to-adapter layering violation that predates this branch.
+  Fixing it requires moving which package owns the SQL store implementations; out of scope for a
+  targeted refuter fix (tracked as affiant#35; see Area-8's packaging/layering rulings).
+
+### Removed — Area-5 P1e/D1: `ReviewStatus.Amended` and `.Cancelled` deleted
+
+Both enum members had zero writers anywhere in the framework or either host application.
+`Amended` was superseded from day one by a different mechanism — approval carries edits via
+`DocketEntry.Amendments` (the round-trip described in framework spec §2.7), never a status
+transition — and its only mapping site already silently fell through to the `Expired` default,
+disagreeing with both hosts' own `Amended → Approved` handling. `Cancelled` was unused scaffolding
+from the original spec draft with no producer anywhere. Removing both makes every `ReviewStatus`
+switch expression in the framework exhaustive under `TreatWarningsAsErrors`, so a future
+reintroduction is compile-safe. Framework spec §2.7 and §9's code samples updated to match the
+five surviving members: `Pending`, `Approved`, `Rejected`, `Expired`, `Deferred`.
+
+### Changed — Area-5 P1d: `Status → Outcome` mapping becomes public framework API
+
+`ReviewGate`'s internal status-to-outcome mapping was private, so both host applications had
+already hand-copied it — and diverged from the framework's own fallthrough once already. It is
+now `ReviewStatusExtensions.ToReviewOutcome()`, a public, exhaustive extension method on
+`ReviewStatus` in `Affiant.Abstractions`, the layer that owns both `ReviewStatus` and
+`ReviewOutcome`. Hosts should consume this instead of reimplementing the mapping. Non-terminal
+statuses keep their prior semantics (`Pending → Expired`, `Deferred → Referral("deferred")`), now
+documented via XML docs instead of an implicit discard arm.
+
+### Fixed — Area-5 P1a: restart path persists `Expired` instead of computing-and-forgetting
+
+`ReviewGate.HandleDecisionAsync`'s restart path (affiant#14) detected a lapsed review TTL by
+timestamp and returned `ReviewOutcome.Expired` without persisting anything, leaving a
+Pending-with-lapsed-TTL entry as the effective steady state for up to 30 seconds until the
+background expiry sweep ran — and `ResubmitAsync` hard-requires `Status == Expired`, so it threw
+for that whole window. The restart path now performs the same guarded compare-and-swap persist the
+sweep uses and broadcasts `DocketExpired`, via a new shared `DocketExpiryBroadcaster` helper both
+paths call — so the two can no longer drift on when it's safe to tell a session group an entry has
+expired. Only the call whose own write affected the row broadcasts; a losing or repeat call
+re-reads and reports the entry's actual terminal status (idempotent replay, no duplicate
+broadcast).
+
+### Fixed — Area-5 P1b: `FileDocketEntryAsync` honors the no-op contract on all three stores (affiant#32)
+
+`InMemoryDocketStore.FileDocketEntryAsync` unconditionally overwrote an existing entry, so
+re-filing an already-terminal `EntryId` silently reverted it to `Pending` with new data — no race
+required, a straightforward contract violation. It now uses `TryAdd` under the store's existing
+lock: first write wins, second call no-ops. The two SQL stores already did check-then-act, but the
+loser of a genuine same-`EntryId` race got a raw, unhandled primary-key-violation exception instead
+of the documented no-op; both now catch that exception and degrade to a no-op only once the row is
+confirmed to already exist. A new cross-backend test files two different payloads under one
+`EntryId` on all three stores and asserts the first payload survives.
+
+### Added — Area-5 P1c/D2: `ResubmittedTo` lineage column, the affiant#31 race guard
+
+Closes a double-resubmit race: two concurrent `ReviewGate.ResubmitAsync` calls against the same
+expired entry could both mint a fresh `Pending` entry, since nothing marked the source entry
+"consumed." `DocketEntry` gains a nullable, indexed `ResubmittedTo` column (new EF migration,
+`AddResubmissionLineage`) that serves as both the race guard and the resubmission lineage —
+`Status` stays `Expired`; there is no `ReviewStatus.Resubmitted`. A new
+`IDocketStore.ConsumeForResubmitAsync` member (implemented on all three backends: an in-process
+lock for InMemory, a guarded conditional update for SQLite/Postgres) returns the usual
+rows-affected idiom so `ResubmitAsync` can tell a winning consume from a losing one and throw the
+same "already processed or expired" error hosts already handle uniformly. A companion
+`GetResubmissionParentAsync` reverse lookup re-derives a resubmitted entry's prior amendments on
+reconnect, since they only ever traveled on the original (possibly-missed) broadcast. Framework
+spec §2.7 gains a resubmission-and-lineage paragraph describing this. New concurrency tests
+(`Task.WhenAll` across independent store instances, all three backends) prove exactly one of two
+concurrent resubmit attempts succeeds.
+
+### Added — Area-5 F/D3: at-least-once Evidence Card delivery by construction
+
+Closes affiant#28 — a review filed while its target session's SignalR group has zero connected
+members (a normal race: the reviewer's tab hasn't reconnected yet) previously stranded the entry:
+the filing-time broadcast reaches nobody and nothing re-sends it. The background expiry sweep now
+carries a third phase that unconditionally re-broadcasts the Evidence Card request for every entry
+still `Pending`, regardless of whether the filing-time broadcast reported success — a SignalR group
+send to zero members completes without error, so a delivery-tracking flag would only ever record
+that the send happened, not that a human could see it; re-broadcasting by construction was chosen
+over a flag for exactly that reason. `EvidenceCardRequestFactory` (`Affiant.Core.Services`) is now
+the single place that builds this payload — the filing path, a new reconnect primitive
+(`ReviewGate.RebroadcastPendingCardsAsync`), and the sweep all call it, so the three call sites
+cannot independently drift. `ListPendingBySessionAsync` is now specified and pinned as
+`CreatedAt`-ascending on all three backends.
+
+### Added — Area-5 P2a/P2b: `AppendMessagesAsync` chat contract + framework `InMemoryChatSessionStore`
+
+Closes the structural half of affiant#27 (the issue stays open — the production mitigation is a
+host-side lock registry; see P3 below): `IChatSessionStore.AppendMessagesAsync(sessionId,
+messages, ct)` is an append-only write that computes the next message ordinal and inserts under
+one transaction, implemented on both SQL backends. It is deliberately distinct from
+`SaveMessagesAsync`, which stays as the delete-and-reinsert rehydration write — affiant#27's actual
+loss window was two concurrent full-replace calls each working from a stale snapshot, and
+`AppendMessagesAsync` cannot degrade into that path. XML docs on both interface members now state
+which write class each belongs to. `InMemoryChatSessionStore` ships in `Affiant.EntityFramework`
+alongside its SQLite/Postgres siblings (mirroring where `InMemoryDocketStore` already lives
+relative to its own SQL siblings) and is selectable via `AddAffiantEntityFramework`'s new
+`UseInMemory()` provider option. Framework spec §3.2's `IChatSessionStore` sample updated to match
+(it had drifted to a pre-refactor Semantic-Kernel-typed signature).
+
+### Added — Area-5 P3: `SessionLockRegistry` promoted to `Affiant.Core`
+
+Promotes the HR Portal host's `ConversationLockRegistry` (a per-session `SemaphoreSlim(1,1)`
+turn-serialization lock) into the framework as `SessionLockRegistry`, DI-registered as a singleton
+by `AddAffiantCore`. XML docs state its single-process caveat (no cross-process/instance
+serialization) plainly. Ships unwired — investigation found neither shipped adapter has a
+framework-owned seam to wire it into (the SK adapter's session rehydrator only reads store state;
+the MAF adapter touches neither store interface at all); the load-mutate-save turn loop is
+host-orchestrated end to end. The host wave adopts it directly, retiring HR Portal's own copy.
+
+### Added — Area-5 P4: chat-store parity test suite, `SaveContext`/`LoadContext` coverage, genuine concurrency races
+
+Closes test debt the store-parity investigation found escaping the framework entirely: a
+`[Theory]`/`[ClassData]` parity suite now pins `IChatSessionStore` behavior (session and message
+round-trips, `AppendMessagesAsync`, full-replace semantics, deletion) identically across InMemory,
+SQLite, and PostgreSQL — previously the chat-store side had no cross-backend parity suite at all,
+unlike the Docket store side. Also adds `SaveContextAsync`/`LoadContextAsync` round-trip coverage
+and two genuinely concurrent (`Task.WhenAll`, independent store instances per side) races — double
+status-update and double same-`EntryId` filing — across all three Docket backends.
+
 ### Added — Area-4 P4: `AffiantHub` is now `Hub<IAffiantHubClient>` — compile-time-checked client method calls
 
 - **`AffiantHub` derives from `Hub<IAffiantHubClient>` instead of the untyped `Hub`.** A hub
@@ -846,7 +988,11 @@ before it commits.
   `Affiant.Abstractions` (primitive types and interfaces), with `Affiant.Core` (concrete
   services) beneath five adapters — `Affiant.SemanticKernel`, `Affiant.Docket`,
   `Affiant.EntityFramework`, `Affiant.Policies`, `Affiant.Transport.SignalR` — plus
-  `Affiant.Testing.ComplianceHarness`.
+  `Affiant.Testing.ComplianceHarness`. (Nine packages exist in this repo and share one version
+  per `Directory.Build.props`; `Affiant.AgentFramework` is deliberately excluded from this first
+  release — `v1.0.0-beta.1` is SK-only by design — see `docs/proposals/affiant-maf-adapter.md`
+  §9 and `docs/proposals/affiant-maf-adapter-handoff.md`. This bullet's count of eight is this
+  release's scope, not a package-count error.)
 - **Field-level sworn provenance.** `Affidavit` / `AffidavitField` carry a `ProvenanceChain`
   and `PreviousValue` per field, an `AggregateConfidence`, and the seven-state
   `ProvenanceSource` determinism hierarchy (`UserStated` → `Empty`).
@@ -875,5 +1021,5 @@ before it commits.
 - All pre-`beta.1` versions (`1.0.0-alpha.1` and earlier) were internal only and were never
   published to nuget.org.
 
-[Unreleased]: https://github.com/affiant-dev/affiant/compare/v1.0.0-beta.1...HEAD
-[1.0.0-beta.1]: https://github.com/affiant-dev/affiant/releases/tag/v1.0.0-beta.1
+[Unreleased]: https://github.com/Sakwala/affiant/compare/v1.0.0-beta.1...HEAD
+[1.0.0-beta.1]: https://github.com/Sakwala/affiant/releases/tag/v1.0.0-beta.1
