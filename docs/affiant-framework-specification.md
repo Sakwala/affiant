@@ -794,9 +794,9 @@ Three default service implementations ship with the framework. Hosts that accept
 
 **`SchemaDrivenAffidavitProjection`** (in `Affiant.Core.Services`) is the default `IAffidavitProjection`. It iterates the fields declared by the active `ITaskInferenceStrategy`, applies `IDeterministicFieldSource` overrides first, then reads from the `ContextFabric`, and falls back to `ProvenanceTag.Empty` for any unresolved field (Rule 7). After projection it emits the `affidavit.projected` span event and publishes a typed `AffidavitEmittedEvent` through `IObservabilityEventStream<AffidavitEmittedEvent>` for downstream subscribers.
 
-**`FunctionNameInferenceTrigger`** (in `Affiant.Core.Triggers`) is a soft-deprecated `IInferenceTrigger` that fires by explicit function-name allowlist rather than registry classification. It exists to support hosts adopted before the Tool Descriptor Registry (§3.11) was available, carries an `[Obsolete]` attribute, and will be removed before v1.0.0. Hosts should migrate to `WriteIntentInferenceTrigger` with `[AffiantWriteTool]` decoration.
+**`FunctionNameInferenceTrigger`** — *deleted 2026-08-20* (Area-8 ruling 5). It was a soft-deprecated `IInferenceTrigger` that fired by explicit function-name allowlist rather than registry classification, kept for hosts adopted before the Tool Descriptor Registry (§3.11) existed. It carried an `[Obsolete]` attribute from the day it was written and had zero usage in either host app, so it was removed rather than shipped deprecated-on-arrival in the first public package. Use `WriteIntentInferenceTrigger` with `[AffiantWriteTool]` decoration; a host that genuinely needs allowlist triggering implements the two-member `IInferenceTrigger` itself.
 
-*Source files:* `src/Affiant.Core/Services/TaskInferenceRunner.cs`, `src/Affiant.Core/Triggers/WriteIntentInferenceTrigger.cs`, `src/Affiant.Core/Services/SchemaDrivenAffidavitProjection.cs`, `src/Affiant.Core/Triggers/FunctionNameInferenceTrigger.cs`
+*Source files:* `src/Affiant.Core/Services/TaskInferenceRunner.cs`, `src/Affiant.Core/Triggers/WriteIntentInferenceTrigger.cs`, `src/Affiant.Core/Services/SchemaDrivenAffidavitProjection.cs`
 
 #### 3.12.3 Neutral Pipeline + Backend Bridges
 

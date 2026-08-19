@@ -7,20 +7,6 @@ namespace Affiant.Core.Extensions;
 public sealed class AffiantCoreOptions
 {
     /// <summary>
-    /// Primary LLM provider name (e.g., "AzureOpenAI", "OpenAI").
-    /// Passed to the SK kernel for automatic provider selection.
-    /// Default: null (host must configure manually before use).
-    /// </summary>
-    public string? PrimaryProvider { get; set; }
-
-    /// <summary>
-    /// Fallback LLM provider name if the primary is unavailable.
-    /// Per framework spec §5, DeterministicShortCircuit routes to fallback
-    /// when primary fails. Default: null (no fallback).
-    /// </summary>
-    public string? FallbackProvider { get; set; }
-
-    /// <summary>
     /// Default TTL for DocketEntry records before automatic expiry.
     /// Enforced by DocketExpiryService (registered separately in Affiant.Docket) and by
     /// <see cref="Affiant.Core.Services.ReviewGate"/>'s blocking-await window — both the
