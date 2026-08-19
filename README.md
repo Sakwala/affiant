@@ -226,8 +226,10 @@ builder.Services.AddAffiantTool<LeaveTaskInferenceStrategy>(
 ```
 
 From here you add an `IFieldMapper<T>` (Affidavit ↔ your domain model) and an `IWriteExecutor`
-(the one place `SaveChanges` runs), plus a persistence backend (`AddAffiantDocket` /
-`AddAffiantEntityFramework`), a policy graph (`AddAffiantPolicies`), and a transport
+(the one place `SaveChanges` runs), plus a persistence backend — `AddAffiantEntityFramework(ef =>
+ef.UseSqlite(cs))` for a durable `IDocketStore`/`IChatSessionStore` pair, or
+`AddAffiantDocket(d => d.UseInMemory())` for a process-local one, and `AddAffiantDocket()` either
+way for the expiry sweep — a policy graph (`AddAffiantPolicies`), and a transport
 (`AddAffiantSignalR`). Read tools follow the same shape and return a `ReadResult`. The full
 walkthrough — read tools, context extraction, field mapping, error handling, and testing — is
 in [`docs/tool-authoring-guide.md`](docs/tool-authoring-guide.md).
@@ -255,8 +257,8 @@ you need.
 | `Affiant.Core` | Concrete services: `ContextFabric`, `ReviewGate`, task-inference merge, the deterministic short-circuit, the backend-neutral tool-invocation pipeline, DI wiring. | Abstractions |
 | `Affiant.SemanticKernel` | Semantic Kernel interception bridge — translates SK's function-invocation filter pipeline into the neutral pipeline; connector capabilities, structured-output inference. | Core |
 | `Affiant.AgentFramework` | Microsoft Agent Framework (MAF) interception bridge — translates MAF's function-calling middleware into the same neutral pipeline; tool catalog reflection, hosted-tool coverage audit. See [`docs/adapters/microsoft-agent-framework.md`](docs/adapters/microsoft-agent-framework.md). | Core |
-| `Affiant.Docket` | The durable review queue — `IDocketStore` with in-memory, SQLite, and Postgres backing stores. | Abstractions, Core, EntityFramework |
-| `Affiant.EntityFramework` | EF Core persistence for sessions and dockets — row-per-message schema, migrations. | Abstractions, Core |
+| `Affiant.Docket` | The review queue's backend-neutral half — `InMemoryDocketStore` plus the background expiry sweep that re-broadcasts still-pending Evidence Cards. Pulls no database driver. | Abstractions, Core |
+| `Affiant.EntityFramework` | EF Core persistence for sessions and dockets — row-per-message schema, migrations, and the SQLite/Postgres `IChatSessionStore` **and** `IDocketStore` implementations. | Abstractions, Core |
 | `Affiant.Policies` | Fluent approval policy graph — Standing Orders (auto-approval), Referrals (escalation), reviewer confirmation, risk scoring. | Core |
 | `Affiant.Transport.SignalR` | SignalR streaming transport and Evidence Card round-trip hub. | Core |
 | `Affiant.Testing.ComplianceHarness` | Ship provenance testing as a product: `ComplianceHarness.Verify(...)` proves every write strategy has a paired fixture asserting *substantive* provenance, against either interception backend. For your CI, not just ours. | Core |

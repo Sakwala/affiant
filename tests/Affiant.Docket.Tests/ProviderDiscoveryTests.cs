@@ -8,6 +8,12 @@ using Xunit;
 
 namespace Affiant.Docket.Tests;
 
+/// <summary>
+/// What <c>AddAffiantDocket</c> registers after affiant#35 (area-8 ruling 1, 2026-08-20): the
+/// in-memory store when selected, the backend-neutral expiry sweep always, and — deliberately —
+/// nothing at all for the SQL backends, which <c>AddAffiantEntityFramework</c> now owns (see
+/// <c>Affiant.EntityFramework.Tests.ServiceCollectionExtensionsTests</c> for their coverage).
+/// </summary>
 public sealed class ProviderDiscoveryTests
 {
     [Fact]
@@ -23,38 +29,16 @@ public sealed class ProviderDiscoveryTests
     }
 
     [Fact]
-    public void AddAffiantDocket_WithPostgres_RegistersPostgresStore()
+    public void AddAffiantDocket_WithNoStoreSelected_RegistersNoDocketStore()
     {
+        // The SQL-backed host's call shape: the IDocketStore comes from AddAffiantEntityFramework,
+        // this call exists for DocketExpiryService. Registering nothing here is correct, and a host
+        // that registers no store anywhere is caught by AddAffiantCore's startup wire-up validator
+        // (area-8 ruling 6), not by this method.
         var services = new ServiceCollection();
-        services.AddAffiantDocket(options => options.UsePostgres("Host=localhost;Database=test"));
+        services.AddAffiantDocket();
 
-        var descriptor = services.FirstOrDefault(sd => sd.ServiceType == typeof(IDocketStore));
-        Assert.NotNull(descriptor);
-        Assert.Equal(typeof(PostgresDocketStore), descriptor!.ImplementationType);
-        Assert.Equal(ServiceLifetime.Scoped, descriptor.Lifetime);
-    }
-
-    [Fact]
-    public void AddAffiantDocket_WithSqlite_RegistersSqliteStore()
-    {
-        var services = new ServiceCollection();
-        services.AddAffiantDocket(options => options.UseSqlite("Data Source=:memory:"));
-
-        var descriptor = services.FirstOrDefault(sd => sd.ServiceType == typeof(IDocketStore));
-        Assert.NotNull(descriptor);
-        Assert.Equal(typeof(SqliteDocketStore), descriptor!.ImplementationType);
-        Assert.Equal(ServiceLifetime.Scoped, descriptor.Lifetime);
-    }
-
-    [Fact]
-    public void AddAffiantDocket_WithNoProvider_Throws()
-    {
-        var services = new ServiceCollection();
-
-        var ex = Assert.Throws<InvalidOperationException>(() =>
-            services.AddAffiantDocket(options => { }));
-
-        Assert.Contains("exactly one provider", ex.Message);
+        Assert.DoesNotContain(services, sd => sd.ServiceType == typeof(IDocketStore));
     }
 
     [Fact]
@@ -68,6 +52,17 @@ public sealed class ProviderDiscoveryTests
             sd.ImplementationType == typeof(DocketExpiryService));
 
         Assert.NotNull(hostedServiceDescriptor);
+    }
+
+    [Fact]
+    public void AddAffiantDocket_WithNoStoreSelected_StillRegistersDocketExpiryService()
+    {
+        var services = new ServiceCollection();
+        services.AddAffiantDocket();
+
+        Assert.Contains(services, sd =>
+            sd.ServiceType == typeof(IHostedService) &&
+            sd.ImplementationType == typeof(DocketExpiryService));
     }
 
     [Fact]

@@ -17,7 +17,10 @@
   <ItemGroup>
     <ProjectReference Include="../Affiant.Abstractions/Affiant.Abstractions.csproj" />
     <ProjectReference Include="../Affiant.Core/Affiant.Core.csproj" />
-    <ProjectReference Include="../Affiant.EntityFramework/Affiant.EntityFramework.csproj" />
+    <!-- No ProjectReference to Affiant.EntityFramework (affiant#35, area-8 ruling 1): the two
+         SQL-backed IDocketStore implementations that needed its AffiantDbContext moved into that
+         package, restoring the DAG in CLAUDE.md's layering invariant. Do not re-add this edge —
+         Affiant.Docket must stay installable without EF Core, Sqlite and Npgsql. -->
   </ItemGroup>
 
   <ItemGroup>

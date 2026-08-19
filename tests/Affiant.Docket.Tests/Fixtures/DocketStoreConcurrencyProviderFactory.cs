@@ -2,6 +2,7 @@ using System.Collections;
 using Affiant.Abstractions.Interfaces;
 using Affiant.Docket.Stores;
 using Affiant.EntityFramework;
+using Affiant.EntityFramework.Stores;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
