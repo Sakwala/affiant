@@ -80,8 +80,6 @@ public static class ServiceCollectionExtensions
     /// <code>
     /// builder.Services.AddAffiantCore(options =>
     /// {
-    ///     options.PrimaryProvider = "AzureOpenAI";
-    ///     options.FallbackProvider = "Gemini";
     ///     options.DefaultDocketTtl = TimeSpan.FromMinutes(10);
     ///     options.EnableObservability = true;
     /// });

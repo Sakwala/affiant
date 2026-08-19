@@ -85,13 +85,13 @@ public class ServiceCollectionExtensionsTests
     {
         var sp = BuildWithStubs(o =>
         {
-            o.PrimaryProvider = "Gemini";
             o.DefaultDocketTtl = TimeSpan.FromMinutes(20);
+            o.SystemPrompt = "You are a test host.";
         }).BuildServiceProvider();
 
         var opts = sp.GetRequiredService<AffiantCoreOptions>();
-        Assert.Equal("Gemini", opts.PrimaryProvider);
         Assert.Equal(TimeSpan.FromMinutes(20), opts.DefaultDocketTtl);
+        Assert.Equal("You are a test host.", opts.SystemPrompt);
     }
 
     // --- Captive-dependency lock test: AddSchemaDrivenProjection<TStrategy>() (multi-strategy path)
