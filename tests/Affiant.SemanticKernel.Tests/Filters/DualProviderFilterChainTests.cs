@@ -3,6 +3,7 @@ namespace Affiant.SemanticKernel.Tests.Filters;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Affiant.Abstractions.Interfaces;
+using Affiant.Abstractions.Models;
 using Affiant.Core.Extensions;
 using Affiant.Core.Filters;
 using Affiant.Core.Services;

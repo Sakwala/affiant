@@ -148,6 +148,7 @@ to merge inferred values:
 
 ```csharp
 using Affiant.Abstractions.Interfaces;
+using Affiant.Abstractions.Models;
 
 public sealed class LeaveTaskInferenceStrategy : ITaskInferenceStrategy
 {

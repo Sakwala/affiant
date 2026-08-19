@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
-using AbstractConversationContext = Affiant.Abstractions.Interfaces.ConversationContext;
+using AbstractConversationContext = Affiant.Abstractions.Models.ConversationContext;
 
 namespace Affiant.Docket.Stores;
 

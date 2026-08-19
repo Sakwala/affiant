@@ -1,5 +1,7 @@
 namespace Affiant.Abstractions.Interfaces;
 
+using Affiant.Abstractions.Models;
+
 public interface IToolAuthorizationPolicy
 {
     /// <summary>

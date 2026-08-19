@@ -5,7 +5,7 @@ using Affiant.EntityFramework;
 using Affiant.EntityFramework.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using AbstractConversationContext = Affiant.Abstractions.Interfaces.ConversationContext;
+using AbstractConversationContext = Affiant.Abstractions.Models.ConversationContext;
 
 namespace Affiant.Docket.Stores;
 

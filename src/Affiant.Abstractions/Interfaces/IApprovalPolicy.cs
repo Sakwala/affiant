@@ -12,25 +12,3 @@ public interface IApprovalPolicy
     /// </summary>
     Task<ReviewRequirement?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default);
 }
-
-public enum ReviewRequirement
-{
-    StandingOrder,
-    ReviewerConfirmation,
-    ReferralRequired,
-    MultiParty
-}
-
-public abstract record ReviewResponse;
-
-public sealed record ReviewGranted(
-    Guid EntryId,
-    Dictionary<string, object>? Amendments
-) : ReviewResponse;
-
-public sealed record ReviewDenied(
-    Guid EntryId,
-    string? Reason
-) : ReviewResponse;
-
-public sealed record ReviewExpired(Guid EntryId) : ReviewResponse;

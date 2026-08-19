@@ -1,6 +1,7 @@
 namespace Affiant.Core.Tests.Invariants.TestFixtures;
 
 using Affiant.Abstractions.Interfaces;
+using Affiant.Abstractions.Models;
 
 internal sealed class FakeWorkOrderStrategy : ITaskInferenceStrategy
 {
