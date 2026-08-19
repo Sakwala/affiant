@@ -4,8 +4,13 @@
     <TargetFramework>net10.0</TargetFramework>
     <PackageId>Affiant.Core</PackageId>
     <Description>Affiant Framework — Concrete services for context extraction, review gating, and telemetry. Includes ContextFabric, ReviewGate, DeterministicShortCircuit, base ContextExtractor, TaskInferenceStep, and AffiantTelemetry.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryType>git</RepositoryType>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
   <!-- Framework layering: Core depends on Abstractions only -->
   <ItemGroup>

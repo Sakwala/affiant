@@ -4,8 +4,13 @@
     <TargetFramework>net10.0</TargetFramework>
     <PackageId>Affiant.Abstractions</PackageId>
     <Description>Affiant Framework — Domain-agnostic primitives and interfaces. Primitives: ProvenanceTag, Affidavit, ToolEnvelope, DocketEntry. Interfaces: IChatSessionStore, IDocketStore, IApprovalPolicy, IFieldMapper, IWriteExecutor, IRouteRegistry, IStreamingTransport, IIntentInterceptor, IToolAuthorizationPolicy, ITaskInferenceStrategy.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryType>git</RepositoryType>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
   <!-- Zero Affiant package references — enforced by static analysis test in Story 6.11.
        Zero Microsoft.SemanticKernel / Microsoft.Agents.AI / Microsoft.Extensions.AI references —

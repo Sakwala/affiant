@@ -6,8 +6,13 @@
     <AssemblyName>Affiant.EntityFramework</AssemblyName>
     <PackageId>Affiant.EntityFramework</PackageId>
     <Description>EntityFramework Core persistence adapter for Affiant, providing the shared AffiantDbContext with schema isolation support.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryType>git</RepositoryType>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../Affiant.Abstractions/Affiant.Abstractions.csproj" />
