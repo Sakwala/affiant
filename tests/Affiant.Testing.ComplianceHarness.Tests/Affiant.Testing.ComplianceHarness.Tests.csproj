@@ -10,18 +10,24 @@
     <ProjectReference Include="..\..\src\Affiant.Testing.ComplianceHarness\Affiant.Testing.ComplianceHarness.csproj" />
     <!-- Adapter references are test-only, for the cross-backend ComplianceHarness parity suite
          (Fixtures/InferenceCompletionPortProviderFactory.cs) that runs every fixture case and the
-         AssertProvenanceIsSubstantive gate against both the SK and MAF inference ports (proposal
-         affiant-maf-adapter.md §6). Mirrors the same test-only exception documented in
-         Affiant.AgentFramework.Tests.csproj — not a src/-layering violation. -->
+         AssertProvenanceIsSubstantive gate against the SK, MAF and Microsoft.Extensions.AI inference
+         ports (proposal affiant-maf-adapter.md §6; M.E.AI adapter design brief decision 7). Mirrors
+         the same test-only exception documented in Affiant.AgentFramework.Tests.csproj — not a
+         src/-layering violation. -->
     <ProjectReference Include="..\..\src\Affiant.SemanticKernel\Affiant.SemanticKernel.csproj" />
     <ProjectReference Include="..\..\src\Affiant.AgentFramework\Affiant.AgentFramework.csproj" />
+    <ProjectReference Include="..\..\src\Affiant.Extensions.AI\Affiant.Extensions.AI.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.9" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.9" />
+    <!-- 10.0.11, not 10.0.9: Microsoft.Extensions.AI 10.9.0 (pulled in by the Affiant.Extensions.AI
+         project reference above) floors Logging.Abstractions at 10.0.11, and NU1605 is an error
+         here. Same version Affiant.Extensions.AI.Tests pins. -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11" />
     <PackageReference Include="Microsoft.SemanticKernel" Version="1.74.0" />
     <PackageReference Include="Microsoft.Agents.AI" Version="1.13.0" />
+    <PackageReference Include="Microsoft.Extensions.AI" Version="10.9.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.4.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
