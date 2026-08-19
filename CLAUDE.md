@@ -4,8 +4,8 @@
 
 This repository is the Affiant framework — the open-source .NET package set published to nuget.org. It provides "sworn provenance for every AI write": a Semantic Kernel-based layer with a two-filter context fabric, field-level provenance tracking, and a durable review queue (the Docket) with Evidence Cards and Referrals. Everything here must be reusable across any host application and must stay domain-agnostic.
 
-The framework ships as nine NuGet packages, all sharing one version via the root `Directory.Build.props`:
-`Affiant.Abstractions`, `Affiant.Core`, `Affiant.SemanticKernel`, `Affiant.AgentFramework`, `Affiant.Docket`, `Affiant.EntityFramework`, `Affiant.Policies`, `Affiant.Transport.SignalR`, `Affiant.Testing.ComplianceHarness`.
+The framework ships as ten NuGet packages, all sharing one version via the root `Directory.Build.props`:
+`Affiant.Abstractions`, `Affiant.Core`, `Affiant.SemanticKernel`, `Affiant.AgentFramework`, `Affiant.Extensions.AI`, `Affiant.Docket`, `Affiant.EntityFramework`, `Affiant.Policies`, `Affiant.Transport.SignalR`, `Affiant.Testing.ComplianceHarness`.
 
 Host applications that consume this framework (e.g. the Meridian aviation-MRO copilot and the HR Portal) live in the separate private `Sakwala/affiant-host-apps` repository, which attaches this repo as a submodule at `./packages`. Nothing in this repo may reference host code.
 
@@ -37,13 +37,13 @@ Affiant.Abstractions        (zero Affiant dependencies)
         ↑
 Affiant.Core                (concrete services; references Abstractions)
         ↑
-Affiant.SemanticKernel, Affiant.AgentFramework, Affiant.Docket, Affiant.EntityFramework,
+Affiant.SemanticKernel, Affiant.AgentFramework, Affiant.Extensions.AI, Affiant.Docket, Affiant.EntityFramework,
 Affiant.Policies, Affiant.Transport.SignalR
 ```
 
 - **`Affiant.Abstractions`** holds all domain-agnostic primitive types (`ToolEnvelope`, `Affidavit`, `ProvenanceTag`, `ProvenanceChain`, `DocketEntry`, `TransportEvent`, etc.) AND all framework interfaces (`IChatSessionStore`, `IDocketStore`, `IStreamingTransport`, `IApprovalPolicy`, `IFieldMapper<T>`, `IWriteExecutor`, `IRouteRegistry`, `IIntentInterceptor`, etc.). It must never reference any other Affiant package. A host that only needs to implement a contract should be able to reference this package alone.
 - **`Affiant.Core`** holds concrete services (`ContextFabric`, `ReviewGate`, `ContextExtractor<T>` base class, `TaskInferenceStep`, `DeterministicShortCircuit`, `UiGuidanceBridge`, `AffiantTelemetry`) and references `Affiant.Abstractions`. Core never references any adapter package — it consumes them through interfaces injected via DI.
-- **Adapter packages** (`Affiant.SemanticKernel`, `Affiant.AgentFramework`, `Affiant.Docket`, `Affiant.EntityFramework`, `Affiant.Policies`, `Affiant.Transport.SignalR`) reference `Affiant.Core` (which transitively pulls in `Abstractions`). None of them may reference each other.
+- **Adapter packages** (`Affiant.SemanticKernel`, `Affiant.AgentFramework`, `Affiant.Extensions.AI`, `Affiant.Docket`, `Affiant.EntityFramework`, `Affiant.Policies`, `Affiant.Transport.SignalR`) reference `Affiant.Core` (which transitively pulls in `Abstractions`). None of them may reference each other. `Affiant.Extensions.AI` is a special case worth naming: architecturally MAF sits on top of Microsoft.Extensions.AI, so `Affiant.AgentFramework` referencing `Affiant.Extensions.AI` would be the correct long-term shape — but that inversion is deliberately deferred post-beta (consolidation issue tracks it; see `docs/overnight-mission-2026-08-20/meai-adapter-design.md` decision 3 in the `affiant-chancery` repo). Until then the two packages copy their small shared surface rather than reference each other, and neither may reference the other.
 
 If you find yourself wanting to add a `ProjectReference` that inverts this DAG, stop. Surface the coupling to the user and ask how to resolve it — don't paper over it. This matches the standard `Microsoft.Extensions.*.Abstractions` / `Microsoft.Extensions.*` layering.
 
@@ -61,7 +61,7 @@ Grep for `WorkOrder`, `Aircraft`, `Meridian`, `HRPortal`, `LeaveRequest`, `Emplo
 - **Records** for all DTOs, models, and immutable value types. Classes only for services with behavior and mutable state. `readonly record struct` for small value types.
 - **Primary constructors** on services where all dependencies are captured by DI.
 - **`[JsonDerivedType]`** on `ToolEnvelope` for polymorphic serialization, using the `type` discriminator.
-- **Package IDs** must match the reserved names on nuget.org exactly (the nine listed above under "What this is"). Version is shared across all packages via the root `Directory.Build.props`.
+- **Package IDs** must match the reserved names on nuget.org exactly (the ten listed above under "What this is"). Version is shared across all packages via the root `Directory.Build.props`.
 
 ## Build, pack, test
 
