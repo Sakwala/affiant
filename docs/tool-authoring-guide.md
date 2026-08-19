@@ -614,7 +614,7 @@ public class HRWriteExecutor(
 {
     public async Task<string?> ExecuteAsync(
         Affidavit affidavit,
-        Dictionary<string, object>? amendments,
+        IReadOnlyDictionary<string, object?>? amendments,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(affidavit);
@@ -631,7 +631,7 @@ public class HRWriteExecutor(
 
     private async Task<string?> ExecuteLeaveRequestAsync(
         Affidavit affidavit,
-        Dictionary<string, object>? amendments,
+        IReadOnlyDictionary<string, object?>? amendments,
         CancellationToken ct)
     {
         // 1. Map approved Affidavit → domain model using the registered IFieldMapper<T>.
@@ -661,8 +661,9 @@ public class HRWriteExecutor(
         return newRequest.RequestId.ToString(); // Return new entity ID to Docket
     }
 
-    // Amendments allow the reviewer to correct fields during the approval step.
-    private static int ResolveEmployeeId(int fromMapper, Dictionary<string, object>? amendments)
+    // Amendments allow the reviewer to correct fields during the approval step. A key present
+    // with a null value means "clear this field" — distinct from the key being absent.
+    private static int ResolveEmployeeId(int fromMapper, IReadOnlyDictionary<string, object?>? amendments)
     {
         if (amendments?.TryGetValue("EmployeeId", out var val) == true)
         {

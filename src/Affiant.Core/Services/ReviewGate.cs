@@ -344,9 +344,9 @@ public sealed class ReviewGate(
             // 2. File a new entry if one does not already exist.
             if (existing is null)
             {
-                var amendments = context.Amendments is { Count: > 0 }
-                    ? context.Amendments.ToDictionary(kv => kv.Key, kv => (object?)kv.Value)
-                    : null;
+                // Same shape as DocketEntry.Amendments since the Area-8 amendments unification —
+                // no copy or value-type widening needed on the way in.
+                var amendments = context.Amendments is { Count: > 0 } ? context.Amendments : null;
 
                 var entry = new DocketEntry(
                     EntryId: entryId,

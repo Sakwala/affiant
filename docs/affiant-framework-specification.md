@@ -484,7 +484,7 @@ public enum ReviewRequirement { StandingOrder, ReviewerConfirmation, ReferralReq
 
 // The ReviewGate's response types — adopted from Pydantic AI's ToolApproved | ToolDenied pattern
 public abstract record ReviewResponse;
-public sealed record ReviewGranted(Guid EntryId, Dictionary<string, object>? Amendments) : ReviewResponse;
+public sealed record ReviewGranted(Guid EntryId, IReadOnlyDictionary<string, object?>? Amendments) : ReviewResponse;
 public sealed record ReviewDenied(Guid EntryId, string? Reason) : ReviewResponse;
 public sealed record ReviewExpired(Guid EntryId) : ReviewResponse;
 ```
