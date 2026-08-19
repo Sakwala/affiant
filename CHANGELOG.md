@@ -59,7 +59,9 @@ review loop. `Affiant.Core` gains one abstractions-only package reference,
 ### Changed — Area-8 P3: the SQL-backed `IDocketStore` implementations move to `Affiant.EntityFramework` (affiant#35)
 
 **Breaking for anyone calling `AddAffiantDocket(d => d.UseSqlite(...))` or `d.UsePostgres(...)`, and
-for anyone naming `Affiant.Docket.Stores.SqliteDocketStore`/`PostgresDocketStore` directly. Free to
+for anyone naming `SqliteDocketStore`/`PostgresDocketStore` directly — whether fully qualified as
+`Affiant.Docket.Stores.SqliteDocketStore` or by simple name under a `using Affiant.Docket.Stores;`,
+which is the more common shape and breaks the same way. Free to
 do exactly now: there are no published consumers (first publish is `1.0.0-beta.1`), and the repo's
 "no backwards-compatibility shims pre-1.0" rule means the break is clean rather than layered.**
 
