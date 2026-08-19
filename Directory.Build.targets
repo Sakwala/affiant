@@ -18,7 +18,7 @@
     promised".
 
     This lives in Directory.Build.targets, not .props, because the condition reads $(IsPackable):
-    .props is imported BEFORE the csproj sets it, .targets after. IsPackable is true for the nine
+    .props is imported BEFORE the csproj sets it, .targets after. IsPackable is true for the ten
     src/ packages and false for every test project.
   -->
   <ItemGroup Condition="'$(IsPackable)' == 'true'">
