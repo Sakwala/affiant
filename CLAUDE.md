@@ -76,6 +76,28 @@ dotnet test Affiant.slnx -c Release
 dotnet pack Affiant.slnx -c Release -o ./nupkgs/
 ```
 
+### The public API is declared, not inferred
+
+Every packable project carries `PublicAPI.Shipped.txt` and `PublicAPI.Unshipped.txt` next to its
+csproj, enforced by `Microsoft.CodeAnalysis.PublicApiAnalyzers` (referenced centrally in
+`Directory.Build.targets` for every project with `IsPackable=true`). Adding, removing or
+resignaturing a public member **fails the build** (`RS0016`/`RS0017` are warnings, and
+`TreatWarningsAsErrors` is on) until the corresponding line is added to or removed from
+`PublicAPI.Unshipped.txt`. That is the point: an API change has to appear in the diff as an API
+change, where a reviewer sees it, rather than slipping in as a side effect of an implementation
+commit.
+
+To update a baseline after an intentional API change: build the project, copy the exact symbol text
+the `RS0016` message quotes into that project's `PublicAPI.Unshipped.txt` (delete the line for an
+`RS0017`), and keep the file sorted. IDEs with Roslyn code fixes offer "Add to public API" for the
+same edit.
+
+Every `PublicAPI.Shipped.txt` starts with `#nullable enable`, so entries carry `!`/`?` annotations
+and a nullability change counts as an API change. `PublicAPI.Shipped.txt` is otherwise **empty on
+purpose** — nothing has been published yet. At each release, the unshipped entries move into the
+shipped file; that move is what lets the analyzer distinguish "new API this release" from "API we
+already promised".
+
 `global.json` pins the SDK to `10.0.105` with `rollForward: latestPatch`. Use xUnit for tests. Prefer `[Theory]` with a provider factory for tests that should run against multiple adapter implementations (e.g. the shared Docket suite over InMemory + SQLite + Postgres). Tests live under `tests/`, one test project per src project.
 
 ## What NOT to do

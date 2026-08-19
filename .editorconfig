@@ -1,0 +1,16 @@
+# Affiant framework — analyzer configuration.
+#
+# This file exists solely to scope analyzer severities; it deliberately sets no formatting rules, so
+# it changes nothing about how code in this repo is written or formatted.
+
+# EF Core writes its migration scaffolding with nullable annotations disabled, so the generated
+# Up/Down/BuildTargetModel overrides expose nullable-oblivious reference types. RS0041 ("symbol uses
+# some oblivious reference types") is a real signal on hand-written public API — the PublicAPI
+# baselines added in the area-8 P4 wave are nullable-annotated (`#nullable enable` heads every
+# PublicAPI.Shipped.txt) precisely so nullability changes show up as API changes — but it has nothing
+# useful to say about machine-generated migration code that is never hand-edited and whose shape is
+# fixed by `dotnet ef migrations add`. Scoped off here rather than NoWarn'd for the whole
+# Affiant.EntityFramework project, so the diagnostic keeps working on that package's hand-written
+# surface (its stores, options, and DI extensions).
+[src/Affiant.EntityFramework/Migrations/*.cs]
+dotnet_diagnostic.RS0041.severity = none

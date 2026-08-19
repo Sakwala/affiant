@@ -1,0 +1,167 @@
+Affiant.Testing.ComplianceHarness.ComplianceHarness
+Affiant.Testing.ComplianceHarness.ComplianceVerificationResult
+Affiant.Testing.ComplianceHarness.ComplianceVerificationResult.<Clone>$() -> Affiant.Testing.ComplianceHarness.ComplianceVerificationResult!
+Affiant.Testing.ComplianceHarness.ComplianceVerificationResult.ComplianceVerificationResult(bool Passed, System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.MissingFixture!>! MissingFixtures, System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.FixtureFailure!>! FixtureFailures, System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.SubstanceFailure!>! SubstanceFailures) -> void
+Affiant.Testing.ComplianceHarness.ComplianceVerificationResult.Deconstruct(out bool Passed, out System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.MissingFixture!>! MissingFixtures, out System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.FixtureFailure!>! FixtureFailures, out System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.SubstanceFailure!>! SubstanceFailures) -> void
+Affiant.Testing.ComplianceHarness.ComplianceVerificationResult.Equals(Affiant.Testing.ComplianceHarness.ComplianceVerificationResult? other) -> bool
+Affiant.Testing.ComplianceHarness.ComplianceVerificationResult.FixtureFailures.get -> System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.FixtureFailure!>!
+Affiant.Testing.ComplianceHarness.ComplianceVerificationResult.FixtureFailures.init -> void
+Affiant.Testing.ComplianceHarness.ComplianceVerificationResult.MissingFixtures.get -> System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.MissingFixture!>!
+Affiant.Testing.ComplianceHarness.ComplianceVerificationResult.MissingFixtures.init -> void
+Affiant.Testing.ComplianceHarness.ComplianceVerificationResult.Passed.get -> bool
+Affiant.Testing.ComplianceHarness.ComplianceVerificationResult.Passed.init -> void
+Affiant.Testing.ComplianceHarness.ComplianceVerificationResult.SubstanceFailures.get -> System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.SubstanceFailure!>!
+Affiant.Testing.ComplianceHarness.ComplianceVerificationResult.SubstanceFailures.init -> void
+Affiant.Testing.ComplianceHarness.FabricKeyParityResult
+Affiant.Testing.ComplianceHarness.FabricKeyParityResult.<Clone>$() -> Affiant.Testing.ComplianceHarness.FabricKeyParityResult!
+Affiant.Testing.ComplianceHarness.FabricKeyParityResult.Deconstruct(out bool Passed, out System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.ParityViolation!>! OrphanConstants, out System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.ParityViolation!>! UndeclaredKeys) -> void
+Affiant.Testing.ComplianceHarness.FabricKeyParityResult.Equals(Affiant.Testing.ComplianceHarness.FabricKeyParityResult? other) -> bool
+Affiant.Testing.ComplianceHarness.FabricKeyParityResult.FabricKeyParityResult(bool Passed, System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.ParityViolation!>! OrphanConstants, System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.ParityViolation!>! UndeclaredKeys) -> void
+Affiant.Testing.ComplianceHarness.FabricKeyParityResult.OrphanConstants.get -> System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.ParityViolation!>!
+Affiant.Testing.ComplianceHarness.FabricKeyParityResult.OrphanConstants.init -> void
+Affiant.Testing.ComplianceHarness.FabricKeyParityResult.Passed.get -> bool
+Affiant.Testing.ComplianceHarness.FabricKeyParityResult.Passed.init -> void
+Affiant.Testing.ComplianceHarness.FabricKeyParityResult.UndeclaredKeys.get -> System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.ParityViolation!>!
+Affiant.Testing.ComplianceHarness.FabricKeyParityResult.UndeclaredKeys.init -> void
+Affiant.Testing.ComplianceHarness.FieldParityViolation
+Affiant.Testing.ComplianceHarness.FieldParityViolation.<Clone>$() -> Affiant.Testing.ComplianceHarness.FieldParityViolation!
+Affiant.Testing.ComplianceHarness.FieldParityViolation.Deconstruct(out string! FieldName, out string! Reason) -> void
+Affiant.Testing.ComplianceHarness.FieldParityViolation.Equals(Affiant.Testing.ComplianceHarness.FieldParityViolation? other) -> bool
+Affiant.Testing.ComplianceHarness.FieldParityViolation.FieldName.get -> string!
+Affiant.Testing.ComplianceHarness.FieldParityViolation.FieldName.init -> void
+Affiant.Testing.ComplianceHarness.FieldParityViolation.FieldParityViolation(string! FieldName, string! Reason) -> void
+Affiant.Testing.ComplianceHarness.FieldParityViolation.Reason.get -> string!
+Affiant.Testing.ComplianceHarness.FieldParityViolation.Reason.init -> void
+Affiant.Testing.ComplianceHarness.FieldSetParityResult
+Affiant.Testing.ComplianceHarness.FieldSetParityResult.<Clone>$() -> Affiant.Testing.ComplianceHarness.FieldSetParityResult!
+Affiant.Testing.ComplianceHarness.FieldSetParityResult.Deconstruct(out bool Passed, out System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.FieldParityViolation!>! Errors, out System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.FieldParityViolation!>! Warnings) -> void
+Affiant.Testing.ComplianceHarness.FieldSetParityResult.Equals(Affiant.Testing.ComplianceHarness.FieldSetParityResult? other) -> bool
+Affiant.Testing.ComplianceHarness.FieldSetParityResult.Errors.get -> System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.FieldParityViolation!>!
+Affiant.Testing.ComplianceHarness.FieldSetParityResult.Errors.init -> void
+Affiant.Testing.ComplianceHarness.FieldSetParityResult.FieldSetParityResult(bool Passed, System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.FieldParityViolation!>! Errors, System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.FieldParityViolation!>! Warnings) -> void
+Affiant.Testing.ComplianceHarness.FieldSetParityResult.Passed.get -> bool
+Affiant.Testing.ComplianceHarness.FieldSetParityResult.Passed.init -> void
+Affiant.Testing.ComplianceHarness.FieldSetParityResult.Warnings.get -> System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.FieldParityViolation!>!
+Affiant.Testing.ComplianceHarness.FieldSetParityResult.Warnings.init -> void
+Affiant.Testing.ComplianceHarness.FixtureFailure
+Affiant.Testing.ComplianceHarness.FixtureFailure.<Clone>$() -> Affiant.Testing.ComplianceHarness.FixtureFailure!
+Affiant.Testing.ComplianceHarness.FixtureFailure.Deconstruct(out System.Type! StrategyType, out string! FixtureCaseName, out string! Reason) -> void
+Affiant.Testing.ComplianceHarness.FixtureFailure.Equals(Affiant.Testing.ComplianceHarness.FixtureFailure? other) -> bool
+Affiant.Testing.ComplianceHarness.FixtureFailure.FixtureCaseName.get -> string!
+Affiant.Testing.ComplianceHarness.FixtureFailure.FixtureCaseName.init -> void
+Affiant.Testing.ComplianceHarness.FixtureFailure.FixtureFailure(System.Type! StrategyType, string! FixtureCaseName, string! Reason) -> void
+Affiant.Testing.ComplianceHarness.FixtureFailure.Reason.get -> string!
+Affiant.Testing.ComplianceHarness.FixtureFailure.Reason.init -> void
+Affiant.Testing.ComplianceHarness.FixtureFailure.StrategyType.get -> System.Type!
+Affiant.Testing.ComplianceHarness.FixtureFailure.StrategyType.init -> void
+Affiant.Testing.ComplianceHarness.MissingFixture
+Affiant.Testing.ComplianceHarness.MissingFixture.<Clone>$() -> Affiant.Testing.ComplianceHarness.MissingFixture!
+Affiant.Testing.ComplianceHarness.MissingFixture.Deconstruct(out System.Type! StrategyType, out string! FunctionName) -> void
+Affiant.Testing.ComplianceHarness.MissingFixture.Equals(Affiant.Testing.ComplianceHarness.MissingFixture? other) -> bool
+Affiant.Testing.ComplianceHarness.MissingFixture.FunctionName.get -> string!
+Affiant.Testing.ComplianceHarness.MissingFixture.FunctionName.init -> void
+Affiant.Testing.ComplianceHarness.MissingFixture.MissingFixture(System.Type! StrategyType, string! FunctionName) -> void
+Affiant.Testing.ComplianceHarness.MissingFixture.StrategyType.get -> System.Type!
+Affiant.Testing.ComplianceHarness.MissingFixture.StrategyType.init -> void
+Affiant.Testing.ComplianceHarness.ParityViolation
+Affiant.Testing.ComplianceHarness.ParityViolation.<Clone>$() -> Affiant.Testing.ComplianceHarness.ParityViolation!
+Affiant.Testing.ComplianceHarness.ParityViolation.Deconstruct(out string! Member, out string! Reason) -> void
+Affiant.Testing.ComplianceHarness.ParityViolation.Equals(Affiant.Testing.ComplianceHarness.ParityViolation? other) -> bool
+Affiant.Testing.ComplianceHarness.ParityViolation.Member.get -> string!
+Affiant.Testing.ComplianceHarness.ParityViolation.Member.init -> void
+Affiant.Testing.ComplianceHarness.ParityViolation.ParityViolation(string! Member, string! Reason) -> void
+Affiant.Testing.ComplianceHarness.ParityViolation.Reason.get -> string!
+Affiant.Testing.ComplianceHarness.ParityViolation.Reason.init -> void
+Affiant.Testing.ComplianceHarness.SubstanceFailure
+Affiant.Testing.ComplianceHarness.SubstanceFailure.<Clone>$() -> Affiant.Testing.ComplianceHarness.SubstanceFailure!
+Affiant.Testing.ComplianceHarness.SubstanceFailure.Deconstruct(out System.Type! StrategyType, out string! FixtureCaseName, out string! FieldName, out string! Reason) -> void
+Affiant.Testing.ComplianceHarness.SubstanceFailure.Equals(Affiant.Testing.ComplianceHarness.SubstanceFailure? other) -> bool
+Affiant.Testing.ComplianceHarness.SubstanceFailure.FieldName.get -> string!
+Affiant.Testing.ComplianceHarness.SubstanceFailure.FieldName.init -> void
+Affiant.Testing.ComplianceHarness.SubstanceFailure.FixtureCaseName.get -> string!
+Affiant.Testing.ComplianceHarness.SubstanceFailure.FixtureCaseName.init -> void
+Affiant.Testing.ComplianceHarness.SubstanceFailure.Reason.get -> string!
+Affiant.Testing.ComplianceHarness.SubstanceFailure.Reason.init -> void
+Affiant.Testing.ComplianceHarness.SubstanceFailure.StrategyType.get -> System.Type!
+Affiant.Testing.ComplianceHarness.SubstanceFailure.StrategyType.init -> void
+Affiant.Testing.ComplianceHarness.SubstanceFailure.SubstanceFailure(System.Type! StrategyType, string! FixtureCaseName, string! FieldName, string! Reason) -> void
+Affiant.Testing.ComplianceHarness.ToolErrorCodeParityResult
+Affiant.Testing.ComplianceHarness.ToolErrorCodeParityResult.<Clone>$() -> Affiant.Testing.ComplianceHarness.ToolErrorCodeParityResult!
+Affiant.Testing.ComplianceHarness.ToolErrorCodeParityResult.Deconstruct(out bool Passed, out System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.ParityViolation!>! OrphanConstants, out System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.ParityViolation!>! UndeclaredCodes) -> void
+Affiant.Testing.ComplianceHarness.ToolErrorCodeParityResult.Equals(Affiant.Testing.ComplianceHarness.ToolErrorCodeParityResult? other) -> bool
+Affiant.Testing.ComplianceHarness.ToolErrorCodeParityResult.OrphanConstants.get -> System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.ParityViolation!>!
+Affiant.Testing.ComplianceHarness.ToolErrorCodeParityResult.OrphanConstants.init -> void
+Affiant.Testing.ComplianceHarness.ToolErrorCodeParityResult.Passed.get -> bool
+Affiant.Testing.ComplianceHarness.ToolErrorCodeParityResult.Passed.init -> void
+Affiant.Testing.ComplianceHarness.ToolErrorCodeParityResult.ToolErrorCodeParityResult(bool Passed, System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.ParityViolation!>! OrphanConstants, System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.ParityViolation!>! UndeclaredCodes) -> void
+Affiant.Testing.ComplianceHarness.ToolErrorCodeParityResult.UndeclaredCodes.get -> System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.ParityViolation!>!
+Affiant.Testing.ComplianceHarness.ToolErrorCodeParityResult.UndeclaredCodes.init -> void
+Affiant.Testing.ComplianceHarness.ToolNameParityResult
+Affiant.Testing.ComplianceHarness.ToolNameParityResult.<Clone>$() -> Affiant.Testing.ComplianceHarness.ToolNameParityResult!
+Affiant.Testing.ComplianceHarness.ToolNameParityResult.AmbiguousConstants.get -> System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.ParityViolation!>!
+Affiant.Testing.ComplianceHarness.ToolNameParityResult.AmbiguousConstants.init -> void
+Affiant.Testing.ComplianceHarness.ToolNameParityResult.Deconstruct(out bool Passed, out System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.ParityViolation!>! UndeclaredTools, out System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.ParityViolation!>! OrphanConstants, out System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.ParityViolation!>! AmbiguousConstants) -> void
+Affiant.Testing.ComplianceHarness.ToolNameParityResult.Equals(Affiant.Testing.ComplianceHarness.ToolNameParityResult? other) -> bool
+Affiant.Testing.ComplianceHarness.ToolNameParityResult.OrphanConstants.get -> System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.ParityViolation!>!
+Affiant.Testing.ComplianceHarness.ToolNameParityResult.OrphanConstants.init -> void
+Affiant.Testing.ComplianceHarness.ToolNameParityResult.Passed.get -> bool
+Affiant.Testing.ComplianceHarness.ToolNameParityResult.Passed.init -> void
+Affiant.Testing.ComplianceHarness.ToolNameParityResult.ToolNameParityResult(bool Passed, System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.ParityViolation!>! UndeclaredTools, System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.ParityViolation!>! OrphanConstants, System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.ParityViolation!>! AmbiguousConstants) -> void
+Affiant.Testing.ComplianceHarness.ToolNameParityResult.UndeclaredTools.get -> System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.ParityViolation!>!
+Affiant.Testing.ComplianceHarness.ToolNameParityResult.UndeclaredTools.init -> void
+override Affiant.Testing.ComplianceHarness.ComplianceVerificationResult.Equals(object? obj) -> bool
+override Affiant.Testing.ComplianceHarness.ComplianceVerificationResult.GetHashCode() -> int
+override Affiant.Testing.ComplianceHarness.ComplianceVerificationResult.ToString() -> string!
+override Affiant.Testing.ComplianceHarness.FabricKeyParityResult.Equals(object? obj) -> bool
+override Affiant.Testing.ComplianceHarness.FabricKeyParityResult.GetHashCode() -> int
+override Affiant.Testing.ComplianceHarness.FabricKeyParityResult.ToString() -> string!
+override Affiant.Testing.ComplianceHarness.FieldParityViolation.Equals(object? obj) -> bool
+override Affiant.Testing.ComplianceHarness.FieldParityViolation.GetHashCode() -> int
+override Affiant.Testing.ComplianceHarness.FieldParityViolation.ToString() -> string!
+override Affiant.Testing.ComplianceHarness.FieldSetParityResult.Equals(object? obj) -> bool
+override Affiant.Testing.ComplianceHarness.FieldSetParityResult.GetHashCode() -> int
+override Affiant.Testing.ComplianceHarness.FieldSetParityResult.ToString() -> string!
+override Affiant.Testing.ComplianceHarness.FixtureFailure.Equals(object? obj) -> bool
+override Affiant.Testing.ComplianceHarness.FixtureFailure.GetHashCode() -> int
+override Affiant.Testing.ComplianceHarness.FixtureFailure.ToString() -> string!
+override Affiant.Testing.ComplianceHarness.MissingFixture.Equals(object? obj) -> bool
+override Affiant.Testing.ComplianceHarness.MissingFixture.GetHashCode() -> int
+override Affiant.Testing.ComplianceHarness.MissingFixture.ToString() -> string!
+override Affiant.Testing.ComplianceHarness.ParityViolation.Equals(object? obj) -> bool
+override Affiant.Testing.ComplianceHarness.ParityViolation.GetHashCode() -> int
+override Affiant.Testing.ComplianceHarness.ParityViolation.ToString() -> string!
+override Affiant.Testing.ComplianceHarness.SubstanceFailure.Equals(object? obj) -> bool
+override Affiant.Testing.ComplianceHarness.SubstanceFailure.GetHashCode() -> int
+override Affiant.Testing.ComplianceHarness.SubstanceFailure.ToString() -> string!
+override Affiant.Testing.ComplianceHarness.ToolErrorCodeParityResult.Equals(object? obj) -> bool
+override Affiant.Testing.ComplianceHarness.ToolErrorCodeParityResult.GetHashCode() -> int
+override Affiant.Testing.ComplianceHarness.ToolErrorCodeParityResult.ToString() -> string!
+override Affiant.Testing.ComplianceHarness.ToolNameParityResult.Equals(object? obj) -> bool
+override Affiant.Testing.ComplianceHarness.ToolNameParityResult.GetHashCode() -> int
+override Affiant.Testing.ComplianceHarness.ToolNameParityResult.ToString() -> string!
+static Affiant.Testing.ComplianceHarness.ComplianceHarness.AssertFabricKeyParity(System.Type! fabricKeysType, System.Collections.Generic.IReadOnlyCollection<string!>! liveKeys, System.Collections.Generic.IReadOnlyCollection<string!>? exemptConstants = null) -> Affiant.Testing.ComplianceHarness.FabricKeyParityResult!
+static Affiant.Testing.ComplianceHarness.ComplianceHarness.AssertFieldSetParity(Affiant.Abstractions.Interfaces.ITaskInferenceStrategy! strategy, System.Collections.Generic.IReadOnlyCollection<string!>! writeConsumedFieldNames) -> Affiant.Testing.ComplianceHarness.FieldSetParityResult!
+static Affiant.Testing.ComplianceHarness.ComplianceHarness.AssertProvenanceIsSubstantive(Affiant.Abstractions.Interfaces.ITaskInferenceStrategy! strategy, string! fixtureCaseName, Affiant.Abstractions.Models.Affidavit! affidavit) -> System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.SubstanceFailure!>!
+static Affiant.Testing.ComplianceHarness.ComplianceHarness.AssertToolErrorCodeRegistryParity(System.Type! toolErrorCodesType, System.Collections.Generic.IReadOnlyCollection<string!>! emittedCodes, System.Collections.Generic.IReadOnlyCollection<string!>? exemptConstants = null) -> Affiant.Testing.ComplianceHarness.ToolErrorCodeParityResult!
+static Affiant.Testing.ComplianceHarness.ComplianceHarness.AssertToolNameRegistryParity(System.Type! toolNamesType, System.Collections.Generic.IReadOnlyCollection<string!>! exposedToolNames, System.Collections.Generic.IReadOnlyCollection<string!>? exemptConstants = null) -> Affiant.Testing.ComplianceHarness.ToolNameParityResult!
+static Affiant.Testing.ComplianceHarness.ComplianceHarness.Verify(Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Affiant.Testing.ComplianceHarness.ComplianceVerificationResult!
+static Affiant.Testing.ComplianceHarness.ComplianceVerificationResult.operator !=(Affiant.Testing.ComplianceHarness.ComplianceVerificationResult? left, Affiant.Testing.ComplianceHarness.ComplianceVerificationResult? right) -> bool
+static Affiant.Testing.ComplianceHarness.ComplianceVerificationResult.operator ==(Affiant.Testing.ComplianceHarness.ComplianceVerificationResult? left, Affiant.Testing.ComplianceHarness.ComplianceVerificationResult? right) -> bool
+static Affiant.Testing.ComplianceHarness.FabricKeyParityResult.operator !=(Affiant.Testing.ComplianceHarness.FabricKeyParityResult? left, Affiant.Testing.ComplianceHarness.FabricKeyParityResult? right) -> bool
+static Affiant.Testing.ComplianceHarness.FabricKeyParityResult.operator ==(Affiant.Testing.ComplianceHarness.FabricKeyParityResult? left, Affiant.Testing.ComplianceHarness.FabricKeyParityResult? right) -> bool
+static Affiant.Testing.ComplianceHarness.FieldParityViolation.operator !=(Affiant.Testing.ComplianceHarness.FieldParityViolation? left, Affiant.Testing.ComplianceHarness.FieldParityViolation? right) -> bool
+static Affiant.Testing.ComplianceHarness.FieldParityViolation.operator ==(Affiant.Testing.ComplianceHarness.FieldParityViolation? left, Affiant.Testing.ComplianceHarness.FieldParityViolation? right) -> bool
+static Affiant.Testing.ComplianceHarness.FieldSetParityResult.operator !=(Affiant.Testing.ComplianceHarness.FieldSetParityResult? left, Affiant.Testing.ComplianceHarness.FieldSetParityResult? right) -> bool
+static Affiant.Testing.ComplianceHarness.FieldSetParityResult.operator ==(Affiant.Testing.ComplianceHarness.FieldSetParityResult? left, Affiant.Testing.ComplianceHarness.FieldSetParityResult? right) -> bool
+static Affiant.Testing.ComplianceHarness.FixtureFailure.operator !=(Affiant.Testing.ComplianceHarness.FixtureFailure? left, Affiant.Testing.ComplianceHarness.FixtureFailure? right) -> bool
+static Affiant.Testing.ComplianceHarness.FixtureFailure.operator ==(Affiant.Testing.ComplianceHarness.FixtureFailure? left, Affiant.Testing.ComplianceHarness.FixtureFailure? right) -> bool
+static Affiant.Testing.ComplianceHarness.MissingFixture.operator !=(Affiant.Testing.ComplianceHarness.MissingFixture? left, Affiant.Testing.ComplianceHarness.MissingFixture? right) -> bool
+static Affiant.Testing.ComplianceHarness.MissingFixture.operator ==(Affiant.Testing.ComplianceHarness.MissingFixture? left, Affiant.Testing.ComplianceHarness.MissingFixture? right) -> bool
+static Affiant.Testing.ComplianceHarness.ParityViolation.operator !=(Affiant.Testing.ComplianceHarness.ParityViolation? left, Affiant.Testing.ComplianceHarness.ParityViolation? right) -> bool
+static Affiant.Testing.ComplianceHarness.ParityViolation.operator ==(Affiant.Testing.ComplianceHarness.ParityViolation? left, Affiant.Testing.ComplianceHarness.ParityViolation? right) -> bool
+static Affiant.Testing.ComplianceHarness.SubstanceFailure.operator !=(Affiant.Testing.ComplianceHarness.SubstanceFailure? left, Affiant.Testing.ComplianceHarness.SubstanceFailure? right) -> bool
+static Affiant.Testing.ComplianceHarness.SubstanceFailure.operator ==(Affiant.Testing.ComplianceHarness.SubstanceFailure? left, Affiant.Testing.ComplianceHarness.SubstanceFailure? right) -> bool
+static Affiant.Testing.ComplianceHarness.ToolErrorCodeParityResult.operator !=(Affiant.Testing.ComplianceHarness.ToolErrorCodeParityResult? left, Affiant.Testing.ComplianceHarness.ToolErrorCodeParityResult? right) -> bool
+static Affiant.Testing.ComplianceHarness.ToolErrorCodeParityResult.operator ==(Affiant.Testing.ComplianceHarness.ToolErrorCodeParityResult? left, Affiant.Testing.ComplianceHarness.ToolErrorCodeParityResult? right) -> bool
+static Affiant.Testing.ComplianceHarness.ToolNameParityResult.operator !=(Affiant.Testing.ComplianceHarness.ToolNameParityResult? left, Affiant.Testing.ComplianceHarness.ToolNameParityResult? right) -> bool
+static Affiant.Testing.ComplianceHarness.ToolNameParityResult.operator ==(Affiant.Testing.ComplianceHarness.ToolNameParityResult? left, Affiant.Testing.ComplianceHarness.ToolNameParityResult? right) -> bool

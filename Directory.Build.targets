@@ -1,5 +1,36 @@
 <Project>
   <!--
+    Public API surface lock (area-8 ruling 6 / verdict V5).
+
+    Microsoft.CodeAnalysis.PublicApiAnalyzers makes the shipped public surface of every packable
+    project an explicit, reviewable, checked-in artifact: each project declares its surface in
+    PublicAPI.Shipped.txt + PublicAPI.Unshipped.txt, and the analyzer reports any public symbol that
+    is not declared (RS0016) or declared but no longer present (RS0017). Because the repo sets
+    TreatWarningsAsErrors, that lands as a BUILD FAILURE — so CI's existing `dotnet build -c Release`
+    step already enforces API drift with no workflow change: a PR that adds, removes or resignatures
+    a public member fails until it updates the baseline file, which puts the change in the diff where
+    a reviewer sees it.
+
+    Convention used here (nothing is published yet — first publish is 1.0.0-beta.1): every entry
+    lives in PublicAPI.Unshipped.txt and PublicAPI.Shipped.txt is empty. At each release, the
+    unshipped entries move into the shipped file (the analyzer ships an "apply" fix for that), which
+    is what makes RS0016/RS0017 able to distinguish "new API this release" from "API we already
+    promised".
+
+    This lives in Directory.Build.targets, not .props, because the condition reads $(IsPackable):
+    .props is imported BEFORE the csproj sets it, .targets after. IsPackable is true for the nine
+    src/ packages and false for every test project.
+  -->
+  <ItemGroup Condition="'$(IsPackable)' == 'true'">
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="5.6.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
+  <!--
     Packaging NFR gate (NFR3, NFR4, NFR5).
     Runs before every `dotnet pack` on a packable framework project and asserts:
       - Version == the canonical version computed from Directory.Build.props'
