@@ -2,6 +2,29 @@ namespace Affiant.Abstractions.Interfaces;
 
 using Affiant.Abstractions.Models;
 
+/// <summary>
+/// The framework's review ledger: durable storage for pending, approved, rejected and expired
+/// <see cref="DocketEntry"/> records, plus the per-session <see cref="ConversationContext"/> the
+/// review was raised against. Implement it to back the docket with your own store; ship-ready
+/// implementations for in-memory, SQLite and PostgreSQL come with <c>Affiant.Docket</c>.
+/// </summary>
+/// <remarks>
+/// <para>
+/// This is a correctness-critical contract, not a CRUD wrapper. Two members carry explicit
+/// atomicity obligations that <c>ReviewGate</c> relies on and that a naive read-then-write
+/// implementation will violate: <see cref="UpdateReviewStatusAsync"/> (double-submit prevention)
+/// and <see cref="ConsumeForResubmitAsync"/> (double-resubmit prevention). Both express their
+/// result as rows-affected — 1 means this caller won, 0 means someone else already did — so the
+/// guard must live in the write itself, never in surrounding C#. Read each member's remarks before
+/// implementing; the per-member contracts are the specification.
+/// </para>
+/// <para>
+/// A store is expected to be safe for concurrent use across sessions and across callers within a
+/// session. <c>Affiant.Testing.ComplianceHarness</c> exercises these invariants against any
+/// implementation, including the ordering contract on
+/// <see cref="ListPendingBySessionAsync"/>.
+/// </para>
+/// </remarks>
 public interface IDocketStore
 {
     /// <summary>
