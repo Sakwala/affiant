@@ -1,13 +1,12 @@
 using System.Text.Json;
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
-using Affiant.EntityFramework;
 using Affiant.EntityFramework.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using AbstractConversationContext = Affiant.Abstractions.Models.ConversationContext;
 
-namespace Affiant.Docket.Stores;
+namespace Affiant.EntityFramework.Stores;
 
 public sealed class PostgresDocketStore(
     AffiantDbContext db,

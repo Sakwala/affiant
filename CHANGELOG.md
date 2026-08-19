@@ -12,6 +12,46 @@ any *published* release (`docs/proposals/affiant-maf-adapter.md` §9).
 
 ## [Unreleased]
 
+### Changed — Area-8 P3: the SQL-backed `IDocketStore` implementations move to `Affiant.EntityFramework` (affiant#35)
+
+**Breaking for anyone calling `AddAffiantDocket(d => d.UseSqlite(...))` or `d.UsePostgres(...)`, and
+for anyone naming `Affiant.Docket.Stores.SqliteDocketStore`/`PostgresDocketStore` directly. Free to
+do exactly now: there are no published consumers (first publish is `1.0.0-beta.1`), and the repo's
+"no backwards-compatibility shims pre-1.0" rule means the break is clean rather than layered.**
+
+`Affiant.Docket` carried a `ProjectReference` onto `Affiant.EntityFramework` — the only
+adapter-to-adapter edge in the graph, and one the repo's own layering invariant (`CLAUDE.md`,
+"Layering invariant") forbids in emphatic terms. It existed for exactly two classes:
+`SqliteDocketStore` and `PostgresDocketStore` both take `AffiantDbContext` as a constructor
+dependency. Everything else those two need — `DocketEntryEntity`, `DocketEntityConfiguration`, the
+`AddDocketEntries` and `AddResubmissionLineage` migrations — already lived in
+`Affiant.EntityFramework`, and that package already implements the sibling contract
+`IChatSessionStore` this exact way. Docket was the outlier.
+
+- Both classes moved to `Affiant.EntityFramework.Stores` (namespace changed accordingly). Their
+  implementations are unchanged, line for line.
+- `AddAffiantEntityFramework(ef => ef.UsePostgres(...) / ef.UseSqlite(...))` now registers that
+  provider's `IDocketStore` alongside its `IChatSessionStore`, Scoped, exactly as before.
+  `ef.UseInMemory()` deliberately registers no `IDocketStore` — the in-memory implementation belongs
+  to `Affiant.Docket`.
+- `DocketOptions.UseSqlite(string)`, `.UsePostgres(string)` and the internal `ConnectionString`
+  property are **deleted**. `DocketOptions.UseInMemory()` remains and is now the only selection.
+- `AddAffiantDocket`'s `configure` parameter became optional, and the method no longer throws when no
+  store is selected: for a SQL-backed host, "no selection" is now the correct call shape, since
+  `AddAffiantDocket()` is still required for the backend-neutral `DocketExpiryService`. The loudness
+  the old throw provided did not disappear — it moved to `AddAffiantCore`'s new startup wire-up
+  validator (see the P4 entry below), which can see the whole composition root and therefore catches
+  a host that registered *no* `IDocketStore` anywhere, regardless of registration order.
+- `Affiant.Docket`'s `ProjectReference` to `Affiant.EntityFramework` is gone, restoring the declared
+  DAG exactly. Installing `Affiant.Docket` no longer drags `Microsoft.EntityFrameworkCore`,
+  `.Relational`, `.Sqlite` and `Npgsql.EntityFrameworkCore.PostgreSQL` onto a host that wants only
+  `InMemoryDocketStore`.
+
+**Host migration:** replace `AddAffiantDocket(d => d.UseSqlite(cs))` with
+`AddAffiantEntityFramework(ef => ef.UseSqlite(cs))` (which every SQL-backed host already calls for
+`IChatSessionStore`) plus a bare `AddAffiantDocket()`. No new package reference is needed — a host
+using a SQL Docket already referenced `Affiant.EntityFramework`.
+
 ### Changed — Area-8 P2: eight data types move out of `Affiant.Abstractions.Interfaces` into `.Models`
 
 **Source-breaking for anyone with `using Affiant.Abstractions.Interfaces;` who referenced these

@@ -8,6 +8,13 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Affiant.Docket/Affiant.Docket.csproj" />
+    <!-- Explicit since affiant#35 (area-8 ruling 1) removed Affiant.Docket's own ProjectReference to
+         Affiant.EntityFramework. The IDocketStore backend-parity suite (SharedDocketStoreTests and
+         its provider factories) must exercise all three implementations — InMemory from
+         Affiant.Docket, SQLite and PostgreSQL from Affiant.EntityFramework — in one place, which is
+         the whole point of a parity suite, so this test project references both packages. Test
+         projects are outside the src/ layering invariant. -->
+    <ProjectReference Include="../../src/Affiant.EntityFramework/Affiant.EntityFramework.csproj" />
   </ItemGroup>
 
   <ItemGroup>
