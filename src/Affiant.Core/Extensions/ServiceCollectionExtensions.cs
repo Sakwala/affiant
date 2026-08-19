@@ -6,8 +6,10 @@ using Affiant.Core.Filters;
 using Affiant.Core.Observability;
 using Affiant.Core.Services;
 using Affiant.Core.UiBridge;
+using Affiant.Core.Validation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 
 /// <summary>
 /// Extension methods for <see cref="IServiceCollection"/> to register
@@ -57,13 +59,21 @@ public static class ServiceCollectionExtensions
     /// <c>IDocketStore</c> — are both <c>Affiant.Abstractions</c> interfaces with no default
     /// implementation in this package; <c>TryAddScoped</c> here does not require them to already be
     /// registered (DI resolves lazily at first use, not at registration time), it only requires the
-    /// host to have registered <em>some</em> implementation (typically via
-    /// <c>Affiant.Transport.SignalR</c>'s <c>AddAffiantSignalR</c> and <c>Affiant.Docket</c>'s
-    /// <c>AddAffiantDocket</c>) before actually resolving <c>ReviewGate</c>. Before this fix, every
+    /// host to have registered <em>some</em> implementation before actually resolving
+    /// <c>ReviewGate</c> — typically <c>Affiant.Transport.SignalR</c>'s <c>AddAffiantSignalR</c> for
+    /// the transport, and for the store either <c>Affiant.EntityFramework</c>'s
+    /// <c>AddAffiantEntityFramework(ef =&gt; ef.UseSqlite(...) | ef.UsePostgres(...))</c> or
+    /// <c>Affiant.Docket</c>'s <c>AddAffiantDocket(d =&gt; d.UseInMemory())</c>. Before this fix, every
     /// host had to hand-register <c>ReviewGate</c> itself — <c>ReviewGateFilter</c> resolves it via
     /// <c>context.Services.GetService&lt;ReviewGate&gt;()</c> (not <c>GetRequiredService</c>) and
     /// silently no-ops when it is absent, so a host that forgot the manual registration got no error,
     /// only silently-unfiled write proposals.
+    /// <b>"Lazily" no longer means "silently" (area-8 ruling 6):</b> this method also registers
+    /// <see cref="Affiant.Core.Validation.AffiantWireUpValidator"/> as the first
+    /// <c>IHostedService</c>, which fails the host at startup — naming each missing contract and the
+    /// call and package that supply it — if neither of those two dependencies was registered by the
+    /// time the application starts. Registration order between the packages is irrelevant to it;
+    /// <see cref="AffiantCoreOptions.AcknowledgeMissingReviewWiring"/> opts out loudly.
     /// </para>
     /// <para>
     /// <b>UiGuidanceBridge (area-4 P1f(b), Rule 6 built 2026-08-04):</b> registered <b>Singleton</b>
@@ -91,6 +101,17 @@ public static class ServiceCollectionExtensions
     {
         var options = new AffiantCoreOptions();
         configure?.Invoke(options);
+
+        // Startup wire-up validation (area-8 ruling 6). Inserted at the front so it runs before any
+        // host-registered IHostedService (matching AddAffiantSemanticKernel's AffiantStartupValidator,
+        // which inserts ahead of this one when a host calls both). Guarded so a second AddAffiantCore()
+        // call doesn't register it twice — Insert has no TryAdd equivalent.
+        if (!services.Any(d =>
+                d.ServiceType == typeof(IHostedService) &&
+                d.ImplementationType == typeof(AffiantWireUpValidator)))
+        {
+            services.Insert(0, ServiceDescriptor.Singleton<IHostedService, AffiantWireUpValidator>());
+        }
 
         // Tool descriptor registry — always present once framework DI is added
         services.TryAddSingleton<IAffiantToolRegistry, AffiantToolRegistry>();
