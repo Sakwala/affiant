@@ -55,9 +55,9 @@ member-naming violations.
 
 ## Further Reading
 
-- [Affiant Framework Specification](https://github.com/affiant-dev/affiant/blob/main/packages/docs/affiant-framework-specification.md) — full framework guide including the seven normative rules and tool authoring patterns
-- [L2 Inference Orchestration PRD](https://github.com/affiant-dev/affiant/blob/main/docs/architecture/phase-3-prd-l2-inference-orchestration.md) — L2 design rationale and acceptance criteria (AC #7 specifies this package as a v1.0 deliverable)
+- [Affiant Framework Specification](https://github.com/Sakwala/affiant/blob/main/docs/affiant-framework-specification.md) — full framework guide including the seven normative rules and tool authoring patterns
+- [L2 Inference Orchestration PRD](https://github.com/Sakwala/affiant/blob/main/docs/architecture/phase-3-prd-l2-inference-orchestration.md) — L2 design rationale and acceptance criteria (AC #7 specifies this package as a v1.0 deliverable)
 
 ---
 
-*Version 1.0.0-alpha.1 | Apache-2.0 License | Part of the [Affiant Framework](https://github.com/affiant-dev/affiant)*
+*Version 1.0.0-alpha.1 | Apache-2.0 License | Part of the [Affiant Framework](https://github.com/Sakwala/affiant)*

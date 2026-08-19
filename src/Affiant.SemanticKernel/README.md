@@ -1,6 +1,6 @@
 # Affiant.SemanticKernel
 
-Semantic Kernel adapter for the [Affiant framework](https://github.com/affiant-dev/affiant) — "sworn provenance for every AI write."
+Semantic Kernel adapter for the [Affiant framework](https://github.com/Sakwala/affiant) — "sworn provenance for every AI write."
 
 Wires the Affiant filter pipeline (structured task inference, deterministic context extraction, review gating, structured error handling) into any Semantic Kernel host application, and provides per-provider connector capability detection with a manual tool-invocation fallback for providers without native auto-function-calling support.
 
@@ -24,9 +24,9 @@ builder.Services.AddAffiantSemanticKernel();
 
 ## Further reading
 
-- [Affiant Framework Specification](https://github.com/affiant-dev/affiant/blob/main/packages/docs/affiant-framework-specification.md) — the full design contract, including the seven normative rules
-- [Tool Authoring Guide](https://github.com/affiant-dev/affiant/blob/main/packages/docs/tool-authoring-guide.md) — write your first Affiant plugin pair
+- [Affiant Framework Specification](https://github.com/Sakwala/affiant/blob/main/docs/affiant-framework-specification.md) — the full design contract, including the seven normative rules
+- [Tool Authoring Guide](https://github.com/Sakwala/affiant/blob/main/docs/tool-authoring-guide.md) — write your first Affiant plugin pair
 
 ---
 
-*Part of the [Affiant Framework](https://github.com/affiant-dev/affiant) | Apache-2.0 License*
+*Part of the [Affiant Framework](https://github.com/Sakwala/affiant) | Apache-2.0 License*

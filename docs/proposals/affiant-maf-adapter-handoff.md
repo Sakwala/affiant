@@ -18,8 +18,8 @@ Two verified facts bound the work (Microsoft primary sources, verified 2026-07-0
 
 ## Current project state (2026-07-05)
 
-- This public repo (`affiant-dev/affiant`) ships **eight** co-versioned packages at `1.0.0-alpha.1`. The first public release (`v1.0.0-beta.1`, **SK-only by design**) is engineering-ready but **not yet published** — the publish is a pending, operator-only, tag-triggered sequence. **Nothing in the MAF work may land on `main` or touch versioning/workflows until the maintainer merges it**; the MAF adapter is post-beta scope.
-- Two private host applications (an aviation-maintenance copilot and an HR portal, in `affiant-dev/affiant-host-apps`) validate the framework. The plan of record: the aviation host migrates to the MAF backend; the HR host deliberately stays on SK so both backends are exercised by a real host. (Host specifics live in the private repo; they are not needed to act on the proposal.)
+- This public repo (`Sakwala/affiant`) ships **eight** co-versioned packages at `1.0.0-alpha.1`. The first public release (`v1.0.0-beta.1`, **SK-only by design**) is engineering-ready but **not yet published** — the publish is a pending, operator-only, tag-triggered sequence. **Nothing in the MAF work may land on `main` or touch versioning/workflows until the maintainer merges it**; the MAF adapter is post-beta scope.
+- Two private host applications (an aviation-maintenance copilot and an HR portal, in `Sakwala/affiant-host-apps`) validate the framework. The plan of record: the aviation host migrates to the MAF backend; the HR host deliberately stays on SK so both backends are exercised by a real host. (Host specifics live in the private repo; they are not needed to act on the proposal.)
 - Implementation branch for this proposal: `feat/agent-framework-adapter` in this repo. Delivery vehicle: draft PR.
 - Recon finding that shaped everything (2026-07-05): the "port is confined to one package" assumption was false — `Affiant.Core` and `Affiant.Abstractions` carried direct SK dependencies in violation of the spec's own L2 AC #4. The proposal's §3 documents the debt; §4.3 removes it.
 
