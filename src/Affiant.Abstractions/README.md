@@ -16,8 +16,8 @@ Most hosts get this transitively through `Affiant.Core` or an adapter package (`
 
 | Namespace | Purpose |
 |---|---|
-| `Affiant.Abstractions.Models` | Primitive types: `Affidavit`, `AffidavitField`, `ProvenanceTag`, `ProvenanceChain`, `ToolEnvelope` (discriminated `ReadResult`/`WriteProposal`/`ToolError`), `DocketEntry`, `Operation`, `EntityRef`, `AffiantChatMessage`, `AffiantToolDescriptor` |
-| `Affiant.Abstractions.Interfaces` | Framework contracts a host or adapter implements or consumes: `IChatSessionStore`, `IDocketStore`, `IStreamingTransport`, `IApprovalPolicy`, `IFieldMapper<T>`, `IWriteExecutor`, `IRouteRegistry`, `IIntentInterceptor`, `IToolAuthorizationPolicy`, `ITaskInferenceStrategy` |
+| `Affiant.Abstractions.Models` | Data types — everything that is not a contract: `Affidavit`, `AffidavitField`, `ProvenanceTag`, `ProvenanceChain`, `ToolEnvelope` (discriminated `ReadResult`/`WriteProposal`/`ToolError`), `DocketEntry`, `ReviewStatus`, `ReviewContext`, `ReviewRequirement`, `ReviewResponse` (discriminated `ReviewGranted`/`ReviewDenied`/`ReviewExpired`), `ChatSession`, `ConversationContext`, `TaskInferenceField`, `Operation`, `EntityRef`, `AffiantChatMessage`, `AffiantToolDescriptor` |
+| `Affiant.Abstractions.Interfaces` | Framework contracts a host or adapter implements or consumes — interfaces only: `IChatSessionStore`, `IDocketStore`, `IStreamingTransport`, `IApprovalPolicy`, `IFieldMapper<T>`, `IWriteExecutor`, `IRouteRegistry`, `IIntentInterceptor`, `IToolAuthorizationPolicy`, `ITaskInferenceStrategy` |
 | `Affiant.Abstractions.Transport` | Wire-shape types for the streaming transport: `TransportEvent`, `EvidenceCard` request/response, `DocketExpiryEvent`, `SystemNotificationPayload`, `UiGuidancePayload` |
 | `Affiant.Abstractions.Attributes` | `[AffiantWriteTool]` — declares a tool method as write-intent for the Tool Descriptor Registry |
 | `Affiant.Abstractions.Exceptions` | `AffiantStartupException` — the hard-failure type framework startup validation throws (never a warning) |
