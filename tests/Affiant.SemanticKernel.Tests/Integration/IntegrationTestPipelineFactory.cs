@@ -27,8 +27,8 @@ using OpenTelemetry.Trace;
 ///
 /// Note: KernelPluginFactory.CreateFromFunctions does NOT exercise the [AffiantWriteTool]
 /// attribute walker (AddAffiantPluginsFromAssembly). Tool descriptors are registered manually
-/// via AddAffiantTool<> with pluginName matching the plugin registered below — this is the
-/// same shortcut the 16.8 closure test takes.
+/// via <c>AddAffiantTool&lt;TStrategy&gt;</c> with pluginName matching the plugin registered
+/// below — this is the same shortcut the 16.8 closure test takes.
 /// </summary>
 internal static class IntegrationTestPipelineFactory
 {
