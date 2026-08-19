@@ -14,9 +14,22 @@
     <VersionPrefix>1.0.0</VersionPrefix>
     <VersionSuffix>alpha.1</VersionSuffix>
     <Authors>Seevali</Authors>
-    <PackageProjectUrl>https://github.com/affiant-dev/affiant</PackageProjectUrl>
+    <PackageProjectUrl>https://github.com/Sakwala/affiant</PackageProjectUrl>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-    <RepositoryUrl>https://github.com/affiant-dev/affiant</RepositoryUrl>
+    <RepositoryUrl>https://github.com/Sakwala/affiant</RepositoryUrl>
+  </PropertyGroup>
+
+  <!-- Canonical values snapshotted here — the single source of truth this file already is for
+       Version/RepositoryUrl — for Directory.Build.targets' packaging NFR gate to validate every
+       project against. Evaluated at Directory.Build.props import time, i.e. before any
+       per-project csproj override could apply, so these stay the "expected" value even if a
+       csproj later drifts. Never duplicate these as literals anywhere else (that duplication is
+       exactly the bug this fixes: see affiant-chancery docs/architecture-review/area-8-public-api-packaging.md,
+       ruling 4). Changing the org or flipping VersionSuffix requires editing only this file. -->
+  <PropertyGroup>
+    <AffiantCanonicalVersion Condition="'$(VersionSuffix)' != ''">$(VersionPrefix)-$(VersionSuffix)</AffiantCanonicalVersion>
+    <AffiantCanonicalVersion Condition="'$(VersionSuffix)' == ''">$(VersionPrefix)</AffiantCanonicalVersion>
+    <AffiantCanonicalRepositoryUrl>$(RepositoryUrl)</AffiantCanonicalRepositoryUrl>
   </PropertyGroup>
 
   <!-- GHSA-2m69-gcr7-jv3q: SQLitePCLRaw.lib.e_sqlite3 <= 2.1.11 bundles a vulnerable SQLite;
