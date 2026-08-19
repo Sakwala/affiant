@@ -6,8 +6,13 @@
     <AssemblyName>Affiant.Docket</AssemblyName>
     <PackageId>Affiant.Docket</PackageId>
     <Description>Durable review queue for Affiant, providing persistence and expiry semantics for review workflows across multiple database backends.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryType>git</RepositoryType>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../Affiant.Abstractions/Affiant.Abstractions.csproj" />

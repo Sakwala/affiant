@@ -6,13 +6,17 @@
     <AssemblyName>Affiant.Policies</AssemblyName>
     <PackageId>Affiant.Policies</PackageId>
     <Description>Approval policy framework for Affiant, providing Standing Orders, Referral routing, and risk-scoring for review workflows.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryType>git</RepositoryType>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../Affiant.Abstractions/Affiant.Abstractions.csproj" />
     <ProjectReference Include="../Affiant.Core/Affiant.Core.csproj" />
   </ItemGroup>
-
 
 </Project>
