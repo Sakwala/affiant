@@ -12,7 +12,8 @@
     <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
-  <!-- Unit-test access to internal edge helpers (message conversions). -->
+  <!-- Unit-test access to internal edge helpers (message conversions, the per-provider
+       IConnectorCapabilities leaf classes CapabilityRegistry constructs). -->
   <ItemGroup>
     <InternalsVisibleTo Include="Affiant.SemanticKernel.Tests" />
   </ItemGroup>
