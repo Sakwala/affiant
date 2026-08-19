@@ -2,7 +2,7 @@ using Affiant.Abstractions.Interfaces;
 
 namespace Affiant.SemanticKernel.Connectors.Capabilities;
 
-public sealed class GoogleGeminiCapabilities : IConnectorCapabilities
+internal sealed class GoogleGeminiCapabilities : IConnectorCapabilities
 {
     public bool SupportsAutoFunctionInvocationFilter => true;
     public bool SupportsStreamingFunctionCalls => false;

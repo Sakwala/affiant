@@ -2,7 +2,7 @@ using Affiant.Abstractions.Interfaces;
 
 namespace Affiant.SemanticKernel.Connectors.Capabilities;
 
-public sealed class OpenAiCapabilities : IConnectorCapabilities
+internal sealed class OpenAiCapabilities : IConnectorCapabilities
 {
     public bool SupportsAutoFunctionInvocationFilter => true;
     public bool SupportsStreamingFunctionCalls => true;
