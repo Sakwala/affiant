@@ -1,6 +1,7 @@
 namespace Affiant.Extensions.AI.Filters;
 
 using Affiant.Abstractions.Interfaces;
+using Affiant.Abstractions.Models;
 using Affiant.Core.Services;
 using Affiant.Extensions.AI.Adapters;
 using Microsoft.Extensions.AI;
@@ -45,9 +46,33 @@ using Microsoft.Extensions.AI;
 /// <c>Terminate</c> hand-back have nowhere to come from or go to, so they are skipped rather than
 /// faked.
 /// </para>
+///
+/// <para>
+/// <b>Re-entrancy guard.</b> <c>WithAffiant</c>'s wire-up marker check inspects only the top-level
+/// type of each tool, so one layer of host middleware between <see cref="ChatOptions.Tools"/> and
+/// this wrapper (telemetry, retry, redaction, argument coercion — and that is exactly the shape the
+/// Microsoft Agent Framework itself uses) hides the marker and lets a second <c>WithAffiant</c>
+/// succeed. This wrapper therefore also refuses at <em>invoke</em> time: an ambient
+/// <c>AsyncLocal</c> records that an onion is already running for the call in flight, and a nested
+/// wrapper entered under the same <see cref="FunctionInvocationContext"/> throws instead of running
+/// the onion a second time. That catches every nesting shape the marker cannot see, including
+/// <c>Affiant.AgentFramework</c> wrapped over the same tools. Pinned by
+/// <c>Affiant.Extensions.AI.Tests.Filters.NestedWrapperReentrancyTests</c>; see also
+/// <c>ChatOptionsExtensions</c> and the package README's "One Affiant adapter per tool catalog".
+/// </para>
 /// </summary>
 public sealed class AffiantDelegatingAIFunction : DelegatingAIFunction, IAffiantWrappedFunction
 {
+    /// <summary>
+    /// Records that an Affiant onion is already running on this execution context, and which
+    /// <see cref="FunctionInvocationContext"/> it belongs to. Assigned inside an <c>async</c> method,
+    /// so the write is confined to the invocation that made it: it flows forward into the tool body
+    /// (where a nested wrapper will see it) but never back out to the caller and never sideways into
+    /// a concurrently invoked sibling under
+    /// <c>FunctionInvokingChatClient.AllowConcurrentInvocation</c>.
+    /// </summary>
+    private static readonly AsyncLocal<ActiveOnion?> RunningOnion = new();
+
     private readonly ToolInvocationPipeline _pipeline;
     private readonly IAffiantToolRegistry _registry;
 
@@ -90,6 +115,37 @@ public sealed class AffiantDelegatingAIFunction : DelegatingAIFunction, IAffiant
         // its Terminate verdict from.
         var context = FunctionInvokingChatClient.CurrentContext;
 
+        // Invoke-time half of the double-wrap guard (see the type's "Re-entrancy guard" remarks).
+        // Reference equality on the ambient FunctionInvocationContext is what separates the two
+        // shapes that look alike from in here:
+        //
+        //   * Double-wrap — two Affiant wrappers nested around ONE logical tool call, whatever sits
+        //     between them. Nothing between them starts a new chat loop, so both read the same
+        //     CurrentContext instance and the two are reference-equal. Refuse: a second onion would
+        //     double-tag provenance, fire task inference twice, and file the same write proposal
+        //     onto the docket twice.
+        //   * A tool body that legitimately runs a nested agent whose own tools are Affiant-governed.
+        //     The inner FunctionInvokingChatClient publishes a FRESH FunctionInvocationContext, so
+        //     the instances differ and the inner onion is allowed to run — it is a genuinely
+        //     different logical tool call, not this one being processed twice.
+        //
+        // Both-null (nested direct AIFunction.InvokeAsync calls with no loop anywhere) is treated as
+        // the first case and refused: outside a loop there is no signal separating them, and this
+        // guard fails closed. A host that really wants a nested governed call from inside a tool body
+        // should run it through its own FunctionInvokingChatClient.
+        var outerOnion = RunningOnion.Value;
+        if (outerOnion is not null && ReferenceEquals(outerOnion.Context, context))
+            throw new InvalidOperationException(
+                $"Affiant.Extensions.AI: the tool '{Name}' is wrapped by Affiant twice, so one tool " +
+                "call would run the neutral filter onion twice — double-tagging provenance, firing " +
+                "task inference twice, and filing the same write proposal onto the docket twice. " +
+                "This invocation was refused instead. WithAffiant's wire-up check could not see the " +
+                "second wrapper because something sits between ChatOptions.Tools and it — a host " +
+                "DelegatingAIFunction (telemetry, retry, redaction, argument coercion), or " +
+                "Affiant.AgentFramework's own per-run wrapper. Call WithAffiant exactly once per " +
+                "ChatOptions, on the unwrapped catalog, use only the ChatOptions it returns, and " +
+                "never wire a second Affiant adapter over tools this one already governs.");
+
         var descriptor = _registry.Find(Name);
 
         var request = new ToolInvocationRequest(
@@ -104,8 +160,13 @@ public sealed class AffiantDelegatingAIFunction : DelegatingAIFunction, IAffiant
                 : ExtensionsAIMessageConversions.ToNeutral(context.Messages),
             // The run's conversation identity, threaded by the host onto ChatOptions. Carrying it
             // onto the neutral context gives InferenceTriggerFilter a genuinely per-conversation
-            // idempotency namespace; without it the key collapses to the fabric instance hash and
-            // dedups across unrelated conversations.
+            // idempotency namespace.
+            //
+            // Hosts that leave ChatOptions.ConversationId null get the degenerate case, and it is
+            // silent: the idempotency key falls back to the shared ContextFabric's identity hash
+            // (see the KNOWN LIMITATION note on the ambient provider below), so every conversation
+            // after the first is treated as a repeat and its write-tool inference is skipped
+            // entirely. Set ConversationId per conversation.
             ConversationId = context?.Options?.ConversationId,
         };
 
@@ -113,42 +174,72 @@ public sealed class AffiantDelegatingAIFunction : DelegatingAIFunction, IAffiant
         var toolRan = false;
         var downstreamTerminate = false;
 
-        var resultContext = await _pipeline.RunAsync(
-            request,
-            filters => filters,
-            async neutral =>
-            {
-                // next() IS the tool body: DelegatingAIFunction.InvokeCoreAsync forwards straight to
-                // the inner function, with no intervening continuation. That is what makes
-                // ToolInvocationContext.NextIsToolBody's default of true correct here (unlike
-                // Semantic Kernel's completion-stage seam, which must set it false), and what makes
-                // ToolErrorFilter's retry-once-on-retryable-failure safe at this seam.
+        // Publish the re-entrancy record for the duration of the onion, so a nested Affiant wrapper
+        // reached through the tool body sees it. Restored rather than cleared in the finally, so a
+        // nested agent's own inner onion cannot strip the outer one's record on its way out.
+        var previousOnion = RunningOnion.Value;
+        RunningOnion.Value = new ActiveOnion(context);
+
+        ToolInvocationContext resultContext;
+        try
+        {
+            resultContext = await _pipeline.RunAsync(
+                request,
+                filters => filters,
+                async neutral =>
+                {
+                    // next() IS the tool body: DelegatingAIFunction.InvokeCoreAsync forwards straight to
+                    // the inner function, with no intervening continuation. That is what makes
+                    // ToolInvocationContext.NextIsToolBody's default of true correct here (unlike
+                    // Semantic Kernel's completion-stage seam, which must set it false), and what makes
+                    // ToolErrorFilter's retry-once-on-retryable-failure safe at this seam.
+                    //
+                    // `arguments` is passed through by reference, so a pre-invocation filter's mutation
+                    // of neutral.Arguments — the same IDictionary instance — is what the tool actually
+                    // receives.
+                    toolProduced = await base.InvokeCoreAsync(arguments, cancellationToken).ConfigureAwait(false);
+                    toolRan = true;
+
+                    // affiant#25 (same class as the SK and MAF bridges): something downstream of us —
+                    // another wrapping layer, or the host's own function-invocation configuration — can
+                    // set Terminate on the shared context before returning. Capture it now so the
+                    // neutral filters' own Terminate verdict below cannot silently discard it.
+                    downstreamTerminate = context?.Terminate ?? false;
+
+                    neutral.Result = toolProduced;
+
+                    // Area-3 P2 ruling 3: mark the tool as executed the instant it succeeds, before any
+                    // wrapping filter's post-next() logic (TaskInferenceMergeFilter, ReviewGateFilter,
+                    // host ContextExtractor subclasses) runs on this single onion — governs
+                    // ToolErrorFilter's tool-body vs. post-processing catch decision.
+                    neutral.ToolExecuted = true;
+                },
+                // The invocation's ambient provider, when the host wired one onto the function
+                // arguments; the pipeline falls back to a scope of its own when this is null.
                 //
-                // `arguments` is passed through by reference, so a pre-invocation filter's mutation
-                // of neutral.Arguments — the same IDictionary instance — is what the tool actually
-                // receives.
-                toolProduced = await base.InvokeCoreAsync(arguments, cancellationToken).ConfigureAwait(false);
-                toolRan = true;
-
-                // affiant#25 (same class as the SK and MAF bridges): something downstream of us —
-                // another wrapping layer, or the host's own function-invocation configuration — can
-                // set Terminate on the shared context before returning. Capture it now so the
-                // neutral filters' own Terminate verdict below cannot silently discard it.
-                downstreamTerminate = context?.Terminate ?? false;
-
-                neutral.Result = toolProduced;
-
-                // Area-3 P2 ruling 3: mark the tool as executed the instant it succeeds, before any
-                // wrapping filter's post-next() logic (TaskInferenceMergeFilter, ReviewGateFilter,
-                // host ContextExtractor subclasses) runs on this single onion — governs
-                // ToolErrorFilter's tool-body vs. post-processing catch decision.
-                neutral.ToolExecuted = true;
-            },
-            // Prefer the invocation's ambient scope when the host wired one onto the function
-            // arguments; otherwise the pipeline owns a fresh scope per invocation, giving each tool
-            // call its own conversation fabric (concurrent runs never share fabric state).
-            arguments.Services,
-            cancellationToken).ConfigureAwait(false);
+                // KNOWN LIMITATION at this seam. FunctionInvokingChatClient sets
+                // AIFunctionArguments.Services to the provider the ChatClientBuilder was built from — in
+                // the documented wiring, the application ROOT provider. So this is virtually never null
+                // here, the pipeline's own per-invocation scope branch is effectively unreachable, and
+                // the scoped ContextFabric resolves to one process-global instance shared by every
+                // conversation. Two consequences, both pinned by
+                // Filters/ConversationScopeBleedAtTheSeamTests: InferenceTriggerFilter's idempotency key
+                // falls back to that fabric's identity hash when ConversationId above is null, so the
+                // second and every later conversation silently skips write-tool inference; and
+                // ToolArgumentCaptureFilter's provenance chains, keyed on the bare argument name, are
+                // overwritten across conversations. Setting ChatOptions.ConversationId fixes the first,
+                // and the README and WithAffiant both say so. The real fix — a per-turn scope, or
+                // namespacing provenance by conversation — is framework-wide: Affiant.AgentFramework's
+                // AffiantFunctionInvocationMiddleware and Affiant.SemanticKernel's
+                // AffiantFunctionInvocationBridge source their provider identically and share the
+                // defect. Tracked for a post-beta wave, not fixed inside this adapter.
+                arguments.Services,
+                cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            RunningOnion.Value = previousOnion;
+        }
 
         // affiant#25: OR, never overwrite. Handing Terminate back is what stops the chat loop —
         // proven end-to-end by TerminatePropagationSpikeTests.
@@ -162,5 +253,16 @@ public sealed class AffiantDelegatingAIFunction : DelegatingAIFunction, IAffiant
         return !toolRan || !ReferenceEquals(resultContext.Result, toolProduced)
             ? resultContext.Result
             : toolProduced;
+    }
+
+    /// <summary>
+    /// The ambient record of an onion in flight: which <see cref="FunctionInvocationContext"/> it is
+    /// running for, so a nested wrapper can tell "this same logical tool call, wrapped twice" (the
+    /// same instance, including both being null) from "a different tool call started inside the tool
+    /// body" (a nested chat loop published its own instance).
+    /// </summary>
+    private sealed class ActiveOnion(FunctionInvocationContext? context)
+    {
+        public FunctionInvocationContext? Context { get; } = context;
     }
 }
