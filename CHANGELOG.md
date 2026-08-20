@@ -41,13 +41,32 @@ already provide. Design brief:
   to wire this adapter: it audits the tool list for provider-hosted tools Affiant cannot see
   (`HostedWebSearchTool` and friends — throws at wire-up unless acknowledged via
   `ExtensionsAIOptions.AcknowledgeUncoveredTools`), wraps every client-invoked `AIFunction`, and
-  guards against double-wrapping a catalog already wrapped by this adapter (a marker interface,
-  `IAffiantWrappedFunction`, throws at wire-up with an actionable message). It cannot detect being
-  double-wrapped together with `Affiant.AgentFramework` over the same catalog — MAF rewrites
-  `ChatOptions.Tools` with its own private wrapper type after this adapter's wire-up runs, and that
-  type carries no marker either package can see — so running both adapters over one tool catalog or
-  chat-client pipeline remains a documented constraint (package README, "One Affiant adapter per
-  tool catalog"), not a checked one.
+  guards against double-wrapping.
+- **The double-wrap guard has two halves, because one is structurally not enough.** At wire-up, a
+  marker interface (`IAffiantWrappedFunction`) makes `WithAffiant` throw with an actionable message
+  when it is handed tools this adapter already governs. That check is a top-level type test, so
+  anything layered over an Affiant wrapper hides it — a host's own `DelegatingAIFunction`
+  (telemetry, retry, redaction, argument coercion), or `Affiant.AgentFramework`, which rewrites
+  `ChatOptions.Tools` with its own private wrapper type after this adapter's wire-up has run. So
+  `AffiantDelegatingAIFunction` also refuses at *invoke* time: an ambient record of the onion in
+  flight, tagged with the `FunctionInvocationContext` it belongs to, makes a nested wrapper throw
+  rather than run the non-idempotent pipeline a second time (which would double-tag provenance, fire
+  task inference twice, and file the same write proposal onto the docket twice). Reference equality
+  on that context is what keeps the guard from over-firing: a tool body that starts its *own*
+  governed sub-agent gets a fresh context from that sub-agent's `FunctionInvokingChatClient`, so its
+  onion still runs. One Affiant adapter per tool catalog / chat-client pipeline is now enforced in
+  every nesting shape, not merely documented.
+- **Set `ChatOptions.ConversationId`; omitting it silently degrades task inference.** Affiant dedups
+  inference per (conversation, tool, turn), and with no conversation id the key falls back to the
+  identity of the conversation-state object (`IContextFabric`). At this seam that object is
+  process-global — `FunctionInvokingChatClient` supplies the provider the `ChatClientBuilder` was
+  built from (the application root) rather than a per-conversation scope — so every conversation
+  collapses onto one key and the second and later ones skip write-tool inference with no exception
+  and no warning. The limitation is framework-wide (`Affiant.SemanticKernel` and
+  `Affiant.AgentFramework` source their ambient provider identically); the per-turn-scope fix is
+  deferred to its own wave. Both the failure and the one-line mitigation are pinned by
+  `ConversationScopeBleedAtTheSeamTests`, and stated in the package README, `WithAffiant`'s XML docs
+  and `AffiantDelegatingAIFunction`'s.
 - **Shared code is copied, not referenced.** `AffiantToolCatalog` and the structured-output
   inference port (`ExtensionsAIInferenceCompletionPort`) are the same code `Affiant.AgentFramework`
   already carries at the Microsoft.Extensions.AI level — copied here (each file's header names its
