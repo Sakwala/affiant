@@ -22,10 +22,21 @@ var catalog = AffiantToolCatalog.FromType<MyTools>();
 var chatOptions = new ChatOptions { Tools = [.. catalog.Functions] }
     .WithAffiant(serviceProvider, catalog);
 
+// Required, not optional — see "Set ConversationId" below.
+chatOptions.ConversationId = conversationId;
+
 var response = await client.GetResponseAsync(messages, chatOptions);
 ```
 
 `WithAffiant(...)` is the only supported way to attach Affiant here. It registers the catalog's tool descriptors, audits the tool list for hosted/provider-side tools Affiant cannot see (refusing by default — see `ExtensionsAIOptions.AcknowledgeUncoveredTools`), wraps every client-invoked `AIFunction`, and returns a **new** `ChatOptions`. Hosts must use the returned instance; the pre-wrap options bypass Affiant entirely.
+
+## Set `ConversationId` — omitting it silently degrades inference
+
+Affiant runs task inference **once** per `(conversation, tool, turn)`. When `ChatOptions.ConversationId` is null, there is no conversation to key on, so the idempotency key falls back to the identity of the conversation-state object (`IContextFabric`) instead.
+
+At this seam that object is **process-global**. `FunctionInvokingChatClient` hands Affiant the provider the `ChatClientBuilder` was built from — your application root — so the scoped `IContextFabric` resolves to a single shared instance rather than one per conversation. Every conversation therefore collapses onto the same key, and **the second and all later conversations skip write-tool inference entirely**: no exception, no warning, just affidavits built from the raw tool arguments with nothing inferred. Setting `ConversationId` per conversation restores correct behaviour and costs one line.
+
+This limitation is shared by the `Affiant.SemanticKernel` and `Affiant.AgentFramework` adapters — all three source their ambient provider the same way — and the framework-level fix (a per-turn scope) is tracked separately. Until then, set `ConversationId`. Both the failure and the mitigation are pinned by `ConversationScopeBleedAtTheSeamTests`.
 
 ## How interception works
 
@@ -46,8 +57,19 @@ Uncovered tools make `WithAffiant` throw at wire-up, naming each one. Acknowledg
 
 Affiant's neutral pipeline is **not idempotent**: running it twice for one logical tool call double-tags provenance, fires task inference twice, and files the same write proposal onto the docket twice — a silent semantic corruption, not an error. So:
 
-- **Never call `WithAffiant` twice** over the same tools. The double-wrap guard detects this and throws at wire-up.
-- **Never wire both this package and `Affiant.AgentFramework`** over the same tool catalog or chat-client pipeline. This one *cannot* be detected — the Agent Framework rewrites `ChatOptions.Tools` with its own private wrapper type per run, after this package's wire-up has already happened, and that type carries no marker either package can see. Pick one adapter per pipeline.
+- **Never call `WithAffiant` twice** over the same tools.
+- **Never wire both this package and `Affiant.AgentFramework`** over the same tool catalog or chat-client pipeline. Pick one adapter per pipeline.
+
+Two guards enforce this, and it is worth knowing which one catches what:
+
+| Guard | When | Catches | Misses |
+|---|---|---|---|
+| Wire-up marker | `WithAffiant`, before anything is registered | An Affiant wrapper sitting **directly** on `ChatOptions.Tools` | Any wrapper hidden behind another `DelegatingAIFunction` — host telemetry/retry/redaction middleware, or the Agent Framework's own per-run wrapper |
+| Invoke-time re-entrancy guard | First nested tool invocation | Every nesting shape, at any depth, including the cross-adapter case | Nothing in this class — but it fails the call rather than the wire-up, so the mistake surfaces later |
+
+The wire-up guard is the friendlier of the two: it throws before a turn can run, and a refused wiring is a pure no-op. The invoke-time guard is the backstop for what a top-level type test structurally cannot see. If you hit it, the fix is always the same — call `WithAffiant` exactly once, on the unwrapped catalog, and use only the `ChatOptions` it returns.
+
+A tool body that starts its **own** governed sub-agent is not double-wrapping and is explicitly allowed: that sub-agent's `FunctionInvokingChatClient` publishes its own invocation context, so its tools run their own onion normally.
 
 ## Package contents
 

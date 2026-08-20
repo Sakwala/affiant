@@ -22,12 +22,21 @@ using Microsoft.Extensions.AI;
 /// <c>WithAffiant</c> refuses at wire-up when any tool it is asked to wrap already implements this
 /// interface — i.e. this package wrapping its own output a second time, the common mistake (calling
 /// <c>WithAffiant</c> on an already-wired <see cref="ChatOptions"/>, or on a catalog shared between two
-/// wiring sites). It cannot catch the cross-adapter case: <c>Affiant.AgentFramework</c> rewrites
-/// <c>ChatOptions.Tools</c> with its own private wrapper type per agent run, after this package's
-/// wire-up has already happened, and that type carries no marker this package can see. The rule is
-/// therefore stated and documented, not enforced, for that direction: <b>exactly one Affiant adapter
-/// per tool catalog / chat-client pipeline — never both this package and Affiant.AgentFramework over
-/// the same tools.</b> See the package README.
+/// wiring sites). The check is a <em>top-level type test</em> over the tool list, and that bounds it
+/// precisely: anything layered over an Affiant wrapper hides the marker. Two shapes do exactly that —
+/// a host's own <see cref="DelegatingAIFunction"/> (telemetry, retry, redaction, argument coercion)
+/// placed between <c>ChatOptions.Tools</c> and this wrapper, and <c>Affiant.AgentFramework</c>, which
+/// rewrites <c>ChatOptions.Tools</c> with its own private wrapper type per agent run, after this
+/// package's wire-up has already happened.
+/// </para>
+///
+/// <para>
+/// <b>What catches those.</b> <c>AffiantDelegatingAIFunction</c>'s invoke-time re-entrancy guard: an
+/// ambient record of the onion in flight, so a nested wrapper refuses at the first invocation
+/// whatever hides it, at any depth and across adapters. The rule — <b>exactly one Affiant adapter per
+/// tool catalog / chat-client pipeline</b> — is therefore enforced, not merely documented; this
+/// marker remains the earlier and friendlier of the two checks, because it fires before any turn can
+/// run and leaves a refused wiring a pure no-op. See the package README's guard table.
 /// </para>
 /// </summary>
 public interface IAffiantWrappedFunction

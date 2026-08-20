@@ -52,6 +52,26 @@ public static class ChatOptionsExtensions
     /// through untouched, and any catalog function not already present by name is appended, wrapped.
     /// Order is preserved: existing tools first, in place, then the catalog's additions.
     /// </para>
+    ///
+    /// <para>
+    /// <b>Set <see cref="ChatOptions.ConversationId"/> on the returned options.</b> It is not
+    /// decorative here. Affiant dedups task inference per (conversation, tool, turn), and with no
+    /// conversation id the key falls back to the identity of the conversation-state object — which at
+    /// this seam is process-global, because <see cref="FunctionInvokingChatClient"/> hands the
+    /// pipeline the provider the <see cref="ChatClientBuilder"/> was built from (the application
+    /// root) rather than a per-conversation scope. Every conversation then shares one key and the
+    /// second and later ones <em>silently</em> skip write-tool inference. See
+    /// <c>AffiantDelegatingAIFunction</c>'s KNOWN LIMITATION note, the package README, and
+    /// <c>Affiant.Extensions.AI.Tests.Filters.ConversationScopeBleedAtTheSeamTests</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>The double-wrap refusal here is the early half of two.</b> This check is a top-level type
+    /// test over the tool list, so it sees an Affiant wrapper only when nothing is layered over it.
+    /// <c>AffiantDelegatingAIFunction</c> carries the backstop: an invoke-time re-entrancy guard that
+    /// refuses a nested onion whatever hides it. This one is kept because it fails at wire-up, before
+    /// any turn runs, and leaves the registry untouched.
+    /// </para>
     /// </summary>
     /// <param name="options">The host's chat options. Not mutated; a copy is returned.</param>
     /// <param name="services">The application's service provider.</param>
@@ -153,8 +173,9 @@ public static class ChatOptionsExtensions
             "an error anything downstream would report. Call WithAffiant exactly once per ChatOptions, on " +
             "the unwrapped catalog, and use only the ChatOptions it returns. If the tools reached here " +
             "from another wiring site, build a fresh AffiantToolCatalog instead of sharing the wired one. " +
-            "Note that the same one-adapter-per-catalog rule applies across adapters and cannot be " +
-            "detected here: never wire both Affiant.Extensions.AI and Affiant.AgentFramework over the same " +
-            "tools.");
+            "The same one-adapter-per-catalog rule applies across adapters — never wire both " +
+            "Affiant.Extensions.AI and Affiant.AgentFramework over the same tools. This check cannot see " +
+            "that case, nor any wrapper hidden behind host middleware; AffiantDelegatingAIFunction's " +
+            "invoke-time re-entrancy guard catches both, one call later.");
     }
 }
