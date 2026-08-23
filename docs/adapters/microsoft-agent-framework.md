@@ -2,7 +2,7 @@
 title: Microsoft Agent Framework Adapter — Affiant.AgentFramework
 version: 1.0
 date: 2026-07-05
-status: merged to main as one of the nine framework packages; NuGet ID reserved (see §9)
+status: merged to main as one of the ten framework packages; NuGet ID reserved (see §9)
 scope: Hosts wiring Affiant into a Microsoft Agent Framework (MAF) agent
 audience: Developers who already read docs/tool-authoring-guide.md and are adding (or migrating
   to) a MAF host; no prior MAF-specific Affiant context assumed
@@ -387,10 +387,10 @@ output. Register `IChatClient` in every host and test DI container that uses
 - **`Microsoft.Agents.AI` 1.13.0** (target `net10.0`; depends on `Microsoft.Extensions.AI` ≥
   10.6.0) — the only third-party package this adapter adds.
 - **.NET SDK 10.0.1xx**, pinned by the repo's `global.json`.
-- **`Affiant.AgentFramework` is merged to `main`** as one of the nine `src/*` packages in this
+- **`Affiant.AgentFramework` is merged to `main`** as one of the ten `src/*` packages in this
   repo (it no longer lives on the `feat/agent-framework-adapter` branch, which was merged and
   deleted) and builds and tests as part of the solution. Its NuGet package ID is reserved, per the
-  2026-08-18 go/no-go asset audit — like the framework's other eight packages, it is still
+  2026-08-18 go/no-go asset audit — like the framework's other nine packages, it is still
   awaiting the first public `v1.0.0-beta.1` *publish* (a maintainer/operator act; see the
   beta-publish runbook), which is **SK-only by design** for this first release
   (`docs/proposals/affiant-maf-adapter-handoff.md`) — so `Affiant.AgentFramework` will not appear
