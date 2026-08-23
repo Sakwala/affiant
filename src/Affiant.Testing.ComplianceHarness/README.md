@@ -60,4 +60,4 @@ member-naming violations.
 
 ---
 
-*Version 1.0.0-alpha.1 | Apache-2.0 License | Part of the [Affiant Framework](https://github.com/Sakwala/affiant)*
+*Apache-2.0 License | Part of the [Affiant Framework](https://github.com/Sakwala/affiant)*

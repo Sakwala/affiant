@@ -389,12 +389,11 @@ output. Register `IChatClient` in every host and test DI container that uses
 - **.NET SDK 10.0.1xx**, pinned by the repo's `global.json`.
 - **`Affiant.AgentFramework` is merged to `main`** as one of the ten `src/*` packages in this
   repo (it no longer lives on the `feat/agent-framework-adapter` branch, which was merged and
-  deleted) and builds and tests as part of the solution. Its NuGet package ID is reserved, per the
-  2026-08-18 go/no-go asset audit — like the framework's other nine packages, it is still
-  awaiting the first public `v1.0.0-beta.1` *publish* (a maintainer/operator act; see the
-  beta-publish runbook), which is **SK-only by design** for this first release
-  (`docs/proposals/affiant-maf-adapter-handoff.md`) — so `Affiant.AgentFramework` will not appear
-  on nuget.org until a later release joins it to the co-versioned publish set. For the current
-  status of that decision, treat the beta-publish runbook as the canonical source rather than this
-  line, which will go stale again at the next status change.
+  deleted) and builds and tests as part of the solution. Its NuGet package ID is reserved, and —
+  a decision revised since this doc's first anchoring — it **ships in `v1.0.0-beta.1`** as part
+  of the ten-package co-versioned publish set: the original SK-only-first-release plan was
+  superseded when the MAF and Microsoft.Extensions.AI adapters both merged before the first
+  publish (`docs/proposals/affiant-maf-adapter-handoff.md` records the original plan). For the
+  current status, treat the beta-publish runbook as the canonical source rather than this line,
+  which will go stale again at the next status change.
 - No custom scripts, external agents, or MCP servers are required to use this package.

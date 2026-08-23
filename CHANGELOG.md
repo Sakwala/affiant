@@ -7,13 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Ten packages (`Affiant.Abstractions`, `Affiant.Core`, `Affiant.SemanticKernel`,
 `Affiant.AgentFramework`, `Affiant.Extensions.AI`, `Affiant.Docket`, `Affiant.EntityFramework`,
 `Affiant.Policies`, `Affiant.Transport.SignalR`, `Affiant.Testing.ComplianceHarness`) are versioned
-in lockstep as of 2026-07-05 (`Affiant.Extensions.AI` joined the set 2026-08-20; see the
-`[Unreleased]` entry below); NuGet ID reservation is pending for both `Affiant.AgentFramework` and
-`Affiant.Extensions.AI`, so neither is yet part of any *published* release
-(`docs/proposals/affiant-maf-adapter.md` §9, `docs/overnight-mission-2026-08-20/meai-adapter-design.md`
-acceptance criterion 6 in the `affiant-chancery` repo).
+in lockstep as of 2026-07-05 (`Affiant.Extensions.AI` joined the set 2026-08-20). All ten NuGet IDs,
+plus the bare `Affiant` meta-ID, are reserved on nuget.org (the last two, `Affiant.AgentFramework`
+and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectively).
 
 ## [Unreleased]
+
+_Nothing yet — changes after `v1.0.0-beta.1` accumulate here._
+
+## [1.0.0-beta.1] — 2026-08-24
+
+First public release. The framework is a deterministic evidence layer for .NET agents:
+every AI-proposed database write is a sworn, field-level `Affidavit` reviewed by a human
+before it commits.
+
+### Release summary
+
+- **Ten co-versioned packages** targeting `net10.0`, arranged as a strict DAG rooted at
+  `Affiant.Abstractions` (primitive types and interfaces), with `Affiant.Core` (concrete
+  services) beneath seven adapters — `Affiant.SemanticKernel`, `Affiant.AgentFramework`,
+  `Affiant.Extensions.AI`, `Affiant.Docket`, `Affiant.EntityFramework`, `Affiant.Policies`,
+  `Affiant.Transport.SignalR` — plus `Affiant.Testing.ComplianceHarness`.
+- **Three interception backends.** Backend-neutral tool interception with thin bridges for
+  Semantic Kernel, the Microsoft Agent Framework, and Microsoft.Extensions.AI — covering
+  locally-invoked tools only (hosted/server-side tools are out of scope, stated honestly on
+  every doc surface).
+- **Field-level sworn provenance.** `Affidavit` / `AffidavitField` carry a `ProvenanceChain`
+  and `PreviousValue` per field, an `AggregateConfidence`, and the seven-state
+  `ProvenanceSource` determinism hierarchy (`UserStated` → `Empty`).
+- **`ToolEnvelope`** discriminated return type for all tools — `ReadResult`, `WriteProposal`,
+  and `ToolError` — enforcing dual-audience returns and the "write tools never write" rule.
+- **Review pipeline.** `ReviewGate` state machine, the durable Docket review queue, Evidence
+  Card request/response round-trip with reviewer amendments, and standing-order / referral /
+  reviewer-confirmation approval policies.
+- **L2 structured-output inference orchestration** — `ITaskInferenceStrategy` field schemas,
+  the task-inference merge step, and per-entity affidavit projection.
+- **Tool Descriptor Registry** — declarative write-intent registration via the
+  `[AffiantWriteTool]` attribute and `AddAffiantTool<TStrategy>()`.
+- **`Affiant.Testing.ComplianceHarness`** — `ComplianceHarness.Verify(...)` proves every
+  registered write strategy has a paired fixture asserting substantive provenance, for
+  adopters' own CI pipelines — plus the cross-backend compliance parity suite gating all
+  three bridges against every compliance fixture.
+- Persistence backends for the Docket and sessions: in-memory, SQLite, and PostgreSQL.
+- SignalR streaming transport and Evidence Card hub.
+- Apache-2.0 licence with `LICENSE` and `NOTICE`; the tool-authoring guide, the Microsoft
+  Agent Framework adapter guide, and the framework specification ship under `docs/` (the
+  Semantic Kernel and Microsoft.Extensions.AI bridges are documented in their package
+  READMEs).
+
+### Notes
+
+- Validated by two independent first-party host applications (one on the Microsoft Agent
+  Framework bridge, one on the Microsoft.Extensions.AI bridge; the Semantic Kernel bridge is
+  gated by the same cross-backend parity suite). This is a **beta**: the invariant (every
+  field carries provenance) is stable; the public API may change before 1.0.0 GA.
+- All pre-`beta.1` versions were internal only: `1.0.0-alpha.1` and earlier were never
+  published, and the `0.0.x-preview` versions on nuget.org are empty name-reservation stubs,
+  not usable releases.
+- The engineering log below records the full pre-release history, newest first.
 
 ### Added — `Affiant.Extensions.AI`: the Microsoft.Extensions.AI adapter, a third interception backend
 
@@ -1213,51 +1264,6 @@ pre-1.0 clean break, not a deprecation — there is no compatibility shim:
 - **Docs**: `docs/affiant-framework-specification.md` §3.8, §3.12.3, §3.12.4, §4 (Package
   Mapping), and §5 (Framework Boundary Contract, new Seam 4) corrected/rewritten to describe this
   architecture; see those sections for full detail.
-
-## [1.0.0-beta.1] — TBD *(planned; not yet published — the version flip from `alpha.1` happens with the publish step itself)*
-
-First public release. The framework is a deterministic evidence layer for .NET agents:
-every AI-proposed database write is a sworn, field-level `Affidavit` reviewed by a human
-before it commits.
-
-### Added
-
-- **Eight co-versioned packages** targeting `net10.0`, arranged as a strict DAG rooted at
-  `Affiant.Abstractions` (primitive types and interfaces), with `Affiant.Core` (concrete
-  services) beneath five adapters — `Affiant.SemanticKernel`, `Affiant.Docket`,
-  `Affiant.EntityFramework`, `Affiant.Policies`, `Affiant.Transport.SignalR` — plus
-  `Affiant.Testing.ComplianceHarness`. (Nine packages exist in this repo and share one version
-  per `Directory.Build.props`; `Affiant.AgentFramework` is deliberately excluded from this first
-  release — `v1.0.0-beta.1` is SK-only by design — see `docs/proposals/affiant-maf-adapter.md`
-  §9 and `docs/proposals/affiant-maf-adapter-handoff.md`. This bullet's count of eight is this
-  release's scope, not a package-count error.)
-- **Field-level sworn provenance.** `Affidavit` / `AffidavitField` carry a `ProvenanceChain`
-  and `PreviousValue` per field, an `AggregateConfidence`, and the seven-state
-  `ProvenanceSource` determinism hierarchy (`UserStated` → `Empty`).
-- **`ToolEnvelope`** discriminated return type for all tools — `ReadResult`, `WriteProposal`,
-  and `ToolError` — enforcing dual-audience returns and the "write tools never write" rule.
-- **Review pipeline.** `ReviewGate` state machine, the durable Docket review queue, Evidence
-  Card request/response round-trip, and standing-order / referral / reviewer-confirmation
-  approval policies.
-- **L2 structured-output inference orchestration** — `ITaskInferenceStrategy` field schemas,
-  the task-inference merge step, and per-entity affidavit projection.
-- **Tool Descriptor Registry** — declarative write-intent registration via the
-  `[AffiantWriteTool]` attribute and `AddAffiantTool<TStrategy>()`.
-- **`Affiant.Testing.ComplianceHarness`** — `ComplianceHarness.Verify(...)` proves every
-  registered write strategy has a paired fixture asserting substantive provenance, for
-  adopters' own CI pipelines.
-- Persistence backends for the Docket and sessions: in-memory, SQLite, and PostgreSQL.
-- SignalR streaming transport and Evidence Card hub.
-- Apache-2.0 licence with `LICENSE` and `NOTICE`; the tool-authoring guide and framework
-  specification ship under `docs/`.
-
-### Notes
-
-- Validated by two independent first-party host applications. This is a **beta**: the
-  invariant (every field carries provenance) is stable; the public API may change before
-  1.0.0 GA.
-- All pre-`beta.1` versions (`1.0.0-alpha.1` and earlier) were internal only and were never
-  published to nuget.org.
 
 [Unreleased]: https://github.com/Sakwala/affiant/compare/v1.0.0-beta.1...HEAD
 [1.0.0-beta.1]: https://github.com/Sakwala/affiant/releases/tag/v1.0.0-beta.1

@@ -1,5 +1,7 @@
 # Handoff dossier — `Affiant.AgentFramework` (MAF adapter) proposal
 
+*Historical dossier, superseded on release scope — the SK-only `v1.0.0-beta.1` described below did not happen: the beta ships ten packages including `Affiant.AgentFramework` and `Affiant.Extensions.AI`. Live adapter status: [../adapters/microsoft-agent-framework.md](../adapters/microsoft-agent-framework.md) §9 (note added 2026-08-24).*
+
 > **Companion to:** [`affiant-maf-adapter.md`](affiant-maf-adapter.md) (the design) · **Anchored:** 2026-07-05 · **Purpose:** give a fresh reader — human or LLM, any provider, no conversation history, filesystem access to this public repo only — everything needed to continue this work. Update this file whenever the proposal changes.
 
 ## Originating motivation
