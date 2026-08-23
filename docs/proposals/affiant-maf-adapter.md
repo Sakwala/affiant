@@ -1,5 +1,7 @@
 # Proposal: `Affiant.AgentFramework` — a Microsoft Agent Framework interception backend
 
+*Historical proposal, superseded — live adapter status: [docs/adapters/microsoft-agent-framework.md](../adapters/microsoft-agent-framework.md) (note added 2026-08-23).*
+
 > **Status:** Proposed, implementation in flight on branch `feat/agent-framework-adapter` · **Anchored:** 2026-07-05 · **Author:** Claude (AI conductor) for Seevali (maintainer) · **Companion:** [`affiant-maf-adapter-handoff.md`](affiant-maf-adapter-handoff.md) (context dossier — read it first if you have no prior Affiant context)
 
 **What this document is.** The design for Affiant's second tool-interception backend: an adapter for the **Microsoft Agent Framework (MAF)** — Microsoft's successor to Semantic Kernel (SK), GA since 2026-04-03 — sitting as a peer beside the existing `Affiant.SemanticKernel` adapter behind one backend-neutral interception pipeline. It is written to be actionable from the public repo's file system alone; where private planning documents are cited, their load-bearing content is inlined here.
