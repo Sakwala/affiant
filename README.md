@@ -10,10 +10,13 @@ reaches the database until a human has seen that evidence and approved it.
 
 Nothing commits without evidence. Nothing writes without approval.
 
-> **Beta.** The first public release will be `1.0.0-beta.1` (current internal prerelease:
-> `1.0.0-alpha.1`, never published). The public API has been validated by two first-party
-> host applications but has not yet reached 1.0 GA. Read [Beta status](#beta-status) before
-> adopting — trust the *invariant*, expect the *API* to evolve.
+> **See it live.** [Meridian](https://meridian.affiant.dev), a first-party aircraft-maintenance host built
+> on Affiant, runs in public. Any email works, five messages a day, and the data resets nightly. What to
+> try and what you are looking at: [affiant.dev/start/live-demo](https://affiant.dev/start/live-demo/).
+
+> **Beta.** `1.0.0-beta.1` is on nuget.org — all ten packages, co-versioned, published 2026-08-23 (UTC).
+> The public API has been validated by two first-party host applications but has not yet reached 1.0 GA.
+> Read [Beta status](#beta-status) before adopting — trust the *invariant*, expect the *API* to evolve.
 
 ---
 
@@ -531,7 +534,7 @@ read/inference half with no review loop.
 ## The packages
 
 Ten co-versioned packages target `net10.0` (`Affiant.AgentFramework` joined the set 2026-07-05,
-`Affiant.Extensions.AI` joined 2026-08-20; both packages' NuGet ID reservations are still pending,
+`Affiant.Extensions.AI` joined 2026-08-20; both packages published on nuget.org with the rest,
 see [Beta status](#beta-status)). The dependency graph is a strict DAG rooted at
 `Affiant.Abstractions`, mirroring the `Microsoft.Extensions.*.Abstractions` / `Microsoft.Extensions.*`
 convention — depend only on what you need.
@@ -644,8 +647,8 @@ per-release detail are in the [CHANGELOG](CHANGELOG.md)'s header; not repeated h
 
 ## Beta status
 
-This is `1.0.0-beta.1`. Earlier `1.0.0-alpha.*` versions were internal and were never
-published.
+This is `1.0.0-beta.1`, published on nuget.org on 2026-08-23 (UTC). Earlier `1.0.0-alpha.*`
+versions were internal and were never published.
 
 The API has been exercised by two independent first-party host applications, but it has not
 yet reached 1.0 GA. Adopt on this basis:
@@ -655,10 +658,8 @@ yet reached 1.0 GA. Adopt on this basis:
 - **Expect API evolution between prerelease tags** — see
   ["Versioning & compatibility"](#versioning--compatibility) above for exactly what that does
   and doesn't promise.
-- **`Affiant.AgentFramework` ships in this repo but is not yet on nuget.org.** The NuGet ID
-  reservation and its inclusion in the co-versioned publish set are separate, still-pending
-  maintainer/operator steps (`docs/proposals/affiant-maf-adapter.md` §9). Build it from source
-  until then.
+- **All ten packages ship together.** `Affiant.AgentFramework` and `Affiant.Extensions.AI` are in
+  the co-versioned publish set like every other package — install with `--prerelease`.
 
 ---
 
