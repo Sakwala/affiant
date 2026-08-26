@@ -49,10 +49,10 @@ No dates, ever: a solo-maintained project cannot promise a delivery date without
   flight: conversation-scope isolation when no `ConversationId` is supplied (all three
   adapters), SQLite/PostgreSQL store parity gaps, the review-outcome state machine (a card
   a reviewer *refers* to someone else can today land in a status no later step acts on),
-  a test-isolation flake, and two removals already announced in the CHANGELOG —
-  `IDeterministicFieldSource` no earlier than beta.2, `FunctionNameInferenceTrigger` by the
-  `1.0.0` tag. Trust the invariant; expect the API to move until 1.0 — this is exactly what
-  is moving. State: in progress. Links:
+  a test-isolation flake, and one removal already announced in the CHANGELOG —
+  `IDeterministicFieldSource`, `[Obsolete]` today, removed no earlier than beta.2. Trust the
+  invariant; expect the API to move until 1.0 — this is exactly what is moving. State: in
+  progress. Links:
   [affiant#41](https://github.com/Sakwala/affiant/issues/41),
   [affiant#33](https://github.com/Sakwala/affiant/issues/33),
   [affiant#34](https://github.com/Sakwala/affiant/issues/34),
@@ -210,6 +210,6 @@ No dates, ever: a solo-maintained project cannot promise a delivery date without
 
 ## Themes
 
-Each item carries a bracketed theme tag, so a reader can follow one thread through the sections:
+Each Now / Next / Later item carries a bracketed theme tag, so a reader can follow one thread through the sections:
 
 `[stability]` `[on-ramp]` `[evidence-card-ui]` `[adapters]` `[review]` `[auditors]` `[demos]` `[community]`
