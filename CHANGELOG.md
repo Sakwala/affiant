@@ -15,7 +15,7 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
 
 _Nothing yet — changes after `v1.0.0-beta.1` accumulate here._
 
-## [1.0.0-beta.1] — 2026-08-24
+## [1.0.0-beta.1] — 2026-08-23
 
 First public release. The framework is a deterministic evidence layer for .NET agents:
 every AI-proposed database write is a sworn, field-level `Affidavit` reviewed by a human
