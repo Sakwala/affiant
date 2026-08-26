@@ -12,7 +12,7 @@ This file is canonical. It is mirrored at [affiant.dev/roadmap/](https://affiant
 
 ## What Affiant is
 
-Affiant is a .NET framework that turns every AI-proposed database write into an **Evidence Card** — a per-write review record placed on a **Docket**, the queue of cards awaiting a human decision — carrying an **Affidavit**, a per-field record of where each value came from and how confident the framework is in it. It attaches to an agent framework through an **adapter** — [Semantic Kernel, Microsoft Agent Framework or Microsoft.Extensions.AI](https://affiant.dev/concepts/interception-backends/) — and two first-party host applications, Meridian (the live public demo) and HR Portal, exercise it end to end. See the [README](README.md) and [affiant.dev](https://affiant.dev) for the full picture.
+Affiant is a .NET framework that turns every AI-proposed database write into an **Evidence Card** — a per-write review record placed on a **Docket**, the queue of cards awaiting a human decision — carrying an **Affidavit**, a per-field record of where each value came from and how confident the framework is in it. It attaches to an agent framework through an **adapter** — [Semantic Kernel, Microsoft Agent Framework or Microsoft.Extensions.AI](https://affiant.dev/concepts/interception-backends/) — and two first-party host applications, Meridian and HR Portal (both live public demos), exercise it end to end. See the [README](README.md) and [affiant.dev](https://affiant.dev) for the full picture.
 
 ## How this roadmap works
 
@@ -96,11 +96,6 @@ No dates, ever: a solo-maintained project cannot promise a delivery date without
   amendments exist in the first-party host applications with gaps — free-text where a
   typed input would be safer, the control hidden while a card is submitting — and the
   framework-side round-trip is the deferred beta fast-follow. Links: issue: to be filed.
-- **A second live demo: HR Portal** `[demos]` — An HR self-service host on the
-  Microsoft.Extensions.AI adapter exists alongside Meridian. Standing it up as a second
-  public demo — a second adapter, a second domain, the same guarantees — waits on what
-  Meridian's public beta teaches. Links: [Try it
-  live](https://affiant.dev/start/live-demo/) (Meridian).
 - **An Affiant MCP server** `[adapters]` — Expose the Docket and the approve/reject
   decision as [MCP](https://modelcontextprotocol.io/) (Model Context Protocol) tools, so
   agents that are not written in .NET can route their writes through the same review
@@ -197,6 +192,9 @@ No dates, ever: a solo-maintained project cannot promise a delivery date without
 
 ## Recently shipped
 
+- 2026-08-27 — HR Portal public demo went live at hrportal.affiant.dev — a second adapter
+  (Microsoft.Extensions.AI), a second domain, the same guarantees. [Try it
+  live](https://affiant.dev/start/live-demo/#hr-portal).
 - 2026-08-26 — Meridian public demo went live at meridian.affiant.dev. [Try it
   live](https://affiant.dev/start/live-demo/).
 - 2026-08-23 — `1.0.0-beta.1`: first public release, ten co-versioned packages, three
