@@ -10,9 +10,11 @@ reaches the database until a human has seen that evidence and approved it.
 
 Nothing commits without evidence. Nothing writes without approval.
 
-> **See it live.** [Meridian](https://meridian.affiant.dev), a first-party aircraft-maintenance host built
-> on Affiant, runs in public. Any email works, five messages a day, and the data resets nightly. What to
-> try and what you are looking at: [affiant.dev/start/live-demo](https://affiant.dev/start/live-demo/).
+> **See it live.** Two first-party hosts built on Affiant run in public: [Meridian](https://meridian.affiant.dev),
+> an aircraft-maintenance desk on the Microsoft Agent Framework, and [HR Portal](https://hrportal.affiant.dev),
+> an HR department on Microsoft.Extensions.AI. Any email works, five messages a day, and the data resets
+> nightly. What to try and what you are looking at:
+> [affiant.dev/start/live-demo](https://affiant.dev/start/live-demo/).
 
 > **Beta.** `1.0.0-beta.1` is on nuget.org — all ten packages, co-versioned, published 2026-08-23 (UTC).
 > The public API has been validated by two first-party host applications but has not yet reached 1.0 GA.
