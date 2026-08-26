@@ -660,6 +660,7 @@ yet reached 1.0 GA. Adopt on this basis:
   and doesn't promise.
 - **All ten packages ship together.** `Affiant.AgentFramework` and `Affiant.Extensions.AI` are in
   the co-versioned publish set like every other package — install with `--prerelease`.
+- **Where this is going.** By status rather than by date: [ROADMAP.md](ROADMAP.md).
 
 ---
 
