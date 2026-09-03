@@ -25,8 +25,7 @@ public static class ServiceCollectionExtensions
     /// <summary>
     /// Registers Affiant.Policies infrastructure. Call the builder to declare
     /// Standing Orders, Referral rules, and the default confirmation fallback.
-    /// No <see cref="RiskScoreCalculatorBase"/> is registered here — the framework has no
-    /// scoring formula of its own. Supply one with
+    /// No scoring formula is registered here — the framework has none of its own. Supply one with
     /// <see cref="PoliciesBuilder.SetRiskScoreCalculator{TCalculator}"/> if any Standing Order
     /// declares a risk threshold.
     /// </summary>
@@ -35,6 +34,15 @@ public static class ServiceCollectionExtensions
         Action<PoliciesBuilder>? configure = null)
     {
         configure?.Invoke(new PoliciesBuilder(services));
+
+        // A placeholder, not a formula: every call to it throws, naming
+        // SetRiskScoreCalculator<T>(). It is registered so that a Standing Order whose
+        // constructor takes RiskScoreCalculatorBase as a *required* dependency still resolves —
+        // otherwise the container refuses it with "Unable to resolve service for type
+        // 'RiskScoreCalculatorBase'", which names no fix. TryAdd, and last in the method, so a
+        // calculator the host registered — through SetRiskScoreCalculator<T>() above or directly
+        // on the IServiceCollection — always wins.
+        services.TryAddScoped<RiskScoreCalculatorBase, MissingRiskScoreCalculator>();
 
         return services;
     }
@@ -86,7 +94,13 @@ public sealed class PoliciesBuilder
     /// Registers the host's <see cref="RiskScoreCalculatorBase"/>, replacing any already
     /// registered. Required by every Standing Order that declares a risk threshold; a
     /// threshold-less Standing Order needs no calculator.
-    /// Call before <see cref="AddStandingOrder{TPolicy}"/> if Standing Orders depend on the scorer.
+    ///
+    /// Call it anywhere in the builder chain: it removes every existing
+    /// <see cref="RiskScoreCalculatorBase"/> registration before adding its own, and the
+    /// placeholder <c>AddAffiantPolicies</c> falls back to is only registered when the host
+    /// registered none. Standing Orders are registered under a different service type and are
+    /// constructed after the whole chain has run, so this wins whether it is called before or
+    /// after <see cref="AddStandingOrder{TPolicy}"/>. The last call wins if it is called twice.
     /// </summary>
     public PoliciesBuilder SetRiskScoreCalculator<TCalculator>(ServiceLifetime lifetime = ServiceLifetime.Scoped)
         where TCalculator : RiskScoreCalculatorBase
