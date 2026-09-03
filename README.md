@@ -575,6 +575,23 @@ exists so that provenance-substance is a CI gate — an unpaired or shape-only w
 fails the build, in your project as well as ours. This is why the seventh rule ("every field
 carries provenance, no exceptions") is a hard invariant and not a guideline.
 
+### What Affiant does not claim
+
+Affiant swears to the field. Every value an agent proposes carries where it came from and how
+confident the proposer was, and a person decides before the host writes. It does not sign or
+hash-chain the log: the Docket is a durable record of proposals and decisions, not a
+tamper-evident ledger — if you need cryptographic integrity over the history, keep the Docket
+in a store that provides it. (A signed, portable export is on the roadmap; it will sign a
+document, not chain the log.)
+
+### Where approval lives
+
+Approval lives in the Docket, not in the conversation. A write is executed only after its
+Docket entry is Approved — a durable row the host reads, never a message replayed from a
+client's history, a chat transcript or a framework checkpoint. beta.1 records the decision;
+recording who or what decided on the row itself (the attestation record) is scheduled for
+beta.3.
+
 ---
 
 ## Positioning
