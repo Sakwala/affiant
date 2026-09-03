@@ -11,11 +11,11 @@
     a public member fails until it updates the baseline file, which puts the change in the diff where
     a reviewer sees it.
 
-    Convention used here (nothing is published yet — first publish is 1.0.0-beta.1): every entry
-    lives in PublicAPI.Unshipped.txt and PublicAPI.Shipped.txt is empty. At each release, the
-    unshipped entries move into the shipped file (the analyzer ships an "apply" fix for that), which
-    is what makes RS0016/RS0017 able to distinguish "new API this release" from "API we already
-    promised".
+    Convention used here: PublicAPI.Shipped.txt holds the surface already published (the
+    1.0.0-beta.1 entries were rolled into it after that release) and PublicAPI.Unshipped.txt holds
+    what this release adds, changes or removes. At each release the unshipped entries move into the
+    shipped file (the analyzer ships an "apply" fix for that), which is what makes RS0016/RS0017
+    able to distinguish "new API this release" from "API we already promised".
 
     This lives in Directory.Build.targets, not .props, because the condition reads $(IsPackable):
     .props is imported BEFORE the csproj sets it, .targets after. IsPackable is true for the ten
