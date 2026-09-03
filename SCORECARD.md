@@ -12,10 +12,8 @@ the open, it doesn't get edited away.
 
 The maintainer has declared **60% of a working week** on Affiant from 2026-09-04, rising to
 **79% for the four weeks in which the TypeScript core is built** — calendar weeks 5–8 from
-2026-09-04, i.e. **2026-10-02 → 2026-10-29**. The public roadmap's dates are derived from this
-figure and are checkable against it: a roadmap milestone that assumes more attention than this
-figure allows, in a week this figure doesn't cover, is a roadmap that has drifted from its own
-stated input.
+2026-09-04, i.e. **2026-10-02 → 2026-10-29**. The public roadmap carries no dates; the pace at
+which its *Now* items move to *Recently shipped* is the check on this figure.
 
 ## Surfaces and criteria
 
@@ -33,13 +31,15 @@ Only non-owner activity counts. "Owner" means the GitHub account `seevali`.
 | NuGet downloads | Total downloads per package (CI/test installs are not separable from real ones on NuGet — the total is reported honestly as a total, not as a proxy for adoption) | `curl -s "https://azuresearch-usnc.nuget.org/query?q=packageid:<id>&prerelease=true&semVerLevel=2.0.0" \| jq '.data[0].totalDownloads'` for each of the ten package IDs |
 | npm downloads | Weekly download count once a package is live | none published yet — see snapshot below |
 | Talk / podcast acceptances | Accepted conference talks or podcast appearances about Affiant | tracked manually against submission and acceptance emails; no API exists for this |
-| External-issue replies | Replies from accounts other than `seevali` in the four issues where the problem Affiant solves was written down in public, before Affiant existed | `gh api repos/<owner>/<repo>/issues/<n>/comments --jq '[.[] \| select(.user.login != "seevali")] \| length'` for `openai/openai-agents-js#1097`, `mastra-ai/mastra#20757`, `vercel/ai#19979`, `vercel/ai#13215` |
+| External-issue replies | Replies from accounts other than `seevali` in the four issues where the problem Affiant solves was written down in public, before Affiant existed | `gh api --paginate repos/<owner>/<repo>/issues/<n>/comments --jq '.[] \| select(.user.login != "seevali") \| .id'` piped to `wc -l`, summed across pages, for `openai/openai-agents-js#1097`, `mastra-ai/mastra#20757`, `vercel/ai#19979`, `vercel/ai#13215` |
 
 ## Gates
 
 Two dated checkpoints, set before any results were visible, against a stated zero baseline.
 
-- **Baseline — 2026-08-30:** zero on every surface above.
+- **Baseline — 2026-08-30:** zero on every GitHub surface (stars, forks, dependents,
+  non-owner issues, PRs, Discussions); NuGet downloads were non-zero from the 2026-08-23
+  publish but cannot be separated from CI restores.
 - **"Heard" — 2026-11-23** (three months after the first public release): a launch write-up
   published, at least two talk or podcast submissions made, a quickstart guide live, and any
   nontrivial engagement from someone who isn't the maintainer.
@@ -58,11 +58,11 @@ Two dated checkpoints, set before any results were visible, against a stated zer
 
 | Date | Stars (affiant) | Stars (affiant-ts) | Stars (protocol) | Forks | Watchers | Dependents | Non-owner issues | Non-owner PRs | Non-owner discussions | NuGet total downloads | npm | Talks | External-issue replies | Notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 2026-09-04 | 0 | 0 | 0 | 0 | 0 | 0 | 0¹ | 0¹ | 0 | 2,285 | not published yet | 0 | 40² | First snapshot. All GitHub surfaces read zero. |
+| 2026-09-04 | 0 | 0 | 0 | 0 | 0 | 0 | 0¹ | 0¹ | 0 | 2,285 | not published yet | 0 | 81² | First snapshot. All GitHub surfaces read zero. `vercel/ai#19979` and `vercel/ai#13215` are closed issues. |
 
 ¹ GitHub's issues API returns issues and pull requests as one combined list; the combined
 non-owner count is 0, reported in both columns until a PR-only query is worth adding.
-² Sum of non-owner comments across the four external issues: 4 + 3 + 3 + 30 = 40. The maintainer
+² Sum of non-owner comments across the four external issues: 4 + 3 + 3 + 71 = 81. The maintainer
 has not replied in any of them yet (0 comments from `seevali` in all four).
 
 **NuGet downloads by package (2026-09-04):**
@@ -117,18 +117,22 @@ $ for id in Affiant.Abstractions Affiant.Core Affiant.SemanticKernel Affiant.Age
   done
 326  321  247  131  251  246  257  254  128  124
 
-$ gh api repos/openai/openai-agents-js/issues/1097/comments --jq '{total: length, seevali: [.[] | select(.user.login == "seevali")] | length}'
-{"total":4,"seevali":0}
+$ gh api --paginate repos/openai/openai-agents-js/issues/1097/comments --jq '.[] | select(.user.login != "seevali") | .id' | wc -l
+4
 
-$ gh api repos/mastra-ai/mastra/issues/20757/comments --jq '{total: length, seevali: [.[] | select(.user.login == "seevali")] | length}'
-{"total":3,"seevali":0}
+$ gh api --paginate repos/mastra-ai/mastra/issues/20757/comments --jq '.[] | select(.user.login != "seevali") | .id' | wc -l
+3
 
-$ gh api repos/vercel/ai/issues/19979/comments --jq '{total: length, seevali: [.[] | select(.user.login == "seevali")] | length}'
-{"total":3,"seevali":0}
+$ gh api --paginate repos/vercel/ai/issues/19979/comments --jq '.[] | select(.user.login != "seevali") | .id' | wc -l
+3
 
-$ gh api repos/vercel/ai/issues/13215/comments --jq '{total: length, seevali: [.[] | select(.user.login == "seevali")] | length}'
-{"total":30,"seevali":0}
+$ gh api --paginate repos/vercel/ai/issues/13215/comments --jq '.[] | select(.user.login != "seevali") | .id' | wc -l
+71
 ```
+
+The unpaginated form of this call (no `--paginate`) silently caps at GitHub's default
+`per_page=30` and previously reported 30 for `vercel/ai#13215` instead of 71 — the error this
+snapshot corrects.
 
 </details>
 
@@ -143,6 +147,6 @@ $ gh api repos/vercel/ai/issues/13215/comments --jq '{total: length, seevali: [.
 6. Once `@affiant/core` is on npm, record its weekly download count; until then write "not
    published yet".
 7. Update talk/podcast acceptances manually from submission and acceptance records.
-8. `gh api repos/<owner>/<repo>/issues/<n>/comments --jq '[.[] | select(.user.login != "seevali")] | length'` for the four external issues and sum.
+8. `gh api --paginate repos/<owner>/<repo>/issues/<n>/comments --jq '.[] | select(.user.login != "seevali") | .id'` piped to `wc -l` for each of the four external issues, and sum the four totals. Omitting `--paginate` silently caps the count at GitHub's default `per_page=30`.
 9. Append one wide row to the Snapshots table with today's date. Never edit a previous row —
    corrections land as a note in a later snapshot's row.
