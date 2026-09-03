@@ -83,6 +83,7 @@ _Nothing yet — changes after `v1.0.0-beta.1.1` accumulate here._
   they were always written to do.
 - These are declared breaking changes against `1.0.0-beta.1`, permitted by the prerelease-stability
   policy, and recorded in `src/Affiant.Policies/CompatibilitySuppressions.xml`.
+- `StandingOrderBase.RiskScorer` is now nullable (`RiskScoreCalculatorBase?`). Binary-compatible; source-breaking for a subclass that dereferences it under nullable reference types with warnings as errors — add a null check or declare no threshold.
 
 ## [1.0.0-beta.1] — 2026-08-23
 

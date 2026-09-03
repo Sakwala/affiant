@@ -35,7 +35,7 @@ builder.Services.AddAffiantPolicies(policies =>
 });
 ```
 
-`SetRiskScoreCalculator<T>()` may be called anywhere in the chain — before or after the Standing Orders that need it, and the last call wins if it is called twice.
+`SetRiskScoreCalculator<T>()` may be called anywhere in the chain — before or after the Standing Orders that need it, and the last call wins if it is called twice. Registering a calculator directly with `services.TryAddScoped<RiskScoreCalculatorBase, T>()` *after* `AddAffiantPolicies(...)` does nothing — the framework has already registered its placeholder — so use `SetRiskScoreCalculator<T>()`, `AddScoped`, or `Replace`.
 
 A Standing Order that declares a `RiskThreshold` with no calculator registered throws `InvalidOperationException` naming `SetRiskScoreCalculator<T>()`. It fails on the policy's first evaluation, before any write is auto-approved, never silently — the order neither approves nor refuses on an unscored guess.
 
