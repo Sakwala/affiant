@@ -34,7 +34,7 @@ No dates, ever: a solo-maintained project cannot promise a delivery date without
 
 ## What will not change
 
-1. **The invariant.** Every Affidavit field carries provenance, no exceptions; nothing commits without evidence, nothing writes without approval. Enforced by [`affiant-conformance`](https://github.com/Sakwala/affiant-protocol) — the protocol's fixtures every implementation must pass — and by the [ComplianceHarness](https://affiant.dev/guides/compliance-harness/) — the test harness every .NET adapter must pass.
+1. **The invariant.** Every Affidavit field carries provenance, no exceptions; nothing commits without evidence, nothing writes without approval. Enforced today by the [ComplianceHarness](https://affiant.dev/guides/compliance-harness/) — the test harness every .NET adapter must pass — and, once the conformance suite in [affiant-protocol](https://github.com/Sakwala/affiant-protocol) ships, by that suite for every implementation.
 2. **Field-level, not call-level.** Approval of a whole tool call is commodity; Affiant's unit is the field and its provenance chain.
 3. **The honest boundary.** Affiant only swears to writes it can intercept in-process. It will not claim otherwise.
 4. **Library, not service.** Affiant runs inside the adopter's process. There is no hosted component, no licence server, and no phone-home.
@@ -69,7 +69,8 @@ No dates, ever: a solo-maintained project cannot promise a delivery date without
   commit rather than made portable afterwards. `@affiant/core` goes to npm only once two
   things are true: a public parity report for the .NET packages exists, and the TypeScript
   conformance driver is green and merge-blocking in CI. The .NET packages will be made to
-  pass that same fixture suite in a later `beta.3` conformance release; until then the
+  pass that same fixture suite in a later `beta.3` conformance release, which also puts the
+  attestation record — who or what approved a write — on the Docket entry; until then the
   parity report states exactly which fixtures the shipped packages fail, and why. State:
   in progress. Links: issue: to be filed;
   [affiant-protocol](https://github.com/Sakwala/affiant-protocol),
@@ -226,8 +227,8 @@ No dates, ever: a solo-maintained project cannot promise a delivery date without
 ## Recently shipped
 
 - 2026-09-04 — Front door for contributors shipped: `CONTRIBUTING.md`, `SECURITY.md` (a
-  disclosure path), `CODE_OF_CONDUCT.md`, issue and pull-request templates and a Sponsors
-  link, alongside GitHub Discussions and the `roadmap` label.
+  disclosure path), `CODE_OF_CONDUCT.md`, and issue and pull-request templates, alongside
+  GitHub Discussions and the `roadmap` label.
   [Discussions](https://github.com/Sakwala/affiant/discussions), [open `roadmap`
   issues](https://github.com/Sakwala/affiant/issues?q=is%3Aissue+state%3Aopen+label%3Aroadmap).
 - 2026-08-27 — HR Portal public demo went live at hrportal.affiant.dev — a second adapter
