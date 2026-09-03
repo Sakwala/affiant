@@ -93,10 +93,12 @@ the `RS0016` message quotes into that project's `PublicAPI.Unshipped.txt` (delet
 same edit.
 
 Every `PublicAPI.Shipped.txt` starts with `#nullable enable`, so entries carry `!`/`?` annotations
-and a nullability change counts as an API change. `PublicAPI.Shipped.txt` is otherwise **empty on
-purpose** — nothing has been published yet. At each release, the unshipped entries move into the
-shipped file; that move is what lets the analyzer distinguish "new API this release" from "API we
-already promised".
+and a nullability change counts as an API change. `PublicAPI.Shipped.txt` holds the surface already
+published — the `1.0.0-beta.1` entries were rolled into it after that release. At each release the
+unshipped entries move into the shipped file; that move is what lets the analyzer distinguish "new
+API this release" from "API we already promised". Removing or resignaturing a shipped symbol is
+recorded by adding a `*REMOVED*`-prefixed copy of the old line to `PublicAPI.Unshipped.txt`
+alongside the new line.
 
 `global.json` pins the SDK to `10.0.105` with `rollForward: latestPatch`. Use xUnit for tests. Prefer `[Theory]` with a provider factory for tests that should run against multiple adapter implementations (e.g. the shared Docket suite over InMemory + SQLite + Postgres). Tests live under `tests/`, one test project per src project.
 
