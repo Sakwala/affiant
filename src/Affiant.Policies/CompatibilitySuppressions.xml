@@ -1,0 +1,26 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!-- https://learn.microsoft.com/dotnet/fundamentals/package-validation/diagnostic-ids -->
+<!-- Declared break, permitted before 1.0: the framework's stock risk formula is removed so that a Standing Order written to the documented contract can actually auto-approve. -->
+<Suppressions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Suppression>
+    <DiagnosticId>CP0001</DiagnosticId>
+    <Target>T:Affiant.Policies.Services.DefaultRiskScoreCalculator</Target>
+    <Left>lib/net10.0/Affiant.Policies.dll</Left>
+    <Right>lib/net10.0/Affiant.Policies.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Policies.StandingOrders.StandingOrderBase.get_RiskThreshold</Target>
+    <Left>lib/net10.0/Affiant.Policies.dll</Left>
+    <Right>lib/net10.0/Affiant.Policies.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0012</DiagnosticId>
+    <Target>M:Affiant.Policies.Services.RiskScoreCalculatorBase.ComputeAsync(Affiant.Abstractions.Models.Affidavit,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Policies.dll</Left>
+    <Right>lib/net10.0/Affiant.Policies.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+</Suppressions>
