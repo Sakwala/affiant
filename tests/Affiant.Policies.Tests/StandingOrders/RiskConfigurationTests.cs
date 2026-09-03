@@ -322,4 +322,37 @@ public class RiskConfigurationTests
 
         Assert.Equal(ReviewRequirement.StandingOrder, await policy.EvaluateAsync(EmptyAffidavit()));
     }
+
+    // ── The placeholder scorer's own lifetime ──────────────────────────────────
+
+    /// <summary>
+    /// The placeholder <c>MissingRiskScoreCalculator</c> must itself be a Singleton. It carries no
+    /// state and every call throws, so there is nothing scope-shaped about it — but if it were
+    /// Scoped, a Standing Order the host legitimately registers Singleton (because it holds no
+    /// per-request state of its own) and whose constructor still requires
+    /// <see cref="RiskScoreCalculatorBase"/> — the beta.1 shape — would become captive to a
+    /// shorter-lived dependency purely by resolving against the placeholder. <c>ValidateScopes</c>
+    /// + <c>ValidateOnBuild</c> is exactly the setting combination (mirroring ASP.NET Core's
+    /// Development host) that turns a captive dependency into a build-time failure, so building
+    /// under it here is the proof: this order declares no <c>RiskThreshold</c> at all, so nothing
+    /// about its own behaviour depends on the calculator's lifetime — only the container's
+    /// captive-dependency check does.
+    /// </summary>
+    [Fact]
+    public async Task Singleton_standing_order_needing_the_placeholder_builds_and_evaluates_under_ValidateOnBuild()
+    {
+        var services = HostServices();
+        services.AddAffiantPolicies(p => p
+            .AddStandingOrder<Beta1ShapeCeilinglessOrder>(ServiceLifetime.Singleton));
+
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateScopes = true,
+            ValidateOnBuild = true,
+        });
+
+        var policy = Assert.Single(provider.GetServices<IApprovalPolicy>());
+
+        Assert.Equal(ReviewRequirement.StandingOrder, await policy.EvaluateAsync(EmptyAffidavit()));
+    }
 }

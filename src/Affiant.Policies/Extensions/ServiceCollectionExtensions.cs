@@ -41,8 +41,11 @@ public static class ServiceCollectionExtensions
         // otherwise the container refuses it with "Unable to resolve service for type
         // 'RiskScoreCalculatorBase'", which names no fix. TryAdd, and last in the method, so a
         // calculator the host registered — through SetRiskScoreCalculator<T>() above or directly
-        // on the IServiceCollection — always wins.
-        services.TryAddScoped<RiskScoreCalculatorBase, MissingRiskScoreCalculator>();
+        // on the IServiceCollection — always wins. Registered Singleton, not Scoped: it is
+        // stateless and every call throws, so there is nothing scope-shaped about it — and a
+        // Singleton avoids making a Standing Order that depends on it a captive dependency should
+        // that order itself ever be registered Singleton.
+        services.TryAddSingleton<RiskScoreCalculatorBase, MissingRiskScoreCalculator>();
 
         return services;
     }
