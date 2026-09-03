@@ -561,6 +561,11 @@ convention — depend only on what you need.
 The strongest argument for field-level provenance is a mistake this framework's own history
 records.
 
+The review lifecycle this trust rests on — approve, reject, amend, expire, resubmit — is not just
+asserted in the abstract: [`samples/meridian-f0-deck/`](samples/meridian-f0-deck/) is a runnable,
+seven-behaviour Playwright deck that drives it through the framework's real `ReviewGate` and hub
+handlers, no LLM key required.
+
 On 30 April 2026, during the extraction of the framework out of its first host application, a
 refactoring commit (`b72c1fa`) began shipping **empty Affidavits** — every proposed write
 carried fields tagged `ProvenanceSource.Empty` and no real values. The entire test suite —
