@@ -666,6 +666,17 @@ yet reached 1.0 GA. Adopt on this basis:
 
 ---
 
+## Contributing
+
+Ideas and questions go to [GitHub Discussions](https://github.com/Sakwala/affiant/discussions);
+bugs and scoped feature proposals go through the
+[issue templates](https://github.com/Sakwala/affiant/issues/new/choose). See
+[CONTRIBUTING.md](CONTRIBUTING.md) for how to build, test, and send a pull request, and
+[SECURITY.md](SECURITY.md) to report a vulnerability privately. To influence direction, open or
+upvote an [open `roadmap` issue](https://github.com/Sakwala/affiant/issues?q=is%3Aissue+state%3Aopen+label%3Aroadmap).
+
+---
+
 ## Licence
 
 Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).

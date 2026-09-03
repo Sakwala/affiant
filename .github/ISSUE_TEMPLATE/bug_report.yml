@@ -1,0 +1,72 @@
+name: Bug report
+description: Something in Affiant isn't working as documented.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. The more concrete the repro, the faster
+        this can be fixed — see [CONTRIBUTING.md](../../CONTRIBUTING.md) for how bugs get
+        triaged. If this might be a security vulnerability, please use
+        [private reporting](https://github.com/Sakwala/affiant/security/advisories/new)
+        instead of this form.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: A clear description of the incorrect or unexpected behavior.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: What you expected to happen instead, and why (a doc section, a normative
+        rule, an API contract).
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal repro
+      description: The smallest code sample, test, or step sequence that reproduces the
+        issue. A link to a small repository or gist is welcome.
+      render: csharp
+    validations:
+      required: true
+
+  - type: input
+    id: package-version
+    attributes:
+      label: Package and version
+      description: Which Affiant NuGet package(s) and version(s), e.g.
+        `Affiant.SemanticKernel 1.0.0-beta.1`.
+      placeholder: Affiant.Core 1.0.0-beta.1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: host-stack
+    attributes:
+      label: Host stack
+      description: Which interception backend is your host application using?
+      options:
+        - Semantic Kernel
+        - Microsoft Agent Framework
+        - Microsoft.Extensions.AI
+        - Other / not applicable
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: .NET SDK version, OS, logs, stack traces — anything else that helps
+        narrow this down.
+    validations:
+      required: false
