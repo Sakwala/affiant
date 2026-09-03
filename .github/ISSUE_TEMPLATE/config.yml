@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Ask a question
+    url: https://github.com/Sakwala/affiant/discussions/categories/q-a
+    about: Have a question about using Affiant? Ask in Q&A Discussions rather than opening an issue.
+  - name: Propose an idea
+    url: https://github.com/Sakwala/affiant/discussions/categories/ideas
+    about: Have an open-ended idea or want to discuss direction before it's scoped? Start a Discussion.
+  - name: Report a security vulnerability
+    url: https://github.com/Sakwala/affiant/security/advisories/new
+    about: Please report vulnerabilities privately through GitHub's security advisories, not a public issue. See SECURITY.md.
