@@ -43,18 +43,36 @@ public class ServiceCollectionExtensionsTests
             => Task.FromResult(1); // always Low
     }
 
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private static Affidavit EmptyAffidavit() => new(
+        OperationType: "Test",
+        EntityType: "TestEntity",
+        EntityId: null,
+        Fields: [],
+        AggregateConfidence: 1.0f,
+        Warnings: [],
+        RequiresConfirmation: false);
+
     // ── Tests ─────────────────────────────────────────────────────────────────
 
     [Fact]
-    public void AddAffiantPolicies_registers_no_risk_score_calculator()
+    public async Task AddAffiantPolicies_registers_no_scoring_formula()
     {
         var services = new ServiceCollection();
 
         services.AddAffiantPolicies();
         var sp = services.BuildServiceProvider();
 
-        // The framework ships no scoring formula: risk is the host's to define.
-        Assert.Null(sp.GetService<RiskScoreCalculatorBase>());
+        // A placeholder is registered so an order that takes the calculator as a required
+        // constructor dependency still resolves — but it carries no formula and no risk floor:
+        // asking it to score anything throws, naming the registration that is missing.
+        var placeholder = sp.GetRequiredService<RiskScoreCalculatorBase>();
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => placeholder.ComputeAsync(EmptyAffidavit()));
+
+        Assert.Contains("SetRiskScoreCalculator<T>()", ex.Message);
     }
 
     [Fact]
@@ -71,17 +89,70 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void StandingOrder_with_a_threshold_and_no_calculator_fails_on_resolution()
+    public async Task StandingOrder_with_a_threshold_and_no_calculator_fails_on_first_evaluation()
     {
         var services = new ServiceCollection();
 
         services.AddAffiantPolicies(p => p.AddStandingOrder<ThresholdStandingOrder>());
         var sp = services.BuildServiceProvider();
 
-        var ex = Assert.Throws<InvalidOperationException>(() => sp.GetServices<IApprovalPolicy>().ToList());
+        // Resolution succeeds — the failure belongs to the policy, not to the container.
+        var policy = Assert.Single(sp.GetServices<IApprovalPolicy>());
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => policy.EvaluateAsync(EmptyAffidavit()));
 
         Assert.Contains(nameof(ThresholdStandingOrder), ex.Message);
         Assert.Contains("SetRiskScoreCalculator<T>()", ex.Message);
+    }
+
+    [Fact]
+    public void SetRiskScoreCalculator_wins_when_called_after_AddStandingOrder()
+    {
+        var services = new ServiceCollection();
+
+        services.AddAffiantPolicies(p => p
+            .AddStandingOrder<ThresholdStandingOrder>()
+            .SetRiskScoreCalculator<CustomRiskCalculator>());
+        var sp = services.BuildServiceProvider();
+
+        Assert.IsType<CustomRiskCalculator>(sp.GetRequiredService<RiskScoreCalculatorBase>());
+    }
+
+    [Fact]
+    public void SetRiskScoreCalculator_wins_when_called_before_AddStandingOrder()
+    {
+        var services = new ServiceCollection();
+
+        services.AddAffiantPolicies(p => p
+            .SetRiskScoreCalculator<CustomRiskCalculator>()
+            .AddStandingOrder<ThresholdStandingOrder>());
+        var sp = services.BuildServiceProvider();
+
+        Assert.IsType<CustomRiskCalculator>(sp.GetRequiredService<RiskScoreCalculatorBase>());
+    }
+
+    [Fact]
+    public async Task Registration_order_does_not_change_how_a_threshold_order_evaluates()
+    {
+        // The same order, the same calculator, the two possible call orders: identical outcome.
+        static IApprovalPolicy Resolve(Action<PoliciesBuilder> configure)
+        {
+            var services = new ServiceCollection();
+            services.AddAffiantPolicies(configure);
+            return Assert.Single(services.BuildServiceProvider().GetServices<IApprovalPolicy>());
+        }
+
+        var scorerFirst = Resolve(p => p
+            .SetRiskScoreCalculator<CustomRiskCalculator>()
+            .AddStandingOrder<ThresholdStandingOrder>());
+
+        var orderFirst = Resolve(p => p
+            .AddStandingOrder<ThresholdStandingOrder>()
+            .SetRiskScoreCalculator<CustomRiskCalculator>());
+
+        Assert.Equal(ReviewRequirement.StandingOrder, await scorerFirst.EvaluateAsync(EmptyAffidavit()));
+        Assert.Equal(ReviewRequirement.StandingOrder, await orderFirst.EvaluateAsync(EmptyAffidavit()));
     }
 
     [Fact]

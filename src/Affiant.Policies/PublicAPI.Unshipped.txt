@@ -5,7 +5,9 @@
 *REMOVED*readonly Affiant.Policies.StandingOrders.StandingOrderBase.RiskScorer -> Affiant.Policies.Services.RiskScoreCalculatorBase!
 *REMOVED*virtual Affiant.Policies.Services.RiskScoreCalculatorBase.ComputeAsync(Affiant.Abstractions.Models.Affidavit! affidavit, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<int>!
 *REMOVED*virtual Affiant.Policies.StandingOrders.StandingOrderBase.RiskThreshold.get -> int
+Affiant.Policies.AffiantPolicies
 Affiant.Policies.StandingOrders.StandingOrderBase.StandingOrderBase(Affiant.Policies.Services.RiskScoreCalculatorBase? riskScorer = null, Microsoft.Extensions.Logging.ILogger? logger = null) -> void
 abstract Affiant.Policies.Services.RiskScoreCalculatorBase.ComputeAsync(Affiant.Abstractions.Models.Affidavit! affidavit, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<int>!
 readonly Affiant.Policies.StandingOrders.StandingOrderBase.RiskScorer -> Affiant.Policies.Services.RiskScoreCalculatorBase?
+static Affiant.Policies.AffiantPolicies.ValidateStandingOrders(System.IServiceProvider! serviceProvider) -> void
 virtual Affiant.Policies.StandingOrders.StandingOrderBase.RiskThreshold.get -> int?

@@ -32,14 +32,28 @@ _Nothing yet — changes after `v1.0.0-beta.1.1` accumulate here._
   `score <= threshold` comparison, the host owns the score.
 - **Fail closed on misconfiguration.** A Standing Order that declares a `RiskThreshold` with no
   `RiskScoreCalculatorBase` registered now throws `InvalidOperationException` naming
-  `SetRiskScoreCalculator<T>()`, when the container builds the policy — rather than deferring every
-  write it was written to approve.
+  `SetRiskScoreCalculator<T>()`. It fails on the policy's first evaluation, before any write is
+  auto-approved, never silently — rather than deferring every write it was written to approve.
+
+### Added
+
+- `AffiantPolicies.ValidateStandingOrders(IServiceProvider)` — an optional boot-time check. It
+  resolves every registered `IApprovalPolicy` in a throwaway scope and runs each Standing Order's
+  risk-configuration check, turning a misconfiguration into a startup failure rather than a
+  first-request one. It evaluates no Affidavit and approves nothing.
 
 ### Changed
 
 - `RiskScoreCalculatorBase.ComputeAsync` is **abstract**. There is no framework scoring formula:
   what counts as risk is a property of the host's domain. `ClassifyScore` and the `RiskLevel` enum
   are unchanged.
+- `AddAffiantPolicies()` registers an internal placeholder `RiskScoreCalculatorBase` when the host
+  registers none. It carries no formula and no risk floor — every call to it throws, naming
+  `SetRiskScoreCalculator<T>()`. It exists so that a Standing Order whose constructor takes
+  `RiskScoreCalculatorBase` as a *required* dependency — the shape every `1.0.0-beta.1` order that
+  declared a `RiskThreshold` was forced into — still resolves, and so sees the actionable message
+  rather than the container's own "Unable to resolve service for type 'RiskScoreCalculatorBase'".
+  It is registered with `TryAdd`, so a calculator the host registers always wins.
 - `StandingOrderBase`'s risk calculator is an optional constructor dependency
   (`RiskScoreCalculatorBase? riskScorer = null`), and the protected `RiskScorer` field is nullable.
 - `StandingOrderBase.RiskThreshold` is `int?` (was `int`).
@@ -47,16 +61,23 @@ _Nothing yet — changes after `v1.0.0-beta.1.1` accumulate here._
 ### Removed
 
 - `DefaultRiskScoreCalculator`, and its automatic registration inside `AddAffiantPolicies()`.
-  `AddAffiantPolicies()` no longer registers any `RiskScoreCalculatorBase`.
+  `AddAffiantPolicies()` no longer registers any scoring formula — only the throwing placeholder
+  described above.
 
 ### Upgrade note
 
 - A host that relied on the stock formula — over-50 `Value` field → High, otherwise Medium —
   registers its own calculator: subclass `RiskScoreCalculatorBase`, implement `ComputeAsync`, and
   pass it to `SetRiskScoreCalculator<T>()` inside `AddAffiantPolicies(...)`.
-- A host with a Standing Order that overrides `RiskThreshold` must register a calculator or the
-  policy throws at startup. Changing the override's type from `int` to `int?` is required to
-  compile.
+- A host with a Standing Order that overrides `RiskThreshold` must register a calculator, or that
+  policy throws on its first evaluation, before any write is auto-approved, naming
+  `SetRiskScoreCalculator<T>()`. Call `AffiantPolicies.ValidateStandingOrders(app.Services)` after
+  `Build()` to hit the same failure at startup instead. Changing the override's type from `int` to
+  `int?` is required to compile.
+- An order that took the calculator as a required constructor parameter — the shape beta.1's base
+  constructor forced — keeps working unchanged: it resolves against the placeholder and, if it
+  declares a `RiskThreshold`, reports the missing registration itself. Widening the parameter to
+  `RiskScoreCalculatorBase? scorer = null` is optional.
 - A host whose Standing Orders never overrode `RiskThreshold` needs no calculator and no code
   change — but note the behaviour change: those orders now auto-approve on the match, which is what
   they were always written to do.

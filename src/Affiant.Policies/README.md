@@ -11,13 +11,13 @@ builder.Services.AddAffiantCore();
 builder.Services.AddAffiantPolicies(policies =>
 {
     policies
-        .AddStandingOrder<LowValueAutoApproval>()
+        .AddStandingOrder<SickLeaveAutoApproval>()   // declares no RiskThreshold
         .AddReferralRule<HighValueEscalation>()
         .AddDefaultReviewerConfirmation();
 });
 ```
 
-Implement `StandingOrderBase` for an auto-approval rule and `ReferralRuleBase` for an escalation rule. A Standing Order is complete once `MatchesAsync` describes when it applies — matching is then the whole test, and the order auto-approves.
+Implement `StandingOrderBase` for an auto-approval rule and `ReferralRuleBase` for an escalation rule. A Standing Order is complete once `MatchesAsync` describes when it applies — matching is then the whole test, and the order auto-approves. `SickLeaveAutoApproval` above declares no risk ceiling, so it needs no risk calculator and the registration above is the whole of its wiring.
 
 ## Risk thresholds are opt-in, and the score is yours
 
@@ -35,7 +35,19 @@ builder.Services.AddAffiantPolicies(policies =>
 });
 ```
 
-A Standing Order that declares a `RiskThreshold` with no calculator registered throws `InvalidOperationException` when the container builds it, naming `SetRiskScoreCalculator<T>()` — a misconfigured host fails at startup rather than quietly deferring every write the order was written to approve.
+`SetRiskScoreCalculator<T>()` may be called anywhere in the chain — before or after the Standing Orders that need it, and the last call wins if it is called twice.
+
+A Standing Order that declares a `RiskThreshold` with no calculator registered throws `InvalidOperationException` naming `SetRiskScoreCalculator<T>()`. It fails on the policy's first evaluation, before any write is auto-approved, never silently — the order neither approves nor refuses on an unscored guess.
+
+### Check at startup (optional)
+
+To turn that into a boot failure rather than a first-request one, validate the registered orders once after the host is built. It resolves every policy in a throwaway scope, evaluates no Affidavit, and approves nothing:
+
+```csharp
+var app = builder.Build();
+AffiantPolicies.ValidateStandingOrders(app.Services);   // throws here instead of on first use
+app.Run();
+```
 
 ## Package contents
 
@@ -45,6 +57,7 @@ A Standing Order that declares a `RiskThreshold` with no calculator registered t
 | `Affiant.Policies.Referrals` | `ReferralRuleBase` — the escalation-routing rule contract |
 | `Affiant.Policies.Services` | `RiskScoreCalculatorBase` — the host-implemented scoring seam — and `RiskLevel` |
 | `Affiant.Policies.Extensions` | `ServiceCollectionExtensions` — `AddAffiantPolicies`, the `PoliciesBuilder` fluent registration surface |
+| `Affiant.Policies` | `AffiantPolicies.ValidateStandingOrders` — the optional boot-time configuration check |
 
 ## Further reading
 
