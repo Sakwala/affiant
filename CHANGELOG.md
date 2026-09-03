@@ -13,7 +13,55 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
 
 ## [Unreleased]
 
-_Nothing yet — changes after `v1.0.0-beta.1` accumulate here._
+_Nothing yet — changes after `v1.0.0-beta.1.1` accumulate here._
+
+## [1.0.0-beta.1.1] — unreleased
+
+### Fixed
+
+- **A Standing Order written to the documented contract could never auto-approve.**
+  `StandingOrderBase` defaulted its `RiskThreshold` to `RiskLevel.Low` (1) and auto-approved only
+  when the computed score was at or below it, while the risk formula `AddAffiantPolicies()`
+  registered for every host returned `Medium` (2) or `High` (3) on every path — over-50 `Value`
+  field → High, any other `Value` → Medium, no `Value` field → Medium. Nothing scored `Low`, so a
+  subclass that implemented `MatchesAsync` and changed nothing else always fell through to reviewer
+  confirmation.
+- **New semantics.** `RiskThreshold` is now `int?` and defaults to `null`, meaning *no risk
+  ceiling*: matching the conditions is the whole test, and such a Standing Order needs no risk
+  calculator at all. Declaring a threshold opts into scoring — the framework still owns the
+  `score <= threshold` comparison, the host owns the score.
+- **Fail closed on misconfiguration.** A Standing Order that declares a `RiskThreshold` with no
+  `RiskScoreCalculatorBase` registered now throws `InvalidOperationException` naming
+  `SetRiskScoreCalculator<T>()`, when the container builds the policy — rather than deferring every
+  write it was written to approve.
+
+### Changed
+
+- `RiskScoreCalculatorBase.ComputeAsync` is **abstract**. There is no framework scoring formula:
+  what counts as risk is a property of the host's domain. `ClassifyScore` and the `RiskLevel` enum
+  are unchanged.
+- `StandingOrderBase`'s risk calculator is an optional constructor dependency
+  (`RiskScoreCalculatorBase? riskScorer = null`), and the protected `RiskScorer` field is nullable.
+- `StandingOrderBase.RiskThreshold` is `int?` (was `int`).
+
+### Removed
+
+- `DefaultRiskScoreCalculator`, and its automatic registration inside `AddAffiantPolicies()`.
+  `AddAffiantPolicies()` no longer registers any `RiskScoreCalculatorBase`.
+
+### Upgrade note
+
+- A host that relied on the stock formula — over-50 `Value` field → High, otherwise Medium —
+  registers its own calculator: subclass `RiskScoreCalculatorBase`, implement `ComputeAsync`, and
+  pass it to `SetRiskScoreCalculator<T>()` inside `AddAffiantPolicies(...)`.
+- A host with a Standing Order that overrides `RiskThreshold` must register a calculator or the
+  policy throws at startup. Changing the override's type from `int` to `int?` is required to
+  compile.
+- A host whose Standing Orders never overrode `RiskThreshold` needs no calculator and no code
+  change — but note the behaviour change: those orders now auto-approve on the match, which is what
+  they were always written to do.
+- These are declared breaking changes against `1.0.0-beta.1`, permitted by the prerelease-stability
+  policy, and recorded in `src/Affiant.Policies/CompatibilitySuppressions.xml`.
 
 ## [1.0.0-beta.1] — 2026-08-23
 
