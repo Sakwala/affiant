@@ -73,7 +73,16 @@ _Nothing yet — changes after `v1.0.0-beta.1.1` accumulate here._
   policy throws on its first evaluation, before any write is auto-approved, naming
   `SetRiskScoreCalculator<T>()`. Call `AffiantPolicies.ValidateStandingOrders(app.Services)` after
   `Build()` to hit the same failure at startup instead. Changing the override's type from `int` to
-  `int?` is required to compile.
+  `int?` is required to compile — and it is required at runtime too, not merely convenient:
+  a subclass compiled against `1.0.0-beta.1` and dropped in as a binary without recompiling still
+  overrides a property whose signature the base class no longer declares, so the CLR fails at type
+  load with a `TypeLoadException` (or a `MissingMethodException` at the call site), not a graceful
+  fallback to the old behaviour.
+- The configuration check — is a calculator registered wherever a `RiskThreshold` is declared —
+  runs before `MatchesAsync`, on every evaluation. A misconfigured Standing Order therefore halts
+  *every* evaluation of that policy, not only the writes it would actually have matched: intended,
+  since the point is to fail loudly and closed rather than silently approve or refuse on an
+  unscored guess.
 - An order that took the calculator as a required constructor parameter — the shape beta.1's base
   constructor forced — keeps working unchanged: it resolves against the placeholder and, if it
   declares a `RiskThreshold`, reports the missing registration itself. Widening the parameter to
