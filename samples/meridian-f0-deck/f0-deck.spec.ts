@@ -173,7 +173,7 @@ test.describe('F0 regression deck (dev-seam driven)', () => {
 
     // Terminal state reached only via the server ack (never sooner) — this exact round trip
     // (propose → approve → ack → WorkOrder persisted) is the flow that used to deadlock for the
-    // full 10-minute docket timeout and then expire (Sakwala/affiant-host-apps#25).
+    // full 10-minute docket timeout and then expire.
     await expect(card.locator('text=Approved')).toBeVisible({ timeout: 15_000 });
     await expect(card.getByTestId('approve-action-button')).toBeHidden();
     await expect(card.getByTestId('reject-action-button')).toBeHidden();
@@ -296,7 +296,7 @@ test.describe('F0 regression deck (dev-seam driven)', () => {
     // BuildCannedAffidavit now marks Title/Type/Priority/AircraftId IsMandatory: true, mirroring
     // WorkOrderTaskInferenceStrategy's Required card fields (see that class's remarks for the
     // DB-schema audit backing each one — AircraftTailNumber is no longer one of them: it became an
-    // extraction field the same day, Area-1, and never appears on the card at all) — the aircraft-picker mechanics
+    // extraction field the same day, and never appears on the card at all) — the aircraft-picker mechanics
     // this gate sits in front of were already covered by "aircraft picker feeds from
     // GET /api/v1/aircraft..." above (B2); this spec now exercises the actual disabled/enabled
     // transition.
@@ -336,8 +336,8 @@ test.describe('F0 regression deck (dev-seam driven)', () => {
     await expect(card.locator('text=Expiring soon')).toBeVisible({ timeout: 65_000 });
 
     // The entry passes its 35s deadline mid-way between ticks in the worst case, so Expired can
-    // land up to a full second tick (~30s) after Expiring soon appears — generous ceiling per the
-    // mission brief (~90s total from proposal).
+    // land up to a full second tick (~30s) after Expiring soon appears — generous ceiling
+    // (~90s total from proposal).
     await expect(card.locator('text=Expired')).toBeVisible({ timeout: 60_000 });
     await expect(card.getByTestId('resubmit-action-button')).toBeVisible();
     await expect(card.getByTestId('approve-action-button')).toBeHidden();
@@ -432,12 +432,11 @@ test.describe('F0 regression deck (dev-seam driven)', () => {
     // observe unless the store row already reads Expired. No client-side wait is needed to close
     // the gap the poll used to paper over — see ReviewGate.cs's HandleDecisionAsync XML remarks and
     // its own regression tests (framework PR affiant#36) for the persist-before-return guarantee
-    // this relies on. (For a window earlier in this same wave, this spec could not itself be run
-    // clean end-to-end: the framework's D3 sweep re-broadcast landed before Meridian's client-side
-    // idempotent-by-actionId card render did, so it failed on a duplicate-card count regardless of
-    // this change. Closed within the same wave by commit d8c93c7 — onConfirmAction now upserts by
-    // actionId — see e2e/README.md's "Known gap" note for the closure detail and a live re-run
-    // confirmation; this spec passes clean against current HEAD.)
+    // this relies on. (Earlier, this spec could not itself be run clean end-to-end: the
+    // framework's D3 sweep re-broadcast landed before Meridian's client-side idempotent-by-actionId
+    // card render did, so it failed on a duplicate-card count regardless of this change. That race
+    // is closed — onConfirmAction now upserts by actionId — and this spec passes clean against
+    // current HEAD.)
     //
     // Resubmit: a fresh Pending card arrives via the same ConfirmAction broadcast as a first-time
     // filing, carrying this entry's preserved amendments as priorAmendments (repo issue #9).
@@ -464,7 +463,7 @@ test.describe('F0 regression deck (dev-seam driven)', () => {
   // in the first place (that only ever renders during MeridianChatHub.SendMessage's streaming
   // turn, per useChat.ts's isStreaming/tool-call handling). A seam-driven spec asserting "no busy
   // indicator" would always pass trivially regardless of whether A7 is actually fixed — a
-  // vacuous always-green test — so per the mission brief this is deliberately omitted here. A7 is
+  // vacuous always-green test — so this is deliberately omitted here. A7 is
   // locked by the merged hub tests instead (see apps/Meridian/tests/Meridian.Api.Tests/Hubs);
   // this is also called out in e2e/README.md's "F0 Regression Deck" section.
 });

@@ -5,12 +5,13 @@ approve, reject, typed inputs, a live-data picker, a mandatory-field gate, expir
 resubmission with preserved amendments — driven entirely through the real framework handlers,
 with no LLM key.
 
-This deck (`f0-deck.spec.ts`) and its config (`playwright.config.ts`) are a verbatim copy of the
-regression suite that ships in [Meridian](https://meridian.affiant.dev), the aircraft-maintenance
-host application built on this framework. "F0" ("flight zero") is that project's internal name
-for the review-lifecycle fix wave the deck locks; it is kept in the file's own header comment
-because renaming it would make the two copies diverge for no benefit — the name carries no
-meaning beyond "the first hardening pass on this flow."
+This deck (`f0-deck.spec.ts`) and its config (`playwright.config.ts`) are copied from the host
+with private tracking references removed from comments; the test code is unchanged. They come
+from the regression suite that ships in [Meridian](https://meridian.affiant.dev), the
+aircraft-maintenance host application built on this framework. "F0" ("flight zero") is that
+project's internal name for the review-lifecycle hardening pass the deck locks; it is kept in the
+file's own header comment because renaming it would make the two copies diverge for no benefit —
+the name carries no meaning beyond "the first hardening pass on this flow."
 
 ## What the deck proves
 

@@ -55,9 +55,14 @@ in the first place.
 }
 ```
 
-An `overrides` entry replaces only that field's `Value`; its provenance tag is left as the canned
-default (see below) — the seam does not manufacture a more-deterministic provenance source just
-because a test supplied the value.
+An `overrides` entry's effect on provenance differs by field. For `Title`, `Description`,
+`Type`, `Priority`, `EstimatedHours`, and `Location`, an override replaces only that field's
+`Value`; the provenance tag stays the canned default (`Inferred`/0.6, or `Conversation`/0.9 for
+`Location`) no matter what the override supplies. For `AssignedTo` and `DueDate`, provenance is
+recomputed from the final value: still blank, `Empty`/0.0; overridden to something non-blank,
+`Inferred`/0.6. For `AircraftId`, provenance is recomputed the same way, but a non-blank value
+gets `Conversation`/0.9 via `ProvenanceTag.FromTool` instead of `Inferred` — the seam treats a
+filled-in `AircraftId` as if it came from the aircraft-search tool, not from inference.
 
 **Response, `200 OK`:**
 
@@ -79,10 +84,15 @@ of whatever the client's own UI currently displays, which is what makes it usefu
 
 ```jsonc
 {
-  "status": "Pending | Expiring | Expired | Approved | Rejected | Deferred",
+  "status": "Pending | Approved | Rejected | Expired | Deferred",
   "amendments": { "FieldName": "value", "...": "..." } // or null if no amendments were ever made
 }
 ```
+
+`status` is `entry.Status.ToString()` against the framework's `ReviewStatus` enum (see this
+repository's `src/Affiant.Abstractions/Models/DocketEntry.cs`) — there is no `Expiring` value.
+"Expiring soon" in a reviewer UI is a client-side derivation from a still-`Pending` entry's
+`ExpiresAt` against the current time, never a value this endpoint returns.
 
 **Response, `404 Not Found`:** no entry exists with that id (also the gate's own closed-state
 response — the two are indistinguishable from the client's side by design, so a probe against
