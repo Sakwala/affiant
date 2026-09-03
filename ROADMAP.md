@@ -1,6 +1,6 @@
 # Affiant roadmap
 
-Last updated: 2026-08-27 · Current release: 1.0.0-beta.1 (2026-08-23)
+Last updated: 2026-09-04 · Current release: 1.0.0-beta.1 (2026-08-23)
 
 This file is canonical. It is mirrored at [affiant.dev/roadmap/](https://affiant.dev/roadmap/); if the two ever differ, this file wins.
 
@@ -26,7 +26,7 @@ Items sit in one of four statuses:
 - **Later** — direction, not a plan; may change shape entirely.
 - **Not planned** — decided against, with the reason, so nobody waits for it.
 
-To influence it: open or upvote an issue labelled [`roadmap`](https://github.com/Sakwala/affiant/issues?q=is%3Aissue+state%3Aopen+label%3Aroadmap), or join [GitHub Discussions](https://github.com/Sakwala/affiant/discussions) (opening with this roadmap). Meridian's public beta is the live feedback source — what it teaches lands here in the next revision.
+To influence it: open or upvote an issue labelled [`roadmap`](https://github.com/Sakwala/affiant/issues?q=is%3Aissue+state%3Aopen+label%3Aroadmap), or join [GitHub Discussions](https://github.com/Sakwala/affiant/discussions), now open. Meridian's public beta is the live feedback source — what it teaches lands here in the next revision.
 
 Where "done" goes: a shipped item moves into [Recently shipped](#recently-shipped) below in the same change that ships it. Fine-grained detail lives in the [CHANGELOG](CHANGELOG.md)'s `[Unreleased]` section as it happens, and in [GitHub releases](https://github.com/Sakwala/affiant/releases) once tagged.
 
@@ -34,7 +34,7 @@ No dates, ever: a solo-maintained project cannot promise a delivery date without
 
 ## What will not change
 
-1. **The invariant.** Every Affidavit field carries provenance, no exceptions; nothing commits without evidence, nothing writes without approval. Enforced by the [ComplianceHarness](https://affiant.dev/guides/compliance-harness/) — the conformance test suite every adapter must pass.
+1. **The invariant.** Every Affidavit field carries provenance, no exceptions; nothing commits without evidence, nothing writes without approval. Enforced by [`affiant-conformance`](https://github.com/Sakwala/affiant-protocol) — the protocol's fixtures every implementation must pass — and by the [ComplianceHarness](https://affiant.dev/guides/compliance-harness/) — the test harness every .NET adapter must pass.
 2. **Field-level, not call-level.** Approval of a whole tool call is commodity; Affiant's unit is the field and its provenance chain.
 3. **The honest boundary.** Affiant only swears to writes it can intercept in-process. It will not claim otherwise.
 4. **Library, not service.** Affiant runs inside the adopter's process. There is no hosted component, no licence server, and no phone-home.
@@ -43,32 +43,61 @@ No dates, ever: a solo-maintained project cannot promise a delivery date without
 
 ## Now
 
-- **Path to 1.0: stabilise the beta API** `[stability]` — The next release is
-  `1.0.0-beta.2`; `1.0.0` follows once the list below is clear. What "stable" will mean is
-  already defined in [Versioning & compatibility](README.md#versioning--compatibility). In
-  flight: conversation-scope isolation when no `ConversationId` is supplied (all three
-  adapters), SQLite/PostgreSQL store parity gaps, the review-outcome state machine (a card
-  a reviewer *refers* to someone else can today land in a status no later step acts on),
-  a test-isolation flake, and one removal already announced in the CHANGELOG —
-  `IDeterministicFieldSource`, `[Obsolete]` today, removed no earlier than beta.2. Trust the
-  invariant; expect the API to move until 1.0 — this is exactly what is moving. State: in
-  progress. Links:
+- **A reusable Evidence Card: the `<affiant-evidence-card>` Web Component**
+  `[evidence-card-ui]` — Today both first-party hosts render their own Evidence Card in
+  React — two independent implementations — because the .NET packages ship no UI by
+  design. In scope: `@affiant/contract` — the typed wire shapes, plus a JSON Schema a host
+  can vendor — and a framework-agnostic Web Component (custom element, Shadow DOM) that
+  renders a card straight from that contract, in any front end or none. A thin
+  `@affiant/react` wrapper comes after the custom element has proven its shape, not
+  alongside it. The .NET packages still take no UI dependency; this is a separate,
+  optional surface. State: in progress — these are the first artifacts of the TypeScript
+  work below. Links: issue: to be filed; [Docket & Evidence
+  Cards](https://affiant.dev/concepts/docket-and-evidence-cards/), [Transport & Wire
+  Contract](https://affiant.dev/concepts/transport-and-wire-contract/).
+- **A TypeScript implementation, and the rulebook that holds it equivalent**
+  `[typescript]` — Two public repositories.
+  [`affiant-protocol`](https://github.com/Sakwala/affiant-protocol) is the rulebook every
+  implementation is measured against: `schemas/` (the wire schemas), `INVARIANTS.md`
+  (numbered rules, each one testable on its own) and `conformance/` (the fixture suite,
+  the runner specification, the driver contract, and the format of the per-implementation
+  parity manifest) — versioned by git tags that every implementation pins, so "which rules
+  does this build satisfy" has an exact answer.
+  [`affiant-ts`](https://github.com/Sakwala/affiant-ts) is the TypeScript implementation:
+  `@affiant/contract` and the Web Component above are its first artifacts, then
+  `@affiant/core`, built and tested on Node, Cloudflare workerd and Bun from its first
+  commit rather than made portable afterwards. `@affiant/core` goes to npm only once two
+  things are true: a public parity report for the .NET packages exists, and the TypeScript
+  conformance driver is green and merge-blocking in CI. The .NET packages will be made to
+  pass that same fixture suite in a later `beta.3` conformance release; until then the
+  parity report states exactly which fixtures the shipped packages fail, and why. State:
+  in progress. Links: issue: to be filed;
+  [affiant-protocol](https://github.com/Sakwala/affiant-protocol),
+  [affiant-ts](https://github.com/Sakwala/affiant-ts).
+- **Path to 1.0: stabilise the beta API** `[stability]` — Two releases come before `1.0`:
+  a narrow point release, `1.0.0-beta.1.1`, then `1.0.0-beta.2`; `1.0.0` follows once the
+  list below is clear. What "stable" will mean is already defined in
+  [Versioning & compatibility](README.md#versioning--compatibility). `1.0.0-beta.1.1`
+  raises one floor and nothing else: with the stock defaults, a [Standing
+  Order](https://affiant.dev/concepts/review-gate-and-write-executors/) written by the
+  book can never auto-approve, because the default risk calculator never returns `Low`
+  while the default threshold is `Low`. The fix removes the stock formula — the risk
+  scorer becomes host-supplied, and the framework keeps only the comparison. Also in
+  flight: conversation-scope isolation when no `ConversationId` is supplied — one fix at
+  host wiring, not three per-adapter fixes, because the Microsoft Agent Framework and
+  Microsoft.Extensions.AI legs share `FunctionInvokingChatClient` (the Semantic Kernel leg
+  is unverified against that fix) — SQLite/PostgreSQL store parity gaps, the
+  review-outcome state machine (a card a reviewer *refers* to someone else can today land
+  in a status no later step acts on), a test-isolation flake, and one removal already
+  announced in the CHANGELOG — `IDeterministicFieldSource`, `[Obsolete]` today, removed no
+  earlier than beta.2. Trust the invariant; expect the API to move until 1.0 — this is
+  exactly what is moving. State: in progress. Links:
   [affiant#41](https://github.com/Sakwala/affiant/issues/41),
   [affiant#33](https://github.com/Sakwala/affiant/issues/33),
   [affiant#34](https://github.com/Sakwala/affiant/issues/34),
   [affiant#37](https://github.com/Sakwala/affiant/issues/37),
-  [affiant#17](https://github.com/Sakwala/affiant/issues/17); issue: to be filed (referral
-  outcome).
-- **A reusable Evidence Card: the `<affiant-evidence-card>` Web Component and `@affiant/*`
-  npm packages** `[evidence-card-ui]` — Today both first-party hosts render their own
-  Evidence Card in React — two independent implementations — because the .NET packages
-  ship no UI by design. Planned: a framework-agnostic Web Component (custom element,
-  Shadow DOM) that renders a card straight from the wire contract, plus
-  `@affiant/contract` (typed wire shapes) and a thin `@affiant/react` wrapper — the .NET
-  packages still take no UI dependency; this is a separate, optional surface. State:
-  designed, not built — no code exists yet. Links: issue: to be filed; [Docket & Evidence
-  Cards](https://affiant.dev/concepts/docket-and-evidence-cards/), [Transport & Wire
-  Contract](https://affiant.dev/concepts/transport-and-wire-contract/).
+  [affiant#17](https://github.com/Sakwala/affiant/issues/17); issues: to be filed (referral
+  outcome; the risk floor).
 - **See a rendered Evidence Card in minutes: a minimal sample host and a quickstart that
   ends at the card** `[on-ramp]` — Today the quickstart ends when the framework has filed
   the Affidavit and pushed the request onto the transport — correct, but invisible; seeing
@@ -79,14 +108,6 @@ No dates, ever: a solo-maintained project cannot promise a delivery date without
   this shows the path. State: not started. Links: issue: to be filed;
   [Quickstart](https://affiant.dev/start/quickstart/), [Try it
   live](https://affiant.dev/start/live-demo/).
-- **Front door for contributors** `[community]` — `CONTRIBUTING.md`, `SECURITY.md` (a
-  disclosure path), `CODE_OF_CONDUCT.md`, issue templates, GitHub Discussions (opening
-  with this roadmap), the `roadmap` label, and CI that runs cleanly for outside pull
-  requests; the existing CHANGELOG discipline stays as is. The repo is public; the door
-  should be too. State: not started; the file list is the scope. Links: issue: to be
-  filed; [open `roadmap`
-  issues](https://github.com/Sakwala/affiant/issues?q=is%3Aissue+state%3Aopen+label%3Aroadmap),
-  [Discussions](https://github.com/Sakwala/affiant/discussions).
 
 ## Next
 
@@ -100,8 +121,9 @@ No dates, ever: a solo-maintained project cannot promise a delivery date without
   decision as [MCP](https://modelcontextprotocol.io/) (Model Context Protocol) tools, so
   agents that are not written in .NET can route their writes through the same review
   gate. Framed as exploring: cheap to try with the official C# MCP SDK, and whether anyone
-  wants it is exactly what Discussions is for. This is the route to non-.NET agents;
-  porting the framework itself is not (see Not planned). Links: issue: to be filed.
+  wants it is exactly what Discussions is for. It reaches agents that want to *use* a
+  Docket an Affiant host already runs; the TypeScript implementation in Now reaches teams
+  that want to *be* that host. Links: issue: to be filed.
 - **Adapter parity and the Semantic Kernel host gap** `[adapters]` — All three adapters —
   Semantic Kernel, Microsoft Agent Framework, Microsoft.Extensions.AI — are gated by the
   same ComplianceHarness parity suite, but no first-party host exercises the Semantic
@@ -185,13 +207,29 @@ No dates, ever: a solo-maintained project cannot promise a delivery date without
   that sits in an adopter's write path; a hosted service in that path would need 24/7
   operation the project cannot promise. The attestation export planned in Later covers the
   auditor need without a service.
-- **Porting the framework to Python or TypeScript** — The reach to non-.NET agents is the
-  MCP server planned in Next, not a second codebase.
+- **A hand-translated second codebase — but TypeScript is now being built, held
+  equivalent by a shared rulebook** — Hand-porting the framework into another language
+  stays not planned, and Python stays not planned: two codebases kept in step by eye
+  drift, and the drift stays invisible until a write slips past the gate on one of them
+  and not the other. A second implementation is worth its maintenance cost only if
+  something other than eyes holds it equivalent — published wire schemas, numbered
+  testable invariants, a fixture suite both implementations pass in CI, and a published
+  per-implementation parity manifest stating exactly which fixtures each one passes and
+  which it does not. That rulebook is what is being built (see [Now](#now)), and with it
+  the cost of the second implementation is bounded by fixtures rather than by re-reading
+  two codebases by hand. The alternative is worse than the cost: without it, every
+  TypeScript host that wants these guarantees re-implements the review gate itself, once
+  per team, with nothing to check the result against.
 - **Relicensing existing versions** — Every published version stays Apache-2.0 forever;
   see [What will not change](#what-will-not-change).
 
 ## Recently shipped
 
+- 2026-09-04 — Front door for contributors shipped: `CONTRIBUTING.md`, `SECURITY.md` (a
+  disclosure path), `CODE_OF_CONDUCT.md`, issue and pull-request templates and a Sponsors
+  link, alongside GitHub Discussions and the `roadmap` label.
+  [Discussions](https://github.com/Sakwala/affiant/discussions), [open `roadmap`
+  issues](https://github.com/Sakwala/affiant/issues?q=is%3Aissue+state%3Aopen+label%3Aroadmap).
 - 2026-08-27 — HR Portal public demo went live at hrportal.affiant.dev — a second adapter
   (Microsoft.Extensions.AI), a second domain, the same guarantees. [Try it
   live](https://affiant.dev/start/live-demo/#hr-portal).
@@ -210,4 +248,4 @@ No dates, ever: a solo-maintained project cannot promise a delivery date without
 
 Each Now / Next / Later item carries a bracketed theme tag, so a reader can follow one thread through the sections:
 
-`[stability]` `[on-ramp]` `[evidence-card-ui]` `[adapters]` `[review]` `[auditors]` `[demos]` `[community]`
+`[stability]` `[on-ramp]` `[evidence-card-ui]` `[typescript]` `[adapters]` `[review]` `[auditors]` `[demos]` `[community]`
