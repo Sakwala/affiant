@@ -1240,7 +1240,7 @@ packages exist today (the eighth published set plus `Affiant.AgentFramework` and
 
 **`Affiant.EntityFramework`** — EF Core interceptor for the propose-review-commit pattern. The `IChatSessionStore` implementations (typed against the neutral `AffiantChatMessage`, §3.12.3); the SQL-backed `IDocketStore` implementations — `PostgresDocketStore` (EF Core with `jsonb`) and `SqliteDocketStore` (for development), moved here from `Affiant.Docket` on 2026-08-20 and registered by the matching `AddAffiantEntityFramework(ef => ef.UsePostgres(...) / ef.UseSqlite(...))` provider branch; migration helpers; and the row-per-message schema. `ef.UseInMemory()` deliberately registers no `IDocketStore` — that one belongs to `Affiant.Docket`.
 
-**`Affiant.Policies`** — Standing Orders (auto-approval rules), Referral logic (escalation), risk-scoring functions, and the `IApprovalPolicy` evaluation pipeline.
+**`Affiant.Policies`** — Standing Orders (auto-approval rules), Referral logic (escalation), the risk-scoring seam (the host writes the formula; the framework compares its score against the ceiling a Standing Order declares), and the `IApprovalPolicy` evaluation pipeline.
 
 **`Affiant.Transport.SignalR`** — SignalR adapter implementing `IStreamingTransport`. Reference transport for real-time Evidence Card delivery.
 
