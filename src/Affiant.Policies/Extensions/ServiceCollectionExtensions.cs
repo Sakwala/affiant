@@ -25,14 +25,15 @@ public static class ServiceCollectionExtensions
     /// <summary>
     /// Registers Affiant.Policies infrastructure. Call the builder to declare
     /// Standing Orders, Referral rules, and the default confirmation fallback.
+    /// No <see cref="RiskScoreCalculatorBase"/> is registered here — the framework has no
+    /// scoring formula of its own. Supply one with
+    /// <see cref="PoliciesBuilder.SetRiskScoreCalculator{TCalculator}"/> if any Standing Order
+    /// declares a risk threshold.
     /// </summary>
     public static IServiceCollection AddAffiantPolicies(
         this IServiceCollection services,
         Action<PoliciesBuilder>? configure = null)
     {
-        // Register the default RiskScoreCalculatorBase unless the host has overridden it.
-        services.TryAddScoped<RiskScoreCalculatorBase, DefaultRiskScoreCalculator>();
-
         configure?.Invoke(new PoliciesBuilder(services));
 
         return services;
@@ -82,7 +83,9 @@ public sealed class PoliciesBuilder
     }
 
     /// <summary>
-    /// Replaces the registered <see cref="RiskScoreCalculatorBase"/> with a custom implementation.
+    /// Registers the host's <see cref="RiskScoreCalculatorBase"/>, replacing any already
+    /// registered. Required by every Standing Order that declares a risk threshold; a
+    /// threshold-less Standing Order needs no calculator.
     /// Call before <see cref="AddStandingOrder{TPolicy}"/> if Standing Orders depend on the scorer.
     /// </summary>
     public PoliciesBuilder SetRiskScoreCalculator<TCalculator>(ServiceLifetime lifetime = ServiceLifetime.Scoped)

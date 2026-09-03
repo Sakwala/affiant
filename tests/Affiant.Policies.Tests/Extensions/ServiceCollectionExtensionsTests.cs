@@ -15,7 +15,14 @@ public class ServiceCollectionExtensionsTests
 
     private sealed class TestStandingOrder : StandingOrderBase
     {
-        public TestStandingOrder() : base(new DefaultRiskScoreCalculator()) { }
+        protected override Task<bool> MatchesAsync(Affidavit affidavit, CancellationToken ct)
+            => Task.FromResult(true);
+    }
+
+    private sealed class ThresholdStandingOrder(RiskScoreCalculatorBase? riskScorer = null)
+        : StandingOrderBase(riskScorer)
+    {
+        protected override int? RiskThreshold => (int)RiskLevel.Low;
 
         protected override Task<bool> MatchesAsync(Affidavit affidavit, CancellationToken ct)
             => Task.FromResult(true);
@@ -39,16 +46,15 @@ public class ServiceCollectionExtensionsTests
     // ── Tests ─────────────────────────────────────────────────────────────────
 
     [Fact]
-    public void AddAffiantPolicies_registers_default_risk_score_calculator()
+    public void AddAffiantPolicies_registers_no_risk_score_calculator()
     {
         var services = new ServiceCollection();
 
         services.AddAffiantPolicies();
         var sp = services.BuildServiceProvider();
 
-        var calculator = sp.GetService<RiskScoreCalculatorBase>();
-        Assert.NotNull(calculator);
-        Assert.IsType<DefaultRiskScoreCalculator>(calculator);
+        // The framework ships no scoring formula: risk is the host's to define.
+        Assert.Null(sp.GetService<RiskScoreCalculatorBase>());
     }
 
     [Fact]
@@ -62,6 +68,36 @@ public class ServiceCollectionExtensionsTests
         var policies = sp.GetServices<IApprovalPolicy>().ToList();
         Assert.Single(policies);
         Assert.IsType<TestStandingOrder>(policies[0]);
+    }
+
+    [Fact]
+    public void StandingOrder_with_a_threshold_and_no_calculator_fails_on_resolution()
+    {
+        var services = new ServiceCollection();
+
+        services.AddAffiantPolicies(p => p.AddStandingOrder<ThresholdStandingOrder>());
+        var sp = services.BuildServiceProvider();
+
+        var ex = Assert.Throws<InvalidOperationException>(() => sp.GetServices<IApprovalPolicy>().ToList());
+
+        Assert.Contains(nameof(ThresholdStandingOrder), ex.Message);
+        Assert.Contains("SetRiskScoreCalculator<T>()", ex.Message);
+    }
+
+    [Fact]
+    public void StandingOrder_with_a_threshold_resolves_once_a_calculator_is_registered()
+    {
+        var services = new ServiceCollection();
+
+        services.AddAffiantPolicies(p => p
+            .SetRiskScoreCalculator<CustomRiskCalculator>()
+            .AddStandingOrder<ThresholdStandingOrder>());
+        var sp = services.BuildServiceProvider();
+
+        var policies = sp.GetServices<IApprovalPolicy>().ToList();
+
+        Assert.Single(policies);
+        Assert.IsType<ThresholdStandingOrder>(policies[0]);
     }
 
     [Fact]
@@ -110,7 +146,7 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void SetRiskScoreCalculator_replaces_default_calculator()
+    public void SetRiskScoreCalculator_registers_the_host_calculator()
     {
         var services = new ServiceCollection();
 
@@ -122,13 +158,12 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddAffiantPolicies_does_not_replace_host_registered_calculator()
+    public void AddAffiantPolicies_leaves_a_host_registered_calculator_alone()
     {
         var services = new ServiceCollection();
 
-        // Host registers their calculator first.
+        // Host registers their calculator directly rather than through the builder.
         services.AddScoped<RiskScoreCalculatorBase, CustomRiskCalculator>();
-        // AddAffiantPolicies should not overwrite it (TryAdd semantics).
         services.AddAffiantPolicies();
 
         var sp = services.BuildServiceProvider();
