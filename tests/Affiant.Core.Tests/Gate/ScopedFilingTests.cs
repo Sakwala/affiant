@@ -86,20 +86,58 @@ public sealed class ScopedFilingTests
     }
 
     [Fact]
-    public async Task ADifferentProposal_OrADifferentConversation_IsADifferentRow()
+    public async Task ADifferentConversation_OrADifferentTenant_IsADifferentRow()
     {
         var store = new InMemoryDocketStore();
         var gate = Build(new RecordingBroadcasts(), store);
 
         var a = OneField("Widget A");
-        var b = OneField("Widget B");
 
         var one = await FileAsync(gate, a, TenantA, "conv-1");
-        var differentValue = await FileAsync(gate, b, TenantA, "conv-1");
         var differentConversation = await FileAsync(gate, a, TenantA, "conv-2");
         var differentTenant = await FileAsync(gate, a, TenantB, "conv-1");
 
-        Assert.Equal(4, new HashSet<Guid> { one, differentValue, differentConversation, differentTenant }.Count);
+        Assert.Equal(3, new HashSet<Guid> { one, differentConversation, differentTenant }.Count);
+    }
+
+    /// <summary>
+    /// GT-4's material is the tenant, the conversation, the tool and the canonical form of the
+    /// operation AND ITS ARGUMENTS. Two calls that differ in what the model passed are two
+    /// proposals; the same call made twice is one row, whatever else the turn did in between.
+    /// </summary>
+    [Fact]
+    public async Task ADifferentArgument_IsADifferentRow_AndTheSameArgumentIsTheSameRow()
+    {
+        var store = new InMemoryDocketStore();
+        var gate = Build(new RecordingBroadcasts(), store);
+
+        var sworn = OneField("Widget A");
+
+        var first = await FileAsync(gate, sworn, TenantA, "conv-1", new() { ["name"] = "Widget A" });
+        var other = await FileAsync(gate, sworn, TenantA, "conv-1", new() { ["name"] = "Widget B" });
+        var again = await FileAsync(gate, sworn, TenantA, "conv-1", new() { ["name"] = "Widget A" });
+
+        Assert.NotEqual(first, other);
+        Assert.Equal(first, again);
+    }
+
+    /// <summary>
+    /// The other side of the same rule, and the one a host has to know about: two proposals that
+    /// carry NO arguments and differ only in a field's value are, by that material, the same
+    /// proposal — so the second replays the first's row rather than filing a second. A host whose
+    /// writes are told apart by their values passes the arguments the model made them from, which
+    /// every seam in this framework does, or supplies its own <c>ReviewContext.EntryId</c>.
+    /// </summary>
+    [Fact]
+    public async Task TwoValuesWithNoArguments_AreTheSameProposal()
+    {
+        var store = new InMemoryDocketStore();
+        var gate = Build(new RecordingBroadcasts(), store);
+
+        var one = await FileAsync(gate, OneField("Widget A"), TenantA, "conv-1");
+        var other = await FileAsync(gate, OneField("Widget B"), TenantA, "conv-1");
+
+        Assert.Equal(one, other);
     }
 
     [Fact]
@@ -118,10 +156,14 @@ public sealed class ScopedFilingTests
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private static async Task<Guid> FileAsync(
-        ReviewGate gate, Affidavit sworn, string tenantId, string conversationId)
+        ReviewGate gate,
+        Affidavit sworn,
+        string tenantId,
+        string conversationId,
+        Dictionary<string, object?>? arguments = null)
     {
         var filing = await gate.FileForReviewAsync(
-            new WriteProposal("capture", DateTimeOffset.UnixEpoch, sworn),
+            new WriteProposal("capture", DateTimeOffset.UnixEpoch, sworn, arguments),
             Context(tenantId, conversationId, sworn));
         return Assert.IsType<ReviewFilingResult.RequiresReview>(filing).EntryId;
     }

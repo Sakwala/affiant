@@ -234,6 +234,23 @@ update at all.
   `conversationTurn` and `createdAt` as optional trailing arguments. A host with its own
   `IAffidavitProjection` should pass both; a host that passes neither gets a record the gate stamps
   and a `null` turn.
+- **A Docket entry id is derived the way the protocol derives it** (GT-4). The material is the
+  tenant, the conversation, the tool name and the canonical form of the **operation and its
+  arguments** — with `supersedes` present only when the proposal replaces a row — digested with
+  SHA-256 and laid out as a version-8 UUID (`Affiant.Core.Services.EntryIdDerivation`). It was
+  derived from the canonical form of the *Affidavit* instead, which is not the same material: the id
+  travels inside the record, in the `reviewer-act` binding an accepted amendment mints, so it is
+  inside the content hash an execution grant binds to, and two implementations that derived
+  different ids for the same proposal disagree about which row a proposal *is*. Three ids produced
+  by the protocol's reference implementation are pinned as vectors in
+  `EntryIdDerivationTests`.
+
+  **`WriteProposal` gains an optional `Arguments`**, which is how the material reaches the gate.
+  Every seam in this framework fills it — `ReviewGateFilter` attaches the invocation's own arguments
+  — and a host calling `ReviewGate.FileForReviewAsync` directly should pass them too. **What a host
+  must know:** two proposals carrying *no* arguments that differ only in a field's value are, by
+  that material, the same proposal, so the second replays the first's row. Pass the arguments the
+  model made the write from, or supply your own `ReviewContext.EntryId`.
 - **The canonical form is the PROTOCOL's record, not this framework's.** `CanonicalSerializer` takes
   its form over the ten properties the rulebook's own byte vectors pin: this framework's four
   extras — the record's warnings and confirmation verdict, and a field's closed set and pattern,
@@ -929,16 +946,25 @@ delivered its own `EvidenceCardResponse` unblocked the waiter and the row was wr
   which is the point.
 - **Filing is scoped and its ids are derived** (GT-2, GT-4). The idempotent-replay lookup compared no
   tenant, so a caller supplying another tenant's entry id received that tenant's Affidavit on its own
-  session group. With no `ReviewContext.EntryId` the gate now derives one from the tenant, the
-  conversation, the tool and the canonical form of the record.
+  session group. With no `ReviewContext.EntryId` the gate derives one — see
+  `EntryIdDerivation` below for the material, which is the protocol's.
 - **A sweep tick is bounded across all three of its phases** (DK-3), and each phase resumes from where
   it stopped rather than re-walking the same first rows.
 - **A rehydration page fills across the group boundary** (DK-5), instead of stopping at it and
   reporting `more` with a limit it had not spent.
 - **A registry event is observable without an ambient span** (TL-1), so the decision and
   execution-report paths — reached by host code directly — no longer emit into nothing.
-- **A null tool argument is sworn `Empty`** at confidence 0 (AF-1) instead of being tagged as though
-  the conversation had said something.
+- **A model's tool argument is a value it proposes, not evidence** (PV-1). It was tagged
+  `Conversation` at 0.9 — the grade the ladder reserves for a value read out of the member's own
+  turn — so the model's guess was presented as though the member had said it and, the merge being
+  confidence-first, displaced a value the inference port reported as literally present in the turn at
+  anything under 0.9. The capture now records the argument as the value the model proposes and mints
+  no tag for it. **What a host must know:** what swears for a field is a deterministic interceptor or
+  the host's inference port, and where neither speaks the field is sworn `Empty` at confidence 0 —
+  so an application that registers neither, and relies on the model's arguments alone, now files a
+  record that swears to nothing and the substance rule refuses it (GT-3). That is the rule working:
+  a proposal nothing vouches for should never have reached a reviewer looking like one that
+  something did.
 - **A bound tag wins a tie** (PV-2, PV-3): at equal confidence and equal grade, a tag pointing at
   something an auditor can re-check displaces one pointing at nothing.
 - **An inference reports whether the value was literally in the turn, and which span it read**, so a

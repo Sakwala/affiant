@@ -1443,7 +1443,9 @@ public sealed class ReviewGate(
 
     /// <summary>
     /// The entry id a proposal derives to: a name-based UUID over the tenant, the conversation, the
-    /// tool and the canonical form of the Affidavit (GT-4).
+    /// tool and the canonical form of the operation and its arguments (GT-4). See
+    /// <see cref="EntryIdDerivation"/> for the material and the layout, which are the protocol's and
+    /// not this implementation's.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -1453,23 +1455,17 @@ public sealed class ReviewGate(
     /// replay lookup treat a row outside the caller's tenant as a miss.
     /// </para>
     /// <para>
-    /// It is over the <b>canonical form</b> (SR-1) and not over the record's object identity: two
-    /// proposals that swear to the same values are the same proposal, whichever run produced them.
     /// A host that wants its own id still passes <see cref="ReviewContext.EntryId"/>.
     /// </para>
     /// </remarks>
-    private static Guid DeriveEntryId(ReviewContext context, WriteProposal proposal)
-    {
-        var seed = string.Join(
-            '\u001f',
+    private static Guid DeriveEntryId(ReviewContext context, WriteProposal proposal) =>
+        EntryIdDerivation.Derive(
             context.TenantId,
             context.SessionId,
             proposal.ToolName,
-            Serialization.CanonicalSerializer.CanonicalHash(context.Affidavit));
-
-        return new Guid(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(seed)).AsSpan(0, 16));
-    }
+            context.Affidavit,
+            proposal.Arguments,
+            context.Supersedes);
 
     /// <summary>The rule that refuses an unresolved principal, a wrong tenant or a declining host port.</summary>
     private const string AuthorizationRule = "AZ-2";

@@ -49,10 +49,27 @@ public sealed record ReadResult(
 /// Write proposals — produces an envelope containing the proposed mutation,
 /// never executes the write. The ReviewGate handles confirmation.
 /// </summary>
+/// <param name="ToolName">The tool the model called.</param>
+/// <param name="Timestamp">When the call was made.</param>
+/// <param name="Envelope">The proposed mutation, as an <c>Affidavit</c>.</param>
+/// <param name="Arguments">
+/// The arguments the model passed to the call, as the host received them, or <see langword="null"/>
+/// when the proposal did not come from one (a capture prepared by a host, Sequence C).
+///
+/// <para>
+/// They are not evidence — what is sworn about a field is what an interceptor or the inference port
+/// says (PV-1) — and they are carried for one reason: an entry id is DERIVED from the tenant, the
+/// conversation, the tool and the canonical form of the operation and its arguments (GT-4), so two
+/// calls that differ only in their arguments are two proposals and a retry of the same call is a
+/// replay of the same row. An implementation that left the arguments out of that material would
+/// give two different writes the same identity.
+/// </para>
+/// </param>
 public sealed record WriteProposal(
     string ToolName,
     DateTimeOffset Timestamp,
-    object Envelope
+    object Envelope,
+    IReadOnlyDictionary<string, object?>? Arguments = null
 ) : ToolEnvelope(ToolName, Timestamp);
 
 /// <summary>

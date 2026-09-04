@@ -220,16 +220,23 @@ internal sealed class StepExecutor(GateHarness harness, GivenSpec given)
         var entityId = isWrap ? step.Tool!.EntityId : step.Operation!.EntityId;
         var affidavit = projection.Project(fabric, operationType, [], entityId);
         var actor = principal?.Id ?? "(unresolved)";
-        var derivedEntryId = DerivedEntryId(tenantId, conversationId, toolName, step);
 
-        var proposal = new WriteProposal(toolName, harness.Clock, affidavit);
+        // The arguments the model passed, as a host would hand them over: they are part of the
+        // material an entry id derives from (GT-4), and the gate is what derives it. A driver that
+        // supplied an id of its own would be answering the question the fixture asks.
+        var proposal = new WriteProposal(
+            toolName,
+            harness.Clock,
+            affidavit,
+            step.Args is null
+                ? null
+                : step.Args.ToDictionary(kv => kv.Key, kv => Values.ToClr(kv.Value), StringComparer.Ordinal));
         var context = new ReviewContext(
             SessionId: conversationId,
             TenantId: tenantId,
             UserId: actor,
             ReviewerUserId: actor,
             Affidavit: affidavit,
-            EntryId: derivedEntryId,
             Channel: given.Ctx.Channel);
 
         var mark = harness.Transport.Mark();
@@ -239,7 +246,7 @@ internal sealed class StepExecutor(GateHarness harness, GivenSpec given)
         {
             ReviewFilingResult.RequiresReview r => r.EntryId,
             ReviewFilingResult.Decided d => d.Outcome.DocketId,
-            _ => derivedEntryId,
+            _ => Guid.Empty,
         };
 
         _lastFiled = entryId;
@@ -455,21 +462,6 @@ internal sealed class StepExecutor(GateHarness harness, GivenSpec given)
     }
 
     /// <summary>
-    /// The entry id a proposal derives to. An id derived from the proposal is what makes a re-file
-    /// of the same proposal a replay rather than a second row (GT-4, DK-1); the framework leaves the
-    /// choice to the host (<c>ReviewContext.EntryId</c>), so the driver makes it here and makes it
-    /// deterministic.
-    /// </summary>
-    /// <remarks>
-    /// It is derived from the <b>proposal the step states</b> — the tool, the entity it names and the
-    /// values passed — and not from the projected Affidavit. That distinction is load-bearing here:
-    /// every Affidavit this release produces is create-shaped with a null entity id (AF-3), so three
-    /// updates to three different invoices project to three identical Affidavits. A host deriving its
-    /// id from the projection would file one row for all three; deriving it from the proposal keeps
-    /// the three apart, and leaves AF-3 to be reported where it belongs rather than compounded into
-    /// an id collision.
-    /// </remarks>
-    /// <summary>
     /// Why the gate cannot cover <paramref name="tool"/>, or <see langword="null"/> when it can
     /// (CV-4). A tool the provider runs, a hosted MCP write, and a write-capable tool with no
     /// execute step for the gate to replace are the three the rule names.
@@ -482,26 +474,4 @@ internal sealed class StepExecutor(GateHarness harness, GivenSpec given)
                 : tool.OmitExecute
                     ? Affiant.Abstractions.Models.CoverageCategory.NoExecute
                     : null;
-
-    private static Guid DerivedEntryId(string tenantId, string conversationId, string toolName, StepSpec step)
-    {
-        var seed = new StringBuilder()
-            .Append(tenantId).Append('|')
-            .Append(conversationId).Append('|')
-            .Append(toolName).Append('|')
-            .Append(step.Tool?.EntityType ?? step.Operation?.EntityType).Append('|')
-            .Append(step.Tool?.EntityId ?? step.Operation?.EntityId ?? "(create)");
-
-        foreach (var (name, value) in (step.Args ?? new Dictionary<string, JsonNode?>()).OrderBy(kv => kv.Key, StringComparer.Ordinal))
-        {
-            seed.Append('|').Append(name).Append('=').Append(value?.ToJsonString() ?? "null");
-        }
-
-        foreach (var field in step.PreparedFields ?? [])
-        {
-            seed.Append('|').Append(field.Name).Append('=').Append(field.Value?.ToJsonString() ?? "null");
-        }
-
-        return new Guid(SHA256.HashData(Encoding.UTF8.GetBytes(seed.ToString())).AsSpan(0, 16));
-    }
 }

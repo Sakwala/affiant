@@ -177,6 +177,19 @@ public sealed class ReviewGateFilter(
             return;
         }
 
+        // GT-4: the arguments the model passed are part of the material an entry id derives from, and
+        // this seam is where they are known — a tool serializes its proposal without them, so a
+        // filing that left them out would give two calls that differ only in what the model passed
+        // the same row identity. They are carried for identity alone; what is SWORN about a field is
+        // what an interceptor or the inference port says (PV-1).
+        if (context.Arguments is { Count: > 0 } arguments)
+        {
+            proposal = proposal with
+            {
+                Arguments = arguments.ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal),
+            };
+        }
+
         var contextProvider = context.Services.GetService<IReviewContextProvider>();
         if (contextProvider is null)
         {

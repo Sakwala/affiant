@@ -39,6 +39,8 @@
 *REMOVED*Affiant.Abstractions.Models.ReviewContext.ReviewContext(string! SessionId, string! TenantId, string! UserId, string! ReviewerUserId, Affiant.Abstractions.Models.Affidavit! Affidavit, System.Guid? EntryId = null, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? Amendments = null, System.Guid? Supersedes = null) -> void
 *REMOVED*Affiant.Abstractions.Models.ReviewOutcome.Approved.Approved(System.Guid DocketId) -> void
 *REMOVED*Affiant.Abstractions.Models.ReviewOutcome.Approved.Deconstruct(out System.Guid DocketId) -> void
+*REMOVED*Affiant.Abstractions.Models.WriteProposal.Deconstruct(out string! ToolName, out System.DateTimeOffset Timestamp, out object! Envelope) -> void
+*REMOVED*Affiant.Abstractions.Models.WriteProposal.WriteProposal(string! ToolName, System.DateTimeOffset Timestamp, object! Envelope) -> void
 *REMOVED*Affiant.Abstractions.Transport.DocketExpiredNotification.<Clone>$() -> Affiant.Abstractions.Transport.DocketExpiredNotification!
 *REMOVED*Affiant.Abstractions.Transport.DocketExpiringNotification.<Clone>$() -> Affiant.Abstractions.Transport.DocketExpiringNotification!
 *REMOVED*Affiant.Abstractions.Transport.EvidenceCardRequest.Deconstruct(out System.Guid DocketId, out Affiant.Abstractions.Models.Affidavit! Affidavit, out System.DateTimeOffset RequiredBy, out System.Collections.Generic.IReadOnlyDictionary<string!, object?>? PriorAmendments) -> void
@@ -642,6 +644,10 @@ Affiant.Abstractions.Models.UtteranceSpanRef.Length.init -> void
 Affiant.Abstractions.Models.UtteranceSpanRef.Offset.get -> int
 Affiant.Abstractions.Models.UtteranceSpanRef.Offset.init -> void
 Affiant.Abstractions.Models.UtteranceSpanRef.UtteranceSpanRef(int Offset, int Length, string! Hash) -> void
+Affiant.Abstractions.Models.WriteProposal.Arguments.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object?>?
+Affiant.Abstractions.Models.WriteProposal.Arguments.init -> void
+Affiant.Abstractions.Models.WriteProposal.Deconstruct(out string! ToolName, out System.DateTimeOffset Timestamp, out object! Envelope, out System.Collections.Generic.IReadOnlyDictionary<string!, object?>? Arguments) -> void
+Affiant.Abstractions.Models.WriteProposal.WriteProposal(string! ToolName, System.DateTimeOffset Timestamp, object! Envelope, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? Arguments = null) -> void
 Affiant.Abstractions.Serialization.AffiantJson
 Affiant.Abstractions.Serialization.IsoInstantJsonConverter
 Affiant.Abstractions.Serialization.IsoInstantJsonConverter.IsoInstantJsonConverter() -> void
