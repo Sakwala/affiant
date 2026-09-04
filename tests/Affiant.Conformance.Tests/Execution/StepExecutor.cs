@@ -114,11 +114,15 @@ internal sealed class StepExecutor(GateHarness harness, GivenSpec given)
             // Conversation tag at 0.9 per named argument, evidence naming the tool.
             foreach (var (name, value) in step.Args!)
             {
+                // What ToolArgumentCaptureFilter does to a model's arguments, verbatim: one
+                // Conversation tag at 0.9 per argument that CARRIES A VALUE. An argument passed as
+                // null is a field with nothing behind it and is left untagged, so the projection
+                // swears it Empty at confidence 0 (AF-1).
+                if (Values.ToClr(value) is not { } clr)
+                    continue;
+
                 fabric.SetFieldChain(name, ProvenanceChain.From(ProvenanceTag.FromTool(toolName, 0.9f)));
-                if (Values.ToClr(value) is { } clr)
-                {
-                    values[name] = clr;
-                }
+                values[name] = clr;
             }
         }
         else
@@ -193,11 +197,19 @@ internal sealed class StepExecutor(GateHarness harness, GivenSpec given)
             _ => derivedEntryId,
         };
 
-        _requirements[entryId] = filing switch
+        // The requirement the chain returned, as the row now records it. A blocked row records the
+        // level VERBATIM (AZ-4), which is the whole point of the marker: a requirement this version
+        // does not run is never degraded to one it does.
+        var filedRow = await harness.Store.GetDocketEntryAsync(entryId, ct);
+        _requirements[entryId] = filedRow?.Blocked switch
         {
-            ReviewFilingResult.Decided { Outcome: ReviewOutcome.Approved } => "StandingOrder",
-            ReviewFilingResult.Decided { Outcome: ReviewOutcome.Referral } => "ReferralRequired",
-            _ => "ReviewerConfirmation",
+            BlockedMarker.RequirementNotImplemented level => level.Level.ToString(),
+            _ => filing switch
+            {
+                ReviewFilingResult.Decided { Outcome: ReviewOutcome.Approved } => "StandingOrder",
+                ReviewFilingResult.Decided { Outcome: ReviewOutcome.Referral } => "ReferralRequired",
+                _ => "ReviewerConfirmation",
+            },
         };
 
         _lastFiled = entryId;

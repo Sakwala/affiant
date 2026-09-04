@@ -54,7 +54,8 @@ internal sealed class FixtureAuthorization(AuthorizationSpec spec)
 /// <summary>
 /// The inference port of <c>RUNNER.md</c> §7, built from <c>given.gate.inference</c>: it reports
 /// exactly the scripted fields, for every turn, unchanged — no invention, no filtering, no
-/// re-scoring. Absent or <c>null</c>: it reports nothing.
+/// re-scoring — including whether the value was literally in the turn and which span of it was
+/// read (GT-1 step 3, PV-2). Absent or <c>null</c>: it reports nothing.
 /// </summary>
 /// <remarks>
 /// Bound to <see cref="IInferenceCompletionPort"/>, the seam <c>TaskInferenceRunner</c> calls, so
@@ -69,11 +70,17 @@ internal sealed class ScriptedInference(IReadOnlyDictionary<string, InferredFiel
         var document = new JsonObject();
         foreach (var (name, field) in scripted)
         {
-            document[name] = new JsonObject
+            var reported = new JsonObject
             {
                 ["value"] = field.Value?.DeepClone(),
                 ["confidence"] = JsonValue.Create(field.Confidence),
+                ["presence"] = JsonValue.Create(field.Presence),
             };
+
+            if (field.UtteranceSpan is { } span)
+                reported["utteranceSpan"] = span.DeepClone();
+
+            document[name] = reported;
         }
 
         return Task.FromResult(JsonSerializer.Deserialize<JsonElement>(document.ToJsonString()));
@@ -156,6 +163,18 @@ internal sealed class FixturePolicy(PolicySpec spec, double? riskScore) : IAppro
     /// check reads, independently of whether this evaluation reaches the comparison.
     /// </summary>
     public bool DeclaresThreshold => spec.DeclaresThreshold || spec.Verdict?.Threshold is not null;
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// CV-1: a policy that declares a risk ceiling with no scorer wired is a wire-up refusal, not a
+    /// silent non-fire. The fixture says both — <c>declaresThreshold</c> and <c>riskScorer</c> — so
+    /// the driver can answer it without evaluating anything.
+    /// </remarks>
+    public string? ConfigurationFault =>
+        DeclaresThreshold && riskScore is null
+            ? $"Standing Order '{spec.Id}' declares a risk threshold and no riskScorer is wired. " +
+              "The framework owns the comparison; the host owns the score."
+            : null;
 
     public Task<ApprovalVerdict?> EvaluateAsync(
         Affidavit affidavit,

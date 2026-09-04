@@ -47,9 +47,52 @@ internal static class Checker
                     CheckRow(clause, row, observation[clause], into);
                     break;
 
+                case "error" when expected is JsonObject error:
+                    CheckError(error, observation["error"], into);
+                    break;
+
                 default:
                     Matcher.Match(clause, expected, Read(observation, clause), into);
                     break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// The refusal the step under test produced. <c>code</c> is compared as a string, exactly;
+    /// <c>messageContains</c> must appear as a <b>substring</b> of the refusal's reason
+    /// (<c>RUNNER.md</c> §5.3).
+    /// </summary>
+    /// <remarks>
+    /// A rule the fixture pins in prose — "a host reports once", "AZ-3" — is pinned so that a caller
+    /// learns why from what it is handed back, not from a log line somebody has to go and find. A
+    /// driver comparing <c>messageContains</c> as though it were a property would report it absent
+    /// on every refusal, however good the reason.
+    /// </remarks>
+    private static void CheckError(JsonObject expected, JsonNode? actual, List<Mismatch> into)
+    {
+        if (actual is not JsonObject refusal)
+        {
+            into.Add(Mismatch.Said("error", expected.ToJsonString(), "no refusal was produced"));
+            return;
+        }
+
+        foreach (var (key, value) in expected)
+        {
+            if (key != "messageContains")
+            {
+                Matcher.Match($"error.{key}", value, Read(refusal, key), into);
+                continue;
+            }
+
+            var needle = value?.GetValue<string>() ?? string.Empty;
+            var reason = refusal["message"]?.GetValue<string>() ?? string.Empty;
+            if (!reason.Contains(needle, StringComparison.Ordinal))
+            {
+                into.Add(Mismatch.Said(
+                    "error.messageContains",
+                    needle,
+                    reason.Length == 0 ? "the refusal carries no reason" : reason));
             }
         }
     }

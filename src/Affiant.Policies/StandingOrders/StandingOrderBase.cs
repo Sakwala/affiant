@@ -198,10 +198,10 @@ public abstract class StandingOrderBase : IApprovalPolicy
                 "Standing Order {Policy} auto-approved: conditions matched, no risk ceiling declared, approver {Approver}",
                 GetType().Name, matchApproverId ?? "[system]");
 
-            // TL-1 `standing-order.fired` (AZ-1). No `risk.score` attribute: nothing was scored, and
-            // an absent attribute is honest where a zero would read as "scored, and it was zero".
-            AffiantTelemetry.RecordStandingOrderFired(PolicyId, policyVersion: PolicyVersion);
-
+            // No risk score on the verdict: nothing was scored, and an absent attribute is honest
+            // where a zero would read as "scored, and it was zero". `standing-order.fired` is
+            // emitted by the gate, which is where a write is actually approved with no person
+            // present and the only place that knows the entry id (TL-1, AZ-1).
             return verdict;
         }
 
@@ -215,13 +215,11 @@ public abstract class StandingOrderBase : IApprovalPolicy
                 "Standing Order {Policy} auto-approved: risk {Score} \u2264 threshold {Threshold}, approver {Approver}",
                 GetType().Name, riskScore, threshold.Value, approverId ?? "[system]");
 
-            // TL-1 `standing-order.fired` (AZ-1): a write was approved with no person present, which
-            // is the single most consequential thing a policy can do and the one an operator most
-            // needs to be able to count. `entry.id` is absent because IApprovalPolicy.EvaluateAsync
-            // is handed the Affidavit alone — the gate has not filed an entry when the chain runs.
-            AffiantTelemetry.RecordStandingOrderFired(PolicyId, riskScore, policyVersion: PolicyVersion);
-
-            return verdict;
+            // The score travels on the verdict rather than into an event here: the gate emits
+            // `standing-order.fired` when it actually files the write approved, which is the only
+            // place that knows the entry id, and an event emitted from the chain would fire for a
+            // verdict a later check went on to degrade (TL-1, AZ-1).
+            return verdict with { RiskScore = riskScore };
         }
 
         var overThreshold =

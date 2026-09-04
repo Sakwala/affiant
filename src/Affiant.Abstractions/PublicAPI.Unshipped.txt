@@ -255,11 +255,11 @@ Affiant.Abstractions.Models.AffidavitSubstance
 Affiant.Abstractions.Models.ApprovalVerdict
 Affiant.Abstractions.Models.ApprovalVerdict.<Clone>$() -> Affiant.Abstractions.Models.ApprovalVerdict!
 Affiant.Abstractions.Models.ApprovalVerdict.ApprovalVerdict(Affiant.Abstractions.Models.ReviewRequirement Requirement, System.TimeSpan? TimeToLive = null, string? Reason = null, string? BlockedReason = null, Affiant.Abstractions.Models.ReviewRequirement? DegradedFrom = null) -> void
-Affiant.Abstractions.Models.ApprovalVerdict.ApprovalVerdict(Affiant.Abstractions.Models.ReviewRequirement Requirement, System.TimeSpan? TimeToLive = null, string? Reason = null, string? BlockedReason = null, Affiant.Abstractions.Models.ReviewRequirement? DegradedFrom = null, string? PolicyId = null, string? PolicyVersion = null) -> void
+Affiant.Abstractions.Models.ApprovalVerdict.ApprovalVerdict(Affiant.Abstractions.Models.ReviewRequirement Requirement, System.TimeSpan? TimeToLive = null, string? Reason = null, string? BlockedReason = null, Affiant.Abstractions.Models.ReviewRequirement? DegradedFrom = null, string? PolicyId = null, string? PolicyVersion = null, int? RiskScore = null) -> void
 Affiant.Abstractions.Models.ApprovalVerdict.BlockedReason.get -> string?
 Affiant.Abstractions.Models.ApprovalVerdict.BlockedReason.init -> void
 Affiant.Abstractions.Models.ApprovalVerdict.Deconstruct(out Affiant.Abstractions.Models.ReviewRequirement Requirement, out System.TimeSpan? TimeToLive, out string? Reason, out string? BlockedReason, out Affiant.Abstractions.Models.ReviewRequirement? DegradedFrom) -> void
-Affiant.Abstractions.Models.ApprovalVerdict.Deconstruct(out Affiant.Abstractions.Models.ReviewRequirement Requirement, out System.TimeSpan? TimeToLive, out string? Reason, out string? BlockedReason, out Affiant.Abstractions.Models.ReviewRequirement? DegradedFrom, out string? PolicyId, out string? PolicyVersion) -> void
+Affiant.Abstractions.Models.ApprovalVerdict.Deconstruct(out Affiant.Abstractions.Models.ReviewRequirement Requirement, out System.TimeSpan? TimeToLive, out string? Reason, out string? BlockedReason, out Affiant.Abstractions.Models.ReviewRequirement? DegradedFrom, out string? PolicyId, out string? PolicyVersion, out int? RiskScore) -> void
 Affiant.Abstractions.Models.ApprovalVerdict.DegradeToReviewer(string! blockedReason, string! reason) -> Affiant.Abstractions.Models.ApprovalVerdict!
 Affiant.Abstractions.Models.ApprovalVerdict.DegradedFrom.get -> Affiant.Abstractions.Models.ReviewRequirement?
 Affiant.Abstractions.Models.ApprovalVerdict.DegradedFrom.init -> void
@@ -272,6 +272,8 @@ Affiant.Abstractions.Models.ApprovalVerdict.Reason.get -> string?
 Affiant.Abstractions.Models.ApprovalVerdict.Reason.init -> void
 Affiant.Abstractions.Models.ApprovalVerdict.Requirement.get -> Affiant.Abstractions.Models.ReviewRequirement
 Affiant.Abstractions.Models.ApprovalVerdict.Requirement.init -> void
+Affiant.Abstractions.Models.ApprovalVerdict.RiskScore.get -> int?
+Affiant.Abstractions.Models.ApprovalVerdict.RiskScore.init -> void
 Affiant.Abstractions.Models.ApprovalVerdict.TimeToLive.get -> System.TimeSpan?
 Affiant.Abstractions.Models.ApprovalVerdict.TimeToLive.init -> void
 Affiant.Abstractions.Models.Attestation

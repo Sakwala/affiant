@@ -577,6 +577,17 @@ public sealed class ReviewGate(
                         attestationKind: attestation.By.Kind);
                 }
 
+                // TL-1 `standing-order.fired` (AZ-1): a write was approved with no person present,
+                // which is the single most consequential thing a policy can do and the one an
+                // operator most needs to be able to count. Emitted here rather than inside the
+                // policy because this is where the approval actually happens — the entry exists, so
+                // the event can name it, and a verdict a later check degraded never reaches here.
+                AffiantTelemetry.RecordStandingOrderFired(
+                    verdict.PolicyId ?? UnnamedStandingOrderPolicy,
+                    verdict.RiskScore,
+                    entryId,
+                    verdict.PolicyVersion);
+
                 logger.LogInformation(
                     "StandingOrder {PolicyId} auto-approved DocketEntry {EntryId}",
                     attestation.By.Subject, entryId);

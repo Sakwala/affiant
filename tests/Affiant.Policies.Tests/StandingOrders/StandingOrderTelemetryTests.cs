@@ -9,41 +9,42 @@ using Affiant.Policies.StandingOrders;
 using Xunit;
 
 /// <summary>
-/// A Standing Order approving a write with no person present is the most consequential thing a
-/// policy does, and a Standing Order that did not fire is the reason a person is being asked. Both
-/// have registry keys (AZ-1, GT-5), and both are emitted from
-/// <see cref="StandingOrderBase.EvaluateAsync"/>.
+/// A Standing Order that did not fire is the reason a person is being asked, and
+/// <see cref="StandingOrderBase.EvaluateAsync"/> says so on the record (GT-5).
+///
+/// <para>
+/// The firing itself is <b>not</b> emitted here. <c>standing-order.fired</c> is about a write
+/// approved with no person present, which happens in the gate: the entry exists there, so the event
+/// can name it, and a verdict a later check degrades never reaches it. What the chain contributes is
+/// the score the comparison used, which travels on the verdict.
+/// </para>
 /// </summary>
 public class StandingOrderTelemetryTests
 {
     /// <summary>
-    /// A by-the-book Standing Order — match, no risk ceiling — fires, and says so. No
-    /// <c>risk.score</c> attribute: nothing was scored, and an absent attribute is honest where a
-    /// zero would read as "scored, and it was zero".
+    /// A by-the-book Standing Order — match, no risk ceiling — returns a Standing Order verdict and
+    /// emits nothing: nothing was scored, and the firing is the gate's event to emit.
     /// </summary>
     [Fact]
-    public async Task AnOrderThatFires_EmitsStandingOrderFired()
+    public async Task AnOrderThatFires_ReturnsAStandingOrderVerdict_AndScoresNothing()
     {
         using var probe = new TelemetryProbe();
 
-        await new ByTheBookOrder().EvaluateAsync(NoFields(), TestIdentities.Anyone);
+        var verdict = await new ByTheBookOrder().EvaluateAsync(NoFields(), TestIdentities.Anyone);
 
-        var attributes = probe.Attributes(TelemetryKeys.StandingOrderFired);
-        Assert.Equal(typeof(ByTheBookOrder).FullName, attributes[TelemetryKeys.Attributes.PolicyId]);
-        Assert.False(attributes.ContainsKey(TelemetryKeys.Attributes.RiskScore));
+        Assert.Equal(ReviewRequirement.StandingOrder, verdict!.Requirement);
+        Assert.Null(verdict.RiskScore);
         Assert.False(probe.Saw(TelemetryKeys.StandingOrderBlocked));
+        Assert.False(probe.Saw(TelemetryKeys.StandingOrderFired));
     }
 
     [Fact]
     public async Task AnOrderThatFiresUnderItsCeiling_CarriesTheScoreItWasJudgedOn()
     {
-        using var probe = new TelemetryProbe();
+        var verdict = await new UnderThresholdOrder().EvaluateAsync(NoFields(), TestIdentities.Anyone);
 
-        await new UnderThresholdOrder().EvaluateAsync(NoFields(), TestIdentities.Anyone);
-
-        var attributes = probe.Attributes(TelemetryKeys.StandingOrderFired);
-        Assert.Equal((int)RiskLevel.Low, attributes[TelemetryKeys.Attributes.RiskScore]);
-        Assert.False(probe.Saw(TelemetryKeys.StandingOrderBlocked));
+        Assert.Equal(ReviewRequirement.StandingOrder, verdict!.Requirement);
+        Assert.Equal((int)RiskLevel.Low, verdict.RiskScore);
     }
 
     [Fact]
@@ -80,16 +81,20 @@ public class StandingOrderTelemetryTests
         Assert.False(probe.Saw(TelemetryKeys.StandingOrderBlocked));
     }
 
+    /// <summary>
+    /// The <b>chain</b> stamps the policy that produced a verdict, rather than trusting a policy to
+    /// name itself: a Standing Order's attestation names it (AZ-1), and a record of who approved a
+    /// write with no person present has to be the framework's answer, not the approver's own.
+    /// </summary>
     [Fact]
-    public async Task APolicyThatVersionsItself_SaysSoOnTheEvent()
+    public async Task APolicyThatVersionsItself_IsNamedOnTheVerdictTheChainReturns()
     {
-        using var probe = new TelemetryProbe();
+        var verdict = await new Affiant.Core.Services.ApprovalPolicyEvaluator([new VersionedOrder()])
+            .EvaluateAsync(NoFields(), TestIdentities.Anyone);
 
-        await new VersionedOrder().EvaluateAsync(NoFields(), TestIdentities.Anyone);
-
-        var attributes = probe.Attributes(TelemetryKeys.StandingOrderFired);
-        Assert.Equal("payments-v3", attributes[TelemetryKeys.Attributes.PolicyId]);
-        Assert.Equal("3", attributes[TelemetryKeys.Attributes.PolicyVersion]);
+        Assert.Equal(ReviewRequirement.StandingOrder, verdict.Requirement);
+        Assert.Equal("payments-v3", verdict.PolicyId);
+        Assert.Equal("3", verdict.PolicyVersion);
     }
 
     // ── Test doubles ─────────────────────────────────────────────────────────────────────────

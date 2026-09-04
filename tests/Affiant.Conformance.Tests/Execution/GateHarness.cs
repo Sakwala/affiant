@@ -147,6 +147,12 @@ internal sealed class GateHarness : IDisposable
 
         var root = services.BuildServiceProvider();
 
+        // CV-1: a wiring the gate refuses is itself a fixture. The startup validator's own answer is
+        // what the fixture pins, so it is asked here and its refusal escapes to the runner, which
+        // reports it through `expect.error` exactly as a step's refusal is reported. Nothing after
+        // it runs, because there is no gate to run it on.
+        RefuseUnrunnableWiring(root);
+
         // Subscribing here rather than inside the sink keeps the sink free of a framework
         // dependency, and makes the one genuinely injectable telemetry signal this release has
         // (the projection's typed event) visible beside the activity names.
@@ -155,6 +161,31 @@ internal sealed class GateHarness : IDisposable
             .Subscribe(_ => sink.Record("affidavit.emitted"));
 
         return new GateHarness(root, gate, clock);
+    }
+
+    /// <summary>
+    /// Throws <see cref="Affiant.Abstractions.Exceptions.AffiantStartupException"/> when a policy in
+    /// the chain says it cannot run as wired (CV-1).
+    /// </summary>
+    /// <remarks>
+    /// The harness composes its own container rather than calling <c>AddAffiantCore</c>, so the
+    /// framework's hosted validator is not registered here. What it would have refused is asked
+    /// directly, of the same seam: a policy's own
+    /// <see cref="IApprovalPolicy.ConfigurationFault"/>.
+    /// </remarks>
+    private static void RefuseUnrunnableWiring(IServiceProvider root)
+    {
+        var faults = root.GetServices<IApprovalPolicy>()
+            .Select(p => (p.PolicyId, p.ConfigurationFault))
+            .Where(f => f.ConfigurationFault is { Length: > 0 })
+            .Select(f => $"{f.PolicyId}: {f.ConfigurationFault}")
+            .ToArray();
+
+        if (faults.Length > 0)
+        {
+            throw new Affiant.Abstractions.Exceptions.AffiantStartupException(
+                "Affiant wire-up refused: " + string.Join("; ", faults));
+        }
     }
 
     /// <summary>The services for one conversation — a scope per conversation id, created on first use.</summary>

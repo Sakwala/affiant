@@ -94,8 +94,18 @@ public sealed class TaskInferenceStep
             // person's act, a system of record, a named rule — and an inference has none of them.
             // The restriction is structural, not a convention: there is no overload reachable from
             // here that could name them.
+            // `presence` is the port's own answer to "was this value literally in the turn, or did
+            // the model reason to it" (GT-1 step 3), and it is the difference between a Conversation
+            // grade and an Inferred one. Absent, it is Inferred: a port that does not say has not
+            // claimed the value was there to read.
+            var presence =
+                fieldEl.TryGetProperty("presence", out var presenceEl)
+                && string.Equals(presenceEl.GetString(), "literal", StringComparison.OrdinalIgnoreCase)
+                    ? InferenceSource.Conversation
+                    : InferenceSource.Inferred;
+
             var candidateTag = ProvenanceTag.FromInference(
-                InferenceSource.Inferred, field.Name, newConfidence);
+                presence, field.Name, newConfidence, UtteranceSpanOf(fieldEl, newValue));
             var currentChain = _contextFabric.GetFieldChain(field.Name);
 
             bool wins;
@@ -158,6 +168,44 @@ public sealed class TaskInferenceStep
     /// calling <see cref="JsonElement.GetString"/> unconditionally throws and aborts the whole
     /// merge. Non-scalar kinds (object, array, null) return null and the field is skipped.
     /// </summary>
+    /// <summary>
+    /// The span of the unmodified turn a value was read from, when the port named one (PV-2).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Offset and length come from the port; the digest is over the value the port reported, which
+    /// is what it says the span contained. A binding points at something an auditor can go and
+    /// re-check, and this is the strongest such claim an inference can make: the turn is on the
+    /// record, the offsets say where to look, and the digest says what was there when it was read.
+    /// </para>
+    /// <para>
+    /// A port that names no span produces no binding: a tag with no binding is a weaker claim, not
+    /// a false one, and inventing a span nobody reported would be the false one.
+    /// </para>
+    /// </remarks>
+    private static ProvenanceBinding? UtteranceSpanOf(JsonElement fieldEl, string value)
+    {
+        if (!fieldEl.TryGetProperty("utteranceSpan", out var span)
+            || span.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        if (!span.TryGetProperty("start", out var startEl) || !startEl.TryGetInt32(out var start))
+            return null;
+
+        var length =
+            span.TryGetProperty("end", out var endEl) && endEl.TryGetInt32(out var end) ? end - start
+            : span.TryGetProperty("length", out var lengthEl) && lengthEl.TryGetInt32(out var stated) ? stated
+            : value.Length;
+
+        var digest = Convert.ToHexStringLower(
+            System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(value)));
+
+        return new ProvenanceBinding.UtteranceSpan(
+            new UtteranceSpanRef(start, length, $"sha256:{digest}"));
+    }
+
     private static string? ReadScalarValue(JsonElement valueEl) => valueEl.ValueKind switch
     {
         JsonValueKind.String => valueEl.GetString(),

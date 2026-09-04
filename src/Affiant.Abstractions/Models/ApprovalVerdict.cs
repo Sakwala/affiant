@@ -68,7 +68,8 @@ public sealed record ApprovalVerdict(
     string? BlockedReason = null,
     ReviewRequirement? DegradedFrom = null,
     string? PolicyId = null,
-    string? PolicyVersion = null)
+    string? PolicyVersion = null,
+    int? RiskScore = null)
 {
     /// <summary>
     /// A verdict that names a requirement and nothing else — the shape every <c>1.0.0-beta.1</c>

@@ -54,9 +54,7 @@ internal static class Observation
             ["toolName"] = entry.ToolName,
             ["tenantId"] = entry.TenantId,
             ["conversationId"] = entry.SessionId,
-            // DK-1's `entry.channel`: the row carries no channel column, so no reading of the
-            // record can answer it and a fixture that states one sees the gap in its diff.
-            ["channel"] = null,
+            ["channel"] = entry.Channel,
             ["expiresAtOffsetMs"] = (long)Math.Round((entry.ExpiresAt - entry.CreatedAt).TotalMilliseconds),
             ["execution"] = entry.Execution is { } e ? Execution(e) : null,
             ["executionDetail"] = entry.ExecutionDetail,
