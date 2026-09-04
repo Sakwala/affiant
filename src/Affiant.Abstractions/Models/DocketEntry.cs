@@ -174,6 +174,25 @@ public sealed record DocketEntry(
     }
 
     /// <summary>
+    /// The requirement level the approval chain resolved for this proposal — what the row was
+    /// <em>filed as</em>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// On the row because it is the chain's answer, and the chain runs once: a reader that inferred
+    /// it from the row's later state would be guessing, and would guess wrong for the one case that
+    /// matters — a level this version records but does not run stays <see cref="ReviewStatus.Pending"/>
+    /// with a blocked marker, and is never degraded to the weaker requirement the implementation
+    /// does know how to run (AZ-4).
+    /// </para>
+    /// <para>
+    /// It is what was asked for, not what happened: an approved row filed as
+    /// <see cref="ReviewRequirement.ReviewerConfirmation"/> still says so afterwards.
+    /// </para>
+    /// </remarks>
+    public ReviewRequirement Requirement { get; init; } = ReviewRequirement.ReviewerConfirmation;
+
+    /// <summary>
     /// The channel the proposal arrived on — the host's own name for the surface a person was
     /// speaking through, as <c>ConversationIdentity.Channel</c> carried it. <c>null</c> when the
     /// host named none.

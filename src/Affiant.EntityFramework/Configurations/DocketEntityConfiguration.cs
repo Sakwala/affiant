@@ -28,6 +28,7 @@ internal sealed class DocketEntityConfiguration : IEntityTypeConfiguration<Docke
         // column that forced a value would be inventing a fact the row does not yet hold.
         builder.Property(e => e.ToolName).IsRequired(false);
         builder.Property(e => e.Channel).IsRequired(false);
+        builder.Property(e => e.Requirement).IsRequired(false);
         builder.Property(e => e.Execution).IsRequired(false);
         builder.Property(e => e.ExecutionDetail).IsRequired(false);
         builder.Property(e => e.DecisionJson).IsRequired(false);

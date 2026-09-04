@@ -169,17 +169,19 @@ public class DecisionAuthorizationTests
     {
         var (gate, _, store) = CreateGate();
         var entryId = await FilePendingAsync(gate);
-        var at = new DateTimeOffset(2026, 9, 4, 9, 30, 0, TimeSpan.Zero);
 
         await gate.HandleDecisionAsync(
-            entryId, ApprovalDecision.Approved, Ctx(at: at, reason: "looks right"));
+            entryId, ApprovalDecision.Approved, Ctx(reason: "looks right"));
 
         var row = await store.GetDocketEntryAsync(entryId, default);
         var attestation = Assert.IsType<Attestation>(row!.Attestation);
         var member = Assert.IsType<Attestor.Member>(attestation.By);
         Assert.Equal("ana", member.Id);
         Assert.Equal("member", member.Kind);
-        Assert.Equal(at, attestation.At);
+        // The instant is the gate's own reading: an attestation says when the implementation
+        // observed the act, not when a caller said it happened (AZ-1).
+        Assert.InRange(
+            attestation.At, DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddMinutes(1));
         Assert.Equal(entryId, attestation.EntryId);
         Assert.Equal(ReviewStatus.Approved, row.Status);
         Assert.Equal(ExecutionOutcome.Unexecuted, row.Execution);
@@ -440,11 +442,10 @@ public class DecisionAuthorizationTests
         var entryId = await FilePendingAsync(gate);
         await Task.Delay(20);
 
-        var at = new DateTimeOffset(2026, 9, 4, 9, 5, 0, TimeSpan.Zero);
         var (outcome, _) = await gate.HandleDecisionAsync(
             entryId,
             ApprovalDecision.Approved,
-            Ctx(at: at),
+            Ctx(),
             new Dictionary<string, object?> { ["title"] = "Corrected" });
 
         var refused = Assert.IsType<ReviewOutcome.Refused>(outcome);
@@ -456,7 +457,8 @@ public class DecisionAuthorizationTests
 
         // The act's OWN instant and principal: a resubmission binds each prefilled field to it, and
         // dating it to the deadline would place the correction at a moment nobody typed anything.
-        Assert.Equal(at, row.PreservedAmendments.At);
+        // The instant is the gate's reading of when the act reached it, never the caller's claim.
+        Assert.True(row.PreservedAmendments.At > row.ExpiresAt);
         Assert.Equal("ana", row.PreservedAmendments.By);
     }
 
@@ -514,15 +516,13 @@ public class DecisionAuthorizationTests
         Principal? principal = null,
         string tenantId = TenantId,
         string? channel = "web",
-        DateTimeOffset? at = null,
         string? reason = null)
         => new(
             principal ?? new Principal.Member("ana"),
             tenantId,
             ConversationId: "conversation-1",
             Channel: channel,
-            Reason: reason,
-            At: at);
+            Reason: reason);
 
     private static async Task<Guid> FilePendingAsync(ReviewGate gate)
     {

@@ -374,14 +374,12 @@ Affiant.Abstractions.Models.CoverageCategory.NoExecute = 0 -> Affiant.Abstractio
 Affiant.Abstractions.Models.CoverageCategory.ProviderExecuted = 1 -> Affiant.Abstractions.Models.CoverageCategory
 Affiant.Abstractions.Models.DecisionContext
 Affiant.Abstractions.Models.DecisionContext.<Clone>$() -> Affiant.Abstractions.Models.DecisionContext!
-Affiant.Abstractions.Models.DecisionContext.At.get -> System.DateTimeOffset?
-Affiant.Abstractions.Models.DecisionContext.At.init -> void
 Affiant.Abstractions.Models.DecisionContext.Channel.get -> string?
 Affiant.Abstractions.Models.DecisionContext.Channel.init -> void
 Affiant.Abstractions.Models.DecisionContext.ConversationId.get -> string?
 Affiant.Abstractions.Models.DecisionContext.ConversationId.init -> void
-Affiant.Abstractions.Models.DecisionContext.DecisionContext(Affiant.Abstractions.Models.Principal? Principal, string! TenantId, string? ConversationId = null, string? Channel = null, string? Reason = null, System.DateTimeOffset? At = null) -> void
-Affiant.Abstractions.Models.DecisionContext.Deconstruct(out Affiant.Abstractions.Models.Principal? Principal, out string! TenantId, out string? ConversationId, out string? Channel, out string? Reason, out System.DateTimeOffset? At) -> void
+Affiant.Abstractions.Models.DecisionContext.DecisionContext(Affiant.Abstractions.Models.Principal? Principal, string! TenantId, string? ConversationId = null, string? Channel = null, string? Reason = null) -> void
+Affiant.Abstractions.Models.DecisionContext.Deconstruct(out Affiant.Abstractions.Models.Principal? Principal, out string! TenantId, out string? ConversationId, out string? Channel, out string? Reason) -> void
 Affiant.Abstractions.Models.DecisionContext.Equals(Affiant.Abstractions.Models.DecisionContext? other) -> bool
 Affiant.Abstractions.Models.DecisionContext.Principal.get -> Affiant.Abstractions.Models.Principal?
 Affiant.Abstractions.Models.DecisionContext.Principal.init -> void
@@ -428,6 +426,8 @@ Affiant.Abstractions.Models.DocketEntry.PreservedAmendments.get -> Affiant.Abstr
 Affiant.Abstractions.Models.DocketEntry.PreservedAmendments.init -> void
 Affiant.Abstractions.Models.DocketEntry.ProtocolVersion.get -> string!
 Affiant.Abstractions.Models.DocketEntry.ProtocolVersion.init -> void
+Affiant.Abstractions.Models.DocketEntry.Requirement.get -> Affiant.Abstractions.Models.ReviewRequirement
+Affiant.Abstractions.Models.DocketEntry.Requirement.init -> void
 Affiant.Abstractions.Models.DocketEntry.Supersedes.get -> System.Guid?
 Affiant.Abstractions.Models.DocketEntry.Supersedes.init -> void
 Affiant.Abstractions.Models.DocketEntry.ToolName.get -> string!

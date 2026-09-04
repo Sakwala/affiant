@@ -76,15 +76,13 @@ internal static class GateFixture
     public static DecisionContext Ctx(
         Principal? principal = null,
         string tenantId = TenantId,
-        DateTimeOffset? at = null,
         string? reason = null)
         => new(
             principal ?? new Principal.Member("ana"),
             tenantId,
             ConversationId: ConversationId,
             Channel: "web",
-            Reason: reason,
-            At: at);
+            Reason: reason);
 
     private sealed class NullTransport : IStreamingTransport
     {

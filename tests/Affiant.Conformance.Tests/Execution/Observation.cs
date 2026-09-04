@@ -40,7 +40,9 @@ internal static class Observation
     /// <remarks>
     /// <c>status</c> is the status the row <b>reads</b>, not the one it stores: a row past its
     /// deadline reads <c>expired</c> whether or not a sweep has run (DK-1), so the fixture's clock
-    /// is applied here.
+    /// is applied here. Every other clause is a plain read of the record — <c>requirement</c>
+    /// included, which the row now carries rather than the driver inferring it from what happened
+    /// afterwards.
     /// </remarks>
     public static JsonObject Entry(DocketEntry entry, EntryFacts facts)
     {
@@ -71,16 +73,12 @@ internal static class Observation
                 ["supersedes"] = entry.Supersedes?.ToString(),
                 ["supersededBy"] = entry.ResubmittedTo?.ToString(),
             },
+            ["requirement"] = entry.Requirement.ToString(),
             ["affidavit"] = Affidavit(entry.Envelope),
             ["canonicalDiffersFromProposal"] = entry.AmendedAffidavit is { } amended
                 && Affiant.Core.Serialization.CanonicalSerializer.CanonicalHash(amended)
                     != Affiant.Core.Serialization.CanonicalSerializer.CanonicalHash(entry.Envelope),
         };
-
-        if (facts.Requirement is not null)
-        {
-            row["requirement"] = facts.Requirement;
-        }
 
         return row;
     }
@@ -310,6 +308,9 @@ internal static class Observation
         }
     }
 
-    /// <summary>What the driver knows about a row beyond what the row itself holds.</summary>
-    internal sealed record EntryFacts(string? Requirement, DateTimeOffset Now);
+    /// <summary>
+    /// What the driver knows beyond what the row holds: the instant the fixture has reached, which
+    /// is what makes a row past its deadline read <c>expired</c> (DK-1).
+    /// </summary>
+    internal sealed record EntryFacts(DateTimeOffset Now);
 }

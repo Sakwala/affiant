@@ -100,6 +100,7 @@ public static class AffiantMigrator
             ("ResubmittedTo", "TEXT NULL"),
             ("ToolName", "TEXT NULL"),
             ("Channel", "TEXT NULL"),
+            ("Requirement", "TEXT NULL"),
             ("Execution", "TEXT NULL"),
             ("ExecutionDetail", "TEXT NULL"),
             ("DecisionJson", "TEXT NULL"),

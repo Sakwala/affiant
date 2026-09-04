@@ -133,6 +133,13 @@ namespace Affiant.EntityFramework.Migrations
                 type: "text",
                 nullable: true);
 
+            migrationBuilder.AddColumn<string>(
+                name: "Requirement",
+                schema: "affiant",
+                table: "Docket",
+                type: "text",
+                nullable: true);
+
             // Give every pre-existing row the tick values its instants imply. The tick columns are
             // what every bounded read compares and orders by — the deadline, the filing order, the
             // retention cut-off — and a row left at the column default of zero would read as filed
@@ -278,6 +285,11 @@ namespace Affiant.EntityFramework.Migrations
 
             migrationBuilder.DropColumn(
                 name: "Channel",
+                schema: "affiant",
+                table: "Docket");
+
+            migrationBuilder.DropColumn(
+                name: "Requirement",
                 schema: "affiant",
                 table: "Docket");
         }

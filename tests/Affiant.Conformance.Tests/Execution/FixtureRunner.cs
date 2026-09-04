@@ -182,13 +182,13 @@ internal sealed class FixtureRunner
             var parent = await harness.Store.GetResubmissionParentAsync(entryId, ct);
             observation["entry"] = Observation.Entry(
                 entry,
-                new Observation.EntryFacts(executor.RequirementOf(entryId), harness.Clock));
+                new Observation.EntryFacts(harness.Clock));
 
             if (parent is not null)
             {
                 observation["superseded"] = Observation.Entry(
                     parent,
-                    new Observation.EntryFacts(executor.RequirementOf(parent.EntryId), harness.Clock));
+                    new Observation.EntryFacts(harness.Clock));
             }
         }
 

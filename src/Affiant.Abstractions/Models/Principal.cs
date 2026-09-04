@@ -127,11 +127,17 @@ public abstract record Principal
 /// host can tell a decision made in its own UI from one relayed off a chat channel.
 /// </param>
 /// <param name="Reason">The reviewer's stated reason, recorded on the row.</param>
-/// <param name="At">When the act was made. Defaults to the gate's clock.</param>
+/// <remarks>
+/// <b>There is no instant on this record</b> (AZ-1). When a decision was made is the gate's own
+/// observation, read from its injected clock, and it is stamped onto the attestation and the
+/// decision record from there. A caller-supplied instant would make the <c>at</c> of an attestation
+/// worth exactly what the calling host is worth: it was accepted unvalidated, so an attestation
+/// could be dated five years before the row it attests to was filed. The record is what the
+/// implementation observed, not what the caller said.
+/// </remarks>
 public sealed record DecisionContext(
     Principal? Principal,
     string TenantId,
     string? ConversationId = null,
     string? Channel = null,
-    string? Reason = null,
-    DateTimeOffset? At = null);
+    string? Reason = null);

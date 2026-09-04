@@ -44,6 +44,8 @@ Affiant.EntityFramework.Models.DocketEntryEntity.PreservedAmendmentsJson.get -> 
 Affiant.EntityFramework.Models.DocketEntryEntity.PreservedAmendmentsJson.set -> void
 Affiant.EntityFramework.Models.DocketEntryEntity.ProtocolVersion.get -> string!
 Affiant.EntityFramework.Models.DocketEntryEntity.ProtocolVersion.set -> void
+Affiant.EntityFramework.Models.DocketEntryEntity.Requirement.get -> string?
+Affiant.EntityFramework.Models.DocketEntryEntity.Requirement.set -> void
 Affiant.EntityFramework.Models.DocketEntryEntity.Supersedes.get -> System.Guid?
 Affiant.EntityFramework.Models.DocketEntryEntity.Supersedes.set -> void
 Affiant.EntityFramework.Models.DocketEntryEntity.ToolName.get -> string?

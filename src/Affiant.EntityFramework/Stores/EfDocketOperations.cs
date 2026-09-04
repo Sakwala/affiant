@@ -644,6 +644,7 @@ internal sealed class EfDocketOperations(AffiantDbContext db, ILogger logger, Ti
         OperationType = entry.OperationType,
         ToolName = entry.ToolName,
         Channel = entry.Channel,
+        Requirement = entry.Requirement.ToString(),
         AffidavitJson = JsonSerializer.Serialize(entry.Envelope, s_jsonOptions),
         ProvenanceChainsJson = SerializeProvenanceChains(entry.Envelope.Fields),
         AmendmentsJson = DocketRowSerialization.WriteAmendments(entry.Amendments),
@@ -707,7 +708,10 @@ internal sealed class EfDocketOperations(AffiantDbContext db, ILogger logger, Ti
             // Null on a row filed before the column existed, where OperationType carries the same
             // fact; the row's ToolName property falls back to it, so this stays correct either way.
             ToolName = entity.ToolName ?? entity.OperationType,
-            Channel = entity.Channel
+            Channel = entity.Channel,
+            Requirement = Enum.TryParse<ReviewRequirement>(entity.Requirement, out var requirement)
+                ? requirement
+                : ReviewRequirement.ReviewerConfirmation
         };
     }
 

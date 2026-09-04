@@ -34,7 +34,6 @@ namespace Affiant.Conformance.Tests.Execution;
 internal sealed class StepExecutor(GateHarness harness, GivenSpec given)
 {
     private readonly Dictionary<string, Guid> _labels = new(StringComparer.Ordinal);
-    private readonly Dictionary<Guid, string> _requirements = [];
     private Guid? _lastFiled;
 
     /// <summary>What one step did.</summary>
@@ -56,9 +55,6 @@ internal sealed class StepExecutor(GateHarness harness, GivenSpec given)
 
     /// <summary>The row a clause is about: the step's own, or the last one filed.</summary>
     public Guid? Current => _lastFiled;
-
-    /// <summary>The requirement the framework reported when a row was filed, for the row observation.</summary>
-    public string? RequirementOf(Guid entryId) => _requirements.GetValueOrDefault(entryId);
 
     /// <summary>Runs one act.</summary>
     public async Task<StepResult> RunAsync(StepSpec step, CancellationToken ct)
@@ -197,21 +193,6 @@ internal sealed class StepExecutor(GateHarness harness, GivenSpec given)
             _ => derivedEntryId,
         };
 
-        // The requirement the chain returned, as the row now records it. A blocked row records the
-        // level VERBATIM (AZ-4), which is the whole point of the marker: a requirement this version
-        // does not run is never degraded to one it does.
-        var filedRow = await harness.Store.GetDocketEntryAsync(entryId, ct);
-        _requirements[entryId] = filedRow?.Blocked switch
-        {
-            BlockedMarker.RequirementNotImplemented level => level.Level.ToString(),
-            _ => filing switch
-            {
-                ReviewFilingResult.Decided { Outcome: ReviewOutcome.Approved } => "StandingOrder",
-                ReviewFilingResult.Decided { Outcome: ReviewOutcome.Referral } => "ReferralRequired",
-                _ => "ReviewerConfirmation",
-            },
-        };
-
         _lastFiled = entryId;
         Remember(step, entryId);
 
@@ -284,9 +265,6 @@ internal sealed class StepExecutor(GateHarness harness, GivenSpec given)
             _ => entryId.Value,
         };
 
-        _requirements[newId] = filing is ReviewFilingResult.Decided { Outcome: ReviewOutcome.Approved }
-            ? "StandingOrder"
-            : "ReviewerConfirmation";
         _lastFiled = newId;
         Remember(step, newId);
         return new StepResult(null) { EntryId = newId, Card = harness.Transport.CardFor(newId) };
@@ -339,8 +317,8 @@ internal sealed class StepExecutor(GateHarness harness, GivenSpec given)
 
     /// <summary>
     /// The act's own context: who is acting, from which tenant, in which conversation and on which
-    /// channel, and at what instant — passed at the call site, never resolved from ambient state
-    /// (AZ-2).
+    /// channel — passed at the call site, never resolved from ambient state (AZ-2). When the act
+    /// happened is the gate's own reading of the fixture's clock, which the harness drives.
     /// </summary>
     private DecisionContext Context(StepSpec step, string conversationId, string? reason)
     {
@@ -360,8 +338,7 @@ internal sealed class StepExecutor(GateHarness harness, GivenSpec given)
             step.TenantId ?? given.Ctx.TenantId,
             conversationId,
             given.Ctx.Channel,
-            reason,
-            harness.Clock);
+            reason);
     }
 
     private async Task<StepResult> RehydrateAsync(StepSpec step, string conversationId, CancellationToken ct)

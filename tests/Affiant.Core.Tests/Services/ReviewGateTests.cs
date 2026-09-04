@@ -333,15 +333,13 @@ public class ReviewGateTests
     private static DecisionContext Ctx(
         Principal? principal = null,
         string tenantId = TenantId,
-        DateTimeOffset? at = null,
         string? reason = null)
         => new(
             principal ?? new Principal.Member("reviewer-456"),
             tenantId,
             ConversationId: "session-test",
             Channel: "test",
-            Reason: reason,
-            At: at);
+            Reason: reason);
 
     private static (WriteProposal proposal, ReviewContext context) CreateTestInput(Guid? entryId = null)
     {
@@ -1088,11 +1086,10 @@ public class ReviewGateTests
         await FileExpiredAsync(store, expiredEntry);
 
         var lateAmendments = new Dictionary<string, object?> { ["title"] = "Late reviewer edit" };
-        var actAt = DateTimeOffset.UtcNow.AddMinutes(-1);
         var (outcome, createdAt) = await gate.HandleDecisionAsync(
             expiredEntry.EntryId,
             ApprovalDecision.Approved,
-            Ctx(at: actAt),
+            Ctx(),
             lateAmendments,
             CancellationToken.None);
 
@@ -1111,7 +1108,13 @@ public class ReviewGateTests
         Assert.NotNull(updated.PreservedAmendments);
         Assert.Equal("Late reviewer edit", updated.PreservedAmendments!.Amendments["title"]);
         Assert.Equal("reviewer-456", updated.PreservedAmendments.By);
-        Assert.Equal(actAt, updated.PreservedAmendments.At);
+
+        // The instant is the gate's own reading, not the caller's claim (AZ-1): the record says
+        // when the implementation observed the act.
+        Assert.InRange(
+            updated.PreservedAmendments.At,
+            DateTimeOffset.UtcNow.AddMinutes(-1),
+            DateTimeOffset.UtcNow.AddMinutes(1));
     }
 
     [Fact]

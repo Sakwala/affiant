@@ -51,6 +51,13 @@ public class DocketEntryEntity
     /// </summary>
     public string? Channel { get; set; }
 
+    /// <summary>
+    /// The requirement level the approval chain resolved, as the row was filed (DK-1). Nullable in
+    /// the column for rows written before this release; read back as
+    /// <c>ReviewerConfirmation</c>, which is what those rows were filed as.
+    /// </summary>
+    public string? Requirement { get; set; }
+
     /// <summary>What became of an approved write: <c>Unexecuted</c>, <c>Executed</c> or <c>Failed</c>. Null unless the row is approved.</summary>
     public string? Execution { get; set; }
 

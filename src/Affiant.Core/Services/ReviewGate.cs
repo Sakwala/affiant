@@ -561,6 +561,7 @@ public sealed class ReviewGate(
             {
                 ToolName = proposal.ToolName,
                 Channel = context.Channel,
+                Requirement = requirement,
             };
             await docketStore.FileDocketEntryAsync(entry, cancellationToken);
             logger.LogInformation(
@@ -912,7 +913,8 @@ public sealed class ReviewGate(
         var scope = new DocketScope(entry.TenantId);
         var createdAt = entry.CreatedAt;
         var now = _time.GetUtcNow();
-        var decidedAt = context.At ?? now;
+        // AZ-1: when the decision was made is the gate's own observation, not the caller's claim.
+        var decidedAt = now;
 
         // (iv) A blocked entry refuses every decision, and says which code blocked it. Checked before
         // the store so the refusal carries the marker's own context, which a bare transition result

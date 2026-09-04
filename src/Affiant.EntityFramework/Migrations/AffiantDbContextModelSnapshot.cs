@@ -218,6 +218,9 @@ namespace Affiant.EntityFramework.Migrations
                     b.Property<Guid?>("ResubmittedTo")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Requirement")
+                        .HasColumnType("text");
+
                     b.Property<string>("ReviewerUserId")
                         .HasColumnType("text");
 
