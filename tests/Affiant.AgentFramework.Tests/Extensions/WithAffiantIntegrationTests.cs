@@ -39,11 +39,12 @@ public class WithAffiantIntegrationTests
         await agent.RunAsync("please create a widget", session);
 
         var fabric = sp.GetRequiredService<ContextFabric>();
-        var chain = fabric.GetFieldChain("name");
-
-        Assert.NotNull(chain);
-        Assert.Equal(ProvenanceSource.Conversation, chain.Current.Source);
-        Assert.Contains("CreateWidget", chain.Current.Evidence);
+        // PV-1: the model's argument reaches the fabric as the value it PROPOSES; it is not
+        // evidence about where that value came from, so nothing is sworn for the field here. An
+        // interceptor or the host's inference port is what swears; where neither speaks, the
+        // projection swears the field Empty.
+        Assert.Equal("gizmo", fabric.GetByKey("Widget")!.Fields["name"]);
+        Assert.Null(fabric.GetFieldChain("name"));
     }
 
     [Fact]

@@ -233,8 +233,14 @@ public sealed record ProvenanceTag(
     public static ProvenanceTag Empty { get; } = new(ProvenanceSource.Empty, 0f, null, null);
 
     /// <summary>
-    /// Tag a value extracted from a deterministic tool result. Default confidence 0.9.
+    /// Tag a value extracted from a deterministic tool RESULT — what a search or a lookup returned
+    /// about the conversation's subject. Default confidence 0.9.
     /// </summary>
+    /// <remarks>
+    /// Not for the arguments a model passes to a write tool. Those are not provenance at all: an
+    /// argument is the value the model proposes, and what is sworn about where it came from is
+    /// whatever an interceptor or the inference port says — nothing, if neither speaks.
+    /// </remarks>
     public static ProvenanceTag FromTool(string toolName, float confidence = 0.9f) =>
         new(ProvenanceSource.Conversation, confidence, $"Extracted from {toolName}", null);
 

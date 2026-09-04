@@ -10,16 +10,15 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 /// <summary>
-/// AF-1: an argument with no value is sworn <c>Empty</c> at confidence 0, whichever shape "no
-/// value" arrives in.
+/// AF-1: an argument with no value proposes nothing, whichever shape "no value" arrives in, and the
+/// field it names is sworn <c>Empty</c> at confidence 0.
 /// </summary>
 /// <remarks>
 /// A model's tool call reaches the framework through an adapter, and what an adapter hands over
 /// depends on how it parsed the JSON: Microsoft.Extensions.AI yields a C# <c>null</c>, another
 /// deserializer yields a <see cref="JsonElement"/> whose kind is <c>Null</c>, and a data-layer
-/// caller can hand over <see cref="DBNull"/>. All three say the same thing — the conversation said
-/// nothing about this field — and a filter that tagged two of them <c>Conversation</c> at 0.9 would
-/// swear that it had.
+/// caller can hand over <see cref="DBNull"/>. All three say the same thing — nothing was proposed
+/// for this field — so none of them reaches the record as a value.
 /// </remarks>
 public sealed class EmptyArgumentShapesTests
 {
@@ -32,13 +31,14 @@ public sealed class EmptyArgumentShapesTests
 
     [Theory]
     [MemberData(nameof(NoValueShapes))]
-    public async Task AnArgumentWithNoValue_IsNotTagged(string shape, object? value)
+    public async Task AnArgumentWithNoValue_ProposesNothing(string shape, object? value)
     {
         Assert.NotEmpty(shape);
         var fabric = new ContextFabric();
         await CaptureAsync(fabric, new Dictionary<string, object?> { ["reference"] = value });
 
         Assert.Null(fabric.GetFieldChain("reference"));
+        Assert.False(fabric.GetByKey("Invoice")?.Fields.ContainsKey("reference") ?? false);
     }
 
     [Theory]
@@ -50,6 +50,13 @@ public sealed class EmptyArgumentShapesTests
         await CaptureAsync(
             fabric,
             new Dictionary<string, object?> { ["status"] = "Active", ["reference"] = value });
+
+        // What the host's inference port would say about the one field that has anything behind it.
+        // The capture mints no tag of its own (PV-1: an argument is a proposal, not evidence), so
+        // without this the record swears to nothing at all and the numbers below say so.
+        fabric.SetFieldChain(
+            "status",
+            ProvenanceChain.From(ProvenanceTag.FromInference(InferenceSource.Conversation, "status", 0.9f)));
 
         var affidavit = Project(fabric);
 
@@ -65,15 +72,20 @@ public sealed class EmptyArgumentShapesTests
         Assert.Equal(1, affidavit.EmptyFieldCount);
     }
 
+    /// <summary>
+    /// An argument that carries a value proposes that value — and nothing more. PV-1: what the
+    /// model wrote is not evidence about where the value came from, so the capture mints no tag;
+    /// what swears for the field is an interceptor or the host's inference port, and where neither
+    /// speaks the field is sworn Empty.
+    /// </summary>
     [Fact]
-    public async Task AnArgumentThatCarriesAValue_IsStillTagged()
+    public async Task AnArgumentThatCarriesAValue_IsProposed_AndSwornByNothing()
     {
         var fabric = new ContextFabric();
         await CaptureAsync(fabric, new Dictionary<string, object?> { ["status"] = "Active" });
 
-        var chain = Assert.IsType<ProvenanceChain>(fabric.GetFieldChain("status"));
-        Assert.Equal(ProvenanceSource.Conversation, chain.Current.Source);
-        Assert.Equal(0.9f, chain.Current.Confidence);
+        Assert.Equal("Active", fabric.GetByKey("Invoice")!.Fields["status"]);
+        Assert.Null(fabric.GetFieldChain("status"));
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

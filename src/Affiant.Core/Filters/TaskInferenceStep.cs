@@ -70,8 +70,17 @@ public sealed class TaskInferenceStep
                 !fieldEl.TryGetProperty("confidence", out var confEl))
                 continue;
 
+            // The value keeps the JSON type the port reported it as. A number reported as a number
+            // is filed as a number: the field's `kind` is a rendering hint for a reviewer surface,
+            // not a licence to re-type the value, and a card that showed "40" where the port said 40
+            // would be showing a different value from the one the record swears to (AF-1, SR-2).
             var newValue = ReadScalarValue(valueEl);
-            if (string.IsNullOrEmpty(newValue))
+            if (newValue is null)
+                continue;
+
+            // The text the span digest is taken over: what the port says was there to read.
+            var newText = ReadScalarText(valueEl);
+            if (string.IsNullOrEmpty(newText))
                 continue;
 
             float newConfidence;
@@ -105,7 +114,7 @@ public sealed class TaskInferenceStep
                     : InferenceSource.Inferred;
 
             var candidateTag = ProvenanceTag.FromInference(
-                presence, field.Name, newConfidence, UtteranceSpanOf(fieldEl, newValue));
+                presence, field.Name, newConfidence, UtteranceSpanOf(fieldEl, newText));
             var currentChain = _contextFabric.GetFieldChain(field.Name);
 
             bool wins;
@@ -206,7 +215,25 @@ public sealed class TaskInferenceStep
             new UtteranceSpanRef(start, length, $"sha256:{digest}"));
     }
 
-    private static string? ReadScalarValue(JsonElement valueEl) => valueEl.ValueKind switch
+    /// <summary>
+    /// A field's <c>value</c> as the JSON type the port reported, or <see langword="null"/> for a
+    /// kind an Affidavit field cannot carry (object, array, JSON null).
+    /// </summary>
+    private static object? ReadScalarValue(JsonElement valueEl) => valueEl.ValueKind switch
+    {
+        JsonValueKind.String => valueEl.GetString() is { Length: > 0 } text ? text : null,
+        // Boxed explicitly: a conditional whose arms are int and long has type long, so an int
+        // would arrive on the card as a long and compare unequal to the number the port reported.
+        JsonValueKind.Number => valueEl.TryGetInt64(out var whole)
+            ? whole >= int.MinValue && whole <= int.MaxValue ? (object)(int)whole : whole
+            : valueEl.GetDouble(),
+        JsonValueKind.True => true,
+        JsonValueKind.False => false,
+        _ => null,
+    };
+
+    /// <summary>The same value as text — what an utterance span's digest is taken over.</summary>
+    private static string? ReadScalarText(JsonElement valueEl) => valueEl.ValueKind switch
     {
         JsonValueKind.String => valueEl.GetString(),
         JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False => valueEl.GetRawText(),

@@ -5,15 +5,26 @@ using Affiant.Abstractions.Models;
 using Microsoft.Extensions.Logging;
 
 /// <summary>
-/// Pre-tool filter that captures LLM-populated tool arguments into IContextFabric using
-/// ProvenanceTag.FromTool. Runs before InferenceTriggerFilter so the inference prompt has access
-/// to already-decoded tool arguments. Per L2 PRD §3.3.
-///
-/// NOTE: PRD §3.3 specifies ProvenanceSource.External for the captured tag. The existing
-/// ProvenanceTag.FromTool factory uses ProvenanceSource.Conversation per spec §2.1 ordering
-/// (the LLM reads argument values FROM conversation context, making Conversation the accurate
-/// classification). This uses the existing factory as-is.
+/// Pre-tool filter that records the arguments a model passed to a tool call as the values it
+/// proposes, so the inference prompt and the projection can see them. Runs before the inference
+/// trigger.
 /// </summary>
+/// <remarks>
+/// <para>
+/// <b>An argument is a value, not provenance</b> (PV-1). What the model wrote into a tool call is
+/// the model's proposal; it says nothing about where the value came from, and this filter therefore
+/// mints no tag for it. What is sworn about a field is whatever a deterministic interceptor or the
+/// host's inference port says about it — and where neither speaks, the field is sworn
+/// <see cref="ProvenanceSource.Empty"/> at confidence 0, which is the honest answer and which the
+/// substance rule then acts on (GT-3).
+/// </para>
+/// <para>
+/// It used to mint <see cref="ProvenanceSource.Conversation"/> at 0.9 for every argument — the
+/// grade the ladder reserves for a value read out of the member's own turn. That put the model's
+/// guess level with the member's words and, because the merge is confidence-first, ahead of a
+/// literal from the turn reported at anything under 0.9. The card then showed the guess.
+/// </para>
+/// </remarks>
 public sealed class ToolArgumentCaptureFilter : IToolInvocationFilter
 {
     private readonly IContextFabric _fabric;
@@ -61,6 +72,7 @@ public sealed class ToolArgumentCaptureFilter : IToolInvocationFilter
         var descriptor = _registry.Find(context.FunctionName, pluginName);
         if (descriptor is not null && context.Arguments is not null)
         {
+            var proposed = new Dictionary<string, object>(StringComparer.Ordinal);
             foreach (var (name, value) in context.Arguments)
             {
                 // AF-1: only an argument that carries a value is tagged. An argument the model
@@ -77,12 +89,16 @@ public sealed class ToolArgumentCaptureFilter : IToolInvocationFilter
                     continue;
                 }
 
-                var tag = ProvenanceTag.FromTool(toolName: context.FunctionName, confidence: 0.9f);
-                _fabric.SetFieldChain(name, ProvenanceChain.From(tag));
+                proposed[name] = value!;
 
                 _logger.LogDebug(
                     "ToolArgumentCaptureFilter: captured argument {Field} from {FunctionName}",
                     name, context.FunctionName);
+            }
+
+            if (proposed.Count > 0 && descriptor.EntityType is { Length: > 0 } entityType)
+            {
+                _fabric.Upsert(new EntityRef(entityType, entityType, entityType, proposed));
             }
         }
 
