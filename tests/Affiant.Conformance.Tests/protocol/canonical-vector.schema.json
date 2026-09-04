@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://affiant.dev/conformance/0.1.0/canonical-vector.schema.json",
   "title": "CanonicalVector",
-  "description": "One canonical-serialization byte vector (INVARIANTS.md SR-1). A different document shape from a declarative fixture: an input Affidavit, the amendments accepted on it, the decision they arrived on, and the exact canonical bytes and SHA-256 those produce. Unlike a fixture, the expected values here ARE written by an implementation — a 1,500-byte canonical document typed by hand is a transcription waiting to enshrine a typo. What makes a vector trustworthy is that three paths sharing no code have to agree on it: the implementation, a second canonicalizer written out from the rule, and an off-the-shelf SHA-256. A driver reproduces the bytes and the digest; it does not re-derive them.",
+  "description": "One canonical-serialization byte vector (INVARIANTS.md SR-1). A different document shape from a declarative fixture: an input Affidavit, the amendments accepted on it, the decision they arrived on, the accepted state those produce, and the exact canonical bytes and SHA-256 the whole thing yields. Unlike a fixture, the expected values here ARE written by an implementation — a 1,500-byte canonical document typed by hand is a transcription waiting to enshrine a typo. What makes a vector trustworthy is that three paths sharing no code have to agree on it: the implementation, a second canonicalizer written out from the rule, and an off-the-shelf SHA-256. A driver reproduces the bytes and the digest; it does not re-derive them. What this schema cannot say is that `input` and `amendedInput` are Affidavits \u2014 JSON Schema has no way to reach the record inside, and the one version where nobody checked it separately is the version whose vectors described a shape the Affidavit schema refuses. `conformance/lint/lint.mjs` makes that check.",
   "type": "object",
   "additionalProperties": false,
   "required": ["id", "rules", "note", "input", "amendments", "reviewerAct", "expectedBytesUtf8", "expectedSha256"],
@@ -23,7 +23,7 @@
       "minLength": 1
     },
     "input": {
-      "description": "The Affidavit to canonicalise, in the reference implementation's in-memory shape.",
+      "description": "The Affidavit to canonicalise, in the wire shape a v0.1 implementation serialises \u2014 the record schemas/0.1.0/affidavit.schema.json defines, which the fixture lint holds it to.",
       "type": "object"
     },
     "amendments": {
@@ -33,6 +33,10 @@
     "reviewerAct": {
       "description": "The decision the amendments arrived on, or null when there were none. It is part of the canonical input because an amended field's tag names the act that amended it (PV-2).",
       "type": ["object", "null"]
+    },
+    "amendedInput": {
+      "description": "The accepted state the amendments produce \u2014 the Affidavit the canonical form is actually taken over (SR-1), with each amended field's reviewer-act tag in force and the confidence numbers recomputed over what is left (AF-2, AF-4). Present exactly when `amendments` is non-null, and produced by the implementation rather than typed. It is written down so it can be held against the Affidavit schema: it is the document a host's execution grant binds to, and a state nobody can check is a state nobody has checked.",
+      "type": "object"
     },
     "expectedBytesUtf8": {
       "description": "The exact canonical document, as UTF-8 text. Every key sorted by code point at every level, no insignificant whitespace.",

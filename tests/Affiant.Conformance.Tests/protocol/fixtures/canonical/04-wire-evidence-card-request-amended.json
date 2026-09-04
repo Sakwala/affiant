@@ -8,55 +8,55 @@
     "DK-2",
     "PV-2"
   ],
-  "note": "The same Affidavit as `canonical/wire-evidence-card-request`, with a reviewer's accepted amendments applied: `Status` changed to Retired, `Weight` cleared with an explicit null (DK-2 - null clears, an absent key leaves untouched). The bytes and the hash differ from the unamended vector, and that difference is the point: an execution grant minted for the proposal a reviewer was shown must not validate the proposal they amended.\n\nThree things about these bytes changed when the canonical form stopped minting a placeholder tag of its own and started calling the model's `amendmentTag`, so that the form and a Docket row's accepted state cannot disagree about the same decision.\n\n1. The reviewer-act binding now carries **the decision's instant** as well as its entry - `{\"decisionAt\":\"2026-09-04T09:12:00.000Z\",\"entryId\":\"8f14e45f-...\"}` in place of a single opaque string. PV-2's binding is the pointer an auditor follows years later, and a pointer that cannot say when the act happened cannot place it against the proposal's own instants.\n2. The tag in force is now a whole provenance tag - source, confidence, the note naming who amended the field, the conversation turn, the instant - not a source and a binding. That is what a Docket row carries, so it is what the canonical form carries.\n3. `Weight` is **gone** from `fields[]` rather than present holding null. It is optional, and a reviewer clearing an optional field is saying the write no longer proposes it; AF-1 says a field the operation does not propose is absent rather than present with nothing in it. A mandatory field cleared the same way would stay, tagged `Empty` at confidence 0. With `Weight` gone, `aggregateConfidence` is recomputed over what is left (AF-4) rather than left at the machine's pre-correction 0.95.",
+  "note": "The same Affidavit as `canonical/wire-evidence-card-request`, with a reviewer's accepted amendments applied: `Status` changed to Retired, `Weight` cleared with an explicit null (DK-2 — null clears, an absent key leaves untouched). The bytes and the hash differ from the unamended vector, and that difference is the point: an execution grant minted for the proposal a reviewer was shown must not validate the proposal they amended.\n\n`amendedInput` is the accepted state those amendments produce — the document the bytes below are actually taken over. It is written down rather than left implicit because SR-1 defines the canonical form over the accepted state *as the Affidavit schema defines it*, and a state nobody can hold against the schema is a state nobody has checked. It is produced by the model, not typed: the same `amendmentTag` a Docket row's accepted state is written with, so the bytes a decision produces and the row that decision writes cannot disagree.\n\nFour things to see in it. (1) The tag in force is a whole provenance tag — source, confidence, the note naming who amended the field, the instant of the decision, the conversation turn, and a `reviewer-act` binding naming the decision *and when it was made*. PV-2's binding is the pointer an auditor follows years later, and a pointer that cannot say when the act happened cannot place it against the proposal's own instants. (2) The displaced machine tag is preserved beneath it in `prior`, so a card can still show what was proposed. (3) `Weight` is gone from `fields[]` rather than present holding null: it is optional, and a reviewer clearing an optional field is saying the write no longer proposes it; AF-1 says a field the operation does not propose is absent rather than present with nothing in it. A mandatory field cleared the same way would stay, tagged `Empty` at confidence 0. (4) All three confidence numbers are recomputed over what is left (AF-4), not carried over from the proposal — an accepted state whose only field is sworn at 1 while `populatedConfidence` still read the machine's pre-correction 0.9 would contradict itself, and those are the bytes a grant binds to.",
   "input": {
-    "operationType": "WriteUpdate",
+    "protocolVersion": "0.1.0",
+    "operationType": "update",
     "entityType": "Widget",
     "entityId": "W-1",
     "fields": [
       {
         "name": "Status",
+        "kind": "enum",
         "value": "Active",
         "previousValue": null,
         "provenance": {
           "current": {
             "source": "UserStated",
             "confidence": 1,
-            "evidence": "User stated: Status",
-            "conversationTurn": null
+            "note": "User stated: Status",
+            "at": "2026-09-04T09:00:00.000Z",
+            "conversationTurn": null,
+            "binding": null
           },
           "prior": []
         },
-        "isMandatory": true,
-        "kind": "enum",
-        "allowedValues": [
-          "Active",
-          "Retired"
-        ],
-        "pattern": null
+        "isMandatory": true
       },
       {
         "name": "Weight",
+        "kind": "number",
         "value": 12.5,
         "previousValue": 10,
         "provenance": {
           "current": {
             "source": "Conversation",
             "confidence": 0.9,
-            "evidence": "Extracted from search_widget",
-            "conversationTurn": 3
+            "note": "Extracted from search_widget",
+            "at": "2026-09-04T09:00:00.000Z",
+            "conversationTurn": 3,
+            "binding": null
           },
           "prior": []
         },
-        "isMandatory": false,
-        "kind": "number",
-        "allowedValues": null,
-        "pattern": "^\\d+(\\.\\d+)?$"
+        "isMandatory": false
       }
     ],
-    "aggregateConfidence": 0.95,
-    "warnings": [],
-    "requiresConfirmation": true
+    "aggregateConfidence": 0.9,
+    "populatedConfidence": 0.9,
+    "emptyFieldCount": 0,
+    "conversationTurn": 3,
+    "createdAt": "2026-09-04T09:00:00.000Z"
   },
   "amendments": {
     "Status": "Retired",
@@ -67,6 +67,52 @@
     "decisionAt": "2026-09-04T09:12:00.000Z",
     "by": "ana"
   },
-  "expectedBytesUtf8": "{\"aggregateConfidence\":1,\"entityId\":\"W-1\",\"entityType\":\"Widget\",\"fields\":[{\"allowedValues\":[\"Active\",\"Retired\"],\"isMandatory\":true,\"kind\":\"enum\",\"name\":\"Status\",\"pattern\":null,\"previousValue\":null,\"provenance\":{\"current\":{\"at\":\"2026-09-04T09:12:00.000Z\",\"binding\":{\"kind\":\"reviewer-act\",\"ref\":{\"decisionAt\":\"2026-09-04T09:12:00.000Z\",\"entryId\":\"8f14e45f-ceea-467e-bd76-000000000001\"}},\"confidence\":1,\"conversationTurn\":null,\"note\":\"Amended by ana on Docket entry 8f14e45f-ceea-467e-bd76-000000000001\",\"source\":\"UserStated\"},\"prior\":[{\"confidence\":1,\"conversationTurn\":null,\"evidence\":\"User stated: Status\",\"source\":\"UserStated\"}]},\"value\":\"Retired\"}],\"operationType\":\"WriteUpdate\",\"requiresConfirmation\":true,\"warnings\":[]}",
-  "expectedSha256": "6da4ce05a06a73a73d614782ec337bac27384b3ee65d69a1dd00858710c7ec9d"
+  "amendedInput": {
+    "protocolVersion": "0.1.0",
+    "operationType": "update",
+    "entityType": "Widget",
+    "entityId": "W-1",
+    "fields": [
+      {
+        "name": "Status",
+        "kind": "enum",
+        "value": "Retired",
+        "previousValue": null,
+        "provenance": {
+          "current": {
+            "source": "UserStated",
+            "confidence": 1,
+            "note": "Amended by ana on Docket entry 8f14e45f-ceea-467e-bd76-000000000001",
+            "at": "2026-09-04T09:12:00.000Z",
+            "conversationTurn": 3,
+            "binding": {
+              "kind": "reviewer-act",
+              "ref": {
+                "entryId": "8f14e45f-ceea-467e-bd76-000000000001",
+                "decisionAt": "2026-09-04T09:12:00.000Z"
+              }
+            }
+          },
+          "prior": [
+            {
+              "source": "UserStated",
+              "confidence": 1,
+              "note": "User stated: Status",
+              "at": "2026-09-04T09:00:00.000Z",
+              "conversationTurn": null,
+              "binding": null
+            }
+          ]
+        },
+        "isMandatory": true
+      }
+    ],
+    "aggregateConfidence": 1,
+    "populatedConfidence": 1,
+    "emptyFieldCount": 0,
+    "conversationTurn": 3,
+    "createdAt": "2026-09-04T09:00:00.000Z"
+  },
+  "expectedBytesUtf8": "{\"aggregateConfidence\":1,\"conversationTurn\":3,\"createdAt\":\"2026-09-04T09:00:00.000Z\",\"emptyFieldCount\":0,\"entityId\":\"W-1\",\"entityType\":\"Widget\",\"fields\":[{\"isMandatory\":true,\"kind\":\"enum\",\"name\":\"Status\",\"previousValue\":null,\"provenance\":{\"current\":{\"at\":\"2026-09-04T09:12:00.000Z\",\"binding\":{\"kind\":\"reviewer-act\",\"ref\":{\"decisionAt\":\"2026-09-04T09:12:00.000Z\",\"entryId\":\"8f14e45f-ceea-467e-bd76-000000000001\"}},\"confidence\":1,\"conversationTurn\":3,\"note\":\"Amended by ana on Docket entry 8f14e45f-ceea-467e-bd76-000000000001\",\"source\":\"UserStated\"},\"prior\":[{\"at\":\"2026-09-04T09:00:00.000Z\",\"binding\":null,\"confidence\":1,\"conversationTurn\":null,\"note\":\"User stated: Status\",\"source\":\"UserStated\"}]},\"value\":\"Retired\"}],\"operationType\":\"update\",\"populatedConfidence\":1,\"protocolVersion\":\"0.1.0\"}",
+  "expectedSha256": "06ae8cd77413064ac6ac5278176d8a81faa0c6199c197a3dc83f0ed5136657e3"
 }

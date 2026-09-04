@@ -671,15 +671,15 @@
   },
   "conformance": {
     "protocolVersion": "0.1.0",
-    "$note": "The promoted conformance suite: the reference implementation's declarative fixtures and canonical byte vectors, copied here unchanged in id, file name and content (conformance/fixtures/PROMOTED_FROM names the commit). A fixture is a wiring, a sequence of acts and what must then be true; the format is conformance/RUNNER.md and the schema it is checked against is conformance/fixture.schema.json. `oracle` is the negative oracle of conformance/ORACLE.md: a non-null value names a release the fixture MUST fail against and the shipped defect it refutes, and the two must agree with ORACLE.md exactly — the lint checks that. `oracle: null` claims nothing about that release; the parity manifest of each implementation records what it actually does. The canonical vectors are a different document shape (an input, the amendments accepted on it and the exact bytes and SHA-256 they canonicalise to) and no known release violates them, so they are marked acceptedOnReview.",
+    "$note": "The promoted conformance suite: the reference implementation's declarative fixtures and canonical byte vectors, copied here unchanged in id, file name and content (conformance/fixtures/PROMOTED_FROM names the commit). A fixture is a wiring, a sequence of acts and what must then be true; the format is conformance/RUNNER.md and the schema it is checked against is conformance/fixture.schema.json. `oracle` is the negative oracle of conformance/ORACLE.md: a non-null value names a release the fixture MUST fail against and the shipped defect it refutes, and the two must agree with ORACLE.md exactly — the lint checks that. `oracle: null` claims nothing about that release; the parity manifest of each implementation records what it actually does. The canonical vectors are a different document shape (an input Affidavit, the amendments accepted on it, the accepted state those produce and the exact bytes and SHA-256 that state canonicalises to) and no known release violates them, so they are marked acceptedOnReview. Their inputs are v0.1 records: conformance/lint/lint.mjs validates every vector's `input`, and its `amendedInput` where it carries one, against schemas/0.1.0/affidavit.schema.json, because SR-1's canonical form is over the accepted state of the Affidavit as that schema defines it and the vectors promoted at v0.1.0 described a seed-shaped record it refuses.",
     "promotedFrom": {
       "repository": "Sakwala/affiant-ts",
-      "commit": "c4591eaf332483e2a5a47e161410feaed718aa29",
+      "commit": "f041cdd3af13a0c11bd5253159281c5cf2d98023",
       "package": "@affiant/core 0.1.0-alpha.0",
       "path": "packages/core/test/fixtures",
       "runner": "@affiant/core/testing — runFixture / runFixtureDir, documented in conformance/RUNNER.md",
       "date": "2026-09-04",
-      "unchanged": "Byte-identical. Ids, file names and content are the reference implementation's; a parity manifest cites an id by name, so a rename would silently change what a published document refers to."
+      "unchanged": "Byte-identical. Ids, file names and content are the reference implementation's; a parity manifest cites an id by name, so a rename would silently change what a published document refers to.", "rePromoted": "v0.1.1 re-promoted the seven canonical byte vectors from the commit above. The 56 declarative fixtures are unchanged from v0.1.0 and are byte-identical at both commits; only the vectors moved. conformance/fixtures/PROMOTED_FROM says why."
     },
     "sets": {
       "gate": "the pipeline: substance, provenance, the policy chain, deadlines, filing",
