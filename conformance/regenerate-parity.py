@@ -219,18 +219,16 @@ CAUSES = {
 # name their own release in `plannedFor`.
 SCHEDULED = {
     "gate/standing-order-by-the-book": (
-        "1.0.0-beta.1.1",
-        "The shipped default risk scorer never returns the grade the default Standing Order "
-        "threshold demands, so a by-the-book Standing Order can never fire. The fix is written and "
-        "green on branch build/risk-floor (Sakwala/affiant#53) and ships as 1.0.0-beta.1.1, which "
-        "is NOT RELEASED: this row is planned rather than fixed, because \"fixed\" names a version a "
-        "reader can install and this one cannot be installed yet. The row still fails at "
-        "1.0.0-beta.1 for what that release does not carry either way: the row a Standing Order "
-        "approves has no attestation record and no execution state, and both are planned for "
-        "1.0.0-beta.3. No declarative fixture reaches the risk floor itself -- a fixture's declared "
-        "policy binds to IApprovalPolicy, and the floor is in StandingOrderBase with the default "
-        "scorer -- so what refutes it is the framework's own RiskConfigurationTests, which arrive "
-        "with that change (Affiant.Policies.Tests, Sakwala/affiant#53).",
+        "1.0.0-beta.3",
+        "The shipped default risk scorer never returned the grade the default Standing Order "
+        "threshold demands, so a by-the-book Standing Order could never fire. That defect is "
+        "corrected in 1.0.0-beta.1.1 (Sakwala/affiant#53), which has shipped. This fixture still "
+        "fails at 1.0.0-beta.1.1, because it also asserts the row's execution state "
+        "(entry.execution: \"unexecuted\", DK-1) and its attestation record (AZ-1), and neither "
+        "lands until 1.0.0-beta.3. No declarative fixture reaches the risk floor itself -- a "
+        "fixture's declared policy binds to IApprovalPolicy, and the floor is in StandingOrderBase "
+        "with the default scorer -- so what refutes it is the framework's own "
+        "RiskConfigurationTests (Affiant.Policies.Tests.StandingOrders, Sakwala/affiant#53).",
     ),
 }
 
@@ -371,12 +369,14 @@ NOTES = (
     "The .NET conformance driver against the shipped packages at 1.0.0-beta.1, read at the "
     "rulebook's v0.1.1. "
     "Four things a reader of this document alone should know. "
-    "(1) Most rows carry disposition \"planned\" with plannedFor 1.0.0-beta.3: the gap is measured, "
-    "written down and scheduled for that release. One further row is planned for 1.0.0-beta.1.1, "
-    "whose fix is written and green on a branch but unreleased; no row is \"fixed\", because that "
-    "value names a release a reader can install. The ten fenced rows name a host-side workaround "
-    "that contains the gap today AND the 1.0.0-beta.3 release, because a fence is the honest "
-    "disposition now, not the end of the work. "
+    "(1) Every planned row carries plannedFor 1.0.0-beta.3: the gap is measured, "
+    "written down and scheduled for that release; no row is \"fixed\", because that "
+    "value names a release a reader can install. One of them, gate/standing-order-by-the-book, has "
+    "its underlying code defect already corrected in 1.0.0-beta.1.1 (Sakwala/affiant#53) -- but the "
+    "fixture also asserts an execution state and an attestation record on the row, neither of "
+    "which lands before 1.0.0-beta.3, so the row itself still fails there. The ten fenced rows name "
+    "a host-side workaround that contains the gap today AND the 1.0.0-beta.3 release, because a "
+    "fence is the honest disposition now, not the end of the work. "
     "(2) There is no injectable clock in this release: ReviewGate reads DateTimeOffset.UtcNow at "
     "four sites and the expiry sweep at a fifth, none of them injectable, and there is no "
     "TimeProvider seam anywhere in the packages. Four fixtures -- decide/expired-amendments-preserved, "
