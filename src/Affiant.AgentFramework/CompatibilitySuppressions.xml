@@ -1,0 +1,17 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!-- https://learn.microsoft.com/dotnet/fundamentals/package-validation/diagnostic-ids -->
+<!--
+  Declared break against 1.0.0-beta.1, permitted by the repository's prerelease-stability policy and
+  required by it to be declared: the inference completion port takes an injectable TimeProvider as an
+  added optional constructor parameter, so the today's-date line in its prompt reads a clock a test can
+  move. See CHANGELOG.md's upgrade notes.
+-->
+<Suppressions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.AgentFramework.Adapters.AgentFrameworkInferenceCompletionPort.#ctor(Microsoft.Extensions.AI.IChatClient,Microsoft.Extensions.Logging.ILogger{Affiant.AgentFramework.Adapters.AgentFrameworkInferenceCompletionPort})</Target>
+    <Left>lib/net10.0/Affiant.AgentFramework.dll</Left>
+    <Right>lib/net10.0/Affiant.AgentFramework.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+</Suppressions>

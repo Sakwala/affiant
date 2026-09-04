@@ -71,6 +71,15 @@ public static class ServiceCollectionExtensions
         // this default only fills the gap for hosts that use Affiant.Docket without Affiant.Core.
         services.TryAddSingleton(new AffiantCoreOptions());
 
+        // Same TryAdd reasoning as AffiantCoreOptions above: AddAffiantCore registers the system
+        // clock as the framework-wide default, and this fills the gap only for a host that uses
+        // Affiant.Docket without Affiant.Core. Whichever call runs first wins, and a host that
+        // registered its own TimeProvider beats both.
+        services.TryAddSingleton(TimeProvider.System);
+
+        // The sweep's runtime knobs (batch size), carried over from the registration-time builder.
+        services.TryAddSingleton(options.Runtime);
+
         if (options.UseInMemoryProvider)
         {
             services.AddSingleton<IDocketStore, InMemoryDocketStore>();

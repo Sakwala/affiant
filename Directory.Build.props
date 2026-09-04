@@ -31,7 +31,14 @@
        yet. -->
   <PropertyGroup>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);1591;1573;1574;1734;1735</NoWarn>
+    <!-- AFFIANT0001 is this repository's own deprecation diagnostic: members carrying
+         [Obsolete(..., DiagnosticId = "AFFIANT0001")] are kept as aliases for one release while
+         the framework's own code still reads them (DocketEntry.ReviewerUserId, superseded by
+         DocketEntry.Attestation). Suppressing it here silences it for THIS repository's
+         compilation only — a consumer referencing the package still gets the warning, which is the
+         whole point of announcing the deprecation. Remove both the suppression and the aliases
+         together in the release after the one that introduced them. -->
+    <NoWarn>$(NoWarn);1591;1573;1574;1734;1735;AFFIANT0001</NoWarn>
   </PropertyGroup>
 
   <!-- Package validation (area-8 ruling 6 / V5's "cheapest now, costly to retrofit"). Runs the

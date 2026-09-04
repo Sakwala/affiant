@@ -9,7 +9,7 @@ using Affiant.Abstractions.Transport;
 /// the entry after its own guarded transition and broadcasts <see cref="TransportEvent.DocketExpired"/>
 /// only if the entry is genuinely <see cref="ReviewStatus.Expired"/> at that moment — a concurrent
 /// decision may have already won the row instead. Used by <c>DocketExpiryService</c>'s sweep and
-/// <see cref="ReviewGate.HandleDecisionAsync"/>'s restart path (affiant#14) so this idiom cannot
+/// <c>ReviewGate.HandleDecisionAsync</c>'s restart path (affiant#14) so this idiom cannot
 /// drift between the two.
 /// </summary>
 public static class DocketExpiryBroadcaster

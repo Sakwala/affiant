@@ -33,6 +33,7 @@ public sealed class ExtensionsAIInferenceCompletionPort : IInferenceCompletionPo
 {
     private readonly IChatClient _chatClient;
     private readonly ILogger<ExtensionsAIInferenceCompletionPort> _logger;
+    private readonly TimeProvider _time;
 
     /// <summary>Creates the port over a host-supplied chat client.</summary>
     /// <param name="chatClient">
@@ -41,12 +42,19 @@ public sealed class ExtensionsAIInferenceCompletionPort : IInferenceCompletionPo
     /// never supplies tools.
     /// </param>
     /// <param name="logger">Logger for inference-call failures.</param>
+    /// <param name="timeProvider">
+    /// The clock the today's-date line of the inference prompt is read from. Defaults to
+    /// <see cref="TimeProvider.System"/>; <c>AddAffiantCore</c> registers exactly that as the DI
+    /// default, and a test that pins the clock gets a deterministic prompt.
+    /// </param>
     public ExtensionsAIInferenceCompletionPort(
         IChatClient chatClient,
-        ILogger<ExtensionsAIInferenceCompletionPort> logger)
+        ILogger<ExtensionsAIInferenceCompletionPort> logger,
+        TimeProvider? timeProvider = null)
     {
         _chatClient = chatClient ?? throw new ArgumentNullException(nameof(chatClient));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _time = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -63,7 +71,7 @@ public sealed class ExtensionsAIInferenceCompletionPort : IInferenceCompletionPo
         {
             var messages = ExtensionsAIMessageConversions.ToChatMessages(request.History);
 
-            var today = DateTime.UtcNow.Date.ToString("yyyy-MM-dd");
+            var today = _time.GetUtcNow().UtcDateTime.Date.ToString("yyyy-MM-dd");
             messages.Add(new ChatMessage(ChatRole.User, BuildPrompt(request.Strategy, today)));
 
             // No ChatOptions.Tools => FunctionInvokingChatClient (if present in the chain) has

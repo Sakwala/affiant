@@ -2,7 +2,7 @@
 <!-- https://learn.microsoft.com/dotnet/fundamentals/package-validation/diagnostic-ids -->
 <!--
   Declared breaks against 1.0.0-beta.1, permitted by the repository's prerelease-stability policy and
-  required by it to be declared. Two changes account for every entry here:
+  required by it to be declared. Three changes account for every entry here:
 
   1. The framework's stock risk formula is removed so that a Standing Order written to the documented
      contract can actually auto-approve: what counts as risk is the host's to say, and the framework
@@ -10,6 +10,9 @@
   2. A Standing Order and a Referral rule return a verdict rather than a bare requirement, so an order
      held back by one of the three checks degrades to reviewer confirmation on the record instead of
      vanishing, and so a policy can name this write's review window.
+  3. Both regain the conversation identity the specification declares an approval policy is given —
+     supplied so a policy can BIND (a member-bound Standing Order), never so it can authorize the
+     actor, which the framework does itself.
 
   See CHANGELOG.md's upgrade notes.
 -->

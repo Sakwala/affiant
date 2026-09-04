@@ -310,9 +310,8 @@ public class RegistryTelemetryTests
     {
         public Dictionary<Guid, DocketEntry> Entries { get; } = [];
 
-        /// <summary>Moves an entry's deadline into the past — the only way to reach the lapsed-TTL
-        /// path while the framework reads the clock directly (the injectable clock is a separate
-        /// change).</summary>
+        /// <summary>Moves an entry's deadline into the past, so the next read of the row is a read
+        /// of an expired one — how this double reaches the late-decision path.</summary>
         public void RewindDeadline(Guid entryId) =>
             Entries[entryId] = Entries[entryId] with { ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(-5) };
 
@@ -360,7 +359,82 @@ public class RegistryTelemetryTests
                 [.. Entries.Values.Where(e => e.Status == ReviewStatus.Pending && e.ExpiresAt <= expiresBeforeUtc)]);
 
         public Task MarkExpiredAsync(IEnumerable<Guid> entryIds, CancellationToken ct) => Task.CompletedTask;
-    }
+    
+        // ── The scoped, guarded, paged surface ──────────────────────────────
+        // The two members the decision path actually reaches are implemented; the rest refuse,
+        // because a stub that quietly answered would let a test pass against behaviour nobody wrote.
+
+        /// <summary>The guarded compare-and-set, with expiry read as state.</summary>
+        Task<DocketTransitionResult> IDocketStore.TransitionAsync(
+            Guid entryId, DocketScope scope, ReviewStatus expected, DocketTransitionPatch patch, CancellationToken ct)
+        {
+            if (!Entries.TryGetValue(entryId, out var entry))
+                return Task.FromResult<DocketTransitionResult>(new DocketTransitionResult.NotFound());
+            if (entry.Status != ReviewStatus.Pending)
+                return Task.FromResult<DocketTransitionResult>(new DocketTransitionResult.AlreadyDecided());
+            if (entry.ExpiresAt <= DateTimeOffset.UtcNow && patch.Status != ReviewStatus.Expired)
+                return Task.FromResult<DocketTransitionResult>(new DocketTransitionResult.Expired());
+
+            var moved = entry with
+            {
+                Status = patch.Status,
+                Execution = patch.Status == ReviewStatus.Approved
+                    ? patch.Execution ?? ExecutionOutcome.Unexecuted
+                    : null,
+                Decision = patch.Decision,
+                Amendments = patch.Amendments ?? entry.Amendments,
+                AmendedAffidavit = patch.AmendedAffidavit ?? entry.AmendedAffidavit,
+                Attestation = patch.Attestation ?? entry.Attestation,
+            };
+            Entries[entryId] = moved;
+            return Task.FromResult<DocketTransitionResult>(new DocketTransitionResult.Transitioned(moved));
+        }
+
+        Task<PreserveAmendmentsResult> IDocketStore.PreserveAmendmentsAsync(
+            Guid entryId, DocketScope scope, IReadOnlyDictionary<string, object?> amendments,
+            PreservedAct act, CancellationToken ct)
+        {
+            if (!Entries.TryGetValue(entryId, out var entry))
+                return Task.FromResult<PreserveAmendmentsResult>(new PreserveAmendmentsResult.NotFound());
+            var kept = entry with { PreservedAmendments = new PreservedAmendments(amendments, act.At, act.By) };
+            Entries[entryId] = kept;
+            return Task.FromResult<PreserveAmendmentsResult>(new PreserveAmendmentsResult.Preserved(kept));
+        }
+
+        Task<RecordExecutionResult> IDocketStore.RecordExecutionAsync(
+            Guid entryId, DocketScope scope, ExecutionOutcome outcome, string? detail,
+            ExecutionOutcome expected, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        Task<RecordSupersessionResult> IDocketStore.RecordSupersessionAsync(
+            Guid entryId, DocketScope scope, Guid supersededBy, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        Task<int> IDocketStore.MarkBlockedAsync(Guid entryId, BlockedMarker marker, CancellationToken ct)
+            => Task.FromResult(0);
+
+        Task<DocketPageResult<DocketEntry>> IDocketStore.ListPendingAsync(
+            DocketScope scope, DocketPage page, CancellationToken ct)
+            => Task.FromResult(new DocketPageResult<DocketEntry>([], null, false));
+
+        Task<DocketPageResult<DocketEntry>> IDocketStore.ListApprovedUnexecutedAsync(
+            DocketScope scope, DocketPage page, CancellationToken ct)
+            => Task.FromResult(new DocketPageResult<DocketEntry>([], null, false));
+
+        Task<ExpireDueResult> IDocketStore.ExpireDueAsync(
+            DateTimeOffset now, DocketScope scope, int limit, CancellationToken ct)
+            => Task.FromResult(new ExpireDueResult([], false));
+
+        Task<RetentionResult> IDocketStore.ApplyRetentionAsync(
+            DocketRetentionPolicy policy, DocketScope scope, int limit, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        Task<int> IDocketStore.PurgeTenantAsync(string tenantId, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        IAsyncEnumerable<DocketEntry> IDocketStore.ExportAsync(DocketScope scope, CancellationToken ct)
+            => throw new NotSupportedException();
+}
 
     private sealed class FixedRequirementEvaluator(ReviewRequirement requirement) : IApprovalPolicyEvaluator
     {

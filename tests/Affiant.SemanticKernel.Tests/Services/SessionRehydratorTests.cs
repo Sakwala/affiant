@@ -85,12 +85,67 @@ public sealed class SessionRehydratorTests
             return Task.FromResult(pending);
         }
 
-        public Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(DateTimeOffset expiresBeforeUtc, CancellationToken ct)
-            => throw new InvalidOperationException("not used by this test");
+        // ── The scoped, guarded, paged surface ──────────────────────────────
+        // Explicit implementations that refuse: this double exists for a test that never reaches
+        // the Docket's decision surface, and a stub that quietly answered would let such a test
+        // pass against behaviour nobody wrote.
+        Task<DocketTransitionResult> IDocketStore.TransitionAsync(
+            Guid entryId, DocketScope scope, ReviewStatus expected, DocketTransitionPatch patch, CancellationToken ct)
+            => throw new NotSupportedException();
 
-        public Task MarkExpiredAsync(IEnumerable<Guid> entryIds, CancellationToken ct)
-            => throw new InvalidOperationException("not used by this test");
-    }
+        Task<PreserveAmendmentsResult> IDocketStore.PreserveAmendmentsAsync(
+            Guid entryId, DocketScope scope, IReadOnlyDictionary<string, object?> amendments,
+            PreservedAct act, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        Task<RecordExecutionResult> IDocketStore.RecordExecutionAsync(
+            Guid entryId, DocketScope scope, ExecutionOutcome outcome, string? detail,
+            ExecutionOutcome expected, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        Task<RecordSupersessionResult> IDocketStore.RecordSupersessionAsync(
+            Guid entryId, DocketScope scope, Guid supersededBy, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        Task<int> IDocketStore.MarkBlockedAsync(Guid entryId, BlockedMarker marker, CancellationToken ct)
+            => Task.FromResult(0);
+
+        /// <summary>Pending entries in filing order, unpaged — this double holds a handful of rows.</summary>
+        Task<DocketPageResult<DocketEntry>> IDocketStore.ListPendingAsync(
+            DocketScope scope, DocketPage page, CancellationToken ct)
+        {
+            IReadOnlyList<DocketEntry> items = Entries
+                .Where(e => DocketRow.InScope(e, scope) && e.Status == ReviewStatus.Pending)
+                .OrderBy(e => e.CreatedAt)
+                .ToList();
+            return Task.FromResult(new DocketPageResult<DocketEntry>(items, null, false));
+        }
+
+        /// <summary>Approved-but-unreported entries in filing order — the second half of the rehydration order.</summary>
+        Task<DocketPageResult<DocketEntry>> IDocketStore.ListApprovedUnexecutedAsync(
+            DocketScope scope, DocketPage page, CancellationToken ct)
+        {
+            IReadOnlyList<DocketEntry> items = Entries
+                .Where(e => DocketRow.InScope(e, scope) && DocketRow.IsApprovedUnexecuted(e))
+                .OrderBy(e => e.CreatedAt)
+                .ToList();
+            return Task.FromResult(new DocketPageResult<DocketEntry>(items, null, false));
+        }
+
+        Task<ExpireDueResult> IDocketStore.ExpireDueAsync(
+            DateTimeOffset now, DocketScope scope, int limit, CancellationToken ct)
+            => Task.FromResult(new ExpireDueResult([], false));
+
+        Task<RetentionResult> IDocketStore.ApplyRetentionAsync(
+            DocketRetentionPolicy policy, DocketScope scope, int limit, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        Task<int> IDocketStore.PurgeTenantAsync(string tenantId, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        IAsyncEnumerable<DocketEntry> IDocketStore.ExportAsync(DocketScope scope, CancellationToken ct)
+            => throw new NotSupportedException();
+}
 
     private static DocketEntry CreateEntry(
         Guid entryId,

@@ -113,6 +113,13 @@ public static class ServiceCollectionExtensions
             services.Insert(0, ServiceDescriptor.Singleton<IHostedService, AffiantWireUpValidator>());
         }
 
+        // The framework's one clock. Every framework component that needs the current instant —
+        // ReviewGate's deadlines, the docket stores' expiry reads, the expiry sweep, the session
+        // stores' stamps, the inference prompt's today's-date line — takes a TimeProvider and reads
+        // it from here. TryAdd so a host (or a test) that registered its own wins; the default is
+        // the system clock, so a host that does nothing sees no change in behaviour.
+        services.TryAddSingleton(TimeProvider.System);
+
         // Tool descriptor registry — always present once framework DI is added
         services.TryAddSingleton<IAffiantToolRegistry, AffiantToolRegistry>();
 

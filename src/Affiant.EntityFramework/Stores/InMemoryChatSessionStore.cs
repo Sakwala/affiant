@@ -11,17 +11,23 @@ namespace Affiant.EntityFramework.Stores;
 /// in a new package, mirroring <c>InMemoryDocketStore</c>'s placement in <c>Affiant.Docket</c>
 /// alongside its own SQL siblings despite carrying no EF dependency either.
 /// </summary>
-public sealed class InMemoryChatSessionStore : IChatSessionStore
+/// <param name="timeProvider">
+/// The clock this store stamps session creation and last-activity instants from. Defaults to
+/// <see cref="TimeProvider.System"/>; DI supplies whatever the host registered, and a test
+/// substitutes a fake.
+/// </param>
+public sealed class InMemoryChatSessionStore(TimeProvider? timeProvider = null) : IChatSessionStore
 {
     private readonly ConcurrentDictionary<string, ChatSession> _sessions = new();
     private readonly ConcurrentDictionary<string, List<AffiantChatMessage>> _messages = new();
     private readonly object _messagesLock = new();
+    private readonly TimeProvider _time = timeProvider ?? TimeProvider.System;
 
     public Task<ChatSession> CreateAsync(string tenantId, string userId, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
 
-        var now = DateTimeOffset.UtcNow;
+        var now = _time.GetUtcNow();
         var session = new ChatSession(Guid.NewGuid().ToString("N"), tenantId, userId, now, now);
         _sessions[session.SessionId] = session;
         return Task.FromResult(session);
@@ -89,6 +95,6 @@ public sealed class InMemoryChatSessionStore : IChatSessionStore
     private void TouchLastActivity(string sessionId)
     {
         if (_sessions.TryGetValue(sessionId, out var session))
-            _sessions[sessionId] = session with { LastActivityAt = DateTimeOffset.UtcNow };
+            _sessions[sessionId] = session with { LastActivityAt = _time.GetUtcNow() };
     }
 }

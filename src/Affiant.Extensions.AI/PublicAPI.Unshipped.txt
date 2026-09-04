@@ -1,1 +1,3 @@
 #nullable enable
+*REMOVED*Affiant.Extensions.AI.Adapters.ExtensionsAIInferenceCompletionPort.ExtensionsAIInferenceCompletionPort(Microsoft.Extensions.AI.IChatClient! chatClient, Microsoft.Extensions.Logging.ILogger<Affiant.Extensions.AI.Adapters.ExtensionsAIInferenceCompletionPort!>! logger) -> void
+Affiant.Extensions.AI.Adapters.ExtensionsAIInferenceCompletionPort.ExtensionsAIInferenceCompletionPort(Microsoft.Extensions.AI.IChatClient! chatClient, Microsoft.Extensions.Logging.ILogger<Affiant.Extensions.AI.Adapters.ExtensionsAIInferenceCompletionPort!>! logger, System.TimeProvider? timeProvider = null) -> void

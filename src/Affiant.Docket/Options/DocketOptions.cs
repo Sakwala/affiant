@@ -34,6 +34,21 @@ public sealed class DocketOptions
 {
     internal bool UseInMemoryProvider { get; private set; }
 
+    internal AffiantDocketOptions Runtime { get; } = new();
+
+    /// <summary>
+    /// The maximum number of due entries one <see cref="Affiant.Docket.Services.DocketExpiryService"/>
+    /// tick transitions to <c>Expired</c>. Default:
+    /// <see cref="AffiantDocketOptions.DefaultExpirySweepBatchSize"/>. See
+    /// <see cref="AffiantDocketOptions.ExpirySweepBatchSize"/>, which this writes through to.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">The value is less than 1.</exception>
+    public int ExpirySweepBatchSize
+    {
+        get => Runtime.ExpirySweepBatchSize;
+        set => Runtime.ExpirySweepBatchSize = value;
+    }
+
     /// <summary>
     /// Registers <see cref="Affiant.Docket.Stores.InMemoryDocketStore"/> as the process-local
     /// <c>IDocketStore</c> — the only backend this package still implements. Nothing is persisted
