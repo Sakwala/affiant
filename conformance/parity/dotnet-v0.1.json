@@ -2,8 +2,8 @@
   "schemaVersion": "0.1.0",
   "implementation": "dotnet",
   "version": "1.0.0-beta.1",
-  "protocolTag": "f0d4ad0b5f0010676a96719682ea3920f0b1baf3",
-  "producedAt": "2026-09-04T02:10:55.232Z",
+  "protocolTag": "19c574726445c312d6f295f8c9e8851910f05836",
+  "producedAt": "2026-09-04T02:44:52.526Z",
   "runLog": "conformance/results/dotnet-1.0.0-beta.1.json (Sakwala/affiant)",
   "failing": [
     {
@@ -11,8 +11,9 @@
       "rules": [
         "GT-3"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. Substance is checked by the compliance harness at test time only. At run time the gate files whatever Affidavit it is handed, including one whose every field is tagged Empty -- a proposal that swears to nothing reaches a reviewer as though it swore to something.",
+      "disposition": "planned",
+      "detail": "Substance is checked by the compliance harness at test time only. At run time the gate files whatever Affidavit it is handed, including one whose every field is tagged Empty -- a proposal that swears to nothing reaches a reviewer as though it swore to something.",
+      "plannedFor": "1.0.0-beta.3",
       "oracle": true
     },
     {
@@ -20,8 +21,9 @@
       "rules": [
         "GT-3"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. Substance is checked by the compliance harness at test time only. At run time the gate files whatever Affidavit it is handed, including one whose every field is tagged Empty -- a proposal that swears to nothing reaches a reviewer as though it swore to something.",
+      "disposition": "planned",
+      "detail": "Substance is checked by the compliance harness at test time only. At run time the gate files whatever Affidavit it is handed, including one whose every field is tagged Empty -- a proposal that swears to nothing reaches a reviewer as though it swore to something.",
+      "plannedFor": "1.0.0-beta.3",
       "oracle": true
     },
     {
@@ -29,8 +31,9 @@
       "rules": [
         "GT-4"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. The deadline is stamped from one global default before the policy chain runs, and a policy's verdict is a bare enum that cannot name one. A re-file with the same id broadcasts a card carrying a freshly computed deadline while the row keeps its original, so a reviewer can be shown a deadline the record does not hold.",
+      "disposition": "planned",
+      "detail": "The deadline is stamped from one global default before the policy chain runs, and a policy's verdict is a bare enum that cannot name one. A re-file with the same id broadcasts a card carrying a freshly computed deadline while the row keeps its original, so a reviewer can be shown a deadline the record does not hold.",
+      "plannedFor": "1.0.0-beta.3",
       "oracle": true
     },
     {
@@ -38,8 +41,9 @@
       "rules": [
         "GT-4"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. The deadline is stamped from one global default before the policy chain runs, and a policy's verdict is a bare enum that cannot name one. A re-file with the same id broadcasts a card carrying a freshly computed deadline while the row keeps its original, so a reviewer can be shown a deadline the record does not hold.",
+      "disposition": "planned",
+      "detail": "The deadline is stamped from one global default before the policy chain runs, and a policy's verdict is a bare enum that cannot name one. A re-file with the same id broadcasts a card carrying a freshly computed deadline while the row keeps its original, so a reviewer can be shown a deadline the record does not hold.",
+      "plannedFor": "1.0.0-beta.3",
       "oracle": true
     },
     {
@@ -47,8 +51,9 @@
       "rules": [
         "GT-4"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. The Evidence Card carries a docket id, an Affidavit, a deadline and prior amendments -- and no protocol version. A consumer cannot tell which version of the envelope it received, which is checked on every filing and so fails on every filing."
+      "disposition": "planned",
+      "detail": "The Evidence Card carries a docket id, an Affidavit, a deadline and prior amendments -- and no protocol version. A consumer cannot tell which version of the envelope it received, which is checked on every filing and so fails on every filing.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "gate/standing-order-by-the-book",
@@ -57,7 +62,7 @@
         "AZ-1"
       ],
       "disposition": "fixed",
-      "detail": "The shipped default risk scorer never returns the grade the default Standing Order threshold demands, so a by-the-book Standing Order can never fire -- corrected by the risk-floor change in 1.0.0-beta.1.1 (Sakwala/affiant#53). This row remains open at 1.0.0-beta.1 for a second reason that release does not close: the row the Standing Order approves still carries no attestation and no execution state.",
+      "detail": "The shipped default risk scorer never returns the grade the default Standing Order threshold demands, so a by-the-book Standing Order can never fire. The risk-floor change in 1.0.0-beta.1.1 (Sakwala/affiant#53) closes that. The row still fails at 1.0.0-beta.1 for what that release does not carry either way: the row a Standing Order approves has no attestation record and no execution state, and both are planned for 1.0.0-beta.3. No declarative fixture reaches the risk floor itself -- a fixture's declared policy binds to IApprovalPolicy, and the floor is in StandingOrderBase with the default scorer -- so what refutes it is the framework's own RiskConfigurationTests, which arrive with that change (Affiant.Policies.Tests, Sakwala/affiant#53).",
       "fixedIn": "1.0.0-beta.1.1",
       "oracle": true
     },
@@ -66,24 +71,27 @@
       "rules": [
         "GT-5"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log."
+      "disposition": "planned",
+      "detail": "Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "gate/standing-order-threshold-over",
       "rules": [
         "GT-5"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. A policy cannot declare a risk ceiling or the provenance sources it predicates on: IApprovalPolicy returns a bare requirement and nothing else. A Standing Order that should be held back -- over its threshold, on an unbound input, or with a mandatory field left empty -- fires anyway, and approves with no person present."
+      "disposition": "planned",
+      "detail": "A policy cannot declare a risk ceiling or the provenance sources it predicates on: IApprovalPolicy returns a bare requirement and nothing else. A Standing Order that should be held back -- over its threshold, on an unbound input, or with a mandatory field left empty -- fires anyway, and approves with no person present.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "gate/standing-order-unbound-input",
       "rules": [
         "PV-4"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. A policy cannot declare a risk ceiling or the provenance sources it predicates on: IApprovalPolicy returns a bare requirement and nothing else. A Standing Order that should be held back -- over its threshold, on an unbound input, or with a mandatory field left empty -- fires anyway, and approves with no person present."
+      "disposition": "planned",
+      "detail": "A policy cannot declare a risk ceiling or the provenance sources it predicates on: IApprovalPolicy returns a bare requirement and nothing else. A Standing Order that should be held back -- over its threshold, on an unbound input, or with a mandatory field left empty -- fires anyway, and approves with no person present.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "gate/standing-order-bound-input",
@@ -91,16 +99,18 @@
         "PV-4",
         "AZ-1"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log."
+      "disposition": "planned",
+      "detail": "Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "gate/multiparty-blocked",
       "rules": [
         "AZ-4"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. A row has no blocked marker, and a MultiParty verdict is routed to the same single-card branch as ReviewerConfirmation -- one approval satisfies a joint requirement. A referral is recorded as Deferred with nothing a card can show.",
+      "disposition": "planned",
+      "detail": "A row has no blocked marker, and a MultiParty verdict is routed to the same single-card branch as ReviewerConfirmation -- one approval satisfies a joint requirement. A referral is recorded as Deferred with nothing a card can show.",
+      "plannedFor": "1.0.0-beta.3",
       "oracle": true
     },
     {
@@ -108,8 +118,9 @@
       "rules": [
         "AZ-4"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. A row has no blocked marker, and a MultiParty verdict is routed to the same single-card branch as ReviewerConfirmation -- one approval satisfies a joint requirement. A referral is recorded as Deferred with nothing a card can show."
+      "disposition": "planned",
+      "detail": "A row has no blocked marker, and a MultiParty verdict is routed to the same single-card branch as ReviewerConfirmation -- one approval satisfies a joint requirement. A referral is recorded as Deferred with nothing a card can show.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "gate/coverage-refused-declared",
@@ -120,6 +131,7 @@
       "disposition": "fenced",
       "detail": "There is no coverage concept in the core. The only coverage refusal in the release is an internal wire-up audit inside the two adapter packages; nothing marks a filed row as blocked on coverage and there is no runtime refusal, so a tool the gate cannot intercept produces a proposal that looks like any other.",
       "fence": "Wire the tool catalogue through WithAffiant in Affiant.Extensions.AI or Affiant.AgentFramework: its HostedToolAudit refuses a tool list carrying provider-executed or hosted tools at start-up, before anything can be proposed. That closes the wire-up case only -- there is still no runtime refusal and no marker on a filed row.",
+      "plannedFor": "1.0.0-beta.3",
       "oracle": true
     },
     {
@@ -132,6 +144,7 @@
       "disposition": "fenced",
       "detail": "Every Affidavit the built-in projection produces is create-shaped: the entity id is hard-coded null and the previous value is null on every field, whatever the operation. A card for an update therefore cannot show what is changing, which is most of what a reviewer is being asked to check.",
       "fence": "Register a host IAffidavitProjection in place of the schema-driven default. The interface is public and the registration replaces it; a host projection can set the entity id and fill each field's previous value from its own store before the proposal is filed.",
+      "plannedFor": "1.0.0-beta.3",
       "oracle": true
     },
     {
@@ -139,8 +152,9 @@
       "rules": [
         "AF-3"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. The Affidavit carries one confidence number and it is the mean over the non-Empty fields, so a mostly-empty Affidavit can report a high one. The record has no populatedConfidence and no empty-field count at all, so a reader cannot tell a confident record from a sparse one."
+      "disposition": "planned",
+      "detail": "The Affidavit carries one confidence number and it is the mean over the non-Empty fields, so a mostly-empty Affidavit can report a high one. The record has no populatedConfidence and no empty-field count at all, so a reader cannot tell a confident record from a sparse one.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "gate/inference-conversation-and-inferred",
@@ -153,7 +167,8 @@
       ],
       "disposition": "fenced",
       "detail": "Every Affidavit the built-in projection produces is create-shaped: the entity id is hard-coded null and the previous value is null on every field, whatever the operation. A card for an update therefore cannot show what is changing, which is most of what a reviewer is being asked to check.",
-      "fence": "Register a host IAffidavitProjection in place of the schema-driven default. The interface is public and the registration replaces it; a host projection can set the entity id and fill each field's previous value from its own store before the proposal is filed."
+      "fence": "Register a host IAffidavitProjection in place of the schema-driven default. The interface is public and the registration replaces it; a host projection can set the entity id and fill each field's previous value from its own store before the proposal is filed.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "gate/threshold-without-scorer",
@@ -161,8 +176,9 @@
         "CV-1",
         "GT-5"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. A wiring the gate should refuse is accepted. A policy cannot declare a threshold, so there is no declaration for the gate to notice is unbacked by a risk scorer, and the silent non-fire that follows is indistinguishable from a policy that had no opinion."
+      "disposition": "planned",
+      "detail": "A wiring the gate should refuse is accepted. A policy cannot declare a threshold, so there is no declaration for the gate to notice is unbacked by a risk scorer, and the silent non-fire that follows is indistinguishable from a policy that had no opinion.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "decide/approve",
@@ -171,8 +187,9 @@
         "AZ-1",
         "AZ-2"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log.",
+      "disposition": "planned",
+      "detail": "Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log.",
+      "plannedFor": "1.0.0-beta.3",
       "oracle": true
     },
     {
@@ -181,24 +198,27 @@
         "DK-1",
         "AZ-1"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log."
+      "disposition": "planned",
+      "detail": "Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "decide/second-decision-refused",
       "rules": [
         "DK-1"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log."
+      "disposition": "planned",
+      "detail": "Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "decide/expired-amendments-preserved",
       "rules": [
         "DK-1"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. There is no clock seam anywhere in the release: ReviewGate reads DateTimeOffset.UtcNow at four sites and the expiry sweep at a fifth, none of them injectable. A row past its deadline reads pending until a background sweep happens to run, and a decision that arrives late is accepted rather than refused."
+      "disposition": "planned",
+      "detail": "There is no clock seam anywhere in the release: ReviewGate reads DateTimeOffset.UtcNow at four sites and the expiry sweep at a fifth, none of them injectable. A row past its deadline reads pending until a background sweep happens to run, and a decision that arrives late is accepted rather than refused.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "decide/blocked-refused",
@@ -206,8 +226,9 @@
         "AZ-4",
         "DK-1"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. A row has no blocked marker, and a MultiParty verdict is routed to the same single-card branch as ReviewerConfirmation -- one approval satisfies a joint requirement. A referral is recorded as Deferred with nothing a card can show."
+      "disposition": "planned",
+      "detail": "A row has no blocked marker, and a MultiParty verdict is routed to the same single-card branch as ReviewerConfirmation -- one approval satisfies a joint requirement. A referral is recorded as Deferred with nothing a card can show.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "decide/amend-recompute",
@@ -219,8 +240,9 @@
         "PV-2",
         "SR-1"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log.",
+      "disposition": "planned",
+      "detail": "Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log.",
+      "plannedFor": "1.0.0-beta.3",
       "oracle": true
     },
     {
@@ -232,6 +254,7 @@
       "disposition": "fenced",
       "detail": "The decision path consults no authorization port. ReviewGate.HandleDecisionAsync transitions any row whose id the caller knows -- from another tenant, or with no principal resolved at all -- and a host's authorization policy is never asked.",
       "fence": "Authorize in the host before calling HandleDecisionAsync: resolve the principal, compare it and its tenant against the row's UserId and TenantId (read the row with IDocketStore.GetDocketEntryAsync first), and refuse there. The framework will not do it, and there is no seam that makes it.",
+      "plannedFor": "1.0.0-beta.3",
       "oracle": true
     },
     {
@@ -242,6 +265,7 @@
       "disposition": "fenced",
       "detail": "The decision path consults no authorization port. ReviewGate.HandleDecisionAsync transitions any row whose id the caller knows -- from another tenant, or with no principal resolved at all -- and a host's authorization policy is never asked.",
       "fence": "Authorize in the host before calling HandleDecisionAsync: resolve the principal, compare it and its tenant against the row's UserId and TenantId (read the row with IDocketStore.GetDocketEntryAsync first), and refuse there. The framework will not do it, and there is no seam that makes it.",
+      "plannedFor": "1.0.0-beta.3",
       "oracle": true
     },
     {
@@ -252,7 +276,8 @@
       ],
       "disposition": "fenced",
       "detail": "The decision path consults no authorization port. ReviewGate.HandleDecisionAsync transitions any row whose id the caller knows -- from another tenant, or with no principal resolved at all -- and a host's authorization policy is never asked.",
-      "fence": "Authorize in the host before calling HandleDecisionAsync: resolve the principal, compare it and its tenant against the row's UserId and TenantId (read the row with IDocketStore.GetDocketEntryAsync first), and refuse there. The framework will not do it, and there is no seam that makes it."
+      "fence": "Authorize in the host before calling HandleDecisionAsync: resolve the principal, compare it and its tenant against the row's UserId and TenantId (read the row with IDocketStore.GetDocketEntryAsync first), and refuse there. The framework will not do it, and there is no seam that makes it.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "decide/relay-member-via-relay",
@@ -260,16 +285,18 @@
         "AZ-3",
         "AZ-1"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log."
+      "disposition": "planned",
+      "detail": "Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "decide/relay-without-assertion-refused",
       "rules": [
         "AZ-3"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. There is no identity model for a machine caller speaking for a person. A decision carries a single UserId string, so a relay asserting a member's identity and a member's own authenticated session are the same thing on the record."
+      "disposition": "planned",
+      "detail": "There is no identity model for a machine caller speaking for a person. A decision carries a single UserId string, so a relay asserting a member's identity and a member's own authenticated session are the same thing on the record.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "decide/execution-executed",
@@ -277,8 +304,9 @@
         "DK-1",
         "AZ-5"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log.",
+      "disposition": "planned",
+      "detail": "Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log.",
+      "plannedFor": "1.0.0-beta.3",
       "oracle": true
     },
     {
@@ -286,8 +314,9 @@
       "rules": [
         "DK-1"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log.",
+      "disposition": "planned",
+      "detail": "Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log.",
+      "plannedFor": "1.0.0-beta.3",
       "oracle": true
     },
     {
@@ -296,8 +325,9 @@
         "DK-1",
         "AZ-5"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. There is no execution state. Nothing records whether an approved write actually ran, so an approved-but-failed write is indistinguishable on the record from an approved-and-committed one, and there is no entry point for a host to report either."
+      "disposition": "planned",
+      "detail": "There is no execution state. Nothing records whether an approved write actually ran, so an approved-but-failed write is indistinguishable on the record from an approved-and-committed one, and there is no entry point for a host to report either.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "decide/resubmit-prefills",
@@ -306,16 +336,18 @@
         "DK-2",
         "PV-2"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. There is no clock seam anywhere in the release: ReviewGate reads DateTimeOffset.UtcNow at four sites and the expiry sweep at a fifth, none of them injectable. A row past its deadline reads pending until a background sweep happens to run, and a decision that arrives late is accepted rather than refused."
+      "disposition": "planned",
+      "detail": "There is no clock seam anywhere in the release: ReviewGate reads DateTimeOffset.UtcNow at four sites and the expiry sweep at a fifth, none of them injectable. A row past its deadline reads pending until a background sweep happens to run, and a decision that arrives late is accepted rather than refused.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "decide/executed-only-through-a-report",
       "rules": [
         "AZ-7"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log."
+      "disposition": "planned",
+      "detail": "Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "decide/authorization-throws",
@@ -325,7 +357,8 @@
       ],
       "disposition": "fenced",
       "detail": "The decision path consults no authorization port. ReviewGate.HandleDecisionAsync transitions any row whose id the caller knows -- from another tenant, or with no principal resolved at all -- and a host's authorization policy is never asked.",
-      "fence": "Authorize in the host before calling HandleDecisionAsync: resolve the principal, compare it and its tenant against the row's UserId and TenantId (read the row with IDocketStore.GetDocketEntryAsync first), and refuse there. The framework will not do it, and there is no seam that makes it."
+      "fence": "Authorize in the host before calling HandleDecisionAsync: resolve the principal, compare it and its tenant against the row's UserId and TenantId (read the row with IDocketStore.GetDocketEntryAsync first), and refuse there. The framework will not do it, and there is no seam that makes it.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "decide/execution-recorded-once",
@@ -334,8 +367,9 @@
         "DK-4",
         "AZ-5"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log."
+      "disposition": "planned",
+      "detail": "Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "decide/execution-second-report-refused",
@@ -344,8 +378,9 @@
         "DK-4",
         "AZ-5"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log."
+      "disposition": "planned",
+      "detail": "Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "sequence-a/approve-round-trip",
@@ -357,8 +392,9 @@
         "AZ-5",
         "SR-1"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log."
+      "disposition": "planned",
+      "detail": "Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "sequence-a/reject-round-trip",
@@ -366,8 +402,9 @@
         "DK-1",
         "AZ-1"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log."
+      "disposition": "planned",
+      "detail": "Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "sequence-a/typed-inputs-on-the-card",
@@ -376,8 +413,9 @@
         "SR-4",
         "AF-2"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. The Affidavit carries one confidence number and it is the mean over the non-Empty fields, so a mostly-empty Affidavit can report a high one. The record has no populatedConfidence and no empty-field count at all, so a reader cannot tell a confident record from a sparse one.",
+      "disposition": "planned",
+      "detail": "The Affidavit carries one confidence number and it is the mean over the non-Empty fields, so a mostly-empty Affidavit can report a high one. The record has no populatedConfidence and no empty-field count at all, so a reader cannot tell a confident record from a sparse one.",
+      "plannedFor": "1.0.0-beta.3",
       "oracle": true
     },
     {
@@ -388,8 +426,9 @@
         "PV-3",
         "GT-1"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. A provenance tag carries a source, a confidence, an evidence string and a conversation turn, and nothing that points at a record an auditor could re-fetch. No value is ever bound, so nothing can tell a value checked against a system of record from one a model asserted."
+      "disposition": "planned",
+      "detail": "A provenance tag carries a source, a confidence, an evidence string and a conversation turn, and nothing that points at a record an auditor could re-fetch. No value is ever bound, so nothing can tell a value checked against a system of record from one a model asserted.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "sequence-a/mandatory-field-left-empty",
@@ -398,8 +437,9 @@
         "AF-2",
         "GT-5"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. A policy cannot declare a risk ceiling or the provenance sources it predicates on: IApprovalPolicy returns a bare requirement and nothing else. A Standing Order that should be held back -- over its threshold, on an unbound input, or with a mandatory field left empty -- fires anyway, and approves with no person present.",
+      "disposition": "planned",
+      "detail": "A policy cannot declare a risk ceiling or the provenance sources it predicates on: IApprovalPolicy returns a bare requirement and nothing else. A Standing Order that should be held back -- over its threshold, on an unbound input, or with a mandatory field left empty -- fires anyway, and approves with no person present.",
+      "plannedFor": "1.0.0-beta.3",
       "oracle": true
     },
     {
@@ -409,8 +449,9 @@
         "AF-2",
         "DK-1"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log."
+      "disposition": "planned",
+      "detail": "Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "sequence-a/expiry-then-resubmit",
@@ -419,8 +460,9 @@
         "GT-4",
         "CV-4"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. There is no clock seam anywhere in the release: ReviewGate reads DateTimeOffset.UtcNow at four sites and the expiry sweep at a fifth, none of them injectable. A row past its deadline reads pending until a background sweep happens to run, and a decision that arrives late is accepted rather than refused."
+      "disposition": "planned",
+      "detail": "There is no clock seam anywhere in the release: ReviewGate reads DateTimeOffset.UtcNow at four sites and the expiry sweep at a fifth, none of them injectable. A row past its deadline reads pending until a background sweep happens to run, and a decision that arrives late is accepted rather than refused.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "sequence-a/late-amendments-preserved",
@@ -430,8 +472,9 @@
         "PV-2",
         "PV-3"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. There is no clock seam anywhere in the release: ReviewGate reads DateTimeOffset.UtcNow at four sites and the expiry sweep at a fifth, none of them injectable. A row past its deadline reads pending until a background sweep happens to run, and a decision that arrives late is accepted rather than refused."
+      "disposition": "planned",
+      "detail": "There is no clock seam anywhere in the release: ReviewGate reads DateTimeOffset.UtcNow at four sites and the expiry sweep at a fifth, none of them injectable. A row past its deadline reads pending until a background sweep happens to run, and a decision that arrives late is accepted rather than refused.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "sequence-a/interleaved-conversations",
@@ -441,6 +484,7 @@
       "disposition": "fenced",
       "detail": "Every Affidavit the built-in projection produces is create-shaped: the entity id is hard-coded null and the previous value is null on every field, whatever the operation. A card for an update therefore cannot show what is changing, which is most of what a reviewer is being asked to check.",
       "fence": "Register a host IAffidavitProjection in place of the schema-driven default. The interface is public and the registration replaces it; a host projection can set the entity id and fill each field's previous value from its own store before the proposal is filed.",
+      "plannedFor": "1.0.0-beta.3",
       "oracle": true
     },
     {
@@ -449,8 +493,9 @@
         "GT-4",
         "DK-1"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. The deadline is stamped from one global default before the policy chain runs, and a policy's verdict is a bare enum that cannot name one. A re-file with the same id broadcasts a card carrying a freshly computed deadline while the row keeps its original, so a reviewer can be shown a deadline the record does not hold.",
+      "disposition": "planned",
+      "detail": "The deadline is stamped from one global default before the policy chain runs, and a policy's verdict is a bare enum that cannot name one. A re-file with the same id broadcasts a card carrying a freshly computed deadline while the row keeps its original, so a reviewer can be shown a deadline the record does not hold.",
+      "plannedFor": "1.0.0-beta.3",
       "oracle": true
     },
     {
@@ -458,8 +503,9 @@
       "rules": [
         "DK-3"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. The expiry sweep loads every pending entry on every instance and reports nothing: it takes no limit, no cursor and no scope, and returns void. A docket large enough to matter is swept in one unbounded read.",
+      "disposition": "planned",
+      "detail": "The expiry sweep loads every pending entry on every instance and reports nothing: it takes no limit, no cursor and no scope, and returns void. A docket large enough to matter is swept in one unbounded read.",
+      "plannedFor": "1.0.0-beta.3",
       "oracle": true
     },
     {
@@ -468,8 +514,9 @@
         "DK-5",
         "AZ-5"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. The rehydration surface re-broadcasts a session's pending cards and returns void. There is no page, no cursor, no more flag and no order a reconnecting client can read, so a client cannot tell a complete rehydration from a partial one."
+      "disposition": "planned",
+      "detail": "The rehydration surface re-broadcasts a session's pending cards and returns void. There is no page, no cursor, no more flag and no order a reconnecting client can read, so a client cannot tell a complete rehydration from a partial one.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "sequence-a/coverage-refused-at-wire-up",
@@ -479,7 +526,8 @@
       ],
       "disposition": "fenced",
       "detail": "There is no coverage concept in the core. The only coverage refusal in the release is an internal wire-up audit inside the two adapter packages; nothing marks a filed row as blocked on coverage and there is no runtime refusal, so a tool the gate cannot intercept produces a proposal that looks like any other.",
-      "fence": "Wire the tool catalogue through WithAffiant in Affiant.Extensions.AI or Affiant.AgentFramework: its HostedToolAudit refuses a tool list carrying provider-executed or hosted tools at start-up, before anything can be proposed. That closes the wire-up case only -- there is still no runtime refusal and no marker on a filed row."
+      "fence": "Wire the tool catalogue through WithAffiant in Affiant.Extensions.AI or Affiant.AgentFramework: its HostedToolAudit refuses a tool list carrying provider-executed or hosted tools at start-up, before anything can be proposed. That closes the wire-up case only -- there is still no runtime refusal and no marker on a filed row.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "sequence-a/mandatory-field-empty-blocks-standing-order",
@@ -488,8 +536,9 @@
         "AF-1",
         "AF-2"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. A policy cannot declare a risk ceiling or the provenance sources it predicates on: IApprovalPolicy returns a bare requirement and nothing else. A Standing Order that should be held back -- over its threshold, on an unbound input, or with a mandatory field left empty -- fires anyway, and approves with no person present."
+      "disposition": "planned",
+      "detail": "A policy cannot declare a risk ceiling or the provenance sources it predicates on: IApprovalPolicy returns a bare requirement and nothing else. A Standing Order that should be held back -- over its threshold, on an unbound input, or with a mandatory field left empty -- fires anyway, and approves with no person present.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "sequence-a/optional-field-empty-standing-order-fires",
@@ -498,8 +547,9 @@
         "AF-1",
         "AZ-1"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log."
+      "disposition": "planned",
+      "detail": "Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "sequence-c/relay-auto-approve-bound-external",
@@ -509,8 +559,9 @@
         "PV-2",
         "GT-1"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log."
+      "disposition": "planned",
+      "detail": "Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "sequence-c/relayed-decision-member-via-relay",
@@ -518,8 +569,9 @@
         "AZ-1",
         "AZ-3"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log."
+      "disposition": "planned",
+      "detail": "Nothing on a Docket row says who or what approved the write. DocketEntry has twelve properties and an attestation is not among them, so an approved row carries no attributable record of who is answerable for it; a Standing Order's approver id is computed by StandingOrderBase and only written to the log.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "sequence-c/unbound-external-asks-a-person",
@@ -527,8 +579,9 @@
         "PV-4",
         "PV-5"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. A policy cannot declare a risk ceiling or the provenance sources it predicates on: IApprovalPolicy returns a bare requirement and nothing else. A Standing Order that should be held back -- over its threshold, on an unbound input, or with a mandatory field left empty -- fires anyway, and approves with no person present."
+      "disposition": "planned",
+      "detail": "A policy cannot declare a risk ceiling or the provenance sources it predicates on: IApprovalPolicy returns a bare requirement and nothing else. A Standing Order that should be held back -- over its threshold, on an unbound input, or with a mandatory field left empty -- fires anyway, and approves with no person present.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "sequence-c/relay-may-not-attest-member",
@@ -536,8 +589,9 @@
         "AZ-3",
         "AZ-2"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. There is no identity model for a machine caller speaking for a person. A decision carries a single UserId string, so a relay asserting a member's identity and a member's own authenticated session are the same thing on the record."
+      "disposition": "planned",
+      "detail": "There is no identity model for a machine caller speaking for a person. A decision carries a single UserId string, so a relay asserting a member's identity and a member's own authenticated session are the same thing on the record.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "sequence-c/relay-decision-other-tenant-not-found",
@@ -546,7 +600,8 @@
       ],
       "disposition": "fenced",
       "detail": "The decision path consults no authorization port. ReviewGate.HandleDecisionAsync transitions any row whose id the caller knows -- from another tenant, or with no principal resolved at all -- and a host's authorization policy is never asked.",
-      "fence": "Authorize in the host before calling HandleDecisionAsync: resolve the principal, compare it and its tenant against the row's UserId and TenantId (read the row with IDocketStore.GetDocketEntryAsync first), and refuse there. The framework will not do it, and there is no seam that makes it."
+      "fence": "Authorize in the host before calling HandleDecisionAsync: resolve the principal, compare it and its tenant against the row's UserId and TenantId (read the row with IDocketStore.GetDocketEntryAsync first), and refuse there. The framework will not do it, and there is no seam that makes it.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "canonical/create-shaped",
@@ -555,8 +610,9 @@
         "AF-1",
         "AF-3"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. The canonical form is reproduced byte for byte by a canonicaliser written out from the rule, but the .NET model cannot hold the shape the vector pins: the Affidavit record has no populated-confidence and no empty-field count, and a provenance tag has no binding. The release also exports no canonical-hash helper, so there is nothing to compare against."
+      "disposition": "planned",
+      "detail": "The canonical form is reproduced byte for byte by a canonicaliser written out from the rule, but the .NET model cannot hold the shape the vector pins: the Affidavit record has no populated-confidence and no empty-field count, and a provenance tag has no binding. The release also exports no canonical-hash helper, so there is nothing to compare against.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "canonical/update-shaped",
@@ -565,8 +621,9 @@
         "AF-3",
         "PV-1"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. The canonical form is reproduced byte for byte by a canonicaliser written out from the rule, but the .NET model cannot hold the shape the vector pins: the Affidavit record has no populated-confidence and no empty-field count, and a provenance tag has no binding. The release also exports no canonical-hash helper, so there is nothing to compare against."
+      "disposition": "planned",
+      "detail": "The canonical form is reproduced byte for byte by a canonicaliser written out from the rule, but the .NET model cannot hold the shape the vector pins: the Affidavit record has no populated-confidence and no empty-field count, and a provenance tag has no binding. The release also exports no canonical-hash helper, so there is nothing to compare against.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "canonical/wire-evidence-card-request-amended",
@@ -578,8 +635,9 @@
         "DK-2",
         "PV-2"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. There is no canonical serialization and no content hash in the release. Nothing can bind an execution grant to the exact Affidavit a reviewer accepted, which is the substitution the rule exists to prevent."
+      "disposition": "planned",
+      "detail": "There is no canonical serialization and no content hash in the release. Nothing can bind an execution grant to the exact Affidavit a reviewer accepted, which is the substitution the rule exists to prevent.",
+      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "canonical/money-and-escapes",
@@ -587,8 +645,9 @@
         "SR-1",
         "SR-2"
       ],
-      "disposition": "ignored",
-      "detail": "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is closed. The canonical form is reproduced byte for byte by a canonicaliser written out from the rule, but the .NET model cannot hold the shape the vector pins: the Affidavit record has no populated-confidence and no empty-field count, and a provenance tag has no binding. The release also exports no canonical-hash helper, so there is nothing to compare against."
+      "disposition": "planned",
+      "detail": "The canonical form is reproduced byte for byte by a canonicaliser written out from the rule, but the .NET model cannot hold the shape the vector pins: the Affidavit record has no populated-confidence and no empty-field count, and a provenance tag has no binding. The release also exports no canonical-hash helper, so there is nothing to compare against.",
+      "plannedFor": "1.0.0-beta.3"
     }
   ],
   "runtimes": [
@@ -666,5 +725,5 @@
       "checkedInstead": "no substitute: the framework's telemetry attribute names are not checked against the published standards"
     }
   ],
-  "notes": "First run of the .NET conformance driver, against the shipped packages at 1.0.0-beta.1. Two things a reader of this document alone should know. (1) Most rows carry disposition \"ignored\" with a detail beginning \"Undecided\": the format has three dispositions and no fourth, and these gaps have been measured and written down but not yet ruled on by the framework's maintainer. They are listed for decision in the pull request that produced this manifest; \"ignored\" here means \"nothing is being done YET\", not \"nothing will be\". (2) The framework emits telemetry under names that share nothing with the rulebook's registry -- it emits affidavit.projected, inference.completed and affiant.review.broadcast_failed where the registry names affidavit.filed, docket.transition and standing-order.fired -- so every telemetry clause in the suite fails and every telemetryAbsent clause holds. That is a true statement about this release; no name was translated to make a clause pass."
+  "notes": "First run of the .NET conformance driver, against the shipped packages at 1.0.0-beta.1. Four things a reader of this document alone should know. (1) Most rows carry disposition \"planned\" with plannedFor 1.0.0-beta.3: the gap is measured, written down and scheduled for that release. The ten fenced rows name a host-side workaround that contains the gap today AND the same release, because a fence is the honest disposition now, not the end of the work. (2) There is no injectable clock in this release: ReviewGate reads DateTimeOffset.UtcNow at four sites and the expiry sweep at a fifth, none of them injectable, and there is no TimeProvider seam anywhere in the packages. Four fixtures -- decide/expired-amendments-preserved, decide/resubmit-prefills, sequence-a/expiry-then-resubmit and sequence-a/late-amendments-preserved -- fail on that alone: a fixture that moves its own clock cannot move the framework's. It also keeps sequence-a/sweep-pages from driving an entry past its deadline, so the paging gap that fixture is about is read off the API rather than exercised. (3) The seven canonical byte vectors are run against a canonicaliser written out from SR-1 inside the driver's own test project -- the second canonicaliser the rulebook asks for, not a claim about the framework, which exports no canonical-hash helper at all. That canonicaliser reproduces the pinned bytes and the pinned digest for six of the seven; the seventh, canonical/wire-evidence-card-request-amended, needs the accepted amendments folded into the Affidavit and this release never folds them. Three of the four failing vectors therefore fail because the .NET model cannot HOLD the shape the vector pins -- the Affidavit record has no populated-confidence and no empty-field count, and a provenance tag has no binding -- which is a different thing from canonicalising it wrongly. (4) The framework emits telemetry under names that share nothing with the rulebook's registry -- it emits affidavit.projected, inference.completed and affiant.review.broadcast_failed where the registry names affidavit.filed, docket.transition and standing-order.fired -- so every telemetry clause in the suite fails and every telemetryAbsent clause holds. That is a true statement about this release; no name was translated to make a clause pass."
 }

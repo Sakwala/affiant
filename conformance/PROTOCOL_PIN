@@ -13,7 +13,7 @@
 # which is what CI runs, so a local edit to a vendored fixture cannot pass unnoticed.
 
 repository=https://github.com/Sakwala/affiant-protocol
-commit=f0d4ad0b5f0010676a96719682ea3920f0b1baf3
+commit=19c574726445c312d6f295f8c9e8851910f05836
 tag=
 tag_note=v0.1.0 is not cut yet; this pin becomes that tag when it is.
 vendored=tests/Affiant.Conformance.Tests/protocol
