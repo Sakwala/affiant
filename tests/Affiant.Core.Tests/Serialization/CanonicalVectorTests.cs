@@ -149,7 +149,11 @@ public class CanonicalVectorTests
                     IsMandatory: false,
                     Kind: AffidavitFieldKind.Number),
             ],
-            warnings: []);
+            warnings: [],
+            // A record that STATES a turn and an instant, so the two mint sites can DRIFT and be
+            // caught doing it: with both null the amended tag reads null whichever turn it took.
+            conversationTurn: 3,
+            createdAt: new DateTimeOffset(2026, 9, 4, 9, 0, 0, TimeSpan.Zero));
 
         var amendments = new Dictionary<string, object?> { ["Status"] = "Retired", ["Weight"] = null };
 
@@ -165,6 +169,21 @@ public class CanonicalVectorTests
                 "ana"));
 
         Assert.Equal(throughTheModel, throughTheDocument);
+
+        // And the form both produced is the protocol's record, protocol version included: SR-1's
+        // form is over the Affidavit as the schema defines it, and every canonical vector's expected
+        // bytes carry `protocolVersion`. A form that dropped it would hash to something no other
+        // implementation binds a grant to.
+        Assert.Contains("\"protocolVersion\":\"0.1.0\"", throughTheModel, StringComparison.Ordinal);
+        Assert.Contains("\"conversationTurn\":3", throughTheModel, StringComparison.Ordinal);
+        Assert.Contains("\"createdAt\":\"2026-09-04T09:00:00.000Z\"", throughTheModel, StringComparison.Ordinal);
+
+        // The four properties this framework carries that the protocol keeps on the card envelope
+        // are not part of the form a hash is taken over.
+        Assert.DoesNotContain("\"warnings\"", throughTheModel, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"requiresConfirmation\"", throughTheModel, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"allowedValues\"", throughTheModel, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"pattern\"", throughTheModel, StringComparison.Ordinal);
     }
 
     /// <summary>

@@ -252,13 +252,14 @@ update at all.
   that material, the same proposal, so the second replays the first's row. Pass the arguments the
   model made the write from, or supply your own `ReviewContext.EntryId`.
 - **The canonical form is the PROTOCOL's record, not this framework's.** `CanonicalSerializer` takes
-  its form over the ten properties the rulebook's own byte vectors pin: this framework's four
-  extras — the record's warnings and confirmation verdict, and a field's closed set and pattern,
-  all of which the protocol keeps on the card envelope, where this framework's card also carries
-  them — are not part of it, and the operation is written in the protocol's two-valued vocabulary
-  (`create` / `update`) rather than this framework's four-valued one. A .NET record and a
-  TypeScript record built from the same facts now produce the same bytes and the same digest, which
-  is the whole of SR-1: an execution grant minted by one implementation validates against the other.
+  its form over the ten properties the rulebook's Affidavit schema defines and its byte vectors
+  pin — protocol version, conversation turn and created-at instant among them. This framework's
+  four extras are not part of it: the record's warnings and confirmation verdict, and a field's
+  closed set and pattern, all of which the protocol keeps on the card envelope, where this
+  framework's card also carries them. The operation is written in the protocol's two-valued
+  vocabulary (`create` / `update`) rather than this framework's four-valued one. Two
+  implementations that build a record from the same facts now produce the same bytes and the same
+  digest, which is the whole of SR-1: an execution grant minted by one validates against the other.
   **This changes the hash of every record**, so a grant minted by `1.0.0-beta.1` does not validate
   against a record canonicalised by this release; nothing shipped mints one yet.
 - **Every tag the framework mints says when it was minted**, and says where the value came from in
@@ -1050,10 +1051,17 @@ delivered its own `EvidenceCardResponse` unblocked the waiter and the row was wr
   attestation names the entry it attests to, and a filing's Evidence Card agrees with the row it
   was broadcast for.
 
-  **Reading against the rulebook's `v0.1.1` pin on this candidate: all 63 pass.** The parity manifest at
-  `conformance/parity/dotnet-v0.1.json` therefore declares an empty failing list, which is what this
-  release's acceptance asks for, and it regenerates byte for byte from the run log committed beside
-  it (`conformance/regenerate-parity.py`).
+  **Reading against the rulebook's `v0.1.1` pin on this candidate: 61 of 63 pass, and the two that
+  do not are pinned against a value the rulebook is correcting.** `sequence-a/approve-round-trip`
+  and `decide/amend-recompute` state a content hash produced by the reference implementation's
+  runtime, over a model that does not carry the record's protocol version — while SR-1's form is
+  over the Affidavit as the rulebook's own schema defines it, where that property is required, and
+  all seven canonical byte vectors carry it in their expected bytes. The rulebook's two artifacts
+  disagree and no implementation can satisfy both; this one follows the schema and the vectors, and
+  both hashes are being re-pinned at the rulebook's `v0.1.2`. Everything else in both fixtures
+  passes. The parity manifest at `conformance/parity/dotnet-v0.1.json` says exactly that, and
+  regenerates byte for byte from the run log committed beside it
+  (`conformance/regenerate-parity.py`).
 
   `conformance/results/ORACLE-RUN-1.0.0-beta.1.md` reads the shipped release's own run against the
   rulebook's negative oracle, and `conformance/results/dotnet-1.0.0-beta.1.json` is that release's

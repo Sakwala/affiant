@@ -60,12 +60,28 @@ def run_log():
 # value for each -- see affiant-protocol conformance/PARITY.md.
 PLANNED_FOR = "1.0.0-beta.3"
 
-# disposition, detail, and the extra key that disposition requires. Empty: this tree passes every
-# fixture in the vendored suite, so there is no row to attribute. A fixture that starts failing stops
-# this script with its own id rather than being given the nearest sentence that once fit something
-# else — a detail that has outlived the defect it describes is worse than no detail, because it reads
-# as a measurement.
-CAUSES: dict[str, tuple[str, str, dict[str, str]]] = {}
+# disposition, detail, and the extra key that disposition requires. A fixture whose diffs match no
+# cause here stops this script with its own id rather than being given the nearest sentence that once
+# fit something else -- a detail that has outlived the defect it describes is worse than no detail,
+# because it reads as a measurement.
+CAUSES = {
+    "SR-1-pin-predates-correction": (
+        "planned",
+        "The two fixtures that pin a CONTENT HASH are pinned against a value the rulebook is "
+        "correcting. SR-1's canonical form is taken over the Affidavit as the rulebook's own schema "
+        "defines it -- protocol version included, which is a required property of that record and "
+        "is carried in the expected bytes of all seven canonical byte vectors. The hashes these two "
+        "fixtures pin were produced by the reference implementation's RUNTIME, over a model that "
+        "does not carry the property, so the two artifacts disagree with each other and no "
+        "implementation can satisfy both. This implementation follows the schema and the vectors: "
+        "its canonical form carries the version, all seven vectors reproduce byte for byte and "
+        "digest for digest, and the typed and document paths agree with each other over a record "
+        "that states one. Everything else in both fixtures passes, the entry id inside the amended "
+        "record's reviewer-act binding included. The rulebook is re-pinning both hashes at v0.1.2; "
+        "these rows close when the suite vendored here moves to that tag.",
+        {},
+    ),
+}
 
 # Rows scheduled for a release other than PLANNED_FOR. `fixedIn` is for a release that has SHIPPED
 # -- a version a reader can install -- and nothing here qualifies yet, so a row that named its own
@@ -76,7 +92,9 @@ SCHEDULED: dict[str, tuple[str, str]] = {}
 OVERRIDES: dict[str, str] = {}
 
 # Most fundamental first: the first pattern a fixture's diffs match names its root cause.
-SCAN: list[tuple[str, str]] = []
+SCAN = [
+    ("SR-1-pin-predates-correction", r"^canonicalHash$"),
+]
 
 
 def cause_of(result):
@@ -169,13 +187,21 @@ CHECKED_INSTEAD = {
 
 NOTES = (
     "The .NET conformance driver, run by this repository's own test suite against the packages this "
-    "tree builds, read at the rulebook's v0.1.1. ALL SIXTY-THREE FIXTURES PASS: the failing list is "
-    "empty, which is what this release's acceptance asks for. "
-    "Three things a reader of this document alone should know. "
+    "tree builds, read at the rulebook's v0.1.1. Sixty-one of the sixty-three fixtures pass, and "
+    "the two that do not are pinned against a value the rulebook is correcting -- see the row's "
+    "detail, and (2) below. "
+    "Four things a reader of this document alone should know. "
     "(1) WHAT THIS RUN IS. It is a BRANCH BUILD of the 1.0.0-beta.3 candidate, not a shipped "
     "release: the version here names what the tree builds, and nothing carrying it has been "
     "published. "
-    "(2) THE CANONICAL FORM AND THE ENTRY ID ARE THE PROTOCOL'S. Every byte vector is reproduced "
+    "(2) THE TWO OPEN ROWS ARE A PIN, NOT A GAP. SR-1's canonical form is over the Affidavit as the "
+    "rulebook's schema defines it, protocol version included, and every canonical byte vector's "
+    "expected bytes carry it. The content hashes those two fixtures pin were produced by the "
+    "reference implementation's runtime over a model that does not carry the property, so the "
+    "rulebook's two artifacts disagree and no implementation can satisfy both. This one follows the "
+    "schema and the vectors. Both fixtures are being re-pinned at the rulebook's v0.1.2, and these "
+    "rows close when the vendored suite moves to that tag. "
+    "(3) THE CANONICAL FORM AND THE ENTRY ID ARE THE PROTOCOL'S. Every byte vector is reproduced "
     "through the SHIPPED serializer -- the same exported helper a host calls to mint an execution "
     "grant -- and never through a canonicaliser written beside the test: the rule says a driver "
     "reproduces the bytes and the digest rather than re-deriving them. The amended vector's sworn "
@@ -186,7 +212,7 @@ NOTES = (
     "laid out as the rule states, so an id minted here and an id minted by another implementation "
     "for the same proposal are the same id -- which they must be, because the id travels inside the "
     "record and therefore inside the hash a grant binds to. "
-    "(3) WHAT THE DRIVER CHECKS WITHOUT BEING ASKED. Every filing a fixture performs -- prior steps "
+    "(4) WHAT THE DRIVER CHECKS WITHOUT BEING ASKED. Every filing a fixture performs -- prior steps "
     "included -- is card-checked: the card points at its row, carries that row's deadline and "
     "protocol version, repeats the record's three confidence numbers, and says on its face when the "
     "row is blocked. Every attestation is checked to name the entry it attests to. `wrap-execute` "
