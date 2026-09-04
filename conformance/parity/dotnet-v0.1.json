@@ -3,7 +3,7 @@
   "implementation": "dotnet",
   "version": "1.0.0-beta.3",
   "protocolTag": "v0.1.1",
-  "producedAt": "2026-09-04T12:30:00.402Z",
+  "producedAt": "2026-09-04T16:11:13.763Z",
   "runLog": "conformance/results/dotnet-1.0.0-beta.3.json (Sakwala/affiant)",
   "failing": [
     {
@@ -12,17 +12,7 @@
         "GT-3"
       ],
       "disposition": "planned",
-      "detail": "Substance is checked by the compliance harness at test time only. At run time the gate files whatever Affidavit it is handed, including one whose every field is tagged Empty -- a proposal that swears to nothing reaches a reviewer as though it swore to something.",
-      "plannedFor": "1.0.0-beta.3",
-      "oracle": true
-    },
-    {
-      "id": "gate/substance-zero-field-refused",
-      "rules": [
-        "GT-3"
-      ],
-      "disposition": "planned",
-      "detail": "Substance is checked by the compliance harness at test time only. At run time the gate files whatever Affidavit it is handed, including one whose every field is tagged Empty -- a proposal that swears to nothing reaches a reviewer as though it swore to something.",
+      "detail": "The gate refuses a proposal that swears to nothing before anything is filed, and the refusal carries the protocol's substance-refused code. What it cannot do is name the hollow signature -- a field asserting a value while its provenance reads Empty -- because the schema-driven projection never carries a value it has no provenance for: by the time the Affidavit reaches the gate that field is valueless, and the refusal names the other signature, that no proposed field carries provenance other than Empty. Only an Affidavit built by a host's own projection can reach the gate hollow, and that one is refused with the sentence that names it.",
       "plannedFor": "1.0.0-beta.3",
       "oracle": true
     },
@@ -33,19 +23,10 @@
         "AZ-4"
       ],
       "disposition": "fenced",
-      "detail": "There is no coverage concept in the core. The only coverage refusal in the release is an internal wire-up audit inside the two adapter packages; nothing marks a filed row as blocked on coverage and there is no runtime refusal, so a tool the gate cannot intercept produces a proposal that looks like any other.",
+      "detail": "There is no coverage concept in the core. A tool the fixture declares uncovered is filed like any other and approved by the Standing Order that covers its risk: the row carries no blocked marker and the Evidence Card carries no warning naming the uncovered write, and no refusal is raised at wire-up either. The only coverage refusal in the tree is HostedToolAudit, an internal class inside the two adapter packages, raised when a tool catalogue is wired through WithAffiant.",
       "fence": "Wire the tool catalogue through WithAffiant in Affiant.Extensions.AI or Affiant.AgentFramework: its HostedToolAudit refuses a tool list carrying provider-executed or hosted tools at start-up, before anything can be proposed. That closes the wire-up case only -- there is still no runtime refusal and no marker on a filed row.",
       "plannedFor": "1.0.0-beta.3",
       "oracle": true
-    },
-    {
-      "id": "decide/expired-amendments-preserved",
-      "rules": [
-        "DK-1"
-      ],
-      "disposition": "planned",
-      "detail": "There is no clock seam anywhere in the release: ReviewGate reads DateTimeOffset.UtcNow at four sites and the expiry sweep at a fifth, none of them injectable. A row past its deadline reads pending until a background sweep happens to run, and a decision that arrives late is accepted rather than refused.",
-      "plannedFor": "1.0.0-beta.3"
     },
     {
       "id": "decide/amend-recompute",
@@ -58,7 +39,7 @@
         "SR-1"
       ],
       "disposition": "planned",
-      "detail": "There is no canonical serialization and no content hash in the release. Nothing can bind an execution grant to the exact Affidavit a reviewer accepted, which is the substitution the rule exists to prevent.",
+      "detail": "The canonical form the rulebook pins carries three things the Affidavit record does not: a protocol version, the conversation turn the proposal belongs to, and a created-at instant. The driver's independent canonicaliser reproduces the pinned bytes and the pinned digest for six of the seven vectors with no change to it, so what disagrees is the shape of the record and not the serialization -- and a fixture that pins a content hash cannot match a digest taken over a form this record cannot express.",
       "plannedFor": "1.0.0-beta.3",
       "oracle": true
     },
@@ -70,7 +51,7 @@
         "PV-2"
       ],
       "disposition": "planned",
-      "detail": "There is no clock seam anywhere in the release: ReviewGate reads DateTimeOffset.UtcNow at four sites and the expiry sweep at a fifth, none of them injectable. A row past its deadline reads pending until a background sweep happens to run, and a decision that arrives late is accepted rather than refused.",
+      "detail": "A reviewer's correction is preserved on the row it was typed on, with the instant and the person, and an accepted amendment is folded into the amended Affidavit. A resubmission does not read either: the new row is projected from the conversation again, so the corrected field comes back with the machine's value tagged Conversation and bound to nothing, where the record it supersedes holds that value as the reviewer's own act. The card broadcast for the resubmission carries no prior amendments, so the reviewer is asked the same question again with no sign that they already answered it.",
       "plannedFor": "1.0.0-beta.3"
     },
     {
@@ -84,7 +65,7 @@
         "SR-1"
       ],
       "disposition": "planned",
-      "detail": "There is no canonical serialization and no content hash in the release. Nothing can bind an execution grant to the exact Affidavit a reviewer accepted, which is the substitution the rule exists to prevent.",
+      "detail": "The canonical form the rulebook pins carries three things the Affidavit record does not: a protocol version, the conversation turn the proposal belongs to, and a created-at instant. The driver's independent canonicaliser reproduces the pinned bytes and the pinned digest for six of the seven vectors with no change to it, so what disagrees is the shape of the record and not the serialization -- and a fixture that pins a content hash cannot match a digest taken over a form this record cannot express.",
       "plannedFor": "1.0.0-beta.3"
     },
     {
@@ -95,7 +76,7 @@
         "AF-2"
       ],
       "disposition": "planned",
-      "detail": "A value the host's inference reports is always tagged Inferred, whatever the port said about how it was found, and the merge is confidence-first with a source-ordinal tie-break. A value read literally out of the turn therefore loses to the model's own argument at equal confidence, and the argument is what gets filed.",
+      "detail": "A tool argument the model wrote and a value the member actually said are graded the same. ProvenanceTag.FromTool tags an argument Conversation at 0.9 -- the grade the rulebook reserves for what was read out of the turn -- so a literal from the utterance at the same confidence does not displace it and the incumbent stands. The card then shows the model's own argument where the member's words should be, tagged as though the member had said it. The merge itself is one comparison and is applied; what is wrong is the grade going in.",
       "plannedFor": "1.0.0-beta.3",
       "oracle": true
     },
@@ -108,7 +89,7 @@
         "GT-1"
       ],
       "disposition": "planned",
-      "detail": "A value the host's inference reports is always tagged Inferred, whatever the port said about how it was found, and the merge is confidence-first with a source-ordinal tie-break. A value read literally out of the turn therefore loses to the model's own argument at equal confidence, and the argument is what gets filed.",
+      "detail": "A tool argument the model wrote and a value the member actually said are graded the same. ProvenanceTag.FromTool tags an argument Conversation at 0.9 -- the grade the rulebook reserves for what was read out of the turn -- so a literal from the utterance at the same confidence does not displace it and the incumbent stands. The card then shows the model's own argument where the member's words should be, tagged as though the member had said it. The merge itself is one comparison and is applied; what is wrong is the grade going in.",
       "plannedFor": "1.0.0-beta.3"
     },
     {
@@ -120,7 +101,7 @@
         "PV-3"
       ],
       "disposition": "planned",
-      "detail": "There is no clock seam anywhere in the release: ReviewGate reads DateTimeOffset.UtcNow at four sites and the expiry sweep at a fifth, none of them injectable. A row past its deadline reads pending until a background sweep happens to run, and a decision that arrives late is accepted rather than refused.",
+      "detail": "A reviewer's correction is preserved on the row it was typed on, with the instant and the person, and an accepted amendment is folded into the amended Affidavit. A resubmission does not read either: the new row is projected from the conversation again, so the corrected field comes back with the machine's value tagged Conversation and bound to nothing, where the record it supersedes holds that value as the reviewer's own act. The card broadcast for the resubmission carries no prior amendments, so the reviewer is asked the same question again with no sign that they already answered it.",
       "plannedFor": "1.0.0-beta.3"
     },
     {
@@ -140,7 +121,7 @@
         "CV-1"
       ],
       "disposition": "fenced",
-      "detail": "There is no coverage concept in the core. The only coverage refusal in the release is an internal wire-up audit inside the two adapter packages; nothing marks a filed row as blocked on coverage and there is no runtime refusal, so a tool the gate cannot intercept produces a proposal that looks like any other.",
+      "detail": "There is no coverage concept in the core. A tool the fixture declares uncovered is filed like any other and approved by the Standing Order that covers its risk: the row carries no blocked marker and the Evidence Card carries no warning naming the uncovered write, and no refusal is raised at wire-up either. The only coverage refusal in the tree is HostedToolAudit, an internal class inside the two adapter packages, raised when a tool catalogue is wired through WithAffiant.",
       "fence": "Wire the tool catalogue through WithAffiant in Affiant.Extensions.AI or Affiant.AgentFramework: its HostedToolAudit refuses a tool list carrying provider-executed or hosted tools at start-up, before anything can be proposed. That closes the wire-up case only -- there is still no runtime refusal and no marker on a filed row.",
       "plannedFor": "1.0.0-beta.3"
     },
@@ -152,7 +133,7 @@
         "AF-3"
       ],
       "disposition": "planned",
-      "detail": "The canonical form is reproduced byte for byte by a canonicaliser written out from the rule, but the .NET model cannot hold the shape the vector pins: the Affidavit record has no protocol version, no populated-confidence, no empty-field count, no conversation turn and no created-at instant, and a provenance tag has no note, no timestamp and no binding. The release also exports no canonical-hash helper, so there is nothing to compare against.",
+      "detail": "The canonical form the rulebook pins carries three things the Affidavit record does not: a protocol version, the conversation turn the proposal belongs to, and a created-at instant. The driver's independent canonicaliser reproduces the pinned bytes and the pinned digest for six of the seven vectors with no change to it, so what disagrees is the shape of the record and not the serialization -- and a fixture that pins a content hash cannot match a digest taken over a form this record cannot express.",
       "plannedFor": "1.0.0-beta.3"
     },
     {
@@ -163,7 +144,7 @@
         "PV-1"
       ],
       "disposition": "planned",
-      "detail": "The canonical form is reproduced byte for byte by a canonicaliser written out from the rule, but the .NET model cannot hold the shape the vector pins: the Affidavit record has no protocol version, no populated-confidence, no empty-field count, no conversation turn and no created-at instant, and a provenance tag has no note, no timestamp and no binding. The release also exports no canonical-hash helper, so there is nothing to compare against.",
+      "detail": "The canonical form the rulebook pins carries three things the Affidavit record does not: a protocol version, the conversation turn the proposal belongs to, and a created-at instant. The driver's independent canonicaliser reproduces the pinned bytes and the pinned digest for six of the seven vectors with no change to it, so what disagrees is the shape of the record and not the serialization -- and a fixture that pins a content hash cannot match a digest taken over a form this record cannot express.",
       "plannedFor": "1.0.0-beta.3"
     },
     {
@@ -173,7 +154,7 @@
         "SR-3"
       ],
       "disposition": "planned",
-      "detail": "The canonical form is reproduced byte for byte by a canonicaliser written out from the rule, but the .NET model cannot hold the shape the vector pins: the Affidavit record has no protocol version, no populated-confidence, no empty-field count, no conversation turn and no created-at instant, and a provenance tag has no note, no timestamp and no binding. The release also exports no canonical-hash helper, so there is nothing to compare against.",
+      "detail": "The canonical form the rulebook pins carries three things the Affidavit record does not: a protocol version, the conversation turn the proposal belongs to, and a created-at instant. The driver's independent canonicaliser reproduces the pinned bytes and the pinned digest for six of the seven vectors with no change to it, so what disagrees is the shape of the record and not the serialization -- and a fixture that pins a content hash cannot match a digest taken over a form this record cannot express.",
       "plannedFor": "1.0.0-beta.3"
     },
     {
@@ -187,7 +168,7 @@
         "PV-2"
       ],
       "disposition": "planned",
-      "detail": "There is no canonical serialization and no content hash in the release. Nothing can bind an execution grant to the exact Affidavit a reviewer accepted, which is the substitution the rule exists to prevent.",
+      "detail": "The one vector whose sworn form is the Affidavit combined with its accepted amendments. The framework folds an accepted amendment into an amended Affidavit on approval, but a vector is a document rather than a filing: the driver builds it as JSON and has no accepted-amendment path to fold it through, so the pinned bytes and digest are compared against the unamended form. This vector also names the three properties the Affidavit record cannot hold.",
       "plannedFor": "1.0.0-beta.3"
     },
     {
@@ -196,7 +177,7 @@
         "SR-1"
       ],
       "disposition": "planned",
-      "detail": "The canonical form is reproduced byte for byte by a canonicaliser written out from the rule, but the .NET model cannot hold the shape the vector pins: the Affidavit record has no protocol version, no populated-confidence, no empty-field count, no conversation turn and no created-at instant, and a provenance tag has no note, no timestamp and no binding. The release also exports no canonical-hash helper, so there is nothing to compare against.",
+      "detail": "The canonical form the rulebook pins carries three things the Affidavit record does not: a protocol version, the conversation turn the proposal belongs to, and a created-at instant. The driver's independent canonicaliser reproduces the pinned bytes and the pinned digest for six of the seven vectors with no change to it, so what disagrees is the shape of the record and not the serialization -- and a fixture that pins a content hash cannot match a digest taken over a form this record cannot express.",
       "plannedFor": "1.0.0-beta.3"
     },
     {
@@ -205,7 +186,7 @@
         "SR-1"
       ],
       "disposition": "planned",
-      "detail": "The canonical form is reproduced byte for byte by a canonicaliser written out from the rule, but the .NET model cannot hold the shape the vector pins: the Affidavit record has no protocol version, no populated-confidence, no empty-field count, no conversation turn and no created-at instant, and a provenance tag has no note, no timestamp and no binding. The release also exports no canonical-hash helper, so there is nothing to compare against.",
+      "detail": "The canonical form the rulebook pins carries three things the Affidavit record does not: a protocol version, the conversation turn the proposal belongs to, and a created-at instant. The driver's independent canonicaliser reproduces the pinned bytes and the pinned digest for six of the seven vectors with no change to it, so what disagrees is the shape of the record and not the serialization -- and a fixture that pins a content hash cannot match a digest taken over a form this record cannot express.",
       "plannedFor": "1.0.0-beta.3"
     },
     {
@@ -215,7 +196,7 @@
         "SR-2"
       ],
       "disposition": "planned",
-      "detail": "The canonical form is reproduced byte for byte by a canonicaliser written out from the rule, but the .NET model cannot hold the shape the vector pins: the Affidavit record has no protocol version, no populated-confidence, no empty-field count, no conversation turn and no created-at instant, and a provenance tag has no note, no timestamp and no binding. The release also exports no canonical-hash helper, so there is nothing to compare against.",
+      "detail": "The canonical form the rulebook pins carries three things the Affidavit record does not: a protocol version, the conversation turn the proposal belongs to, and a created-at instant. The driver's independent canonicaliser reproduces the pinned bytes and the pinned digest for six of the seven vectors with no change to it, so what disagrees is the shape of the record and not the serialization -- and a fixture that pins a content hash cannot match a digest taken over a form this record cannot express.",
       "plannedFor": "1.0.0-beta.3"
     }
   ],
@@ -294,5 +275,5 @@
       "checkedInstead": "no substitute: the framework's telemetry attribute names are not checked against the published standards"
     }
   ],
-  "notes": "The .NET conformance driver against the shipped packages at 1.0.0-beta.1, read at the rulebook's v0.1.1. Four things a reader of this document alone should know. (1) Most rows carry disposition \"planned\" with plannedFor 1.0.0-beta.3: the gap is measured, written down and scheduled for that release. One further row is planned for 1.0.0-beta.1.1, whose fix is written and green on a branch but unreleased; no row is \"fixed\", because that value names a release a reader can install. The ten fenced rows name a host-side workaround that contains the gap today AND the 1.0.0-beta.3 release, because a fence is the honest disposition now, not the end of the work. (2) There is no injectable clock in this release: ReviewGate reads DateTimeOffset.UtcNow at four sites and the expiry sweep at a fifth, none of them injectable, and there is no TimeProvider seam anywhere in the packages. Four fixtures -- decide/expired-amendments-preserved, decide/resubmit-prefills, sequence-a/expiry-then-resubmit and sequence-a/late-amendments-preserved -- fail on that alone: a fixture that moves its own clock cannot move the framework's. It also keeps sequence-a/sweep-pages from driving an entry past its deadline, so the paging gap that fixture is about is read off the API rather than exercised. (3) The seven canonical byte vectors are run against a canonicaliser written out from SR-1 inside the driver's own test project -- the second canonicaliser the rulebook asks for, not a claim about the framework, which exports no canonical-hash helper at all. That canonicaliser reproduces the pinned bytes and the pinned digest for six of the seven, at the first attempt and with no change to it, over vectors the rulebook regenerated at v0.1.1; the seventh, canonical/wire-evidence-card-request-amended, needs the accepted amendments folded into the Affidavit and this release never folds them. All seven nonetheless fail, and six of them fail ONLY because the .NET model cannot HOLD the shape the vector pins -- the Affidavit record has no protocol version, no populated-confidence, no empty-field count, no conversation turn and no created-at instant, and a provenance tag has no note, no timestamp and no binding -- which is a different thing from canonicalising it wrongly. Three of those six passed at v0.1.0 and fail here, and no code changed: at v0.1.0 the vectors' inputs described a seed-shaped record the Affidavit schema refuses, so canonical/wire-evidence-card-request was measured against a shape this release happens to hold, and canonical/key-order-stress and canonical/number-forms were bare JSON documents with no record in them to hold at all. The rulebook regenerated them from v0.1-shaped inputs, and the honest reading of this release against the shape it will actually be asked to carry is that it holds none of the seven. The gap is the model, and it is the same 1.0.0-beta.3 gap the rest of this manifest names. (4) The framework emits telemetry under names that share nothing with the rulebook's registry -- it emits affidavit.projected, inference.completed and affiant.review.broadcast_failed where the registry names affidavit.filed, docket.transition and standing-order.fired -- so every telemetry clause in the suite fails and every telemetryAbsent clause holds. That is a true statement about this release; no name was translated to make a clause pass."
+  "notes": "The .NET conformance driver, run by this repository's own test suite against the packages this tree builds, read at the rulebook's v0.1.1. Five things a reader of this document alone should know. (1) WHAT THIS RUN IS. It is a BRANCH BUILD of the 1.0.0-beta.3 candidate, not a shipped release: the version in this manifest names what the tree builds, and nothing carrying it has been published. The release's own acceptance is a manifest whose failing list is EMPTY, so every row below is a gap still open in the candidate and every one is planned for that release. No row is \"fixed\", which names a version a reader can install; the coverage rows are \"fenced\", which names a host-side workaround that contains the gap today and does not end the work. (2) THE CLOCK IS INJECTABLE. Every instant the gate, the Docket and the sweep write comes from an injected TimeProvider; there is no DateTimeOffset.UtcNow anywhere in the packages. A fixture that moves its own clock moves the framework's, so the expiry, late-decision and resubmission fixtures are exercised rather than read off the API -- and where one of them still fails, the failure is about what the row carries, not about time. (3) THE CANONICAL VECTORS. The seven byte vectors are run against a canonicaliser written out from SR-1 inside the driver's own test project -- the second canonicaliser the rulebook asks for, never the framework's own CanonicalSerializer, which would be the implementation grading its own homework. That canonicaliser reproduces the pinned bytes and the pinned digest for six of the seven, at the first attempt and with no change to it; the seventh needs the accepted amendments folded into the Affidavit, which is a filing act and not something a JSON document carries, so the driver has no path to fold it through. All seven nonetheless fail, and they fail on the same three properties: the Affidavit record has no protocol version, no conversation turn and no created-at instant, so it cannot HOLD the shape the vector pins, which is a different thing from canonicalising it wrongly. The properties the record does carry are read off the record itself, so a row here cannot outlive the gap it describes. (4) TELEMETRY. The framework emits the rulebook's registry names, and every telemetry clause in the suite is checked against them. One registry event is emitted from one wiring only: `docket.expired` comes from the hosted DocketExpiryService, so a host that schedules the sweep itself -- which DK-3 sanctions -- records the expiry durably and emits nothing. That is the single telemetry row below. (5) TWO SMALLER FINDINGS THE ROOT-CAUSE COLUMN DOES NOT NAME, both in the run log's diffs. An Evidence Card carries a presentation hint for every field whose kind is not text, where the suite expects a hint only for a field that actually constrains the reviewer's input -- a closed set or a pattern -- so a plain date field is sent a hint that says nothing. And the substance refusal names the signature it found rather than the one the fixture pins; see the GT-3 row for why the other signature cannot arise from the built-in projection."
 }

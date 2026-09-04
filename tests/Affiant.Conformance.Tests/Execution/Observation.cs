@@ -65,7 +65,17 @@ internal static class Observation
             ["decision"] = entry.Decision is { } d
                 ? new JsonObject { ["kind"] = d.Kind == DecisionKind.Approve ? "approve" : "reject", ["reason"] = d.Reason }
                 : null,
-            ["preservedAmendments"] = entry.PreservedAmendments is { } p ? Values.ToJson(p.Amendments) : null,
+            // The whole record, not just the map: what a resubmission prefills is a correction
+            // somebody typed at a moment, and a reader who cannot see who or when cannot tell it
+            // from a machine's guess (DK-2).
+            ["preservedAmendments"] = entry.PreservedAmendments is { } p
+                ? new JsonObject
+                {
+                    ["amendments"] = Values.ToJson(p.Amendments),
+                    ["at"] = Values.ToJson(p.At),
+                    ["by"] = p.By,
+                }
+                : null,
             ["amendedAffidavit"] = entry.AmendedAffidavit is { } a ? Affidavit(a) : null,
             ["amendments"] = entry.Amendments is null ? null : Values.ToJson(entry.Amendments),
             ["lineage"] = new JsonObject
