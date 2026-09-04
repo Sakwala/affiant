@@ -46,7 +46,7 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
   risk-floor correction behind `gate/standing-order-by-the-book` is green on a branch (#53) in a
   release that has not shipped.
 
-## [1.0.0-beta.1.1] — unreleased
+## [1.0.0-beta.1.1] — 2026-09-04
 
 ### Fixed
 
