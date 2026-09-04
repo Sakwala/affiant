@@ -105,6 +105,25 @@ public interface IApprovalPolicy
     string? PolicyVersion => null;
 
     /// <summary>
+    /// Why this policy cannot run as it is wired, or <see langword="null"/> when it can (protocol
+    /// rule CV-1).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Read once, at startup, by <c>AffiantWireUpValidator</c>: a policy that declares a risk
+    /// ceiling with no scorer registered is a wiring fault, and CV-1 puts it at wire-up rather than
+    /// at the first evaluation. A host discovering it when a reviewer presses approve has already
+    /// shipped it.
+    /// </para>
+    /// <para>
+    /// The message is the one a person acts on, so it names the policy and the call that fixes it.
+    /// Returning <see langword="null"/> — the default — means "nothing about my configuration
+    /// stops me running", which is the honest answer for a policy with no configuration.
+    /// </para>
+    /// </remarks>
+    string? ConfigurationFault => null;
+
+    /// <summary>
     /// This policy's own review window, used when its verdict names none (protocol rule GT-4), or
     /// <see langword="null"/> to fall through to <c>AffiantCoreOptions.DefaultDocketTtl</c>. Held to
     /// the same rule as <see cref="ApprovalVerdict.TimeToLive"/>: at least one millisecond, and

@@ -70,6 +70,21 @@ public abstract class StandingOrderBase : IApprovalPolicy
     /// Returns the declared ceiling and the calculator that will score it; both null when the
     /// order declares no ceiling and so needs no calculator at all.
     /// </summary>
+    /// <summary>
+    /// Why this order cannot run as it is wired (CV-1): it declares a risk ceiling and no scorer is
+    /// registered, so the comparison the framework owns has no number to make.
+    /// </summary>
+    /// <remarks>
+    /// Reported at startup rather than at the first evaluation. The framework ships no scoring
+    /// formula — what counts as risk is the host's to say — so an order with a ceiling and no
+    /// calculator is a host that has not finished wiring, and every write it was written to
+    /// auto-approve would fall through to a person instead.
+    /// </remarks>
+    public string? ConfigurationFault =>
+        RiskThreshold is not null && RiskScorer is null or MissingRiskScoreCalculator
+            ? MissingRiskScoreCalculator.MessageFor(GetType())
+            : null;
+
     internal (int? Threshold, RiskScoreCalculatorBase? Scorer) EnsureConfigured()
     {
         var threshold = RiskThreshold;

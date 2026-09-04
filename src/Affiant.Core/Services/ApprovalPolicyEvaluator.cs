@@ -28,8 +28,17 @@ using Affiant.Core.Observability;
 /// worse, an unreviewed write reported as done.
 /// </para>
 /// </summary>
-public sealed class ApprovalPolicyEvaluator(IEnumerable<IApprovalPolicy> policies) : IApprovalPolicyEvaluator
+public sealed class ApprovalPolicyEvaluator(
+    IEnumerable<IApprovalPolicy> policies,
+    TimeProvider? timeProvider = null) : IApprovalPolicyEvaluator
 {
+    /// <summary>
+    /// The one clock (GT-4). A window is measured against the same instant the gate stamps the
+    /// deadline from: a chain reading the wall clock while the gate read an injected one could call
+    /// a window usable that the gate then cannot stamp.
+    /// </summary>
+    private readonly TimeProvider _time = timeProvider ?? TimeProvider.System;
+
     /// <inheritdoc />
     public async Task<ApprovalVerdict> EvaluateAsync(
         Affidavit affidavit, ConversationIdentity identity, CancellationToken cancellationToken = default)
@@ -129,10 +138,10 @@ public sealed class ApprovalPolicyEvaluator(IEnumerable<IApprovalPolicy> policie
     /// declared default. <see langword="null"/> is not a fault — it means "I have nothing to say
     /// about the deadline" and falls through to the next source.
     /// </summary>
-    private static void CheckTimeToLive(IApprovalPolicy policy, string option, TimeSpan? timeToLive)
+    private void CheckTimeToLive(IApprovalPolicy policy, string option, TimeSpan? timeToLive)
     {
         if (timeToLive is not { } ttl) return;
-        if (ReviewDeadline.IsUsable(ttl, DateTimeOffset.UtcNow, out var why)) return;
+        if (ReviewDeadline.IsUsable(ttl, _time.GetUtcNow(), out var why)) return;
 
         var policyId = PolicyIdOf(policy);
         var reason = ReviewDeadline.UnusableMessage(policyId, option, ttl, why!);

@@ -199,8 +199,11 @@ public sealed class DocketExpiryService(
             (_rebroadcastCursor, budget) = await WalkPendingAsync(
                 store, sweepScope, batchSize, _rebroadcastCursor, budget, ct, async entry =>
                 {
+                    // The card reports the ROW: the state an approval accepted where there is one,
+                    // the proposal otherwise, and the row's own blocked marker (AF-2, AZ-4, SR-1).
                     var request = await EvidenceCardRequestFactory.CreateAsync(
-                        store, entry.EntryId, entry.Envelope, entry.ExpiresAt, ct);
+                        store, entry.EntryId, entry.AmendedAffidavit ?? entry.Envelope,
+                        entry.ExpiresAt, ct, blocked: entry.Blocked);
                     await transport.BroadcastToGroupAsync(
                         entry.SessionId, TransportEvent.EvidenceCardRequest, request, ct);
                 });

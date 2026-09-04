@@ -102,7 +102,9 @@ public static class AffiantTelemetry
 
     // ── The telemetry-key registry (rulebook rules TL-1, TL-2) ───────────────────────────────
     //
-    // Every method below emits exactly one registry event onto the ambient Affiant activity.
+    // Every method below emits exactly one registry event onto the ambient Affiant activity — or,
+    // where there is none, onto a short activity started here and named after the event, so nothing
+    // an operator alerts on depends on the caller having opened a span first.
     // Attributes whose value this release cannot know are passed as null and are dropped here, so
     // they are absent from the event rather than guessed: an operator reading `docket.transition`
     // should see no `attestation.kind` at all until the row carries one, not a null that looks like
@@ -111,16 +113,27 @@ public static class AffiantTelemetry
 
     private static void EmitRegistryEvent(string key, params (string Name, object? Value)[] attributes)
     {
-        var target = FindAffiantActivity() ?? Activity.Current;
-        if (target is null) return;
-
         var tags = new ActivityTagsCollection();
         foreach (var (name, value) in attributes)
         {
             if (value is not null) tags.Add(name, value);
         }
 
-        target.AddEvent(new ActivityEvent(key, tags: tags));
+        var target = FindAffiantActivity() ?? Activity.Current;
+        if (target is not null)
+        {
+            target.AddEvent(new ActivityEvent(key, tags: tags));
+            return;
+        }
+
+        // TL-1: a registry event is observable whether or not the caller happens to be inside a
+        // span. The filing path runs inside ToolTracingFilter's `execute_tool` activity, but the
+        // decision and execution-report entry points are reached by host code directly — a hub
+        // method, a queue worker — and everything they emitted used to be discarded. A short
+        // activity named after the event carries it instead, so the same host sees
+        // `decision.unauthorized` from a direct call as it would from inside its own trace.
+        using var carrier = AffiantActivitySource.StartActivity(key, ActivityKind.Internal);
+        carrier?.AddEvent(new ActivityEvent(key, tags: tags));
     }
 
     /// <summary>

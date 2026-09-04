@@ -527,7 +527,7 @@ public class ReviewGateTests
     }
 
     [Fact]
-    public async Task FileReviewAsync_StandingOrder_AutoApproves_WithoutEvidenceCard()
+    public async Task FileReviewAsync_StandingOrder_AutoApproves_AndBroadcastsACardThatAsksNobody()
     {
         var (gate, transport, _) = CreateGate(ReviewRequirement.StandingOrder);
 
@@ -535,7 +535,12 @@ public class ReviewGateTests
         var outcome = await gate.FileReviewAsync(proposal, context);
 
         Assert.IsType<ReviewOutcome.Approved>(outcome);
-        Assert.Empty(transport.SentEvents);
+
+        // SR-4: a write approved with no person present still appears on a card — the reviewer
+        // surface has to be able to see what was approved in the organisation's name — and the card
+        // says no confirmation is needed, because nobody is being asked.
+        var sent = Assert.Single(transport.SentEvents, e => e.EventType == TransportEvent.EvidenceCardRequest);
+        Assert.False(Assert.IsType<EvidenceCardRequest>(sent.Payload).RequiresConfirmation);
     }
 
     [Fact]
@@ -1023,7 +1028,7 @@ public class ReviewGateTests
     }
 
     [Fact]
-    public async Task FileForReviewAsync_StandingOrder_ReturnsDecided_WithoutEvidenceCard()
+    public async Task FileForReviewAsync_StandingOrder_ReturnsDecided_AndBroadcastsACardThatAsksNobody()
     {
         var (gate, transport, store) = CreateGate(ReviewRequirement.StandingOrder);
 
@@ -1032,7 +1037,9 @@ public class ReviewGateTests
 
         var decided = Assert.IsType<ReviewFilingResult.Decided>(filing);
         Assert.IsType<ReviewOutcome.Approved>(decided.Outcome);
-        Assert.Empty(transport.SentEvents);
+
+        var sent = Assert.Single(transport.SentEvents, e => e.EventType == TransportEvent.EvidenceCardRequest);
+        Assert.False(Assert.IsType<EvidenceCardRequest>(sent.Payload).RequiresConfirmation);
 
         var entry = await store.GetDocketEntryAsync(context.EntryId!.Value, default);
         Assert.NotNull(entry);

@@ -164,8 +164,13 @@ public sealed class SchemaDrivenAffidavitProjection : IAffidavitProjection
                         }
                         else
                         {
-                            // Rule 7: never omit a field — tag it Empty rather than dropping it.
+                            // AF-1: never omit a field. A field with no chain has nothing behind it
+                            // and is sworn Empty at confidence 0 — present, and honest about knowing
+                            // nothing, which is what makes the aggregate 0 and the empty-field count
+                            // include it. It also carries no value: a value with no provenance is
+                            // exactly the claim the tag denies.
                             provenance = ProvenanceChain.From(ProvenanceTag.Empty);
+                            value = null;
                         }
                     }
                 }

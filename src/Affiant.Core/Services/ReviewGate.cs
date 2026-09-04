@@ -477,7 +477,8 @@ public sealed class ReviewGate(
                     return new ReviewFilingResult.Decided(existing.Status.ToReviewOutcome(entryId));
 
                 var replay = await EvidenceCardRequestFactory.CreateAsync(
-                    docketStore, entryId, existing.Envelope, existing.ExpiresAt, cancellationToken);
+                    docketStore, entryId, existing.AmendedAffidavit ?? existing.Envelope,
+                    existing.ExpiresAt, cancellationToken, blocked: existing.Blocked);
                 await BroadcastEvidenceCardWithRetryAsync(
                     context.SessionId, entryId, existing.ToolName, replay, cancellationToken);
 
@@ -579,6 +580,18 @@ public sealed class ReviewGate(
                 logger.LogInformation(
                     "StandingOrder {PolicyId} auto-approved DocketEntry {EntryId}",
                     attestation.By.Subject, entryId);
+
+                // SR-4: the card still goes out, and it says no confirmation is needed. A person was
+                // not asked, which is exactly why the reviewer surface has to be told what was
+                // approved in their name — a write that appears on no card is a write nobody can
+                // see. Built through the same factory and sent down the same retry path as every
+                // other branch, so the three cannot drift.
+                var approvedCard = await EvidenceCardRequestFactory.CreateAsync(
+                    docketStore, entryId, context.Affidavit, expiresAt, cancellationToken,
+                    requiresConfirmation: false);
+                await BroadcastEvidenceCardWithRetryAsync(
+                    context.SessionId, entryId, proposal.ToolName, approvedCard, cancellationToken);
+
                 return new ReviewFilingResult.Decided(new ReviewOutcome.Approved(entryId));
             }
 
@@ -604,7 +617,8 @@ public sealed class ReviewGate(
                 // The card still goes out, and it says on its face that the entry is blocked — a
                 // blocked entry never claims a confirmation is being awaited.
                 var blockedRequest = await EvidenceCardRequestFactory.CreateAsync(
-                    docketStore, entryId, context.Affidavit, expiresAt, cancellationToken);
+                    docketStore, entryId, context.Affidavit, expiresAt, cancellationToken,
+                    blocked: blocked);
                 await BroadcastEvidenceCardWithRetryAsync(
                     context.SessionId, entryId, proposal.ToolName, blockedRequest, cancellationToken);
 

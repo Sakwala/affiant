@@ -325,4 +325,55 @@ public class ProvenanceRulesTests
         Assert.Equal(1.0f, tag.Confidence);
         Assert.True(tag.IsBound);
     }
+
+    /// <summary>
+    /// PV-2, PV-3: at equal confidence and equal grade, the tag that points at something an auditor
+    /// can go and check displaces the one that points at nothing.
+    /// </summary>
+    /// <remarks>
+    /// The case this closes: a tool's raw argument is tagged Conversation at 0.9, and the host's
+    /// inference reports the same grade and the same confidence for a value it read out of an
+    /// utterance span. Treating that as a tie kept the unbound literal, and the sworn field was
+    /// unbound with the model's own text in it.
+    /// </remarks>
+    [Fact]
+    public void OnATie_ABoundTagDisplacesAnUnboundOne()
+    {
+        var unbound = new ProvenanceTag(ProvenanceSource.Conversation, 0.9f, "raw argument", null);
+        var bound = new ProvenanceTag(
+            ProvenanceSource.Conversation, 0.9f, "read from the utterance", null,
+            Binding: new ProvenanceBinding.UtteranceSpan(new UtteranceSpanRef(21, 6, "sha256:span")));
+
+        Assert.True(bound.Beats(unbound));
+        Assert.False(unbound.Beats(bound));
+    }
+
+    [Fact]
+    public void OnATie_TwoBoundTags_OrTwoUnboundOnes_DoNotDisplaceEachOther()
+    {
+        var first = new ProvenanceTag(ProvenanceSource.Conversation, 0.9f, "one", null);
+        var second = new ProvenanceTag(ProvenanceSource.Conversation, 0.9f, "two", null);
+
+        Assert.False(first.Beats(second));
+        Assert.False(second.Beats(first));
+
+        var span = new ProvenanceBinding.UtteranceSpan(new UtteranceSpanRef(0, 1, "sha256:a"));
+        var boundOne = first with { Binding = span };
+        var boundTwo = second with { Binding = span };
+
+        Assert.False(boundOne.Beats(boundTwo));
+        Assert.False(boundTwo.Beats(boundOne));
+    }
+
+    [Fact]
+    public void ABindingNeverOutranksConfidenceOrGrade()
+    {
+        var strongerUnbound = new ProvenanceTag(ProvenanceSource.Conversation, 0.95f, null, null);
+        var weakerBound = new ProvenanceTag(
+            ProvenanceSource.Conversation, 0.9f, null, null,
+            Binding: new ProvenanceBinding.UtteranceSpan(new UtteranceSpanRef(0, 1, "sha256:a")));
+
+        Assert.False(weakerBound.Beats(strongerUnbound));
+        Assert.True(strongerUnbound.Beats(weakerBound));
+    }
 }

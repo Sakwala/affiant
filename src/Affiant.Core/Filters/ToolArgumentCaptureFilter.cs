@@ -40,8 +40,22 @@ public sealed class ToolArgumentCaptureFilter : IToolInvocationFilter
         var descriptor = _registry.Find(context.FunctionName, pluginName);
         if (descriptor is not null && context.Arguments is not null)
         {
-            foreach (var (name, _) in context.Arguments)
+            foreach (var (name, value) in context.Arguments)
             {
+                // AF-1: only an argument that carries a value is tagged. An argument the model
+                // passed as null is a field with nothing behind it, and the projection swears it
+                // Empty at confidence 0 — which is what makes the aggregate 0 and the empty-field
+                // count 1. Tagging it Conversation at 0.9 swore that the conversation had said
+                // something, when what it had said was nothing.
+                if (value is null)
+                {
+                    _logger.LogDebug(
+                        "ToolArgumentCaptureFilter: argument {Field} from {FunctionName} carries no " +
+                        "value; it is sworn Empty rather than tagged",
+                        name, context.FunctionName);
+                    continue;
+                }
+
                 var tag = ProvenanceTag.FromTool(toolName: context.FunctionName, confidence: 0.9f);
                 _fabric.SetFieldChain(name, ProvenanceChain.From(tag));
 

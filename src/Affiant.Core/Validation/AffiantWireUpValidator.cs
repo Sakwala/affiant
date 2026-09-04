@@ -67,7 +67,8 @@ public sealed class AffiantWireUpValidator(
     AffiantCoreOptions options,
     ILogger<AffiantWireUpValidator> logger,
     IServiceProviderIsService? isService = null,
-    IAffiantToolRegistry? toolRegistry = null) : IHostedService
+    IAffiantToolRegistry? toolRegistry = null,
+    IServiceScopeFactory? scopeFactory = null) : IHostedService
 {
     private const string TransportFix =
         "call services.AddAffiantSignalR<THub>() (package Affiant.Transport.SignalR, plus " +
@@ -175,6 +176,13 @@ public sealed class AffiantWireUpValidator(
             }
         }
 
+        // CV-1: a policy that declares a risk threshold with no scorer wired is a wire-up refusal,
+        // not a silent non-fire. The chain is resolved in a throwaway scope and asked; nothing is
+        // evaluated and nothing is approved. A container that cannot build the chain at startup is
+        // itself the fault, and the exception says which policy could not be constructed.
+        foreach (var fault in PolicyConfigurationFaults())
+            gateMissing.Add((fault.PolicyId, fault.Reason));
+
         if (missing.Count == 0 && gateMissing.Count == 0) return Task.CompletedTask;
 
         // "No option turns the gate off for a tool it covers" (CV-1). The acknowledgment exists for
@@ -231,6 +239,28 @@ public sealed class AffiantWireUpValidator(
 
     /// <inheritdoc />
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    /// <summary>
+    /// Every registered approval policy that says it cannot run as it is wired (CV-1).
+    /// </summary>
+    /// <remarks>
+    /// The chain is resolved in a throwaway scope and each policy is asked
+    /// <see cref="IApprovalPolicy.ConfigurationFault"/>. Nothing is evaluated, no Affidavit is seen
+    /// and nothing is approved: the question is about the wiring, not about a write. A host whose
+    /// container cannot build a policy at all fails here too, which is the same class of fault one
+    /// step earlier.
+    /// </remarks>
+    private IEnumerable<(string PolicyId, string Reason)> PolicyConfigurationFaults()
+    {
+        if (scopeFactory is null) yield break;
+
+        using var scope = scopeFactory.CreateScope();
+        foreach (var policy in scope.ServiceProvider.GetServices<IApprovalPolicy>())
+        {
+            if (policy.ConfigurationFault is { Length: > 0 } fault)
+                yield return (policy.PolicyId, fault);
+        }
+    }
 
     private static string Describe(AffiantToolDescriptor d) =>
         d.PluginName is null ? d.FunctionName : $"{d.PluginName}.{d.FunctionName}";

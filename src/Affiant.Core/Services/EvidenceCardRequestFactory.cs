@@ -11,11 +11,10 @@ using Affiant.Abstractions.Transport;
 /// given entry cannot drift between the three (Area-5 Decision 3, affiant#28).
 ///
 /// <para>
-/// <b>The blocked marker is not filled here yet.</b> A card reports why no decision on its entry
-/// will be accepted (AZ-4, CV-4), and that fact lives on the Docket row: the row is what is blocked,
-/// and the card only says so. The column, the transitions that refuse a decision on a blocked row
-/// and the pipeline paths that file one belong to the Docket-row change; until it lands this factory
-/// passes null, and a card's <see cref="EvidenceCardRequest.Blocked"/> is null on every entry.
+/// <b>A blocked entry says so on its card</b> (AZ-4, CV-4), and never claims a confirmation is being
+/// awaited: the fact lives on the Docket row — the row is what is blocked — and the caller filing a
+/// blocked entry passes the marker through here so the card reports the row's own value rather than
+/// a second one computed for display.
 /// </para>
 /// </summary>
 public static class EvidenceCardRequestFactory
@@ -36,13 +35,25 @@ public static class EvidenceCardRequestFactory
     /// named none.
     /// </param>
     /// <param name="ct">Cancels the store lookup.</param>
+    /// <param name="blocked">
+    /// Why no decision on this entry will be accepted, or <c>null</c> when it can be decided
+    /// (AZ-4). A blocked card never asks for a confirmation no decision path would accept.
+    /// </param>
+    /// <param name="requiresConfirmation">
+    /// Overrides whether the card asks a person. <c>false</c> for a Standing Order approval: the
+    /// write is already approved and the card is there so the reviewer surface can see what was
+    /// approved in the organisation's name, not so anyone can confirm it (SR-4). <c>null</c> leaves
+    /// the record's own answer.
+    /// </param>
     public static async Task<EvidenceCardRequest> CreateAsync(
         IDocketStore docketStore,
         Guid entryId,
         Affidavit affidavit,
         DateTimeOffset expiresAt,
         CancellationToken ct,
-        string? hostOperation = null)
+        string? hostOperation = null,
+        BlockedMarker? blocked = null,
+        bool? requiresConfirmation = null)
     {
         ArgumentNullException.ThrowIfNull(docketStore);
 
@@ -53,12 +64,16 @@ public static class EvidenceCardRequestFactory
         // warnings, whether a person must confirm, the per-field presentation hints — is lifted
         // from the record itself rather than passed in, so a card can never report a number that
         // was about a different set of values than the ones it shows.
-        return EvidenceCardRequest.For(
+        var card = EvidenceCardRequest.For(
             entryId,
             affidavit,
             expiresAt,
             priorAmendments,
-            blocked: null,
+            blocked,
             hostOperation);
+
+        return requiresConfirmation is { } asked && card.RequiresConfirmation != asked
+            ? card with { RequiresConfirmation = asked }
+            : card;
     }
 }

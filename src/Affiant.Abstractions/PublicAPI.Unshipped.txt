@@ -142,6 +142,7 @@ Affiant.Abstractions.Interfaces.ExpireDueResult.Expired.init -> void
 Affiant.Abstractions.Interfaces.ExpireDueResult.More.get -> bool
 Affiant.Abstractions.Interfaces.ExpireDueResult.More.init -> void
 Affiant.Abstractions.Interfaces.IAffidavitProjection.Project(Affiant.Abstractions.Interfaces.IContextFabric! fabric, string! operationType, System.Collections.Generic.IReadOnlyList<string!>! warnings, string? entityId = null) -> Affiant.Abstractions.Models.Affidavit!
+Affiant.Abstractions.Interfaces.IApprovalPolicy.ConfigurationFault.get -> string?
 Affiant.Abstractions.Interfaces.IApprovalPolicy.DeclaredInputs.get -> System.Collections.Generic.IReadOnlyCollection<Affiant.Abstractions.Models.ProvenanceSource>!
 Affiant.Abstractions.Interfaces.IApprovalPolicy.DefaultTimeToLive.get -> System.TimeSpan?
 Affiant.Abstractions.Interfaces.IApprovalPolicy.EvaluateAsync(Affiant.Abstractions.Models.Affidavit! affidavit, Affiant.Abstractions.Models.ConversationIdentity! identity, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Affiant.Abstractions.Models.ApprovalVerdict?>!

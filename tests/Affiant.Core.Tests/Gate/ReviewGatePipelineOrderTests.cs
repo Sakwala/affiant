@@ -7,6 +7,7 @@ using Affiant.Abstractions.Transport;
 using Affiant.Core.Extensions;
 using Affiant.Core.Services;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 using Xunit;
 
 /// <summary>
@@ -299,7 +300,10 @@ public class ReviewGatePipelineOrderTests
         IStreamingTransport? transport = null,
         TimeSpan? gateDefault = null)
     {
-        var evaluator = new ApprovalPolicyEvaluator(policy is null ? [] : [policy]);
+        // One clock for the chain and the gate (GT-4): a window the chain measures against the wall
+        // clock while the gate stamps from an injected one is a window the two do not agree about.
+        var clock = new FakeTimeProvider(Pinned);
+        var evaluator = new ApprovalPolicyEvaluator(policy is null ? [] : [policy], clock);
         var options = new AffiantCoreOptions
         {
             EnableObservability = false,
@@ -307,19 +311,21 @@ public class ReviewGatePipelineOrderTests
         };
         return new ReviewGate(
             transport ?? new RecordingTransport(), store, evaluator, options,
-            NullLogger<ReviewGate>.Instance, timeProvider: null,
+            NullLogger<ReviewGate>.Instance, clock,
             new AllowAllDecisionAuthorization());
     }
 
+    /// <summary>The instant every gate in this file is pinned to.</summary>
+    private static readonly DateTimeOffset Pinned = new(2026, 9, 4, 12, 0, 0, TimeSpan.Zero);
+
     /// <summary>
-    /// The window between filing and the deadline, to the minute. Exact equality would test the
-    /// clock, not the rule; a clock seam is a separate change.
+    /// The window between filing and the deadline, exactly. The clock is injected and pinned, so a
+    /// deadline stamped from anything else — the wall clock, a second reading taken later — shows up
+    /// here rather than hiding inside a tolerance (GT-4).
     /// </summary>
     private static void AssertWindowIsAbout(TimeSpan expected, DocketEntry entry)
     {
-        var actual = entry.ExpiresAt - entry.CreatedAt;
-        Assert.True(
-            (actual - expected).Duration() < TimeSpan.FromSeconds(30),
-            $"expected a review window of about {expected}, got {actual}");
+        Assert.Equal(Pinned, entry.CreatedAt);
+        Assert.Equal(Pinned + expected, entry.ExpiresAt);
     }
 }

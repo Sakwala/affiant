@@ -9,6 +9,7 @@
 *REMOVED*virtual Affiant.Policies.StandingOrders.StandingOrderBase.RiskThreshold.get -> int
 Affiant.Policies.AffiantPolicies
 Affiant.Policies.Referrals.ReferralRuleBase.EvaluateAsync(Affiant.Abstractions.Models.Affidavit! affidavit, Affiant.Abstractions.Models.ConversationIdentity! identity, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Affiant.Abstractions.Models.ApprovalVerdict?>!
+Affiant.Policies.StandingOrders.StandingOrderBase.ConfigurationFault.get -> string?
 Affiant.Policies.StandingOrders.StandingOrderBase.EvaluateAsync(Affiant.Abstractions.Models.Affidavit! affidavit, Affiant.Abstractions.Models.ConversationIdentity! identity, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Affiant.Abstractions.Models.ApprovalVerdict?>!
 Affiant.Policies.StandingOrders.StandingOrderBase.StandingOrderBase(Affiant.Policies.Services.RiskScoreCalculatorBase? riskScorer = null, Microsoft.Extensions.Logging.ILogger? logger = null) -> void
 abstract Affiant.Policies.Services.RiskScoreCalculatorBase.ComputeAsync(Affiant.Abstractions.Models.Affidavit! affidavit, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<int>!

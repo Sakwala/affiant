@@ -213,8 +213,17 @@ public sealed record ProvenanceTag(
     public bool Beats(ProvenanceTag incumbent)
     {
         ArgumentNullException.ThrowIfNull(incumbent);
-        return Confidence > incumbent.Confidence ||
-               (Confidence == incumbent.Confidence && (int)Source < (int)incumbent.Source);
+
+        if (Confidence > incumbent.Confidence) return true;
+        if (Confidence < incumbent.Confidence) return false;
+        if ((int)Source < (int)incumbent.Source) return true;
+        if ((int)Source > (int)incumbent.Source) return false;
+
+        // Equal confidence, equal grade: the tag that points at something an auditor can go and
+        // check displaces the one that points at nothing (PV-2, PV-3). A value read out of an
+        // utterance span is more evidence than the same value as an unbound literal, and a rule that
+        // treated them as a tie would keep whichever happened to be tagged first.
+        return Binding is not null && incumbent.Binding is null;
     }
 
     /// <summary>
