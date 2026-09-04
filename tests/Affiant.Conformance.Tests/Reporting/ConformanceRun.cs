@@ -24,8 +24,23 @@ internal sealed record FixtureResult(string Id, string Outcome, IReadOnlyList<Mi
 /// </remarks>
 internal sealed class ConformanceRun
 {
-    /// <summary>The version of the framework this run exercised.</summary>
-    public const string ImplementationVersion = "1.0.0-beta.1";
+    /// <summary>
+    /// The version of the framework this run exercised, read off the packages it is bound to.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Derived, not declared. A constant here says what somebody last remembered to type; the
+    /// assembly's own informational version says what the tree actually builds, so the run log is
+    /// named after the thing that was measured and the parity manifest's <c>version</c> is a fact
+    /// about it. A build-metadata suffix (<c>+&lt;commit&gt;</c>) is stripped: the commit is
+    /// recorded separately, and it is not part of the release the manifest is a claim about.
+    /// </para>
+    /// <para>
+    /// It reads <c>Affiant.Core</c> rather than this test assembly: the driver's own version is
+    /// nobody's concern, and the packages are what a reader installs.
+    /// </para>
+    /// </remarks>
+    public static readonly string ImplementationVersion = ReadImplementationVersion();
 
     /// <summary>The implementation's identifier, matching the parity manifest's.</summary>
     public const string ImplementationName = "dotnet";
@@ -166,6 +181,24 @@ internal sealed class ConformanceRun
             },
             ["results"] = rows,
         };
+    }
+
+    /// <summary>The informational version of the shipped core, without its build metadata.</summary>
+    private static string ReadImplementationVersion()
+    {
+        var informational = typeof(Affiant.Core.Services.ReviewGate).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+
+        if (string.IsNullOrWhiteSpace(informational))
+        {
+            throw new InvalidOperationException(
+                "Affiant.Core carries no AssemblyInformationalVersionAttribute, so this run cannot "
+                + "say which version of the framework it measured. A parity manifest that named the "
+                + "wrong version would be a claim about a release nobody built.");
+        }
+
+        var plus = informational.IndexOf('+', StringComparison.Ordinal);
+        return plus < 0 ? informational : informational[..plus];
     }
 
     private static string Commit() =>

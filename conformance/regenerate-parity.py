@@ -24,10 +24,30 @@ import re
 import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
-RESULTS = HERE / "results" / "dotnet-1.0.0-beta.1.json"
 MANIFEST = HERE / "parity" / "dotnet-v0.1.json"
 FIXTURE_INDEX = HERE.parent / "tests" / "Affiant.Conformance.Tests" / "protocol" / "fixtures" / "MANIFEST.json"
 EXEMPTIONS = HERE.parent / "tests" / "Affiant.Conformance.Tests" / "protocol" / "lint" / "coverage-exemptions.json"
+
+
+def built_version():
+    """The version this tree builds, from Directory.Build.props.
+
+    The run log is named after the version it measured, so a script looking for it has to ask the
+    same question the driver did rather than carry a constant that goes stale the moment the tree is
+    versioned for the next release.
+    """
+    props = (HERE.parent / "Directory.Build.props").read_text()
+    prefix = re.search(r"<VersionPrefix>([^<]+)</VersionPrefix>", props)
+    suffix = re.search(r"<VersionSuffix>([^<]*)</VersionSuffix>", props)
+    if not prefix:
+        raise SystemExit("no <VersionPrefix> in Directory.Build.props")
+    return f"{prefix.group(1)}-{suffix.group(1)}" if suffix and suffix.group(1) else prefix.group(1)
+
+
+def run_log():
+    """The run this tree's own build wrote."""
+    return HERE / "results" / f"dotnet-{built_version()}.json"
+
 
 # The release every open gap below is scheduled for. A row that names it carries disposition
 # "planned": the gap is measured, written down and on the schedule for a named release. That is a
@@ -302,7 +322,8 @@ def cause_of(result):
 
 
 def main():
-    run = json.loads(RESULTS.read_text())
+    results = run_log()
+    run = json.loads(results.read_text())
     index = {f["id"]: f for f in json.loads(FIXTURE_INDEX.read_text())["conformance"]["fixtures"]}
     exemptions = json.loads(EXEMPTIONS.read_text())["exemptions"]
 
@@ -343,7 +364,7 @@ def main():
         "version": run["implementation"]["version"],
         "protocolTag": run["protocolTag"],
         "producedAt": run["producedAt"],
-        "runLog": "conformance/results/dotnet-1.0.0-beta.1.json (Sakwala/affiant)",
+        "runLog": f"conformance/results/{results.name} (Sakwala/affiant)",
         "failing": failing,
         "runtimes": [{"name": "net10.0", "version": "10.0", "claimed": True}],
         "exemptions": [

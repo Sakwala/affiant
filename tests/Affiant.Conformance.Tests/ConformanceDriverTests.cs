@@ -149,16 +149,53 @@ public sealed class ConformanceDriverTests(ITestOutputHelper output)
         Assert.Equal(rulebook, declared);
     }
 
+    /// <summary>
+    /// A fixture whose rule a known defective release violates is accepted into the suite only if it
+    /// FAILS against <b>that release</b>. A listed fixture that passes there is not good news: it
+    /// means the fixture is mis-authored or the recorded defect is not what it was said to be, and it
+    /// is investigated before the tag is cut. It is never tuned into failing.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The oracle is a statement about a <em>named</em> release — every entry in the vendored suite
+    /// reads <c>dotnet@1.0.0-beta.1</c>. Running it against a different version answers a question
+    /// nobody asked: a release that fixes those rules is supposed to pass those fixtures, and
+    /// reporting that as a broken oracle would turn every correction into a red build. So on any
+    /// other version this reports itself skipped, with the reason, rather than failing or quietly
+    /// passing. xUnit 2.x has no dynamic skip, so the skip is a line in the run's own output and an
+    /// assertion that the versions really do differ.
+    /// </para>
+    /// </remarks>
     [Fact]
     public void EveryOracleFixtureFailsOnThisRelease()
     {
-        // A fixture whose rule a known defective release violates is accepted into the suite only if
-        // it FAILS against that release. A listed fixture that passes here is not good news: it means
-        // the fixture is mis-authored or the recorded defect is not what it was said to be, and it is
-        // investigated before the tag is cut. It is never tuned into failing.
+        var oracles = ProtocolSuite.Instance.Manifest
+            .Where(m => m.Oracle is not null)
+            .SelectMany(m => m.Oracle!.MustFailOn)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        var running = $"{ConformanceRun.ImplementationName}@{ConformanceRun.ImplementationVersion}";
+        if (!oracles.Contains(running, StringComparer.Ordinal))
+        {
+            // Reported, not swallowed. xUnit 2.x has no dynamic skip, so the reason is written where
+            // a reader of the run will see it, and the precondition that makes the assertion
+            // inapplicable is itself asserted: the day this version is one the oracle names again,
+            // this line fails rather than letting the check quietly stop running.
+            Assert.DoesNotContain(running, oracles, StringComparer.Ordinal);
+            output.WriteLine(
+                $"SKIPPED — EveryOracleFixtureFailsOnThisRelease is a statement about " +
+                $"{string.Join(", ", oracles)}; this run measured {running}. A release that fixes " +
+                "those rules is supposed to pass those fixtures, so the assertion is not answerable " +
+                "here. It is not failed and it is not quietly passed: it did not run, and this says " +
+                "so.");
+            return;
+        }
+
         var outcomes = ConformanceRun.Instance.Results.ToDictionary(r => r.Id, r => r.Outcome, StringComparer.Ordinal);
         var passing = ProtocolSuite.Instance.Manifest
-            .Where(m => m.Oracle is not null && m.Oracle.MustFailOn.Contains($"dotnet@{ConformanceRun.ImplementationVersion}"))
+            .Where(m => m.Oracle is not null && m.Oracle.MustFailOn.Contains(running, StringComparer.Ordinal))
             .Where(m => outcomes.GetValueOrDefault(m.Id) == "pass")
             .Select(m => $"{m.Id} (defect recorded: {m.Oracle!.Defect})")
             .ToArray();

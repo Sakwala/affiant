@@ -1,10 +1,10 @@
 {
   "schemaVersion": "0.1.0",
   "implementation": "dotnet",
-  "version": "1.0.0-beta.1",
+  "version": "1.0.0-beta.3",
   "protocolTag": "v0.1.1",
-  "producedAt": "2026-09-04T12:12:20.354Z",
-  "runLog": "conformance/results/dotnet-1.0.0-beta.1.json (Sakwala/affiant)",
+  "producedAt": "2026-09-04T12:30:00.402Z",
+  "runLog": "conformance/results/dotnet-1.0.0-beta.3.json (Sakwala/affiant)",
   "failing": [
     {
       "id": "gate/substance-hollow-refused",

@@ -881,6 +881,27 @@ delivered its own `EvidenceCardResponse` unblocked the waiter and the row was wr
 - **`DocketDepthInstrument.StopAsync` no longer throws** when a host disposes its services before
   stopping them.
 
+### The version this tree builds, and the run that measures it
+
+- **`VersionSuffix` is `beta.3`.** This tree is the conformance release's candidate, so every
+  version-derived thing says so: the packages, the driver's run log and the parity manifest's
+  `version` field.
+- **The driver reads the version it measured off the packages**
+  (`AssemblyInformationalVersionAttribute` on `Affiant.Core`, build metadata stripped) instead of
+  carrying a constant. The run log is `conformance/results/dotnet-<version>.json`, so a branch build
+  can never overwrite the record of a release that shipped:
+  `conformance/results/dotnet-1.0.0-beta.1.json` stays exactly as `1.0.0-beta.1` left it.
+  `conformance/compare-parity.py` and `conformance/regenerate-parity.py` ask
+  `Directory.Build.props` the same question rather than naming a file.
+- **The negative-oracle assertion is a statement about a named release.** The rulebook records which
+  fixtures must fail on `dotnet@1.0.0-beta.1`; a release that fixes those rules is supposed to pass
+  them. Run against any other version the assertion reports itself skipped, with the reason, rather
+  than failing (every correction would be a red build) or quietly passing (the check would stop
+  running and nobody would know).
+- **`PackageValidationBaselineVersion` stays at `1.0.0-beta.1`** until `1.0.0-beta.1.1` is tagged.
+  It names a version `dotnet pack` downloads from a feed, and beta.1.1 is not published; it moves
+  when the tag is cut.
+
 ### The conformance driver
 
 #### Added
