@@ -41,10 +41,13 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
   reproduces the pinned bytes and digest for six of the seven at the first attempt, unchanged —
   what fails is the model, which is the same `1.0.0-beta.3` gap the rest of the report names.
 
-  The 63 rows are 53 `planned` — 52 for `1.0.0-beta.3` and one for `1.0.0-beta.1.1` — and 10
-  `fenced`. None is `fixed`: that value names a release a reader can **install**, and the
-  risk-floor correction behind `gate/standing-order-by-the-book` is green on a branch (#53) in a
-  release that has not shipped.
+  The 63 rows are 53 `planned`, every one for `1.0.0-beta.3`, and 10 `fenced`. None is `fixed`:
+  that value names a release a reader can **install**. The risk-floor defect behind
+  `gate/standing-order-by-the-book` is corrected in `1.0.0-beta.1.1` (#53), which has shipped, but
+  the fixture still fails there: it also asserts the row's execution state (DK-1) and its
+  attestation record (AZ-1), neither of which lands before `1.0.0-beta.3`. No declarative fixture
+  reaches the risk floor alone — it is covered by the framework's own `RiskConfigurationTests`
+  (`Affiant.Policies.Tests.StandingOrders`).
 
 ## [1.0.0-beta.1.1] — 2026-09-04
 
