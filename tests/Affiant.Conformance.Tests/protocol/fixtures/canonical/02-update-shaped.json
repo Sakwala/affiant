@@ -1,0 +1,102 @@
+{
+  "id": "canonical/update-shaped",
+  "rules": [
+    "SR-1",
+    "AF-3",
+    "PV-1"
+  ],
+  "note": "An update-shaped Affidavit: entityId set, a previousValue on every proposed field, one of them null because the field had no stored value (AF-3). One chain carries a superseded tag in `prior`, so the vector pins that array order is data and is never sorted. `null` is written; a property whose value is undefined is omitted, which no JSON file can express — `test/canonical.test.ts` covers that half.",
+  "input": {
+    "operationType": "WriteUpdate",
+    "entityType": "Invoice",
+    "entityId": "INV-2026-0044",
+    "fields": [
+      {
+        "name": "DueDate",
+        "value": "2026-10-01",
+        "previousValue": "2026-09-15",
+        "provenance": {
+          "current": {
+            "source": "Conversation",
+            "confidence": 0.82,
+            "evidence": "Extracted from the turn",
+            "conversationTurn": 4
+          },
+          "prior": [
+            {
+              "source": "Inferred",
+              "confidence": 0.4,
+              "evidence": "Guessed from the payment terms",
+              "conversationTurn": 4
+            }
+          ]
+        },
+        "isMandatory": true,
+        "kind": "date",
+        "allowedValues": null,
+        "pattern": null
+      },
+      {
+        "name": "Reference",
+        "value": "PO-77",
+        "previousValue": null,
+        "provenance": {
+          "current": {
+            "source": "External",
+            "confidence": 1,
+            "evidence": "Read from the purchase-order system",
+            "conversationTurn": null,
+            "binding": {
+              "kind": "external-ref",
+              "ref": "erp:purchase-order/77"
+            }
+          },
+          "prior": []
+        },
+        "isMandatory": false,
+        "kind": "text",
+        "allowedValues": null,
+        "pattern": null
+      },
+      {
+        "name": "Total",
+        "value": {
+          "amount": "4000.10",
+          "currency": "GBP"
+        },
+        "previousValue": {
+          "amount": "40.00",
+          "currency": "GBP"
+        },
+        "provenance": {
+          "current": {
+            "source": "Computed",
+            "confidence": 1,
+            "evidence": "Sum of the line items",
+            "conversationTurn": null,
+            "binding": {
+              "kind": "computation-ref",
+              "ref": "invoice.total@v3"
+            }
+          },
+          "prior": []
+        },
+        "isMandatory": true,
+        "kind": "number",
+        "allowedValues": null,
+        "pattern": null
+      }
+    ],
+    "aggregateConfidence": 0.82,
+    "populatedConfidence": 0.82,
+    "emptyFieldCount": 0,
+    "warnings": [
+      "The total changed by more than 10x."
+    ],
+    "requiresConfirmation": true
+  },
+  "amendments": null,
+  "reviewerAct": null,
+  "expectedBytesUtf8": "{\"aggregateConfidence\":0.82,\"emptyFieldCount\":0,\"entityId\":\"INV-2026-0044\",\"entityType\":\"Invoice\",\"fields\":[{\"allowedValues\":null,\"isMandatory\":true,\"kind\":\"date\",\"name\":\"DueDate\",\"pattern\":null,\"previousValue\":\"2026-09-15\",\"provenance\":{\"current\":{\"confidence\":0.82,\"conversationTurn\":4,\"evidence\":\"Extracted from the turn\",\"source\":\"Conversation\"},\"prior\":[{\"confidence\":0.4,\"conversationTurn\":4,\"evidence\":\"Guessed from the payment terms\",\"source\":\"Inferred\"}]},\"value\":\"2026-10-01\"},{\"allowedValues\":null,\"isMandatory\":false,\"kind\":\"text\",\"name\":\"Reference\",\"pattern\":null,\"previousValue\":null,\"provenance\":{\"current\":{\"binding\":{\"kind\":\"external-ref\",\"ref\":\"erp:purchase-order/77\"},\"confidence\":1,\"conversationTurn\":null,\"evidence\":\"Read from the purchase-order system\",\"source\":\"External\"},\"prior\":[]},\"value\":\"PO-77\"},{\"allowedValues\":null,\"isMandatory\":true,\"kind\":\"number\",\"name\":\"Total\",\"pattern\":null,\"previousValue\":{\"amount\":\"40.00\",\"currency\":\"GBP\"},\"provenance\":{\"current\":{\"binding\":{\"kind\":\"computation-ref\",\"ref\":\"invoice.total@v3\"},\"confidence\":1,\"conversationTurn\":null,\"evidence\":\"Sum of the line items\",\"source\":\"Computed\"},\"prior\":[]},\"value\":{\"amount\":\"4000.10\",\"currency\":\"GBP\"}}],\"operationType\":\"WriteUpdate\",\"populatedConfidence\":0.82,\"requiresConfirmation\":true,\"warnings\":[\"The total changed by more than 10x.\"]}",
+  "expectedSha256": "125220b31c330f0b05a176c9652b8037a0aea55fefed7b1e59d1e5b1edfff333"
+}

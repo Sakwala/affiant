@@ -1,0 +1,51 @@
+{
+  "id": "gate/substance-hollow-refused",
+  "rules": ["GT-3"],
+  "title": "A value with nothing behind it is hollow: the field carries \"Active\" and an Empty tag, so the proposal is refused before anything is filed. The shipped .NET ComplianceHarness checks this at test time only; the runtime must too.",
+  "given": {
+    "clock": "2026-09-04T09:00:00.000Z",
+    "store": "memory",
+    "gate": {
+      "defaultTtlMs": 1800000,
+      "authorization": {
+        "allow": ["*"]
+      }
+    },
+    "ctx": {
+      "tenantId": "tenant-a",
+      "conversationId": "conv-1",
+      "channel": "chat",
+      "principal": {
+        "kind": "member",
+        "id": "member-1"
+      },
+      "utterance": "Set the invoice status to Active",
+      "messageId": "msg-1"
+    },
+    "prior": [],
+    "step": {
+      "kind": "file",
+      "toolName": "relay_capture",
+      "operation": {
+        "kind": "update",
+        "entityType": "Invoice",
+        "entityId": "invoice-1",
+        "fields": ["status"]
+      },
+      "preparedFields": [
+        {
+          "name": "status",
+          "kind": "text",
+          "value": "Active",
+          "provenance": null
+        }
+      ]
+    }
+  },
+  "expect": {
+    "error": {
+      "code": "substance-refused",
+      "messageContains": "Empty provenance"
+    }
+  }
+}

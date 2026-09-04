@@ -1,0 +1,65 @@
+{
+  "protocolVersion": "0.1.0",
+  "docketId": "421b12e8-d13f-85a5-8afa-fdb44b7fd08f",
+  "affidavit": {
+    "protocolVersion": "0.1.0",
+    "operationType": "update",
+    "entityType": "Invoice",
+    "entityId": "invoice-1",
+    "fields": [
+      {
+        "name": "status",
+        "kind": "enum",
+        "value": "Retired",
+        "previousValue": null,
+        "provenance": {
+          "current": {
+            "source": "UserStated",
+            "confidence": 1,
+            "note": "Prefilled from the amendment ana carried on Docket entry 80358c14-961a-875e-b20a-0a70a89e4592",
+            "at": "2026-09-04T09:45:00.000Z",
+            "conversationTurn": null,
+            "binding": {
+              "kind": "reviewer-act",
+              "ref": {
+                "entryId": "80358c14-961a-875e-b20a-0a70a89e4592",
+                "decisionAt": "2026-09-04T09:45:00.000Z"
+              }
+            }
+          },
+          "prior": [
+            {
+              "source": "Conversation",
+              "confidence": 0.9,
+              "note": "Literally present in the turn: status",
+              "at": "2026-09-04T09:00:00.000Z",
+              "conversationTurn": null,
+              "binding": {
+                "kind": "utterance-span",
+                "ref": {
+                  "offset": 21,
+                  "length": 6,
+                  "hash": "92340695899bd2d86223e4a007620e0d6502fc0e08809773634c7e0743764a9c"
+                }
+              }
+            }
+          ]
+        },
+        "isMandatory": true
+      }
+    ],
+    "aggregateConfidence": 1,
+    "populatedConfidence": 1,
+    "emptyFieldCount": 0,
+    "conversationTurn": null,
+    "createdAt": "2026-09-04T09:46:00.000Z"
+  },
+  "requiredBy": "2026-09-04T10:16:00.000Z",
+  "priorAmendments": {
+    "status": "Retired"
+  },
+  "populatedConfidence": 1,
+  "emptyFieldCount": 0,
+  "blocked": null,
+  "requiresConfirmation": true
+}

@@ -1,0 +1,852 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://affiant.dev/conformance/0.1.0/fixture.schema.json",
+  "title": "ConformanceFixture",
+  "description": "One declarative conformance fixture: a wiring, a sequence of acts, and what must then be true. Written out from the reference runner's own key tables (Sakwala/affiant-ts, packages/core/src/testing.ts — FIXTURE_KEYS and STEP_KEYS), so that a document this schema accepts is a document that runner will run rather than reject. The allowed key sets are the same in both places and every object here is additionalProperties:false, deliberately: a misspelled expectation key is a key the checker never reads, so the fixture asserts nothing about that fact and every implementation passes it, including a broken one. Adding a clause to the format means adding it in both places in the same change. This schema describes the FIXTURE FORMAT and refers to nothing outside itself; the wire shapes a fixture's matchers are about live in schemas/0.1.0/. The seven canonical/*.json byte vectors are a different document shape and are not described here — see conformance/RUNNER.md, 'The canonical vectors'.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "rules", "title", "given", "expect"],
+  "properties": {
+    "id": {
+      "description": "A stable id, unique across the set, prefixed by the set it lives in. Never renamed: a parity manifest cites it by name, so a rename silently changes what a published document refers to.",
+      "type": "string",
+      "pattern": "^(gate|decide|sequence-a|sequence-c)/[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "rules": {
+      "description": "The rulebook ids this fixture checks. At least one, and each must be a rule INVARIANTS.md defines — the coverage lint checks both directions.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "pattern": "^(AF|PV|GT|DK|AZ|SR|RT|CV|TL)-[0-9]+$" }
+    },
+    "title": {
+      "description": "What the fixture asserts, in a sentence a reviewer can read without opening the JSON. It is the test name in every runner.",
+      "type": "string",
+      "minLength": 1
+    },
+    "given": { "$ref": "#/$defs/given" },
+    "expect": { "$ref": "#/$defs/expect" }
+  },
+  "$defs": {
+    "jsonValue": {
+      "description": "Any JSON value. Field values are the host's domain data; the protocol does not constrain them.",
+      "$comment": "No type constraint on purpose."
+    },
+    "isoInstant": { "type": "string", "format": "date-time" },
+    "unitInterval": { "type": "number", "minimum": 0, "maximum": 1 },
+    "amendments": {
+      "description": "A reviewer's amendments: field name to the new value, where null means the reviewer CLEARED the field, which is distinct from the key being absent (DK-2).",
+      "type": "object"
+    },
+    "provenanceSource": {
+      "type": "string",
+      "enum": ["Empty", "Default", "Inferred", "Conversation", "Computed", "External", "UserStated"]
+    },
+    "bindingKind": {
+      "type": "string",
+      "enum": ["utterance-span", "reviewer-act", "form-input", "external-ref", "computation-ref"]
+    },
+    "binding": {
+      "description": "What to look at to check a value (PV-2): a kind and the reference it points at.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "ref"],
+      "properties": {
+        "kind": { "$ref": "#/$defs/bindingKind" },
+        "ref": { "type": "object" }
+      }
+    },
+    "interceptorBinding": {
+      "description": "The two binding kinds a deterministic interceptor may mint (PV-3): a machine points at a record or a computation, never at a person's act.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "ref"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["external-ref", "computation-ref"] },
+        "ref": { "type": "object" }
+      }
+    },
+    "fieldKind": { "type": "string", "enum": ["text", "number", "date", "enum"] },
+    "requirementKind": {
+      "type": "string",
+      "enum": ["StandingOrder", "ReviewerConfirmation", "ReferralRequired", "MultiParty"]
+    },
+    "blocked": {
+      "description": "Why no decision on an entry will be accepted (AZ-4, CV-4), or null.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code"],
+          "properties": {
+            "code": {
+              "type": "string",
+              "enum": ["requirement-not-implemented", "coverage-refused"]
+            },
+            "level": { "$ref": "#/$defs/requirementKind" },
+            "category": { "type": "string", "enum": ["no-execute", "provider-executed", "hosted-mcp"] },
+            "toolName": { "type": "string" }
+          }
+        },
+        { "type": "null" }
+      ]
+    },
+    "principal": {
+      "description": "Who is acting on the turn (AZ-2, AZ-3). null is UNRESOLVED, which is not the same as anonymous.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "id"],
+          "properties": {
+            "kind": { "const": "member" },
+            "id": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "id"],
+          "properties": {
+            "kind": { "const": "service" },
+            "id": { "type": "string" },
+            "relay": {
+              "description": "The message this service is carrying, when it is a relay.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["channelIdentity", "messageId"],
+              "properties": {
+                "channelIdentity": {
+                  "description": "The identity, on the relay's own channel, the message came from — a phone number, a handle, whatever the relay names people by. Unconstrained on purpose: the protocol does not own the relay's namespace."
+                },
+                "messageId": { "type": "string" }
+              }
+            },
+            "assertedMember": {
+              "description": "The person this service says it is speaking for. An assertion, never an authentication: it does not upgrade the principal to member (AZ-3).",
+              "type": "string"
+            }
+          }
+        },
+        { "type": "null" }
+      ]
+    },
+
+    "given": {
+      "description": "The wiring, the acts, and the turn they happen in.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gate", "clock", "ctx", "step"],
+      "properties": {
+        "gate": { "$ref": "#/$defs/gate" },
+        "store": {
+          "description": "Which reference store to file into. Only the in-memory one exists at v0.1.",
+          "type": "string",
+          "enum": ["memory"]
+        },
+        "clock": {
+          "description": "The instant the clock starts at. Every step may move it forward with `at`.",
+          "$ref": "#/$defs/isoInstant"
+        },
+        "ctx": { "$ref": "#/$defs/ctx" },
+        "prior": {
+          "description": "The acts that set the scene. Each may declare the refusal it is expected to produce, so a reader sees the refusal beside the act that caused it.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/step" }
+        },
+        "step": {
+          "description": "The act under test. expect.error is about this one.",
+          "$ref": "#/$defs/step"
+        }
+      }
+    },
+
+    "gate": {
+      "description": "Everything the gate is built from. A driver binds each of these to its own implementation's equivalent (conformance/DRIVER.md).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["defaultTtlMs", "authorization"],
+      "properties": {
+        "policies": {
+          "description": "The approval chain, in order (AZ-4).",
+          "type": "array",
+          "items": { "$ref": "#/$defs/policy" }
+        },
+        "riskScorer": {
+          "description": "What the host's risk function returns, or null for no scorer wired (GT-5).",
+          "type": ["number", "null"]
+        },
+        "interceptors": {
+          "description": "Deterministic resolvers (PV-2, GT-1 step 2).",
+          "type": "array",
+          "items": { "$ref": "#/$defs/interceptor" }
+        },
+        "defaultTtlMs": {
+          "description": "The deadline applied when neither the verdict nor the policy names one (GT-4).",
+          "type": "integer",
+          "minimum": 1
+        },
+        "authorization": { "$ref": "#/$defs/authorization" },
+        "inference": {
+          "description": "What the host's inference reports, keyed by field name (GT-1 step 3). Scripted, never computed: the gate's contract is that it asks the host for values and tags whatever it gets.",
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": { "$ref": "#/$defs/inferredField" }
+            },
+            { "type": "null" }
+          ]
+        },
+        "entities": {
+          "description": "What the host's entities hold now, keyed \"<entityType>/<entityId>\" (AF-3). An entity the table does not name does not exist, and the projection port answers null.",
+          "type": "object",
+          "additionalProperties": { "type": "object" }
+        },
+        "uncovered": {
+          "description": "Tools the host declared it cannot intercept (CV-4).",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["tool", "category"],
+            "properties": {
+              "tool": { "type": "string" },
+              "category": { "type": "string", "enum": ["no-execute", "provider-executed", "hosted-mcp"] }
+            }
+          }
+        },
+        "sessions": {
+          "description": "Whether a rehydration surface is wired (DK-5). Defaults to true.",
+          "type": "boolean"
+        }
+      }
+    },
+
+    "authorization": {
+      "description": "The host's answer to \"may this principal act on this entry\" (AZ-2): an allowlist of principal ids, \"*\" admitting everyone. `throws` makes the port fall over instead of answering, which the gate must read as a refusal and never as an approval.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allow"],
+      "properties": {
+        "allow": { "type": "array", "items": { "type": "string" } },
+        "throws": { "type": "boolean" }
+      }
+    },
+
+    "policy": {
+      "description": "One approval policy, as a fixture states it: what it is, what it predicates on, and what it says.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "verdict"],
+      "properties": {
+        "id": { "description": "The host's id, written into a Standing Order attestation (AZ-1).", "type": "string" },
+        "version": { "type": "string" },
+        "declaredInputs": {
+          "description": "The provenance sources it predicates on (PV-4).",
+          "type": "array",
+          "items": { "$ref": "#/$defs/provenanceSource" }
+        },
+        "declaresThreshold": {
+          "description": "Whether any verdict it can return names a threshold (GT-5, CV-1). The static twin of Verdict.threshold, so a gate whose policies need a risk scorer it was not given is refused at wire-up.",
+          "type": "boolean"
+        },
+        "defaultTtlMs": {
+          "description": "Its own default deadline (GT-4).",
+          "type": ["integer", "null"],
+          "minimum": 1
+        },
+        "verdict": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["requirement"],
+              "properties": {
+                "requirement": { "$ref": "#/$defs/requirementKind" },
+                "ttlMs": { "type": "integer", "minimum": 1 },
+                "threshold": { "description": "The risk ceiling, on a StandingOrder verdict only (GT-5).", "type": "number" },
+                "reason": { "type": "string" }
+              }
+            },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+
+    "interceptor": {
+      "description": "One deterministic resolver (PV-2): a name for the record and the fields it resolves.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "fields"],
+      "properties": {
+        "name": { "type": "string" },
+        "fields": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["value", "source", "confidence", "binding"],
+            "properties": {
+              "value": { "$ref": "#/$defs/jsonValue" },
+              "source": { "type": "string", "enum": ["External", "Computed"] },
+              "confidence": { "$ref": "#/$defs/unitInterval" },
+              "binding": { "$ref": "#/$defs/interceptorBinding" },
+              "evidence": { "type": ["string", "null"] }
+            }
+          }
+        }
+      }
+    },
+
+    "inferredField": {
+      "description": "One field the scripted inference port reports.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "confidence", "presence"],
+      "properties": {
+        "value": { "$ref": "#/$defs/jsonValue" },
+        "confidence": { "description": "How confident the port claims to be. Clamped by the pipeline (PV-1).", "type": "number" },
+        "presence": {
+          "description": "Literally present in the turn (Conversation) or reasoned to (Inferred).",
+          "type": "string",
+          "enum": ["literal", "inferred"]
+        },
+        "utteranceSpan": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["start", "end"],
+              "properties": {
+                "start": { "type": "integer", "minimum": 0 },
+                "end": { "type": "integer", "minimum": 0 }
+              }
+            },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+
+    "ctx": {
+      "description": "The turn every step runs in (GT-2): explicit in every property, nothing ambient. A step may override the principal, the tenant or the conversation.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tenantId", "conversationId", "channel"],
+      "properties": {
+        "tenantId": { "type": "string" },
+        "conversationId": { "type": "string" },
+        "channel": { "type": "string" },
+        "principal": { "$ref": "#/$defs/principal" },
+        "utterance": { "type": "string" },
+        "messageId": { "type": "string" }
+      }
+    },
+
+    "toolFields": {
+      "description": "The fields a tool declares, with their reviewer-facing shape.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "kind"],
+        "properties": {
+          "name": { "type": "string" },
+          "kind": { "$ref": "#/$defs/fieldKind" },
+          "description": { "type": ["string", "null"] },
+          "required": { "type": "boolean" },
+          "allowedValues": { "oneOf": [{ "type": "array", "items": { "type": "string" } }, { "type": "null" }] },
+          "pattern": { "type": ["string", "null"] }
+        }
+      }
+    },
+
+    "tool": {
+      "description": "A tool definition, as a wrap-execute step states it. The runner supplies an `execute` that fails if the gate ever calls it, which makes GT-6 a tripwire on every such fixture.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "entityType", "fields"],
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "entityType": { "type": "string" },
+        "entityId": { "description": "null for a create-shaped tool.", "type": ["string", "null"] },
+        "writeCapable": { "type": "boolean" },
+        "executedBy": { "type": "string", "enum": ["host", "provider"] },
+        "hostedMcp": { "type": "boolean" },
+        "omitExecute": { "description": "Whether the tool carries no execute at all — the no-execute category (CV-4).", "type": "boolean" },
+        "operationLabel": { "type": "string" },
+        "fields": { "$ref": "#/$defs/toolFields" }
+      }
+    },
+
+    "operation": {
+      "description": "One create-or-update a tool proposes against one entity. Spelled as a discriminated union rather than a nullable id, because the create branch is what turns into previousValue: null on every field (AF-3).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "entityType", "entityId", "fields"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["create", "update"] },
+        "entityType": { "type": "string" },
+        "entityId": { "type": ["string", "null"] },
+        "fields": { "type": "array", "items": { "type": "string" } }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "create" } }, "required": ["kind"] },
+          "then": { "properties": { "entityId": { "type": "null" } } }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "update" } }, "required": ["kind"] },
+          "then": { "properties": { "entityId": { "type": "string" } } }
+        }
+      ]
+    },
+
+    "preparedField": {
+      "description": "A field the host has already tagged, for a capture whose provenance is settled (Sequence C's way in).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "kind", "value"],
+      "properties": {
+        "name": { "type": "string" },
+        "kind": { "$ref": "#/$defs/fieldKind" },
+        "value": { "$ref": "#/$defs/jsonValue" },
+        "isMandatory": { "type": "boolean" },
+        "provenance": {
+          "description": "The tag in force, or absent for \"proposed, provenance unknown\" (AF-1).",
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["source", "confidence"],
+              "properties": {
+                "source": { "$ref": "#/$defs/provenanceSource" },
+                "confidence": { "$ref": "#/$defs/unitInterval" },
+                "binding": { "oneOf": [{ "$ref": "#/$defs/binding" }, { "type": "null" }] },
+                "note": { "type": ["string", "null"] }
+              }
+            },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+
+    "stepCommon": {
+      "description": "What every step may say about when it happens and who performs it. These keys are legal on every kind; the kind adds its own.",
+      "type": "object",
+      "properties": {
+        "kind": { "type": "string" },
+        "as": { "description": "A label later steps and expectations can name this step's entry by.", "type": "string" },
+        "at": { "description": "Moves the clock before the step runs.", "$ref": "#/$defs/isoInstant" },
+        "principal": { "$ref": "#/$defs/principal" },
+        "tenantId": { "description": "The tenant this step is performed from, when it is not the fixture's (AZ-2).", "type": "string" },
+        "conversationId": { "description": "The conversation this step is performed in, when it is not the fixture's (GT-2).", "type": "string" },
+        "entry": { "description": "The entry this step acts on: a label from `as`, or the last one filed.", "type": "string" },
+        "refusal": {
+          "description": "The refusal code this step is expected to produce. Declared on the step so a reader sees the refusal beside the act that caused it. The step under test may state its refusal here or in expect.error; a refusal declared here is compared wherever it is declared.",
+          "type": ["string", "null"]
+        }
+      }
+    },
+
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tenantId": { "type": "string" },
+        "conversationId": { "type": "string" }
+      }
+    },
+
+    "step": {
+      "description": "One act on the gate. The gate's whole surface is reachable from these eight kinds, so a fixture about a decision and a fixture about a filing differ in their steps, not in their format.",
+      "type": "object",
+      "required": ["kind"],
+      "oneOf": [
+        {
+          "title": "wrap-execute",
+          "description": "Sequence A's way in: a model calls a wrapped tool (GT-6, CV-4).",
+          "allOf": [{ "$ref": "#/$defs/stepCommon" }],
+          "unevaluatedProperties": false,
+          "required": ["kind", "tool", "args"],
+          "properties": {
+            "kind": { "const": "wrap-execute" },
+            "tool": { "$ref": "#/$defs/tool" },
+            "args": { "type": "object" }
+          }
+        },
+        {
+          "title": "file",
+          "description": "Sequence C's way in: a capture the host assembled (GT-1).",
+          "allOf": [{ "$ref": "#/$defs/stepCommon" }],
+          "unevaluatedProperties": false,
+          "required": ["kind", "toolName", "operation"],
+          "properties": {
+            "kind": { "const": "file" },
+            "toolName": { "type": "string" },
+            "operation": { "$ref": "#/$defs/operation" },
+            "schema": { "oneOf": [{ "$ref": "#/$defs/toolFields" }, { "type": "null" }] },
+            "preparedFields": {
+              "oneOf": [{ "type": "array", "items": { "$ref": "#/$defs/preparedField" } }, { "type": "null" }]
+            },
+            "args": { "$ref": "#/$defs/jsonValue" },
+            "operationLabel": { "type": ["string", "null"] }
+          }
+        },
+        {
+          "title": "decide",
+          "description": "Approve, amend or reject (DK-1, AZ-1, AZ-2).",
+          "allOf": [{ "$ref": "#/$defs/stepCommon" }],
+          "unevaluatedProperties": false,
+          "required": ["kind", "decision"],
+          "properties": {
+            "kind": { "const": "decide" },
+            "decision": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind"],
+              "properties": {
+                "kind": { "type": "string", "enum": ["approve", "reject"] },
+                "amendments": { "oneOf": [{ "$ref": "#/$defs/amendments" }, { "type": "null" }] },
+                "reason": { "type": ["string", "null"] }
+              }
+            }
+          }
+        },
+        {
+          "title": "resubmit",
+          "description": "File an expired entry again (DK-1). A resubmission is a NEW entry, never a reopened one.",
+          "allOf": [{ "$ref": "#/$defs/stepCommon" }],
+          "unevaluatedProperties": false,
+          "required": ["kind"],
+          "properties": { "kind": { "const": "resubmit" } }
+        },
+        {
+          "title": "markExecuted",
+          "description": "Report what the host's executor did (DK-1, AZ-5, AZ-7). The framework never performs the write.",
+          "allOf": [{ "$ref": "#/$defs/stepCommon" }],
+          "unevaluatedProperties": false,
+          "required": ["kind", "outcome"],
+          "properties": {
+            "kind": { "const": "markExecuted" },
+            "outcome": { "type": "string", "enum": ["executed", "failed"] },
+            "detail": { "type": ["string", "null"] }
+          }
+        },
+        {
+          "title": "expireDue",
+          "description": "The host-scheduled sweep (DK-3). Bounded and paged: the limit is the fixture's, never the store's whole contents.",
+          "allOf": [{ "$ref": "#/$defs/stepCommon" }],
+          "unevaluatedProperties": false,
+          "required": ["kind", "limit"],
+          "properties": {
+            "kind": { "const": "expireDue" },
+            "limit": { "type": "integer", "minimum": 1 },
+            "scope": { "$ref": "#/$defs/scope" }
+          }
+        },
+        {
+          "title": "get",
+          "description": "Read the entry as it stands, with expiry applied (DK-1).",
+          "allOf": [{ "$ref": "#/$defs/stepCommon" }],
+          "unevaluatedProperties": false,
+          "required": ["kind"],
+          "properties": { "kind": { "const": "get" } }
+        },
+        {
+          "title": "rehydrate",
+          "description": "One page of what a reconnecting client needs (DK-5).",
+          "allOf": [{ "$ref": "#/$defs/stepCommon" }],
+          "unevaluatedProperties": false,
+          "required": ["kind", "page"],
+          "properties": {
+            "kind": { "const": "rehydrate" },
+            "page": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["limit"],
+              "properties": {
+                "limit": { "type": "integer", "minimum": 1 },
+                "cursor": { "type": ["string", "null"] }
+              }
+            },
+            "scope": { "$ref": "#/$defs/scope" }
+          }
+        }
+      ]
+    },
+
+    "expect": {
+      "description": "What must be true after the step under test. Every clause is optional and every matcher is PARTIAL: a fixture states the facts its rule is about and says nothing about the rest, so an unrelated addition to a Docket row does not break thirty documents. What a fixture may NOT do is state nothing at all — minProperties here is the schema's half of the runner's vacuity check, which counts leaf facts and rejects `{}`, `{ \"entry\": {} }` and `{ \"telemetryAbsent\": [] }` alike.",
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "error": {
+          "description": "The refusal the step under test must produce, or null/absent for none.",
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["code"],
+              "properties": {
+                "code": { "type": "string" },
+                "messageContains": { "type": "string" }
+              }
+            },
+            { "type": "null" }
+          ]
+        },
+        "entry": { "oneOf": [{ "$ref": "#/$defs/entryMatcher" }, { "type": "null" }] },
+        "card": { "oneOf": [{ "$ref": "#/$defs/cardMatcher" }, { "type": "null" }] },
+        "superseded": {
+          "description": "The row a resubmit superseded.",
+          "oneOf": [{ "$ref": "#/$defs/entryMatcher" }, { "type": "null" }]
+        },
+        "telemetry": {
+          "description": "Telemetry keys that must have been emitted at some point (TL-1). A key outside the registry fails the fixture.",
+          "oneOf": [{ "type": "array", "items": { "type": "string" } }, { "type": "null" }]
+        },
+        "telemetryAbsent": {
+          "description": "Telemetry keys that must NEVER have been emitted.",
+          "oneOf": [{ "type": "array", "items": { "type": "string" } }, { "type": "null" }]
+        },
+        "store": {
+          "description": "What the Docket holds afterwards.",
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "count": { "type": "integer", "minimum": 0 },
+                "pending": { "type": "integer", "minimum": 0 },
+                "approvedUnexecuted": { "type": "integer", "minimum": 0 }
+              }
+            },
+            { "type": "null" }
+          ]
+        },
+        "expired": {
+          "description": "What an expireDue step reported (DK-3).",
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "count": { "type": "integer", "minimum": 0 },
+                "more": { "type": "boolean" }
+              }
+            },
+            { "type": "null" }
+          ]
+        },
+        "page": {
+          "description": "What a rehydrate step returned (DK-5).",
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "count": { "type": "integer", "minimum": 0 },
+                "more": { "type": "boolean" },
+                "statuses": { "type": "array", "items": { "type": "string" } }
+              }
+            },
+            { "type": "null" }
+          ]
+        },
+        "found": { "description": "Whether the row a get step read was found.", "type": "boolean" },
+        "canonicalHash": {
+          "description": "The row's canonical hash (SR-1): the Affidavit and its accepted amendments, taken through the implementation's own exported helper — the value a host's execution grant binds to, as 64 lowercase hex characters.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+
+    "entryMatcher": {
+      "description": "A partial matcher over a Docket row. `status` is the status the row READS (a row past its deadline reads expired whether or not a sweep has run); `attestation` is the attestor, not the whole attestation record; `expiresAtOffsetMs` and `canonicalDiffersFromProposal` are derived facts with no property of their own on the wire.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected", "expired"] },
+        "execution": { "type": ["string", "null"], "enum": ["unexecuted", "executed", "failed", null] },
+        "executionDetail": { "type": ["string", "null"] },
+        "requirement": { "$ref": "#/$defs/requirementKind" },
+        "blocked": { "$ref": "#/$defs/blocked" },
+        "toolName": { "type": "string" },
+        "channel": { "type": "string" },
+        "tenantId": { "type": "string" },
+        "conversationId": { "type": "string" },
+        "attestation": {
+          "description": "The attestor as it must read (AZ-1, AZ-3), or null for no attestation. This is the attestation record's `by`, not the whole record: the instant and the entry id are checked by the runner on every fixture that states an attestation at all.",
+          "$ref": "#/$defs/attestor"
+        },
+        "decision": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind", "reason"],
+              "properties": {
+                "kind": { "type": "string", "enum": ["approve", "reject"] },
+                "reason": { "type": ["string", "null"] }
+              }
+            },
+            { "type": "null" }
+          ]
+        },
+        "amendments": { "oneOf": [{ "$ref": "#/$defs/amendments" }, { "type": "null" }] },
+        "preservedAmendments": {
+          "description": "The amendments a decision carried AFTER the deadline had passed, with the act that carried them (DK-1).",
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["amendments", "at", "by"],
+              "properties": {
+                "amendments": { "$ref": "#/$defs/amendments" },
+                "at": { "$ref": "#/$defs/isoInstant" },
+                "by": { "type": "string" }
+              }
+            },
+            { "type": "null" }
+          ]
+        },
+        "lineage": {
+          "description": "supersedes / supersededBy, where \"@some\" asserts only that the link is present — a fixture cannot state a derived entry id.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "supersedes": { "type": ["string", "null"] },
+            "supersededBy": { "type": ["string", "null"] }
+          }
+        },
+        "expiresAtOffsetMs": {
+          "description": "The deadline, as milliseconds after the instant the entry was filed (GT-4).",
+          "type": "integer"
+        },
+        "affidavit": { "$ref": "#/$defs/affidavitMatcher" },
+        "amendedAffidavit": {
+          "description": "The state an accepted amendment produced, or null while none has (AF-4).",
+          "oneOf": [{ "$ref": "#/$defs/affidavitMatcher" }, { "type": "null" }]
+        },
+        "canonicalDiffersFromProposal": {
+          "description": "Whether the row's canonical form differs from its proposal's (SR-1). true is the substitution guard: a grant minted over the Affidavit a reviewer was shown must not validate the one they amended.",
+          "type": "boolean"
+        }
+      }
+    },
+
+    "attestor": {
+      "description": "Who agreed (AZ-1, AZ-3). A machine caller can never produce a `member` attestation; the strongest a relayed decision can carry is `member-via-relay`, which names both the person and the relay.",
+      "oneOf": [
+        {
+          "title": "member",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "id"],
+          "properties": {
+            "kind": { "const": "member" },
+            "id": { "type": "string" }
+          }
+        },
+        {
+          "title": "member-via-relay",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "memberId", "relay"],
+          "properties": {
+            "kind": { "const": "member-via-relay" },
+            "memberId": { "type": "string" },
+            "relay": { "type": "object" }
+          }
+        },
+        {
+          "title": "standing-order",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "policyId", "version"],
+          "properties": {
+            "kind": { "const": "standing-order" },
+            "policyId": { "type": "string" },
+            "version": { "type": "string" }
+          }
+        },
+        { "type": "null" }
+      ]
+    },
+
+    "affidavitMatcher": {
+      "description": "A partial matcher over an Affidavit. Stating `fields` asserts the field list exactly, in order (AF-1).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "operationType": { "type": "string", "enum": ["create", "update"] },
+        "entityType": { "type": "string" },
+        "entityId": { "type": ["string", "null"] },
+        "aggregateConfidence": { "$ref": "#/$defs/unitInterval" },
+        "populatedConfidence": { "oneOf": [{ "$ref": "#/$defs/unitInterval" }, { "type": "null" }] },
+        "emptyFieldCount": { "type": "integer", "minimum": 0 },
+        "fields": { "type": "array", "items": { "$ref": "#/$defs/fieldMatcher" } }
+      }
+    },
+
+    "fieldMatcher": {
+      "description": "A partial matcher over one sworn field. `source`, `bound`, `bindingKind` and `priorSources` are projections of the field's provenance chain, not properties of their own.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string" },
+        "value": { "$ref": "#/$defs/jsonValue" },
+        "previousValue": { "$ref": "#/$defs/jsonValue" },
+        "kind": { "type": "string" },
+        "isMandatory": { "type": "boolean" },
+        "source": { "$ref": "#/$defs/provenanceSource" },
+        "bound": { "description": "Whether the tag in force points at something checkable (PV-2, PV-4).", "type": "boolean" },
+        "bindingKind": { "oneOf": [{ "$ref": "#/$defs/bindingKind" }, { "type": "null" }] },
+        "confidence": { "$ref": "#/$defs/unitInterval" },
+        "priorSources": {
+          "description": "The grades the chain displaced, newest first. Nothing is ever dropped from a chain.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/provenanceSource" }
+        }
+      }
+    },
+
+    "cardMatcher": {
+      "description": "A partial matcher over an Evidence Card. `warningsContain` is a substring assertion over the card's warnings, not a property.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requiresConfirmation": { "type": "boolean" },
+        "warningsContain": { "type": "array", "items": { "type": "string" } },
+        "priorAmendments": { "oneOf": [{ "$ref": "#/$defs/amendments" }, { "type": "null" }] },
+        "blocked": { "$ref": "#/$defs/blocked" },
+        "protocolVersion": { "type": "string" },
+        "aggregateConfidence": { "$ref": "#/$defs/unitInterval" },
+        "populatedConfidence": { "oneOf": [{ "$ref": "#/$defs/unitInterval" }, { "type": "null" }] },
+        "emptyFieldCount": { "type": "integer", "minimum": 0 },
+        "fields": { "type": "array", "items": { "$ref": "#/$defs/cardFieldMatcher" } }
+      }
+    },
+
+    "cardFieldMatcher": {
+      "description": "The reviewer-facing shape of one field on the card, in order: its kind, its closed set of values, the pattern an input is constrained by.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string" },
+        "kind": { "type": "string" },
+        "value": { "$ref": "#/$defs/jsonValue" },
+        "allowedValues": { "oneOf": [{ "type": "array", "items": { "type": "string" } }, { "type": "null" }] },
+        "pattern": { "type": ["string", "null"] },
+        "isMandatory": { "type": "boolean" }
+      }
+    }
+  }
+}

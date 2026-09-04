@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://affiant.dev/conformance/0.1.0/canonical-vector.schema.json",
+  "title": "CanonicalVector",
+  "description": "One canonical-serialization byte vector (INVARIANTS.md SR-1). A different document shape from a declarative fixture: an input Affidavit, the amendments accepted on it, the decision they arrived on, and the exact canonical bytes and SHA-256 those produce. Unlike a fixture, the expected values here ARE written by an implementation — a 1,500-byte canonical document typed by hand is a transcription waiting to enshrine a typo. What makes a vector trustworthy is that three paths sharing no code have to agree on it: the implementation, a second canonicalizer written out from the rule, and an off-the-shelf SHA-256. A driver reproduces the bytes and the digest; it does not re-derive them.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "rules", "note", "input", "amendments", "reviewerAct", "expectedBytesUtf8", "expectedSha256"],
+  "properties": {
+    "id": {
+      "description": "A stable id, unique across the set. Cited by name in a parity manifest.",
+      "type": "string",
+      "pattern": "^canonical/[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "rules": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "pattern": "^(AF|PV|GT|DK|AZ|SR|RT|CV|TL)-[0-9]+$" }
+    },
+    "note": {
+      "description": "What this vector is about, in prose: which property of the canonical form it stresses and why it is worth a vector of its own.",
+      "type": "string",
+      "minLength": 1
+    },
+    "input": {
+      "description": "The Affidavit to canonicalise, in the reference implementation's in-memory shape.",
+      "type": "object"
+    },
+    "amendments": {
+      "description": "The amendments accepted on the input, or null. A vector with amendments pins the SWORN form — the Affidavit combined with its accepted amendments — which is what a host's execution grant binds to, never the proposal alone.",
+      "type": ["object", "null"]
+    },
+    "reviewerAct": {
+      "description": "The decision the amendments arrived on, or null when there were none. It is part of the canonical input because an amended field's tag names the act that amended it (PV-2).",
+      "type": ["object", "null"]
+    },
+    "expectedBytesUtf8": {
+      "description": "The exact canonical document, as UTF-8 text. Every key sorted by code point at every level, no insignificant whitespace.",
+      "type": "string",
+      "minLength": 1
+    },
+    "expectedSha256": {
+      "description": "The SHA-256 of those bytes, as 64 lowercase hex characters.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

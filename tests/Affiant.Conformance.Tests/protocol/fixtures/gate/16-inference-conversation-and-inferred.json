@@ -1,0 +1,117 @@
+{
+  "id": "gate/inference-conversation-and-inferred",
+  "rules": ["GT-1", "PV-1", "PV-3", "AF-1", "AF-2"],
+  "title": "The inference path: a value literally in the turn is Conversation, a reasoned one is Inferred, a proposed field the port said nothing about is present and Empty-tagged, and the aggregate is the minimum with Empty counting as zero. Neither tag is UserStated (PV-3).",
+  "given": {
+    "clock": "2026-09-04T09:00:00.000Z",
+    "store": "memory",
+    "gate": {
+      "defaultTtlMs": 1800000,
+      "authorization": {
+        "allow": ["*"]
+      },
+      "inference": {
+        "status": {
+          "value": "Active",
+          "confidence": 0.9,
+          "presence": "literal",
+          "utteranceSpan": {
+            "start": 26,
+            "end": 32
+          }
+        },
+        "note": {
+          "value": "urgent",
+          "confidence": 0.4,
+          "presence": "inferred",
+          "utteranceSpan": null
+        }
+      },
+      "entities": {
+        "Invoice/invoice-1": {
+          "status": "Draft"
+        }
+      }
+    },
+    "ctx": {
+      "tenantId": "tenant-a",
+      "conversationId": "conv-1",
+      "channel": "chat",
+      "principal": {
+        "kind": "member",
+        "id": "member-1"
+      },
+      "utterance": "Set the invoice status to Active",
+      "messageId": "msg-1"
+    },
+    "prior": [],
+    "step": {
+      "kind": "file",
+      "toolName": "relay_capture",
+      "operation": {
+        "kind": "update",
+        "entityType": "Invoice",
+        "entityId": "invoice-1",
+        "fields": ["status", "note", "owner"]
+      },
+      "schema": [
+        {
+          "name": "status",
+          "kind": "text",
+          "description": "The status"
+        },
+        {
+          "name": "note",
+          "kind": "text",
+          "description": "The note"
+        },
+        {
+          "name": "owner",
+          "kind": "text",
+          "description": "The owner"
+        }
+      ]
+    }
+  },
+  "expect": {
+    "entry": {
+      "status": "pending",
+      "requirement": "ReviewerConfirmation",
+      "execution": null,
+      "blocked": null,
+      "expiresAtOffsetMs": 1800000,
+      "attestation": null,
+      "toolName": "relay_capture",
+      "affidavit": {
+        "operationType": "update",
+        "entityId": "invoice-1",
+        "aggregateConfidence": 0,
+        "populatedConfidence": 0.4,
+        "emptyFieldCount": 1,
+        "fields": [
+          {
+            "name": "status",
+            "value": "Active",
+            "previousValue": "Draft",
+            "source": "Conversation",
+            "bound": true
+          },
+          {
+            "name": "note",
+            "value": "urgent",
+            "previousValue": null,
+            "source": "Inferred",
+            "bound": false
+          },
+          {
+            "name": "owner",
+            "value": null,
+            "previousValue": null,
+            "source": "Empty",
+            "bound": false
+          }
+        ]
+      }
+    }
+  }
+}

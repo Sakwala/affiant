@@ -1,0 +1,57 @@
+{
+  "id": "gate/substance-zero-field-refused",
+  "rules": ["GT-3"],
+  "title": "Every proposed field is Empty and carries no value. There is nothing to swear to, so nothing is filed, counted or broadcast.",
+  "given": {
+    "clock": "2026-09-04T09:00:00.000Z",
+    "store": "memory",
+    "gate": {
+      "defaultTtlMs": 1800000,
+      "authorization": {
+        "allow": ["*"]
+      }
+    },
+    "ctx": {
+      "tenantId": "tenant-a",
+      "conversationId": "conv-1",
+      "channel": "chat",
+      "principal": {
+        "kind": "member",
+        "id": "member-1"
+      },
+      "utterance": "Set the invoice status to Active",
+      "messageId": "msg-1"
+    },
+    "prior": [],
+    "step": {
+      "kind": "file",
+      "toolName": "relay_capture",
+      "operation": {
+        "kind": "update",
+        "entityType": "Invoice",
+        "entityId": "invoice-1",
+        "fields": ["status", "note"]
+      },
+      "preparedFields": [
+        {
+          "name": "status",
+          "kind": "text",
+          "value": null,
+          "provenance": null
+        },
+        {
+          "name": "note",
+          "kind": "text",
+          "value": null,
+          "provenance": null
+        }
+      ]
+    }
+  },
+  "expect": {
+    "error": {
+      "code": "substance-refused",
+      "messageContains": "no proposed field carries provenance other than Empty"
+    }
+  }
+}

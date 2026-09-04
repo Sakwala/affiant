@@ -1,0 +1,69 @@
+{
+  "id": "gate/threshold-without-scorer",
+  "rules": ["CV-1", "GT-5"],
+  "title": "A policy that says it will predicate on a risk threshold, wired to a gate with no risk function, is refused when the gate is built - not on the unlucky request that first reaches the threshold branch. This package ships no scoring formula and no floor by rule, so a declared threshold with nothing to compare against is a configuration error and never a policy that quietly never fires. The check reads the policy's static declaration, because a check that only fires when a policy happens to return a threshold is itself a silent non-fire on every other input.",
+  "given": {
+    "clock": "2026-09-04T09:00:00.000Z",
+    "store": "memory",
+    "gate": {
+      "defaultTtlMs": 1800000,
+      "authorization": {
+        "allow": ["*"]
+      },
+      "policies": [
+        {
+          "id": "under-a-thousand",
+          "version": "1.0.0",
+          "declaredInputs": [],
+          "declaresThreshold": true,
+          "verdict": {
+            "requirement": "StandingOrder",
+            "threshold": 0.5
+          }
+        }
+      ]
+    },
+    "ctx": {
+      "tenantId": "tenant-a",
+      "conversationId": "conv-1",
+      "channel": "chat",
+      "principal": {
+        "kind": "member",
+        "id": "member-1"
+      },
+      "utterance": "Set the invoice status to Active",
+      "messageId": "msg-1"
+    },
+    "prior": [],
+    "step": {
+      "kind": "file",
+      "toolName": "relay_capture",
+      "operation": {
+        "kind": "update",
+        "entityType": "Invoice",
+        "entityId": "invoice-1",
+        "fields": ["status"]
+      },
+      "preparedFields": [
+        {
+          "name": "status",
+          "kind": "text",
+          "value": "Active",
+          "provenance": {
+            "source": "Conversation",
+            "confidence": 0.9
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "error": {
+      "code": "wireup-invalid",
+      "messageContains": "riskScorer"
+    },
+    "store": {
+      "count": 0
+    }
+  }
+}

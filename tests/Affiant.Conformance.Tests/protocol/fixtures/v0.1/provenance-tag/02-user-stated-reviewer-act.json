@@ -1,0 +1,14 @@
+{
+  "source": "UserStated",
+  "confidence": 1,
+  "note": "Amended by ana on Docket entry 4f3f031b-a7c4-867c-9b1f-be0de416040d",
+  "at": "2026-09-04T09:00:00.000Z",
+  "conversationTurn": null,
+  "binding": {
+    "kind": "reviewer-act",
+    "ref": {
+      "entryId": "4f3f031b-a7c4-867c-9b1f-be0de416040d",
+      "decisionAt": "2026-09-04T09:00:00.000Z"
+    }
+  }
+}

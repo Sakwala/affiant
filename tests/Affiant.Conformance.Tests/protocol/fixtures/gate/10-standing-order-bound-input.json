@@ -1,0 +1,80 @@
+{
+  "id": "gate/standing-order-bound-input",
+  "rules": ["PV-4", "AZ-1"],
+  "title": "Sequence C's positive case: the same capture whose External tag names the record it came from. The Standing Order fires and the relay is on the attestation's policy, never as a member.",
+  "given": {
+    "clock": "2026-09-04T09:00:00.000Z",
+    "store": "memory",
+    "gate": {
+      "defaultTtlMs": 1800000,
+      "authorization": {
+        "allow": ["*"]
+      },
+      "policies": [
+        {
+          "id": "relay-capture",
+          "version": "1.0.0",
+          "declaredInputs": ["External"],
+          "verdict": {
+            "requirement": "StandingOrder"
+          }
+        }
+      ]
+    },
+    "ctx": {
+      "tenantId": "tenant-a",
+      "conversationId": "conv-1",
+      "channel": "mcp",
+      "principal": {
+        "kind": "member",
+        "id": "member-1"
+      },
+      "utterance": "Set the invoice status to Active",
+      "messageId": "msg-1"
+    },
+    "prior": [],
+    "step": {
+      "kind": "file",
+      "toolName": "relay_capture",
+      "operation": {
+        "kind": "update",
+        "entityType": "Invoice",
+        "entityId": "invoice-1",
+        "fields": ["status"]
+      },
+      "preparedFields": [
+        {
+          "name": "status",
+          "kind": "text",
+          "value": "Active",
+          "provenance": {
+            "source": "External",
+            "confidence": 1.0,
+            "binding": {
+              "kind": "external-ref",
+              "ref": {
+                "system": "billing",
+                "recordId": "invoice-1"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "entry": {
+      "status": "approved",
+      "requirement": "StandingOrder",
+      "execution": "unexecuted",
+      "blocked": null,
+      "expiresAtOffsetMs": 1800000,
+      "attestation": {
+        "kind": "standing-order",
+        "policyId": "relay-capture",
+        "version": "1.0.0"
+      },
+      "toolName": "relay_capture"
+    }
+  }
+}

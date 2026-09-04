@@ -1,0 +1,33 @@
+{
+  "id": "canonical/number-forms",
+  "rules": [
+    "SR-1"
+  ],
+  "note": "Every number form the rule has to decide. `1.0` is the number 1 once parsed and is written `1` — a canonical form has one spelling per value. `1e21` is written positionally, not as `1e+21`: SR-1 says shortest round-trip decimal, and this implementation writes those digits with the decimal point in place rather than adopting ECMAScript's exponent thresholds, so a second implementation has to agree about digits and not about a spelling. `0.1 + 0.2` is the double 0.30000000000000004 and is written with all of it; rounding it would be the framework deciding what was sworn to. `-0` is written `0` (JSON has no negative zero and a reader cannot see the sign). `9007199254740993` is already the double 9007199254740992 by the time this function sees it — the parser rounded it, and the canonical bytes below say so; no canonical form can recover a digit the parse threw away; a host that needs exact integers beyond 2^53 carries them as strings, as money already does (SR-2). Non-finite numbers cannot appear in a JSON fixture at all; `test/canonical.test.ts` covers the RangeError they raise.",
+  "input": {
+    "one": 1,
+    "integer": 42,
+    "negativeInteger": -17,
+    "half": 0.5,
+    "sumOfTenths": 0.30000000000000004,
+    "negativeZero": 0,
+    "exp21": 1e+21,
+    "exp23": 1.2345678901234569e+23,
+    "beyond2p53": 9007199254740992,
+    "tiny": 1e-7,
+    "tinier": 1.5e-9,
+    "negativeTiny": -1.2345e-8,
+    "nested": [
+      0,
+      -0.5,
+      0.000001,
+      0.00001,
+      1000000,
+      100000000000000000000
+    ]
+  },
+  "amendments": null,
+  "reviewerAct": null,
+  "expectedBytesUtf8": "{\"beyond2p53\":9007199254740992,\"exp21\":1000000000000000000000,\"exp23\":123456789012345690000000,\"half\":0.5,\"integer\":42,\"negativeInteger\":-17,\"negativeTiny\":-0.000000012345,\"negativeZero\":0,\"nested\":[0,-0.5,0.000001,0.00001,1000000,100000000000000000000],\"one\":1,\"sumOfTenths\":0.30000000000000004,\"tinier\":0.0000000015,\"tiny\":0.0000001}",
+  "expectedSha256": "61a744d2ab4b9285a2706e3f26c2b4e8baa14c85ddfc0b3252bcde0274a3aaf6"
+}

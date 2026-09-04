@@ -1,0 +1,130 @@
+{
+  "id": "decide/approve",
+  "rules": ["DK-1", "AZ-1", "AZ-2"],
+  "title": "A member approves a pending entry: the row moves to approved with the execution outcome unexecuted, and the attestation names the person who agreed. AZ-1 is written in the same operation as the transition, so there is no window in which an approved write has no attribution.",
+  "given": {
+    "clock": "2026-09-04T09:00:00.000Z",
+    "store": "memory",
+    "gate": {
+      "defaultTtlMs": 1800000,
+      "authorization": {
+        "allow": ["*"]
+      }
+    },
+    "ctx": {
+      "tenantId": "tenant-a",
+      "conversationId": "conv-1",
+      "channel": "chat",
+      "principal": {
+        "kind": "member",
+        "id": "filer"
+      },
+      "utterance": "Set the invoice status to Active and the amount to 40",
+      "messageId": "msg-1"
+    },
+    "prior": [
+      {
+        "kind": "file",
+        "as": "filed",
+        "at": "2026-09-04T09:00:00.000Z",
+        "principal": {
+          "kind": "member",
+          "id": "filer"
+        },
+        "toolName": "update_invoice",
+        "operation": {
+          "kind": "update",
+          "entityType": "Invoice",
+          "entityId": "invoice-1",
+          "fields": ["status", "amount", "note"]
+        },
+        "preparedFields": [
+          {
+            "name": "status",
+            "kind": "text",
+            "value": "Active",
+            "provenance": {
+              "source": "Conversation",
+              "confidence": 0.9
+            }
+          },
+          {
+            "name": "amount",
+            "kind": "text",
+            "value": "40",
+            "provenance": {
+              "source": "Conversation",
+              "confidence": 0.9
+            }
+          },
+          {
+            "name": "note",
+            "kind": "text",
+            "value": "kept",
+            "provenance": {
+              "source": "Conversation",
+              "confidence": 0.9
+            }
+          }
+        ]
+      }
+    ],
+    "step": {
+      "kind": "decide",
+      "at": "2026-09-04T09:00:00.000Z",
+      "principal": {
+        "kind": "member",
+        "id": "ana"
+      },
+      "decision": {
+        "kind": "approve",
+        "reason": "checked against the purchase order"
+      }
+    }
+  },
+  "expect": {
+    "entry": {
+      "status": "approved",
+      "execution": "unexecuted",
+      "requirement": "ReviewerConfirmation",
+      "blocked": null,
+      "attestation": {
+        "kind": "member",
+        "id": "ana"
+      },
+      "amendments": null,
+      "decision": {
+        "kind": "approve",
+        "reason": "checked against the purchase order"
+      },
+      "affidavit": {
+        "aggregateConfidence": 0.9,
+        "populatedConfidence": 0.9,
+        "emptyFieldCount": 0,
+        "fields": [
+          {
+            "name": "status",
+            "value": "Active",
+            "source": "Conversation",
+            "bound": false
+          },
+          {
+            "name": "amount",
+            "value": "40",
+            "source": "Conversation",
+            "bound": false
+          },
+          {
+            "name": "note",
+            "value": "kept",
+            "source": "Conversation",
+            "bound": false
+          }
+        ]
+      },
+      "lineage": {
+        "supersededBy": null
+      }
+    }
+  }
+}

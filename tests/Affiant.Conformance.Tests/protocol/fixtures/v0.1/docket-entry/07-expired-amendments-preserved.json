@@ -1,0 +1,70 @@
+{
+  "protocolVersion": "0.1.0",
+  "entryId": "80358c14-961a-875e-b20a-0a70a89e4592",
+  "tenantId": "tenant-a",
+  "conversationId": "conv-1",
+  "channel": "chat",
+  "toolName": "update_invoice",
+  "affidavit": {
+    "protocolVersion": "0.1.0",
+    "operationType": "update",
+    "entityType": "Invoice",
+    "entityId": "invoice-1",
+    "fields": [
+      {
+        "name": "status",
+        "kind": "enum",
+        "value": "Active",
+        "previousValue": null,
+        "provenance": {
+          "current": {
+            "source": "Conversation",
+            "confidence": 0.9,
+            "note": "Literally present in the turn: status",
+            "at": "2026-09-04T09:00:00.000Z",
+            "conversationTurn": null,
+            "binding": {
+              "kind": "utterance-span",
+              "ref": {
+                "offset": 21,
+                "length": 6,
+                "hash": "92340695899bd2d86223e4a007620e0d6502fc0e08809773634c7e0743764a9c"
+              }
+            }
+          },
+          "prior": []
+        },
+        "isMandatory": true
+      }
+    ],
+    "aggregateConfidence": 0.9,
+    "populatedConfidence": 0.9,
+    "emptyFieldCount": 0,
+    "conversationTurn": null,
+    "createdAt": "2026-09-04T09:00:00.000Z"
+  },
+  "amendedAffidavit": null,
+  "requirement": "ReviewerConfirmation",
+  "status": "expired",
+  "execution": null,
+  "blocked": null,
+  "compositeRef": null,
+  "attestation": null,
+  "amendments": null,
+  "preservedAmendments": {
+    "amendments": {
+      "status": "Retired"
+    },
+    "at": "2026-09-04T09:45:00.000Z",
+    "by": "ana"
+  },
+  "decision": null,
+  "lineage": {
+    "supersedes": null,
+    "supersededBy": "421b12e8-d13f-85a5-8afa-fdb44b7fd08f"
+  },
+  "filedAt": "2026-09-04T09:00:00.000Z",
+  "expiresAt": "2026-09-04T09:30:00.000Z",
+  "decidedAt": "2026-09-04T09:30:00.000Z",
+  "executionDetail": null
+}

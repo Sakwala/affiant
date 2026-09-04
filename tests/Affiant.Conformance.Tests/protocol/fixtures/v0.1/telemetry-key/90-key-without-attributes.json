@@ -1,0 +1,11 @@
+{
+  "protocolVersion": "0.1.0",
+  "registryVersion": "0.1.0-alpha.0",
+  "keys": [
+    {
+      "key": "affidavit.filed",
+      "since": "0.1.0-alpha.0",
+      "description": "An Affidavit was filed as a Docket entry."
+    }
+  ]
+}
