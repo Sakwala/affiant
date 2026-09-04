@@ -85,7 +85,7 @@ public sealed class SessionRehydratorTests
             return Task.FromResult(pending);
         }
 
-        public Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(DateTimeOffset expiresBeforeUtc, CancellationToken ct)
+        public Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(DateTimeOffset expiresBeforeUtc, int limit, CancellationToken ct)
             => throw new InvalidOperationException("not used by this test");
 
         public Task MarkExpiredAsync(IEnumerable<Guid> entryIds, CancellationToken ct)

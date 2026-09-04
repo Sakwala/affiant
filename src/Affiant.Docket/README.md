@@ -23,6 +23,22 @@ builder.Services.AddAffiantDocket();                                            
 
 > **Changed in 1.0.0-beta.1 (affiant#35).** `DocketOptions.UseSqlite(...)`/`UsePostgres(...)` no longer exist. `SqliteDocketStore` and `PostgresDocketStore` take `Affiant.EntityFramework`'s `AffiantDbContext` and are mapped by entity configurations and migrations that already lived in that package, so both stores moved there and are registered by `AddAffiantEntityFramework` — the same shape `IChatSessionStore` always had. This removes `Affiant.Docket`'s dependency on `Affiant.EntityFramework`, so installing it no longer drags EF Core, the SQLite provider and Npgsql onto a host that only wants `InMemoryDocketStore`.
 
+## Expiry
+
+An entry past its `ExpiresAt` reads as `Expired` — from `GetDocketEntryAsync`, and by its absence from `ListPendingBySessionAsync`/`ListAllPendingAsync` — whether or not the sweep has reached it, on an inclusive boundary (at `ExpiresAt` the entry is expired). The sweep still does the durable work: it commits the transition, broadcasts `DocketExpired`, and leaves the persisted state a resubmission can act on.
+
+One sweep tick transitions at most `ExpirySweepBatchSize` entries, oldest deadline first, so a backlog drains across ticks instead of loading the whole Docket:
+
+```csharp
+builder.Services.AddAffiantDocket(docket =>
+{
+    docket.UseInMemory();
+    docket.ExpirySweepBatchSize = 500;   // default: 100
+});
+```
+
+Everything above reads the clock through the `TimeProvider` in DI. `AddAffiantCore` registers `TimeProvider.System`; register your own before it (a `FakeTimeProvider` in a test) and the stores, the gate and the sweep all move with it.
+
 Registration order between `AddAffiantCore`, `AddAffiantDocket` and `AddAffiantEntityFramework` does not matter. A host that ends up with no `IDocketStore` registered at all fails at **startup** with a message naming the missing registration and the package that provides it (`AddAffiantCore`'s wire-up validator) — not silently at its first write.
 
 ## Package contents
@@ -31,7 +47,7 @@ Registration order between `AddAffiantCore`, `AddAffiantDocket` and `AddAffiantE
 |---|---|
 | `Affiant.Docket.Stores` | `InMemoryDocketStore` — the process-local `IDocketStore`. The SQLite/PostgreSQL implementations live in `Affiant.EntityFramework` |
 | `Affiant.Docket.Services` | `DocketExpiryService` — the background sweep that transitions lapsed-TTL entries to `Expired` and re-broadcasts still-`Pending` Evidence Cards; backend-neutral, resolves `IDocketStore` per tick |
-| `Affiant.Docket.Options` | `DocketOptions` — the store-selection builder for `AddAffiantDocket` (`UseInMemory()`) |
+| `Affiant.Docket.Options` | `DocketOptions` — the store-selection builder for `AddAffiantDocket` (`UseInMemory()`, `ExpirySweepBatchSize`); `AffiantDocketOptions` — the sweep's runtime knobs |
 | `Affiant.Docket.Extensions` | `ServiceCollectionExtensions` — `AddAffiantDocket` |
 
 ## Further reading

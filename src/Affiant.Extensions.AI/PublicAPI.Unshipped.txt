@@ -1,6 +1,6 @@
 Affiant.Extensions.AI.Adapters.ExtensionsAIInferenceCompletionPort
 Affiant.Extensions.AI.Adapters.ExtensionsAIInferenceCompletionPort.CompleteStructuredAsync(Affiant.Abstractions.Models.InferenceCompletionRequest! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Text.Json.JsonElement>!
-Affiant.Extensions.AI.Adapters.ExtensionsAIInferenceCompletionPort.ExtensionsAIInferenceCompletionPort(Microsoft.Extensions.AI.IChatClient! chatClient, Microsoft.Extensions.Logging.ILogger<Affiant.Extensions.AI.Adapters.ExtensionsAIInferenceCompletionPort!>! logger) -> void
+Affiant.Extensions.AI.Adapters.ExtensionsAIInferenceCompletionPort.ExtensionsAIInferenceCompletionPort(Microsoft.Extensions.AI.IChatClient! chatClient, Microsoft.Extensions.Logging.ILogger<Affiant.Extensions.AI.Adapters.ExtensionsAIInferenceCompletionPort!>! logger, System.TimeProvider? timeProvider = null) -> void
 Affiant.Extensions.AI.AffiantToolCatalog
 Affiant.Extensions.AI.AffiantToolCatalog.<Clone>$() -> Affiant.Extensions.AI.AffiantToolCatalog!
 Affiant.Extensions.AI.AffiantToolCatalog.AffiantToolCatalog(System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.AI.AIFunction!>! Functions, System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.AffiantToolDescriptor!>! Descriptors) -> void

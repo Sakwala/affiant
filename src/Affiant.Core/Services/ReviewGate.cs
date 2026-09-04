@@ -18,8 +18,18 @@ public sealed class ReviewGate(
     IDocketStore docketStore,
     IApprovalPolicyEvaluator evaluator,
     AffiantCoreOptions options,
-    ILogger<ReviewGate> logger)
+    ILogger<ReviewGate> logger,
+    TimeProvider? timeProvider = null)
 {
+    /// <summary>
+    /// The gate's only clock. Every instant it stamps (<c>DocketEntry.CreatedAt</c>,
+    /// <c>ExpiresAt</c>, a resubmission's <c>WriteProposal</c>) and every deadline comparison it
+    /// makes reads from here, so a host or a test can move time without moving the machine's.
+    /// Defaults to <see cref="TimeProvider.System"/> — <c>AddAffiantCore</c> registers exactly that
+    /// as the DI default, so a host that does nothing sees no change.
+    /// </summary>
+    private readonly TimeProvider _time = timeProvider ?? TimeProvider.System;
+
     /// <summary>
     /// Non-blocking half of filing a review (framework enabler for host issue
     /// affiant-host-apps#25 / triage F0-A1): files the <see cref="DocketEntry"/>, evaluates the
@@ -184,7 +194,9 @@ public sealed class ReviewGate(
     /// <exception cref="InvalidOperationException">
     /// <paramref name="expiredEntryId"/> does not identify an existing entry, the entry's
     /// <see cref="DocketEntry.Status"/> is not <see cref="ReviewStatus.Expired"/>, or a concurrent
-    /// <see cref="ResubmitAsync"/> call already claimed it (see remarks).
+    /// <see cref="ResubmitAsync"/> call already claimed it (see remarks). An entry whose deadline
+    /// has passed reads as <see cref="ReviewStatus.Expired"/> whether or not the sweep has reached
+    /// it, so a resubmission never has to wait for a sweep tick.
     /// </exception>
     /// <remarks>
     /// <para>
@@ -233,6 +245,14 @@ public sealed class ReviewGate(
                 $"ResubmitAsync: DocketEntry {expiredEntryId} is {entry.Status}, expected Expired.");
         }
 
+        // The read above reports Expired for an entry whose deadline has passed whether or not the
+        // sweep has committed that (DK-1, expiry as a queryable state). ConsumeForResubmitAsync's
+        // guard tests the PERSISTED status, so without this the first resubmission of a
+        // lapsed-but-unswept entry would fail its own guard and be reported as a lost race. Same
+        // guarded write HandleDecisionAsync's late-decision path already performs; 0 rows means the
+        // sweep (or that path) got there first, which is equally fine.
+        await docketStore.UpdateReviewStatusAsync(expiredEntryId, ReviewStatus.Expired, cancellationToken);
+
         var newEntryId = Guid.NewGuid();
 
         // affiant#31: claim the source entry for newEntryId before filing anything else — the
@@ -246,7 +266,7 @@ public sealed class ReviewGate(
                 $"ResubmitAsync: DocketEntry {expiredEntryId} was already resubmitted by a concurrent caller.");
         }
 
-        var proposal = new WriteProposal(entry.OperationType, DateTimeOffset.UtcNow, entry.Envelope);
+        var proposal = new WriteProposal(entry.OperationType, _time.GetUtcNow(), entry.Envelope);
         var context = new ReviewContext(
             SessionId: entry.SessionId,
             TenantId: entry.TenantId,
@@ -332,7 +352,11 @@ public sealed class ReviewGate(
         ArgumentNullException.ThrowIfNull(context);
 
         var entryId = context.EntryId ?? Guid.NewGuid();
-        var expiresAt = DateTimeOffset.UtcNow.Add(options.DefaultDocketTtl);
+
+        // One instant for the whole filing: CreatedAt and ExpiresAt must name the same "now", or a
+        // test that pins the clock sees a TTL that is off by however long the filing took.
+        var now = _time.GetUtcNow();
+        var expiresAt = now.Add(options.DefaultDocketTtl);
 
         try
         {
@@ -357,7 +381,7 @@ public sealed class ReviewGate(
                     OperationType: proposal.ToolName,
                     Envelope: context.Affidavit,
                     Status: ReviewStatus.Pending,
-                    CreatedAt: DateTimeOffset.UtcNow,
+                    CreatedAt: now,
                     ExpiresAt: expiresAt,
                     Amendments: amendments);
                 await docketStore.FileDocketEntryAsync(entry, cancellationToken);
@@ -536,10 +560,11 @@ public sealed class ReviewGate(
     /// already resolved (not Pending) by the time this arrives, non-empty amendments are still
     /// persisted before returning <see cref="ReviewOutcome.Expired"/> — see
     /// <see cref="ReviewOutcome.Expired.AmendmentsPreserved"/> (framework half of repo issue #8).
-    /// When the entry is still Pending but its TTL has lapsed ahead of the sweep, this call also
+    /// When the entry's deadline has passed but the sweep has not committed that yet, this call also
     /// persists the <see cref="ReviewStatus.Expired"/> transition itself and broadcasts
     /// <see cref="TransportEvent.DocketExpired"/> — see <see cref="DocketExpiryBroadcaster"/>
-    /// (affiant#14).
+    /// (affiant#14). The deadline is inclusive: a decision arriving at exactly
+    /// <see cref="DocketEntry.ExpiresAt"/> is late.
     /// </param>
     public async Task<(ReviewOutcome? Outcome, DateTimeOffset? EntryCreatedAt)> HandleDecisionAsync(
         Guid entryId,
@@ -553,28 +578,22 @@ public sealed class ReviewGate(
 
         // Restart path: no live waiter — replay through the docket store.
         var entry = await docketStore.GetDocketEntryAsync(entryId, cancellationToken);
-        if (entry is null || entry.Status != ReviewStatus.Pending)
-        {
-            logger.LogWarning(
-                "HandleDecisionAsync: DocketEntry {EntryId} not found or already resolved", entryId);
 
-            // The entry can no longer transition to Approved/Rejected, but a reviewer may still
-            // have made edits before this decision was delivered — preserve them rather than
-            // silently dropping the reviewer's work (issue #8).
-            var amendmentsPreserved = false;
-            if (entry is not null && amendments is { Count: > 0 })
-            {
-                await docketStore.UpdateAmendmentsAsync(entryId, amendments, cancellationToken);
-                amendmentsPreserved = true;
-                logger.LogInformation(
-                    "HandleDecisionAsync: persisted late amendments onto non-pending DocketEntry {EntryId}",
-                    entryId);
-            }
-
-            return (new ReviewOutcome.Expired(entryId, amendmentsPreserved), null);
-        }
-
-        if (entry.ExpiresAt < DateTimeOffset.UtcNow)
+        // Order matters: the expired case is tested BEFORE the general not-pending case, because a
+        // store reports an entry past its deadline as Expired on read whether or not the sweep has
+        // committed that (DK-1, expiry as a queryable state). Read the other way round, a
+        // lapsed-but-unswept entry would fall into the "already resolved" branch below and this
+        // call would report Expired without ever persisting it or telling the session group —
+        // exactly the affiant#14 defect the branch below was written to close.
+        //
+        // The boundary is inclusive: AT ExpiresAt the entry is already expired, so a decision that
+        // lands exactly on the deadline is late. The second clause is the gate's own, clock-injected
+        // deadline test, kept so a store that has not adopted the read-time projection still gets
+        // this behaviour; it is scoped to Pending so an entry that was decided before its deadline
+        // passed keeps reporting the decision it actually got.
+        if (entry is not null
+            && (entry.Status == ReviewStatus.Expired
+                || (entry.Status == ReviewStatus.Pending && entry.ExpiresAt <= _time.GetUtcNow())))
         {
             // affiant#14: the entry is still Pending in the store but its TTL has lapsed ahead of
             // DocketExpiryService's 30s sweep. Persist Expired now (guarded) and broadcast —
@@ -612,6 +631,27 @@ public sealed class ReviewGate(
                 : lateFinalStatus.Value.ToReviewOutcome(entryId);
 
             return (lateOutcome, null);
+        }
+
+        if (entry is null || entry.Status != ReviewStatus.Pending)
+        {
+            logger.LogWarning(
+                "HandleDecisionAsync: DocketEntry {EntryId} not found or already resolved", entryId);
+
+            // The entry can no longer transition to Approved/Rejected, but a reviewer may still
+            // have made edits before this decision was delivered — preserve them rather than
+            // silently dropping the reviewer's work (issue #8).
+            var amendmentsPreserved = false;
+            if (entry is not null && amendments is { Count: > 0 })
+            {
+                await docketStore.UpdateAmendmentsAsync(entryId, amendments, cancellationToken);
+                amendmentsPreserved = true;
+                logger.LogInformation(
+                    "HandleDecisionAsync: persisted late amendments onto non-pending DocketEntry {EntryId}",
+                    entryId);
+            }
+
+            return (new ReviewOutcome.Expired(entryId, amendmentsPreserved), null);
         }
 
         var createdAt = entry.CreatedAt;

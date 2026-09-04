@@ -44,6 +44,32 @@ public interface IDocketStore
     /// </summary>
     Task FileDocketEntryAsync(DocketEntry entry, CancellationToken ct);
 
+    /// <summary>
+    /// Reads one entry, or <c>null</c> when <paramref name="entryId"/> names no entry.
+    /// </summary>
+    /// <remarks>
+    /// <para><strong>Expiry is a queryable state, not a swept-in one.</strong></para>
+    /// <para>
+    /// An entry whose persisted status is <see cref="ReviewStatus.Pending"/> but whose
+    /// <see cref="DocketEntry.ExpiresAt"/> is on or before the current instant MUST be returned
+    /// with <see cref="DocketEntry.Status"/> = <see cref="ReviewStatus.Expired"/>, whether or not
+    /// an expiry sweep has run. The boundary is inclusive: at exactly
+    /// <see cref="DocketEntry.ExpiresAt"/> the entry is expired.
+    /// </para>
+    /// <para>
+    /// The projection is a read-time one — it does not write. The sweep
+    /// (<c>Affiant.Docket.Services.DocketExpiryService</c>) still persists
+    /// <see cref="ReviewStatus.Expired"/> onto the row, and the guarded
+    /// <see cref="UpdateReviewStatusAsync"/> / <see cref="ConsumeForResubmitAsync"/> writes still
+    /// test the <em>persisted</em> status, so a caller that needs the transition durably recorded
+    /// (a resubmission, an audit read after a restart) must still let the sweep — or its own
+    /// <see cref="UpdateReviewStatusAsync"/> call — commit it.
+    /// </para>
+    /// <para>
+    /// Implementations read the current instant from an injected <see cref="TimeProvider"/>, never
+    /// from <c>DateTimeOffset.UtcNow</c>, so a test can move the clock.
+    /// </para>
+    /// </remarks>
     Task<DocketEntry?> GetDocketEntryAsync(Guid entryId, CancellationToken ct);
 
     /// <summary>
@@ -148,6 +174,12 @@ public interface IDocketStore
     /// <c>ReviewGate.RebroadcastPendingCardsAsync</c> rely on this order to replay a session's
     /// stranded reviews in the sequence they were originally filed.
     /// </summary>
+    /// <remarks>
+    /// Expiry is a queryable state (see <see cref="GetDocketEntryAsync"/>): an entry whose
+    /// <see cref="DocketEntry.ExpiresAt"/> is on or before the current instant is no longer pending
+    /// and MUST NOT appear here, swept or not. That is also what keeps a lapsed entry from being
+    /// rehydrated as pending on reconnect.
+    /// </remarks>
     Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct);
 
     /// <summary>
@@ -159,14 +191,47 @@ public interface IDocketStore
     /// and carries no ordering contract — callers that need a stable order per session should use
     /// that method instead.
     /// </summary>
+    /// <remarks>
+    /// Expiry is a queryable state (see <see cref="GetDocketEntryAsync"/>): an entry whose
+    /// <see cref="DocketEntry.ExpiresAt"/> is on or before the current instant is no longer pending
+    /// and MUST NOT appear here, swept or not — so the sweep's own re-broadcast phase never
+    /// re-broadcasts a card for an entry that has already run out of time.
+    /// </remarks>
     Task<IReadOnlyList<DocketEntry>> ListAllPendingAsync(CancellationToken ct);
 
     /// <summary>
-    /// Returns all pending entries whose <see cref="DocketEntry.ExpiresAt"/> is on or before
-    /// <paramref name="expiresBeforeUtc"/>. Used by <c>DocketExpiryService</c> to identify
-    /// rows to bulk-expire each tick.
+    /// Returns at most <paramref name="limit"/> entries whose persisted status is still
+    /// <see cref="ReviewStatus.Pending"/> and whose <see cref="DocketEntry.ExpiresAt"/> is on or
+    /// before <paramref name="expiresBeforeUtc"/>, oldest deadline first. Used by
+    /// <c>DocketExpiryService</c> to identify the rows one tick expires.
     /// </summary>
-    Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(DateTimeOffset expiresBeforeUtc, CancellationToken ct);
+    /// <param name="expiresBeforeUtc">The instant to compare deadlines against — inclusive.</param>
+    /// <param name="limit">
+    /// The maximum number of entries to return. Must be greater than zero. This is the page size
+    /// one sweep tick works through, so a backlog is drained across ticks instead of loaded whole.
+    /// </param>
+    /// <param name="ct">Caller cancellation.</param>
+    /// <remarks>
+    /// <para>
+    /// This is the one read that deliberately reports the <em>persisted</em> status rather than the
+    /// read-time projection <see cref="GetDocketEntryAsync"/> applies: its whole purpose is to find
+    /// rows whose <see cref="ReviewStatus.Expired"/> transition has not been committed yet.
+    /// </para>
+    /// <para>
+    /// Ordering by <see cref="DocketEntry.ExpiresAt"/> ascending is what makes the paging fair —
+    /// without it, a store free to return any <paramref name="limit"/> rows could starve the oldest
+    /// entries indefinitely.
+    /// </para>
+    /// <para>
+    /// <strong>Not yet the full paging contract.</strong> The Affiant protocol's DK-3 asks for
+    /// <c>expireDue(now, scope, limit)</c> — scoped to a tenant or conversation and reporting
+    /// whether more entries remain — plus an opaque cursor on every list this interface exposes.
+    /// This release adds the bound only; the scope argument, the more-remain signal and the cursors
+    /// land with the docket change that reshapes <see cref="DocketEntry"/> itself.
+    /// </para>
+    /// </remarks>
+    Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(
+        DateTimeOffset expiresBeforeUtc, int limit, CancellationToken ct);
 
     /// <summary>
     /// Bulk-transitions the specified entries from <see cref="ReviewStatus.Pending"/> to

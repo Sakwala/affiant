@@ -9,6 +9,7 @@ using Affiant.Core.Observability;
 using Affiant.Core.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 using Xunit;
 
 /// <summary>
@@ -128,11 +129,23 @@ public class ReviewGateTests
     /// keys, and the D2 double-resubmit regression test below genuinely races two
     /// <see cref="ReviewGate.ResubmitAsync"/> calls against one instance of this store.
     /// </summary>
-    private sealed class InMemoryDocketStore : IDocketStore
+    private sealed class InMemoryDocketStore(TimeProvider? timeProvider = null) : IDocketStore
     {
         private readonly Dictionary<Guid, DocketEntry> _entries = [];
         private readonly Dictionary<string, ConversationContext> _contexts = [];
         private readonly object _lock = new();
+        private readonly TimeProvider _time = timeProvider ?? TimeProvider.System;
+
+        /// <summary>
+        /// The read-time expiry projection every <see cref="IDocketStore"/> owes its callers: an
+        /// entry persisted Pending past its deadline reads Expired, swept or not, on an inclusive
+        /// boundary. Without this the fake would be laxer than the contract and would hide exactly
+        /// the gate behaviour the clock seam exists to make testable.
+        /// </summary>
+        private DocketEntry Project(DocketEntry entry) =>
+            entry.Status == ReviewStatus.Pending && entry.ExpiresAt <= _time.GetUtcNow()
+                ? entry with { Status = ReviewStatus.Expired }
+                : entry;
 
         public Task SaveContextAsync(string sessionId, ConversationContext context, CancellationToken ct)
         {
@@ -161,7 +174,7 @@ public class ReviewGateTests
         public Task<DocketEntry?> GetDocketEntryAsync(Guid entryId, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
-            lock (_lock) { return Task.FromResult(_entries.TryGetValue(entryId, out var e) ? e : null); }
+            lock (_lock) { return Task.FromResult(_entries.TryGetValue(entryId, out var e) ? Project(e) : null); }
         }
 
         public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct)
@@ -195,7 +208,11 @@ public class ReviewGateTests
         public Task<DocketEntry?> GetResubmissionParentAsync(Guid entryId, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
-            lock (_lock) { return Task.FromResult(_entries.Values.FirstOrDefault(e => e.ResubmittedTo == entryId)); }
+            lock (_lock)
+            {
+                var parent = _entries.Values.FirstOrDefault(e => e.ResubmittedTo == entryId);
+                return Task.FromResult(parent is null ? null : Project(parent));
+            }
         }
 
         public Task UpdateAmendmentsAsync(
@@ -215,8 +232,9 @@ public class ReviewGateTests
             ct.ThrowIfCancellationRequested();
             lock (_lock)
             {
+                var now = _time.GetUtcNow();
                 IReadOnlyList<DocketEntry> results = _entries.Values
-                    .Where(e => e.SessionId == sessionId && e.Status == ReviewStatus.Pending)
+                    .Where(e => e.SessionId == sessionId && e.Status == ReviewStatus.Pending && e.ExpiresAt > now)
                     .OrderBy(e => e.CreatedAt)
                     .ToList();
                 return Task.FromResult(results);
@@ -228,20 +246,24 @@ public class ReviewGateTests
             ct.ThrowIfCancellationRequested();
             lock (_lock)
             {
+                var now = _time.GetUtcNow();
                 IReadOnlyList<DocketEntry> results = _entries.Values
-                    .Where(e => e.Status == ReviewStatus.Pending)
+                    .Where(e => e.Status == ReviewStatus.Pending && e.ExpiresAt > now)
                     .ToList();
                 return Task.FromResult(results);
             }
         }
 
-        public Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(DateTimeOffset expiresBeforeUtc, CancellationToken ct)
+        public Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(DateTimeOffset expiresBeforeUtc, int limit, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
             lock (_lock)
             {
                 IReadOnlyList<DocketEntry> results = _entries.Values
                     .Where(e => e.Status == ReviewStatus.Pending && e.ExpiresAt <= expiresBeforeUtc)
+                    .OrderBy(e => e.ExpiresAt)
+                    .ThenBy(e => e.EntryId)
+                    .Take(limit)
                     .ToList();
                 return Task.FromResult(results);
             }
@@ -329,8 +351,8 @@ public class ReviewGateTests
         public Task<IReadOnlyList<DocketEntry>> ListAllPendingAsync(CancellationToken ct)
             => inner.ListAllPendingAsync(ct);
 
-        public Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(DateTimeOffset expiresBeforeUtc, CancellationToken ct)
-            => inner.ListExpiredAsync(expiresBeforeUtc, ct);
+        public Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(DateTimeOffset expiresBeforeUtc, int limit, CancellationToken ct)
+            => inner.ListExpiredAsync(expiresBeforeUtc, limit, ct);
 
         public Task MarkExpiredAsync(IEnumerable<Guid> entryIds, CancellationToken ct)
             => inner.MarkExpiredAsync(entryIds, ct);
@@ -341,13 +363,15 @@ public class ReviewGateTests
     private static (ReviewGate gate, FakeStreamingTransport transport, InMemoryDocketStore docketStore)
         CreateGate(
             ReviewRequirement reviewRequirement = ReviewRequirement.ReviewerConfirmation,
-            AffiantCoreOptions? options = null)
+            AffiantCoreOptions? options = null,
+            TimeProvider? timeProvider = null)
     {
         var transport = new FakeStreamingTransport();
-        var store = new InMemoryDocketStore();
+        var store = new InMemoryDocketStore(timeProvider);
         var evaluator = new FakeApprovalPolicyEvaluator(reviewRequirement);
         var gate = new ReviewGate(
-            transport, store, evaluator, options ?? new AffiantCoreOptions(), NullLogger<ReviewGate>.Instance);
+            transport, store, evaluator, options ?? new AffiantCoreOptions(),
+            NullLogger<ReviewGate>.Instance, timeProvider);
         return (gate, transport, store);
     }
 
@@ -1251,5 +1275,182 @@ public class ReviewGateTests
         Assert.Equal(newEntryId, request.DocketId);
         Assert.NotNull(request.PriorAmendments);
         Assert.Equal("Edited before expiry", request.PriorAmendments!["title"]);
+    }
+
+    // ── The injectable clock (protocol GT-4, DK-1) ───────────────────────────
+
+    /// <summary>The instant every clock test below starts from — arbitrary, but fixed and readable.</summary>
+    private static readonly DateTimeOffset ClockOrigin = new(2026, 3, 1, 9, 0, 0, TimeSpan.Zero);
+
+    [Fact]
+    public async Task FileForReviewAsync_FakeClock_StampsCreatedAtNow_AndExpiresAtNowPlusTtl()
+    {
+        var clock = new FakeTimeProvider(ClockOrigin);
+        var ttl = TimeSpan.FromMinutes(17);
+        var (gate, _, store) = CreateGate(
+            ReviewRequirement.ReviewerConfirmation,
+            new AffiantCoreOptions { DefaultDocketTtl = ttl },
+            clock);
+
+        var (proposal, context) = CreateTestInput(Guid.NewGuid());
+        await gate.FileForReviewAsync(proposal, context);
+
+        var entry = await store.GetDocketEntryAsync(context.EntryId!.Value, default);
+        Assert.NotNull(entry);
+        Assert.Equal(ClockOrigin, entry.CreatedAt);
+        Assert.Equal(ClockOrigin + ttl, entry.ExpiresAt);
+    }
+
+    [Fact]
+    public async Task HandleDecisionAsync_DecisionExactlyAtExpiresAt_IsRefusedAsExpired()
+    {
+        var clock = new FakeTimeProvider(ClockOrigin);
+        var ttl = TimeSpan.FromMinutes(30);
+        var (gate, transport, store) = CreateGate(
+            ReviewRequirement.ReviewerConfirmation,
+            new AffiantCoreOptions { DefaultDocketTtl = ttl },
+            clock);
+        transport.HasLiveWaiter = false;
+
+        var (proposal, context) = CreateTestInput(Guid.NewGuid());
+        await gate.FileForReviewAsync(proposal, context);
+
+        // Land the decision on the deadline itself — DK-1's boundary is inclusive, so this is late.
+        clock.Advance(ttl);
+
+        var (outcome, _) = await gate.HandleDecisionAsync(context.EntryId!.Value, ApprovalDecision.Approved);
+
+        Assert.IsType<ReviewOutcome.Expired>(outcome);
+        var entry = await store.GetDocketEntryAsync(context.EntryId!.Value, default);
+        Assert.Equal(ReviewStatus.Expired, entry!.Status);
+        Assert.Single(transport.SentEvents, e => e.EventType == TransportEvent.DocketExpired);
+    }
+
+    [Fact]
+    public async Task HandleDecisionAsync_DecisionOneTickBeforeExpiresAt_IsStillAccepted()
+    {
+        var clock = new FakeTimeProvider(ClockOrigin);
+        var ttl = TimeSpan.FromMinutes(30);
+        var (gate, transport, store) = CreateGate(
+            ReviewRequirement.ReviewerConfirmation,
+            new AffiantCoreOptions { DefaultDocketTtl = ttl },
+            clock);
+        transport.HasLiveWaiter = false;
+
+        var (proposal, context) = CreateTestInput(Guid.NewGuid());
+        await gate.FileForReviewAsync(proposal, context);
+
+        clock.Advance(ttl - TimeSpan.FromMilliseconds(1));
+
+        var (outcome, _) = await gate.HandleDecisionAsync(context.EntryId!.Value, ApprovalDecision.Approved);
+
+        Assert.IsType<ReviewOutcome.Approved>(outcome);
+        var entry = await store.GetDocketEntryAsync(context.EntryId!.Value, default);
+        Assert.Equal(ReviewStatus.Approved, entry!.Status);
+    }
+
+    [Fact]
+    public async Task GetDocketEntryAsync_PastExpiresAt_ReadsExpiredBeforeAnySweepOrDecision()
+    {
+        var clock = new FakeTimeProvider(ClockOrigin);
+        var ttl = TimeSpan.FromMinutes(30);
+        var (gate, _, store) = CreateGate(
+            ReviewRequirement.ReviewerConfirmation,
+            new AffiantCoreOptions { DefaultDocketTtl = ttl },
+            clock);
+
+        var (proposal, context) = CreateTestInput(Guid.NewGuid());
+        await gate.FileForReviewAsync(proposal, context);
+        var entryId = context.EntryId!.Value;
+
+        Assert.Equal(ReviewStatus.Pending, (await store.GetDocketEntryAsync(entryId, default))!.Status);
+
+        clock.Advance(ttl);
+
+        // Nothing has swept and nobody has decided — the read alone reports the state.
+        Assert.Equal(ReviewStatus.Expired, (await store.GetDocketEntryAsync(entryId, default))!.Status);
+
+        // ...and the row itself is still Pending underneath, which is what leaves the guarded
+        // transition for the sweep (or a decision) to win exactly once.
+        Assert.Equal(1, await store.UpdateReviewStatusAsync(entryId, ReviewStatus.Expired, default));
+    }
+
+    [Fact]
+    public async Task ListPendingBySessionAsync_PastExpiresAt_NoLongerListsTheEntry()
+    {
+        var clock = new FakeTimeProvider(ClockOrigin);
+        var ttl = TimeSpan.FromMinutes(30);
+        var (gate, transport, store) = CreateGate(
+            ReviewRequirement.ReviewerConfirmation,
+            new AffiantCoreOptions { DefaultDocketTtl = ttl },
+            clock);
+
+        var (proposal, context) = CreateTestInput(Guid.NewGuid());
+        await gate.FileForReviewAsync(proposal, context);
+        Assert.Single(await store.ListPendingBySessionAsync(context.SessionId, default));
+
+        clock.Advance(ttl);
+
+        Assert.Empty(await store.ListPendingBySessionAsync(context.SessionId, default));
+
+        // Which is also what stops a reconnect from re-broadcasting a card that has run out.
+        transport.SentEvents.Clear();
+        await gate.RebroadcastPendingCardsAsync(context.SessionId, CancellationToken.None);
+        Assert.DoesNotContain(transport.SentEvents, e => e.EventType == TransportEvent.EvidenceCardRequest);
+    }
+
+    [Fact]
+    public async Task ResubmitAsync_LapsedButUnswept_Succeeds_WithoutSweepOrPriorDecision()
+    {
+        var clock = new FakeTimeProvider(ClockOrigin);
+        var ttl = TimeSpan.FromMinutes(30);
+        var (gate, _, store) = CreateGate(
+            ReviewRequirement.ReviewerConfirmation,
+            new AffiantCoreOptions { DefaultDocketTtl = ttl },
+            clock);
+
+        var (proposal, context) = CreateTestInput(Guid.NewGuid());
+        await gate.FileForReviewAsync(proposal, context);
+        var entryId = context.EntryId!.Value;
+
+        clock.Advance(ttl);
+
+        // No sweep, and no late decision either — the read-time expiry state is the only thing
+        // saying this entry is resubmittable.
+        var filing = await gate.ResubmitAsync(entryId);
+
+        var requiresReview = Assert.IsType<ReviewFilingResult.RequiresReview>(filing);
+        Assert.NotEqual(entryId, requiresReview.EntryId);
+
+        var superseded = await store.GetDocketEntryAsync(entryId, default);
+        Assert.Equal(ReviewStatus.Expired, superseded!.Status);
+        Assert.Equal(requiresReview.EntryId, superseded.ResubmittedTo);
+
+        var fresh = await store.GetDocketEntryAsync(requiresReview.EntryId, default);
+        Assert.Equal(ReviewStatus.Pending, fresh!.Status);
+        Assert.Equal(clock.GetUtcNow() + ttl, fresh.ExpiresAt);
+    }
+
+    [Fact]
+    public async Task FileForReviewAsync_ReplayOfALapsedEntry_ReportsExpired_WithoutRebroadcasting()
+    {
+        var clock = new FakeTimeProvider(ClockOrigin);
+        var ttl = TimeSpan.FromMinutes(30);
+        var (gate, transport, _) = CreateGate(
+            ReviewRequirement.ReviewerConfirmation,
+            new AffiantCoreOptions { DefaultDocketTtl = ttl },
+            clock);
+
+        var (proposal, context) = CreateTestInput(Guid.NewGuid());
+        await gate.FileForReviewAsync(proposal, context);
+        transport.SentEvents.Clear();
+
+        clock.Advance(ttl);
+
+        var replay = await gate.FileForReviewAsync(proposal, context);
+
+        var decided = Assert.IsType<ReviewFilingResult.Decided>(replay);
+        Assert.IsType<ReviewOutcome.Expired>(decided.Outcome);
+        Assert.DoesNotContain(transport.SentEvents, e => e.EventType == TransportEvent.EvidenceCardRequest);
     }
 }

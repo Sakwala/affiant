@@ -1,6 +1,6 @@
 Affiant.SemanticKernel.Adapters.SemanticKernelInferenceCompletionPort
 Affiant.SemanticKernel.Adapters.SemanticKernelInferenceCompletionPort.CompleteStructuredAsync(Affiant.Abstractions.Models.InferenceCompletionRequest! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Text.Json.JsonElement>!
-Affiant.SemanticKernel.Adapters.SemanticKernelInferenceCompletionPort.SemanticKernelInferenceCompletionPort(System.IServiceProvider! services, Microsoft.Extensions.Logging.ILogger<Affiant.SemanticKernel.Adapters.SemanticKernelInferenceCompletionPort!>! logger) -> void
+Affiant.SemanticKernel.Adapters.SemanticKernelInferenceCompletionPort.SemanticKernelInferenceCompletionPort(System.IServiceProvider! services, Microsoft.Extensions.Logging.ILogger<Affiant.SemanticKernel.Adapters.SemanticKernelInferenceCompletionPort!>! logger, System.TimeProvider? timeProvider = null) -> void
 Affiant.SemanticKernel.Connectors.AffiantProviderConfiguration
 Affiant.SemanticKernel.Connectors.AffiantProviderConfiguration.AffiantProviderConfiguration() -> void
 Affiant.SemanticKernel.Connectors.AffiantProviderConfiguration.Primary.get -> Affiant.SemanticKernel.Connectors.LlmProviderConfiguration!
@@ -25,7 +25,7 @@ Affiant.SemanticKernel.Connectors.LlmProviderConfiguration.Provider.get -> strin
 Affiant.SemanticKernel.Connectors.LlmProviderConfiguration.Provider.set -> void
 Affiant.SemanticKernel.Connectors.ManualToolInvoker
 Affiant.SemanticKernel.Connectors.ManualToolInvoker.CaptureAndInvokeAsync(Microsoft.SemanticKernel.FunctionCallContent! functionCall, Microsoft.SemanticKernel.Kernel! kernel, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Microsoft.SemanticKernel.FunctionResultContent!>!
-Affiant.SemanticKernel.Connectors.ManualToolInvoker.ManualToolInvoker(Affiant.Core.Services.ToolInvocationPipeline! pipeline, Microsoft.Extensions.Logging.ILogger<Affiant.SemanticKernel.Connectors.ManualToolInvoker!>! logger) -> void
+Affiant.SemanticKernel.Connectors.ManualToolInvoker.ManualToolInvoker(Affiant.Core.Services.ToolInvocationPipeline! pipeline, Microsoft.Extensions.Logging.ILogger<Affiant.SemanticKernel.Connectors.ManualToolInvoker!>! logger, System.TimeProvider? timeProvider = null) -> void
 Affiant.SemanticKernel.Connectors.ProviderPair
 Affiant.SemanticKernel.Connectors.ProviderPair.Primary.get -> Microsoft.SemanticKernel.ChatCompletion.IChatCompletionService!
 Affiant.SemanticKernel.Connectors.ProviderPair.Primary.init -> void

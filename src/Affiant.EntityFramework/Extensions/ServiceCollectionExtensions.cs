@@ -2,6 +2,7 @@ using Affiant.Abstractions.Interfaces;
 using Affiant.EntityFramework.Stores;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Affiant.EntityFramework.Extensions;
 
@@ -48,6 +49,12 @@ public static class ServiceCollectionExtensions
     {
         var options = new EntityFrameworkOptions();
         configure(options);
+
+        // The stores below stamp and compare time through an injected TimeProvider. AddAffiantCore
+        // registers the system clock as the framework-wide default; this TryAdd only fills the gap
+        // for a host that uses this package without Affiant.Core, and a host's own registration
+        // beats both.
+        services.TryAddSingleton(TimeProvider.System);
 
         if (options.UsePostgresProvider)
         {

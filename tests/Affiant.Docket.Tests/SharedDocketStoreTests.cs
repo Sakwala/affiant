@@ -123,7 +123,7 @@ public sealed class SharedDocketStoreTests
 
         // First tick: identify and mark the expired entry
         var now = DateTimeOffset.UtcNow;
-        var expired = await store.ListExpiredAsync(now, CancellationToken.None);
+        var expired = await store.ListExpiredAsync(now, limit: 100, CancellationToken.None);
         var ours = expired.Where(e => e.EntryId == entry.EntryId).Select(e => e.EntryId).ToList();
         Assert.Contains(entry.EntryId, ours);
 

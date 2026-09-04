@@ -13,7 +13,49 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
 
 ## [Unreleased]
 
-_Nothing yet — changes after `v1.0.0-beta.1` accumulate here._
+### Added
+
+- **One injectable time seam.** Every framework component that needs the current instant now takes a
+  `System.TimeProvider` and reads it there — `ReviewGate` (a filing's `CreatedAt`/`ExpiresAt`, the
+  late-decision deadline check, a resubmission's proposal instant), the in-memory, SQLite and
+  PostgreSQL Docket stores, the in-memory, SQLite and PostgreSQL chat-session stores,
+  `DocketExpiryService` (its tick and its `now`), `ToolErrorFilter`, `ReviewGateFilter`,
+  `ManualToolInvoker`, and the three inference completion ports' today's-date prompt line. Not one
+  `DateTimeOffset.UtcNow` or `DateTime.UtcNow` call remains under `src/`. `AddAffiantCore` registers
+  `TimeProvider.System` with `TryAddSingleton`, and `AddAffiantDocket` /
+  `AddAffiantEntityFramework` do the same so either package stands alone; a host or a test that
+  registers its own provider wins. Every constructor parameter is optional and defaults to
+  `TimeProvider.System`, so a host that changes nothing sees no change in behaviour.
+- **`AffiantDocketOptions`**, with `ExpirySweepBatchSize` (default `100`), settable through
+  `AddAffiantDocket(d => d.ExpirySweepBatchSize = …)`.
+
+### Changed
+
+- **`IDocketStore.ListExpiredAsync` takes a `limit`** — `ListExpiredAsync(expiresBeforeUtc, limit,
+  ct)` — and returns at most that many due entries, oldest deadline first, so one expiry sweep tick
+  transitions at most `AffiantDocketOptions.ExpirySweepBatchSize` entries and a backlog drains
+  across ticks instead of loading the whole Docket. **Breaking** for a host with its own
+  `IDocketStore`: add the parameter, order by `ExpiresAt` ascending, and apply the limit. This is
+  the bound only — the protocol's scoped, cursor-paged `expireDue(now, scope, limit)` with its
+  more-remain signal arrives with the release that reshapes `DocketEntry`.
+- **`ReviewGate.HandleDecisionAsync` tests the expired case before the general already-resolved
+  case**, and its deadline comparison is now inclusive: a decision arriving at exactly `ExpiresAt`
+  is late, where before only one arriving strictly after it was. A host that timed a decision to the
+  millisecond of the deadline gets `Expired` where it previously got `Approved`.
+- **`ReviewGate.ResubmitAsync` commits the expiry transition before claiming the entry**, so the
+  first resubmission of an entry whose deadline has passed but whose sweep has not run succeeds
+  instead of failing its own guard.
+
+### Fixed
+
+- **Expiry reads as a state, at the store boundary.** A Docket entry whose `ExpiresAt` has passed is
+  reported `Expired` by `GetDocketEntryAsync` — and is absent from `ListPendingBySessionAsync` and
+  `ListAllPendingAsync` — whether or not the expiry sweep has run, on an inclusive boundary. The
+  persisted row stays `Pending` until the sweep (or a decision, or a resubmission) commits the
+  guarded transition, so nothing about the compare-and-set contract changes; what changes is that a
+  read no longer reports an entry as awaiting a reviewer when its window has closed, and a
+  reconnecting session no longer replays a card that has run out of time. **Breaking** for a host
+  with its own `IDocketStore`: apply the same projection at your read boundary.
 
 ## [1.0.0-beta.1] — 2026-08-23
 

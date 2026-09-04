@@ -1,5 +1,5 @@
 Affiant.AgentFramework.Adapters.AgentFrameworkInferenceCompletionPort
-Affiant.AgentFramework.Adapters.AgentFrameworkInferenceCompletionPort.AgentFrameworkInferenceCompletionPort(Microsoft.Extensions.AI.IChatClient! chatClient, Microsoft.Extensions.Logging.ILogger<Affiant.AgentFramework.Adapters.AgentFrameworkInferenceCompletionPort!>! logger) -> void
+Affiant.AgentFramework.Adapters.AgentFrameworkInferenceCompletionPort.AgentFrameworkInferenceCompletionPort(Microsoft.Extensions.AI.IChatClient! chatClient, Microsoft.Extensions.Logging.ILogger<Affiant.AgentFramework.Adapters.AgentFrameworkInferenceCompletionPort!>! logger, System.TimeProvider? timeProvider = null) -> void
 Affiant.AgentFramework.Adapters.AgentFrameworkInferenceCompletionPort.CompleteStructuredAsync(Affiant.Abstractions.Models.InferenceCompletionRequest! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Text.Json.JsonElement>!
 Affiant.AgentFramework.AffiantToolCatalog
 Affiant.AgentFramework.AffiantToolCatalog.<Clone>$() -> Affiant.AgentFramework.AffiantToolCatalog!

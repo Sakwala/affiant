@@ -78,8 +78,17 @@ using Microsoft.Extensions.Logging;
 /// to end the turn over a docket-store failure that may already be resolved.
 /// </para>
 /// </summary>
-public sealed class ReviewGateFilter(ILogger<ReviewGateFilter> logger) : ICompletionStageFilter
+public sealed class ReviewGateFilter(
+    ILogger<ReviewGateFilter> logger,
+    TimeProvider? timeProvider = null) : ICompletionStageFilter
 {
+    /// <summary>
+    /// The clock the <see cref="ToolError.Timestamp"/> of a filing failure is stamped from.
+    /// Defaults to <see cref="TimeProvider.System"/>; <c>AddAffiantCore</c> registers exactly that
+    /// as the DI default.
+    /// </summary>
+    private readonly TimeProvider _time = timeProvider ?? TimeProvider.System;
+
     /// <summary>
     /// The single, model-facing turn-ending message used whenever a write proposal requires a human
     /// reviewer's decision. Only reachable via <see cref="ReviewFilingResult.RequiresReview"/> — see
@@ -168,7 +177,7 @@ public sealed class ReviewGateFilter(ILogger<ReviewGateFilter> logger) : IComple
         {
             var toolError = new ToolError(
                 ToolName: proposal.ToolName,
-                Timestamp: DateTimeOffset.UtcNow,
+                Timestamp: _time.GetUtcNow(),
                 Code: ToolErrorFilter.ReviewFilingFailedCode,
                 Message: $"The write proposal for '{proposal.ToolName}' was NOT filed and was NOT " +
                          "queued for review. No reviewer will see this request. Please retry, or " +

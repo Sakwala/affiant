@@ -3,6 +3,7 @@ using Affiant.Abstractions.Models;
 using Affiant.Abstractions.Transport;
 using Affiant.Core.Extensions;
 using Affiant.Core.Services;
+using Affiant.Docket.Options;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -17,22 +18,58 @@ namespace Affiant.Docket.Services;
 /// affiant#28 — at-least-once delivery by construction).
 /// </summary>
 /// <remarks>
+/// <para>
 /// <paramref name="transport"/> is optional — the Affiant.Docket package must not hard-require a
 /// transport dependency. Hosts that register an <see cref="IStreamingTransport"/> (e.g. via
 /// Affiant.Transport.SignalR) get expiry notifications for free; hosts that don't simply skip the
 /// broadcast half of each tick, unchanged from prior behavior.
+/// </para>
+/// <para>
+/// <b>The sweep is bounded.</b> One tick transitions at most
+/// <see cref="AffiantDocketOptions.ExpirySweepBatchSize"/> due entries (default 100), oldest
+/// deadline first; a larger backlog drains across ticks. Nothing is lost in the meantime, because
+/// expiry is a queryable state — a read of an entry past its deadline reports it expired whether or
+/// not this service has reached it (see <see cref="IDocketStore.GetDocketEntryAsync"/>). What the
+/// sweep adds is the durable transition, the <see cref="TransportEvent.DocketExpired"/> broadcast
+/// and the persisted state the resubmission guard tests.
+/// </para>
+/// <para>
+/// <b>What this is not, yet.</b> The Affiant protocol (DK-3) puts the schedule in the host's hands and
+/// leaves the core owning no timer at all, with the store exposing a scoped, cursor-paged
+/// <c>expireDue(now, scope, limit)</c> that reports whether more remain. This release adds the
+/// bound and the injectable clock; the timer still lives here and the scope argument, the
+/// more-remain signal and the cursors land with the docket change that reshapes the row itself.
+/// </para>
 /// </remarks>
+/// <param name="scopeFactory">Resolves a fresh <see cref="IDocketStore"/> per tick.</param>
+/// <param name="options">Core options — the expiry warning window is read from here.</param>
+/// <param name="logger">Tick diagnostics.</param>
+/// <param name="transport">Optional; see the remarks.</param>
+/// <param name="docketOptions">
+/// The sweep's own knobs — the per-tick batch size. Defaults to
+/// <see cref="AffiantDocketOptions"/>'s own defaults when a host registered none.
+/// </param>
+/// <param name="timeProvider">
+/// The clock each tick's <c>now</c> and the tick interval itself are driven from. Defaults to
+/// <see cref="TimeProvider.System"/>; a test substitutes a fake and advances time by hand instead
+/// of waiting 30 real seconds.
+/// </param>
 public sealed class DocketExpiryService(
     IServiceScopeFactory scopeFactory,
     AffiantCoreOptions options,
     ILogger<DocketExpiryService> logger,
-    IStreamingTransport? transport = null) : BackgroundService
+    IStreamingTransport? transport = null,
+    AffiantDocketOptions? docketOptions = null,
+    TimeProvider? timeProvider = null) : BackgroundService
 {
     private static readonly TimeSpan TickInterval = TimeSpan.FromSeconds(30);
 
+    private readonly AffiantDocketOptions _docketOptions = docketOptions ?? new AffiantDocketOptions();
+    private readonly TimeProvider _time = timeProvider ?? TimeProvider.System;
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using var timer = new PeriodicTimer(TickInterval);
+        using var timer = new PeriodicTimer(TickInterval, _time);
 
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
@@ -58,11 +95,13 @@ public sealed class DocketExpiryService(
     /// <remarks>
     /// Three independent phases run each tick:
     /// <list type="number">
-    /// <item>Entries already past <c>ExpiresAt</c> are each CAS-transitioned to Expired one at a
+    /// <item>At most <see cref="AffiantDocketOptions.ExpirySweepBatchSize"/> entries already past
+    /// <c>ExpiresAt</c>, oldest deadline first, are each CAS-transitioned to Expired one at a
     /// time (not a single bulk statement — see method body); if a transport is registered, a
     /// <see cref="TransportEvent.DocketExpired"/> is broadcast per entry this tick's own write
-    /// actually transitioned, never for one a concurrent decision already claimed.</item>
-    /// <item>Entries still Pending but within <see cref="AffiantCoreOptions.DocketExpiryWarningWindow"/>
+    /// actually transitioned, never for one a concurrent decision already claimed. A backlog larger
+    /// than the batch drains on subsequent ticks — see this class's remarks.</item>
+    /// <item>Up to <see cref="AffiantDocketOptions.ExpirySweepBatchSize"/> entries still Pending but within <see cref="AffiantCoreOptions.DocketExpiryWarningWindow"/>
     /// of <c>ExpiresAt</c> get a <see cref="TransportEvent.DocketExpiring"/> broadcast. This set is
     /// re-queried every tick, so a warning is re-emitted on every tick the entry remains inside the
     /// window — clients must treat repeated warnings for the same docket id as idempotent (e.g. key
@@ -87,7 +126,8 @@ public sealed class DocketExpiryService(
         using var scope = scopeFactory.CreateScope();
         var store = scope.ServiceProvider.GetRequiredService<IDocketStore>();
 
-        var now = DateTimeOffset.UtcNow;
+        var now = _time.GetUtcNow();
+        var batchSize = _docketOptions.ExpirySweepBatchSize;
 
         // Phase 1: expire entries already past their deadline, one CAS-guarded write at a time —
         // not a single bulk MarkExpiredAsync statement — so this tick can tell, per entry, whether
@@ -97,7 +137,7 @@ public sealed class DocketExpiryService(
         // DocketExpiryBroadcaster may only be invoked by whichever caller's write affected the row
         // (see its remarks) — re-verifying status after a bulk statement that reports no per-row
         // outcome cannot tell the two apart and double-broadcasts DocketExpired.
-        var expired = await store.ListExpiredAsync(now, ct);
+        var expired = await store.ListExpiredAsync(now, batchSize, ct);
         if (expired.Count > 0)
         {
             var wonCount = 0;
@@ -124,7 +164,7 @@ public sealed class DocketExpiryService(
         if (transport is not null && options.DocketExpiryWarningWindow > TimeSpan.Zero)
         {
             var warningThreshold = now.Add(options.DocketExpiryWarningWindow);
-            var withinWarningWindow = await store.ListExpiredAsync(warningThreshold, ct);
+            var withinWarningWindow = await store.ListExpiredAsync(warningThreshold, batchSize, ct);
 
             foreach (var entry in withinWarningWindow)
             {

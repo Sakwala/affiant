@@ -3,11 +3,13 @@ using Affiant.Abstractions.Models;
 using Affiant.Abstractions.Transport;
 using Affiant.Core.Extensions;
 using Affiant.Core.Services;
+using Affiant.Docket.Options;
 using Affiant.Docket.Services;
 using Affiant.Docket.Stores;
 using Affiant.Docket.Tests.Fixtures;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 using Xunit;
 
 namespace Affiant.Docket.Tests.Integration;
@@ -367,7 +369,11 @@ public sealed class DocketExpiryServiceTests
     // ── Helpers ────────────────────────────────────────────────────────────
 
     private static DocketExpiryService BuildExpiryService(
-        IDocketStore store, IStreamingTransport? transport = null, AffiantCoreOptions? options = null)
+        IDocketStore store,
+        IStreamingTransport? transport = null,
+        AffiantCoreOptions? options = null,
+        AffiantDocketOptions? docketOptions = null,
+        TimeProvider? timeProvider = null)
     {
         // Register the test store as Singleton so the service resolves the same
         // instance that test data was written to — the scope factory is built from
@@ -380,7 +386,9 @@ public sealed class DocketExpiryServiceTests
             scopeFactory,
             options ?? new AffiantCoreOptions(),
             NullLogger<DocketExpiryService>.Instance,
-            transport);
+            transport,
+            docketOptions,
+            timeProvider);
     }
 
     /// <summary>
@@ -425,9 +433,9 @@ public sealed class DocketExpiryServiceTests
             => inner.ListAllPendingAsync(ct);
 
         public async Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(
-            DateTimeOffset expiresBeforeUtc, CancellationToken ct)
+            DateTimeOffset expiresBeforeUtc, int limit, CancellationToken ct)
         {
-            var result = await inner.ListExpiredAsync(expiresBeforeUtc, ct);
+            var result = await inner.ListExpiredAsync(expiresBeforeUtc, limit, ct);
             if (!_raced)
             {
                 _raced = true;
@@ -487,9 +495,9 @@ public sealed class DocketExpiryServiceTests
             => inner.ListAllPendingAsync(ct);
 
         public async Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(
-            DateTimeOffset expiresBeforeUtc, CancellationToken ct)
+            DateTimeOffset expiresBeforeUtc, int limit, CancellationToken ct)
         {
-            var result = await inner.ListExpiredAsync(expiresBeforeUtc, ct);
+            var result = await inner.ListExpiredAsync(expiresBeforeUtc, limit, ct);
             if (!_raced)
             {
                 _raced = true;
@@ -524,5 +532,103 @@ public sealed class DocketExpiryServiceTests
 
         public Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default)
             => throw new InvalidOperationException("SpyStreamingTransport.AwaitEvidenceCardResponseAsync should not be called by DocketExpiryService");
+    }
+
+    // ── The sweep is bounded and clock-driven (protocol DK-3) ────────────────
+
+    [Fact]
+    public async Task ExpireOverdueAsync_MoreDueThanTheBatch_ExpiresAtMostBatchPerTick_OldestFirst()
+    {
+        var origin = new DateTimeOffset(2026, 3, 1, 9, 0, 0, TimeSpan.Zero);
+        var clock = new FakeTimeProvider(origin);
+        var store = new InMemoryDocketStore(clock);
+
+        // Five entries fall due, staggered so "oldest deadline first" is observable.
+        var entries = Enumerable.Range(1, 5)
+            .Select(i => TestDocketEntry.CreateDefault(expiresAt: origin.AddMinutes(i)))
+            .ToList();
+        foreach (var entry in entries)
+            await store.FileDocketEntryAsync(entry, CancellationToken.None);
+
+        var expiryService = BuildExpiryService(
+            store,
+            docketOptions: new AffiantDocketOptions { ExpirySweepBatchSize = 2 },
+            timeProvider: clock);
+
+        clock.SetUtcNow(origin.AddMinutes(10));
+
+        await expiryService.ExpireOverdueAsync(CancellationToken.None);
+
+        var afterFirstTick = await Task.WhenAll(
+            entries.Select(async e => (await store.GetDocketEntryAsync(e.EntryId, CancellationToken.None))!));
+
+        // The read-time projection reports every one of them Expired — that is the point of expiry
+        // being a queryable state — so what the batch bounds is the PERSISTED transition, which
+        // UpdateReviewStatusAsync's Pending guard is the only honest witness to: a row this tick
+        // already committed refuses a second transition (0 rows), one it has not yet reached accepts.
+        Assert.All(afterFirstTick, e => Assert.Equal(ReviewStatus.Expired, e.Status));
+
+        var committedAfterFirstTick = new List<Guid>();
+        foreach (var entry in entries)
+        {
+            var rows = await store.UpdateReviewStatusAsync(
+                entry.EntryId, ReviewStatus.Expired, CancellationToken.None);
+            if (rows == 0)
+                committedAfterFirstTick.Add(entry.EntryId);
+        }
+
+        Assert.Equal([entries[0].EntryId, entries[1].EntryId], committedAfterFirstTick);
+    }
+
+    [Fact]
+    public async Task ExpireOverdueAsync_BacklogLargerThanTheBatch_DrainsAcrossTicks()
+    {
+        var origin = new DateTimeOffset(2026, 3, 1, 9, 0, 0, TimeSpan.Zero);
+        var clock = new FakeTimeProvider(origin);
+        var store = new InMemoryDocketStore(clock);
+        var transport = new SpyStreamingTransport();
+
+        var entries = Enumerable.Range(1, 5)
+            .Select(i => TestDocketEntry.CreateDefault(expiresAt: origin.AddMinutes(i)))
+            .ToList();
+        foreach (var entry in entries)
+            await store.FileDocketEntryAsync(entry, CancellationToken.None);
+
+        var expiryService = BuildExpiryService(
+            store,
+            transport,
+            docketOptions: new AffiantDocketOptions { ExpirySweepBatchSize = 2 },
+            timeProvider: clock);
+
+        clock.SetUtcNow(origin.AddMinutes(10));
+
+        // One DocketExpired broadcast per entry the tick's own write actually transitioned, so the
+        // broadcast count is the visible count of committed transitions per tick: 2, 2, then 1.
+        await expiryService.ExpireOverdueAsync(CancellationToken.None);
+        Assert.Equal(2, transport.Broadcasts.Count(b => b.EventType == TransportEvent.DocketExpired));
+
+        await expiryService.ExpireOverdueAsync(CancellationToken.None);
+        Assert.Equal(4, transport.Broadcasts.Count(b => b.EventType == TransportEvent.DocketExpired));
+
+        await expiryService.ExpireOverdueAsync(CancellationToken.None);
+        Assert.Equal(5, transport.Broadcasts.Count(b => b.EventType == TransportEvent.DocketExpired));
+
+        // A fourth tick has nothing left to do.
+        await expiryService.ExpireOverdueAsync(CancellationToken.None);
+        Assert.Equal(5, transport.Broadcasts.Count(b => b.EventType == TransportEvent.DocketExpired));
+
+        foreach (var entry in entries)
+        {
+            var rows = await store.UpdateReviewStatusAsync(
+                entry.EntryId, ReviewStatus.Expired, CancellationToken.None);
+            Assert.Equal(0, rows);
+        }
+    }
+
+    [Fact]
+    public void AffiantDocketOptions_BatchSizeBelowOne_IsRejected()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new AffiantDocketOptions { ExpirySweepBatchSize = 0 });
     }
 }

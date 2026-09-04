@@ -5,11 +5,27 @@ using AbstractConversationContext = Affiant.Abstractions.Models.ConversationCont
 
 namespace Affiant.Docket.Stores;
 
-public sealed class InMemoryDocketStore : IDocketStore
+/// <summary>
+/// Process-local <see cref="IDocketStore"/>. Nothing survives a restart — see
+/// <see cref="Affiant.Docket.Options.DocketOptions"/> for the durable backends.
+/// </summary>
+/// <param name="timeProvider">
+/// The clock this store compares <see cref="DocketEntry.ExpiresAt"/> against when it projects
+/// expiry onto a read (see <see cref="IDocketStore.GetDocketEntryAsync"/>). Defaults to
+/// <see cref="TimeProvider.System"/>; DI supplies whatever the host registered, and a test
+/// substitutes a fake.
+/// </param>
+public sealed class InMemoryDocketStore(TimeProvider? timeProvider = null) : IDocketStore
 {
     private readonly ConcurrentDictionary<string, AbstractConversationContext> _contexts = new();
     private readonly ConcurrentDictionary<Guid, DocketEntry> _entries = new();
     private readonly object _statusLock = new();
+    private readonly TimeProvider _time = timeProvider ?? TimeProvider.System;
+
+    private DocketEntry Project(DocketEntry entry) =>
+        entry.Status == ReviewStatus.Pending && entry.ExpiresAt <= _time.GetUtcNow()
+            ? entry with { Status = ReviewStatus.Expired }
+            : entry;
 
     public Task SaveContextAsync(string sessionId, AbstractConversationContext context, CancellationToken ct)
     {
@@ -41,7 +57,7 @@ public sealed class InMemoryDocketStore : IDocketStore
     public Task<DocketEntry?> GetDocketEntryAsync(Guid entryId, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        return Task.FromResult(_entries.TryGetValue(entryId, out var entry) ? entry : null);
+        return Task.FromResult(_entries.TryGetValue(entryId, out var entry) ? Project(entry) : null);
     }
 
     public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct)
@@ -81,7 +97,7 @@ public sealed class InMemoryDocketStore : IDocketStore
     {
         ct.ThrowIfCancellationRequested();
         var parent = _entries.Values.FirstOrDefault(e => e.ResubmittedTo == entryId);
-        return Task.FromResult(parent);
+        return Task.FromResult(parent is null ? null : Project(parent));
     }
 
     public Task UpdateAmendmentsAsync(
@@ -100,8 +116,9 @@ public sealed class InMemoryDocketStore : IDocketStore
     public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
+        var now = _time.GetUtcNow();
         var pending = _entries.Values
-            .Where(e => e.SessionId == sessionId && e.Status == ReviewStatus.Pending)
+            .Where(e => e.SessionId == sessionId && e.Status == ReviewStatus.Pending && e.ExpiresAt > now)
             .OrderBy(e => e.CreatedAt)
             .ToList();
         return Task.FromResult<IReadOnlyList<DocketEntry>>(pending);
@@ -110,17 +127,27 @@ public sealed class InMemoryDocketStore : IDocketStore
     public Task<IReadOnlyList<DocketEntry>> ListAllPendingAsync(CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
+        var now = _time.GetUtcNow();
         var pending = _entries.Values
-            .Where(e => e.Status == ReviewStatus.Pending)
+            .Where(e => e.Status == ReviewStatus.Pending && e.ExpiresAt > now)
             .ToList();
         return Task.FromResult<IReadOnlyList<DocketEntry>>(pending);
     }
 
-    public Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(DateTimeOffset expiresBeforeUtc, CancellationToken ct)
+    public Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(
+        DateTimeOffset expiresBeforeUtc, int limit, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
+        ArgumentOutOfRangeException.ThrowIfLessThan(limit, 1);
+
+        // Persisted status, not the read-time expiry projection: this is the query that finds rows
+        // whose Expired transition has not been committed yet. Ordered by deadline so a backlog
+        // larger than one page drains oldest-first across ticks instead of starving.
         var expired = _entries.Values
             .Where(e => e.Status == ReviewStatus.Pending && e.ExpiresAt <= expiresBeforeUtc)
+            .OrderBy(e => e.ExpiresAt)
+            .ThenBy(e => e.EntryId)
+            .Take(limit)
             .ToList();
         return Task.FromResult<IReadOnlyList<DocketEntry>>(expired);
     }

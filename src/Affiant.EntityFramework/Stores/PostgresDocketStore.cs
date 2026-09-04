@@ -8,14 +8,33 @@ using AbstractConversationContext = Affiant.Abstractions.Models.ConversationCont
 
 namespace Affiant.EntityFramework.Stores;
 
+/// <summary>
+/// PostgreSQL-backed <see cref="IDocketStore"/>.
+/// </summary>
+/// <param name="db">The Affiant EF Core context.</param>
+/// <param name="logger">Logger for the filing-race diagnostics.</param>
+/// <param name="timeProvider">
+/// The clock this store compares <see cref="DocketEntry.ExpiresAt"/> against when it projects
+/// expiry onto a read (see <see cref="IDocketStore.GetDocketEntryAsync"/>) and when it stamps a
+/// conversation context's last-updated instant. Defaults to <see cref="TimeProvider.System"/>; DI
+/// supplies whatever the host registered, and a test substitutes a fake.
+/// </param>
 public sealed class PostgresDocketStore(
     AffiantDbContext db,
-    ILogger<PostgresDocketStore> logger) : IDocketStore
+    ILogger<PostgresDocketStore> logger,
+    TimeProvider? timeProvider = null) : IDocketStore
 {
     private static readonly JsonSerializerOptions s_jsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
+
+    private readonly TimeProvider _time = timeProvider ?? TimeProvider.System;
+
+    private DocketEntry Project(DocketEntry entry) =>
+        entry.Status == ReviewStatus.Pending && entry.ExpiresAt <= _time.GetUtcNow()
+            ? entry with { Status = ReviewStatus.Expired }
+            : entry;
 
     public async Task SaveContextAsync(string sessionId, AbstractConversationContext context, CancellationToken ct)
     {
@@ -31,7 +50,7 @@ public sealed class PostgresDocketStore(
             existing.EntitiesJson = entitiesJson;
             existing.FieldValuesJson = "{}";
             existing.ProvenanceChainsJson = "{}";
-            existing.LastUpdatedAt = DateTimeOffset.UtcNow;
+            existing.LastUpdatedAt = _time.GetUtcNow();
         }
         else
         {
@@ -41,7 +60,7 @@ public sealed class PostgresDocketStore(
                 EntitiesJson = entitiesJson,
                 FieldValuesJson = "{}",
                 ProvenanceChainsJson = "{}",
-                LastUpdatedAt = DateTimeOffset.UtcNow
+                LastUpdatedAt = _time.GetUtcNow()
             });
         }
 
@@ -111,7 +130,7 @@ public sealed class PostgresDocketStore(
             .AsNoTracking()
             .FirstOrDefaultAsync(d => d.EntryId == entryId, ct);
 
-        return entity is null ? null : ToDomainEntry(entity);
+        return entity is null ? null : Project(ToDomainEntry(entity));
     }
 
     public async Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct)
@@ -142,7 +161,7 @@ public sealed class PostgresDocketStore(
             .AsNoTracking()
             .FirstOrDefaultAsync(d => d.ResubmittedTo == entryId, ct);
 
-        return entity is null ? null : ToDomainEntry(entity);
+        return entity is null ? null : Project(ToDomainEntry(entity));
     }
 
     public async Task UpdateAmendmentsAsync(
@@ -160,9 +179,12 @@ public sealed class PostgresDocketStore(
     {
         ct.ThrowIfCancellationRequested();
 
+        var now = _time.GetUtcNow();
         var entities = await db.Docket
             .AsNoTracking()
-            .Where(d => d.SessionId == sessionId && d.Status == ReviewStatus.Pending.ToString())
+            .Where(d => d.SessionId == sessionId
+                && d.Status == ReviewStatus.Pending.ToString()
+                && d.ExpiresAt > now)
             .OrderBy(d => d.CreatedAt)
             .ToListAsync(ct);
 
@@ -173,21 +195,29 @@ public sealed class PostgresDocketStore(
     {
         ct.ThrowIfCancellationRequested();
 
+        var now = _time.GetUtcNow();
         var entities = await db.Docket
             .AsNoTracking()
-            .Where(d => d.Status == ReviewStatus.Pending.ToString())
+            .Where(d => d.Status == ReviewStatus.Pending.ToString() && d.ExpiresAt > now)
             .ToListAsync(ct);
 
         return entities.Select(ToDomainEntry).ToList();
     }
 
-    public async Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(DateTimeOffset expiresBeforeUtc, CancellationToken ct)
+    public async Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(
+        DateTimeOffset expiresBeforeUtc, int limit, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
+        ArgumentOutOfRangeException.ThrowIfLessThan(limit, 1);
 
+        // Deadline order plus the limit is the page: the backlog drains oldest-first across ticks
+        // and the whole Docket never loads into memory.
         var entities = await db.Docket
             .AsNoTracking()
             .Where(d => d.Status == ReviewStatus.Pending.ToString() && d.ExpiresAt <= expiresBeforeUtc)
+            .OrderBy(d => d.ExpiresAt)
+            .ThenBy(d => d.EntryId)
+            .Take(limit)
             .ToListAsync(ct);
 
         return entities.Select(ToDomainEntry).ToList();

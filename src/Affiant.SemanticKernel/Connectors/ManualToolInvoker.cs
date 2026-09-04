@@ -11,9 +11,19 @@ namespace Affiant.SemanticKernel.Connectors;
 // completion stage (merge + review gate) lives at SK's IAutoFunctionInvocationFilter position, which
 // only the auto-invocation loop drives — so this path must run the completion segment explicitly, or
 // a manually-invoked write tool's WriteProposal is never filed for review.
-public class ManualToolInvoker(ToolInvocationPipeline pipeline, ILogger<ManualToolInvoker> logger)
+public class ManualToolInvoker(
+    ToolInvocationPipeline pipeline,
+    ILogger<ManualToolInvoker> logger,
+    TimeProvider? timeProvider = null)
     : IManualToolInvoker
 {
+    /// <summary>
+    /// The clock the <see cref="ToolError.Timestamp"/> of a function-not-found error is stamped
+    /// from. Defaults to <see cref="TimeProvider.System"/>; <c>AddAffiantCore</c> registers exactly
+    /// that as the DI default.
+    /// </summary>
+    private readonly TimeProvider _time = timeProvider ?? TimeProvider.System;
+
     public async Task<FunctionResultContent> CaptureAndInvokeAsync(
         FunctionCallContent functionCall, Kernel kernel, CancellationToken ct)
     {
@@ -42,7 +52,7 @@ public class ManualToolInvoker(ToolInvocationPipeline pipeline, ILogger<ManualTo
             // (AssertToolErrorCodeSourceScanTests) like every other framework emission site.
             var notFound = new ToolError(
                 ToolName: functionName,
-                Timestamp: DateTimeOffset.UtcNow,
+                Timestamp: _time.GetUtcNow(),
                 Code: ToolErrorCodes.FunctionNotFound,
                 Message: $"Function '{functionName}' is not available.",
                 Retryable: false);
