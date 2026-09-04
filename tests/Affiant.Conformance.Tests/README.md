@@ -31,6 +31,22 @@ The fixture's policy chain binds to `IApprovalPolicy`, including the risk compar
 framework's own `StandingOrderGuardrails.ApplyRiskCeiling`, so the sentence a reviewer reads is the
 framework's and not the driver's.
 
+## The canonical byte vectors
+
+The seven vectors (`RUNNER.md` §9) go through the shipped `Affiant.Core.Serialization.
+CanonicalSerializer` — the same exported helper a host calls to mint an execution grant. The rule is
+that a driver **reproduces** the bytes and the digest and does not re-derive them: the three paths
+that have to agree are the implementation, a second canonicaliser written out from the rule, and an
+off-the-shelf SHA-256, and the second canonicaliser is the rulebook's, which produced the pinned
+bytes. A driver that measured a canonicaliser written beside the test would leave the
+implementation's own byte-level conformance unmeasured by the whole suite.
+
+The amended vector's sworn form is the Affidavit with its accepted amendments folded in by the
+shipped fold, and the result is compared against the `amendedInput` the vector writes down before
+the bytes are: two states that differ can only be told apart by reading them. Each vector is held
+against `canonical-vector.schema.json` before it runs, so a malformed vector is an error and never a
+pass.
+
 ## The checks the runner performs whether or not a fixture states them
 
 - **Every attestation names the entry it attests to** (`RUNNER.md` §4.1, AZ-1). A record that

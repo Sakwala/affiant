@@ -14,6 +14,7 @@ internal sealed record CanonicalVector(
     JsonObject Input,
     JsonObject? Amendments,
     JsonObject? ReviewerAct,
+    JsonObject? AmendedInput,
     string ExpectedBytesUtf8,
     string ExpectedSha256,
     string SourcePath);

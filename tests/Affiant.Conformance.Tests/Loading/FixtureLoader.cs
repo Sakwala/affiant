@@ -49,7 +49,14 @@ internal static class FixtureLoader
             path);
     }
 
-    /// <summary>Load one canonical byte vector (<c>RUNNER.md</c> §9) — a different document shape.</summary>
+    /// <summary>
+    /// Load one canonical byte vector (<c>RUNNER.md</c> §9) — a different document shape.
+    /// </summary>
+    /// <remarks>
+    /// The document is held against <c>canonical-vector.schema.json</c> by
+    /// <see cref="Canonical.CanonicalVectorRunner"/> before it is run, so a malformed vector is an
+    /// error in the run rather than a pass.
+    /// </remarks>
     public static CanonicalVector LoadVector(string path)
     {
         var doc = ProtocolSuite.ReadObject(path);
@@ -60,6 +67,7 @@ internal static class FixtureLoader
             doc["input"]!.AsObject(),
             doc["amendments"] as JsonObject,
             doc["reviewerAct"] as JsonObject,
+            doc["amendedInput"] as JsonObject,
             doc["expectedBytesUtf8"]!.GetValue<string>(),
             doc["expectedSha256"]!.GetValue<string>(),
             path);

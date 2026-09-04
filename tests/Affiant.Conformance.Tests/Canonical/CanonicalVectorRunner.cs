@@ -1,10 +1,9 @@
-using System.Reflection;
-using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Text.Json.Serialization;
-using Affiant.Abstractions.Models;
+using Affiant.Conformance.Tests.Loading;
 using Affiant.Conformance.Tests.Matching;
 using Affiant.Conformance.Tests.Model;
+using Affiant.Core.Serialization;
+using Json.Schema;
 
 namespace Affiant.Conformance.Tests.Canonical;
 
@@ -14,134 +13,136 @@ namespace Affiant.Conformance.Tests.Canonical;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>What a vector row in this run does and does not say.</b> A vector is measured against the
-/// driver's own canonicaliser, which is the "second canonicaliser written out from the rule" that
-/// <c>RUNNER.md</c> §9 names as one of the three paths that have to agree — never against the
-/// framework's own <c>CanonicalSerializer</c>, which would be the implementation grading its own
-/// homework. What a vector <b>does</b> say is two things a reader of the parity report needs:
+/// <b>Reproduced through the shipped serializer, never re-derived here.</b> The rule is explicit: "a
+/// driver reproduces the bytes and the digest; it does not re-derive them", and the three paths that
+/// have to agree are the implementation, a second canonicaliser written out from the rule, and an
+/// off-the-shelf SHA-256. The second canonicaliser is the rulebook's job and produced the pinned
+/// bytes; this driver's job is the first path. Every vector therefore goes through
+/// <see cref="CanonicalSerializer"/> — the same exported helper a host calls to mint an execution
+/// grant — so a run of this suite says something about the implementation's SR-1 conformance rather
+/// than about a canonicaliser written beside the test.
 /// </para>
-/// <list type="number">
-/// <item>whether the rule's text, implemented independently, reproduces the pinned bytes and
-/// digest — a disagreement there is a finding about the rule or the vector, not about .NET;</item>
-/// <item>whether the shipped <c>Affidavit</c> model can <b>hold</b> the shape the vector pins at
-/// all. The properties it is measured against are read off the shipped records themselves, so a
-/// row that says "the record has no such property" is a statement about the tree that produced the
-/// run and not about whatever release a list in this file was last edited for.</item>
-/// </list>
+/// <para>
+/// <b>The amended vector.</b> Its sworn form is the Affidavit combined with its accepted amendments,
+/// which the shipped fold produces: the driver applies it and checks the result against the
+/// <c>amendedInput</c> the vector writes down, property for property, before comparing bytes. Two
+/// states that differ can only be told apart by reading them, and a byte comparison alone would say
+/// that byte 447 differs rather than which property parted company.
+/// </para>
+/// <para>
+/// <b>Validated first.</b> Each vector is held against <c>canonical-vector.schema.json</c> before it
+/// runs, exactly as a fixture is held against <c>fixture.schema.json</c>: a malformed vector must be
+/// an error, never a pass.
+/// </para>
 /// </remarks>
 internal static class CanonicalVectorRunner
 {
-    /// <summary>The properties an <c>Affidavit</c> can hold, read off the shipped record.</summary>
-    private static readonly HashSet<string> AffidavitProperties = PropertiesOf(typeof(Affidavit));
+    private static readonly JsonSchema Schema = JsonSchema.FromFile(
+        Path.Combine(ProtocolSuite.Instance.Root, "canonical-vector.schema.json"));
 
-    /// <summary>The properties an <c>AffidavitField</c> can hold, read off the shipped record.</summary>
-    private static readonly HashSet<string> FieldProperties = PropertiesOf(typeof(AffidavitField));
-
-    /// <summary>The properties a <c>ProvenanceTag</c> can hold, read off the shipped record.</summary>
-    private static readonly HashSet<string> TagProperties = PropertiesOf(typeof(ProvenanceTag));
-
-    /// <summary>
-    /// The JSON property names a shipped record carries, under the naming the canonical form uses:
-    /// a <c>[JsonPropertyName]</c> where one is declared, camel case otherwise.
-    /// </summary>
-    private static HashSet<string> PropertiesOf(Type record) => new(
-        record.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Select(property =>
-                property.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name
-                ?? JsonNamingPolicy.CamelCase.ConvertName(property.Name)),
-        StringComparer.Ordinal);
+    private static readonly EvaluationOptions Options = new()
+    {
+        OutputFormat = OutputFormat.List,
+        RequireFormatValidation = false,
+    };
 
     /// <summary>Reproduces one vector, reporting every disagreement it found.</summary>
     public static (string Verdict, IReadOnlyList<Mismatch> Diff, string? Reason) Run(CanonicalVector vector)
     {
-        var diff = new List<Mismatch>();
-        string? reason = null;
+        ArgumentNullException.ThrowIfNull(vector);
 
-        if (vector.Amendments is not null)
+        if (SchemaProblems(vector) is { Count: > 0 } problems)
         {
-            // The sworn form is the Affidavit COMBINED with its accepted amendments, and an amended
-            // field's tag names the act that amended it (PV-2). A tag in this release cannot name an
-            // act: it has no binding and no timestamp, so the sworn form cannot be built at all.
-            reason = "not-implemented: amendment folding. The sworn form an execution grant binds to is the " +
-                     "Affidavit combined with its accepted amendments, and an amended field's tag must name the " +
-                     "reviewer act that amended it (PV-2, SR-1). This driver builds the vector's input as JSON " +
-                     "and has no accepted-amendment path to fold through, so the sworn form is not built here.";
-            diff.Add(Mismatch.Said("amendments", "the sworn form, amendments folded in", "the model cannot express an amendment's tag"));
+            return (
+                "error",
+                [Mismatch.Said("document", "a document canonical-vector.schema.json admits", string.Join("; ", problems))],
+                $"does not validate against canonical-vector.schema.json: {string.Join("; ", problems)}");
         }
 
-        var canonical = Canonicaliser.Serialize(vector.Input);
+        var diff = new List<Mismatch>();
+
+        // The sworn form: the input as filed, or the input with the reviewer's accepted amendments
+        // folded in by the SHIPPED fold (PV-2, DK-2).
+        var sworn = vector.Input;
+        if (vector.Amendments is { } amendments && vector.ReviewerAct is { } act)
+        {
+            sworn = CanonicalSerializer.ApplyAmendmentsForCanonical(
+                vector.Input,
+                Amendments(amendments),
+                Guid.Parse(act["entryId"]!.GetValue<string>()),
+                DateTimeOffset.Parse(
+                    act["decisionAt"]!.GetValue<string>(),
+                    System.Globalization.CultureInfo.InvariantCulture),
+                act["by"]!.GetValue<string>());
+
+            if (vector.AmendedInput is { } expected)
+            {
+                var produced = CanonicalSerializer.CanonicalString(sworn);
+                var stated = CanonicalSerializer.CanonicalString(expected);
+                if (!string.Equals(produced, stated, StringComparison.Ordinal))
+                {
+                    diff.Add(Mismatch.Said(
+                        "amendedInput",
+                        Excerpt(stated, produced),
+                        Excerpt(produced, stated)));
+                }
+            }
+        }
+
+        var canonical = CanonicalSerializer.CanonicalString(sworn);
         if (canonical != vector.ExpectedBytesUtf8)
         {
-            diff.Add(Mismatch.Said("expectedBytesUtf8", Excerpt(vector.ExpectedBytesUtf8, canonical), Excerpt(canonical, vector.ExpectedBytesUtf8)));
+            diff.Add(Mismatch.Said(
+                "expectedBytesUtf8",
+                Excerpt(vector.ExpectedBytesUtf8, canonical),
+                Excerpt(canonical, vector.ExpectedBytesUtf8)));
         }
 
-        var digest = Canonicaliser.Sha256Hex(canonical);
+        var digest = CanonicalSerializer.CanonicalHash(sworn);
         if (digest != vector.ExpectedSha256)
         {
             diff.Add(Mismatch.Said("expectedSha256", vector.ExpectedSha256, digest));
         }
 
-        CheckModelCanHold(vector.Input, diff);
-        return (diff.Count == 0 ? "pass" : "fail", diff, reason);
+        return (diff.Count == 0 ? "pass" : "fail", diff, null);
     }
 
-    /// <summary>Names every property of the vector's shape the .NET model has nowhere to put.</summary>
-    private static void CheckModelCanHold(JsonObject input, List<Mismatch> diff)
+    /// <summary>The vector's amendment map, as the fold takes it.</summary>
+    private static Dictionary<string, object?> Amendments(JsonObject amendments)
     {
-        // A vector that is not Affidavit-shaped has no model to be held by, so there is nothing to
-        // check. From the rulebook's v0.1.1 all seven are Affidavits — the two that stress key order
-        // and number forms carry their cases inside a field's value — so this guard no longer fires;
-        // it stays because what a vector may contain is the rulebook's call, not this driver's, and
-        // a runner that assumed otherwise would crash on the first vector that changed shape.
-        if (input["fields"] is not JsonArray fields || input["operationType"] is null)
+        var map = new Dictionary<string, object?>(StringComparer.Ordinal);
+        foreach (var (name, value) in amendments)
         {
-            return;
+            map[name] = value is null
+                ? null
+                : System.Text.Json.JsonSerializer.Deserialize<object?>(value.ToJsonString());
         }
 
-        foreach (var key in input.Select(kv => kv.Key).Where(k => !AffidavitProperties.Contains(k)))
-        {
-            diff.Add(Mismatch.Said($"model.{key}", "a property of the Affidavit record", "(absent) - the record has no such property"));
-        }
-
-        for (var i = 0; i < fields.Count; i++)
-        {
-            var field = fields[i]!.AsObject();
-            foreach (var key in field.Select(kv => kv.Key).Where(k => !FieldProperties.Contains(k)))
-            {
-                diff.Add(Mismatch.Said($"model.fields[{i}].{key}", "a property of the AffidavitField record", "(absent)"));
-            }
-
-            if (field["provenance"] is not JsonObject provenance)
-            {
-                continue;
-            }
-
-            foreach (var (where, tag) in Tags(provenance))
-            {
-                foreach (var key in tag.Select(kv => kv.Key).Where(k => !TagProperties.Contains(k)))
-                {
-                    diff.Add(Mismatch.Said($"model.fields[{i}].provenance.{where}.{key}", "a property of the ProvenanceTag record", "(absent)"));
-                }
-            }
-        }
+        return map;
     }
 
-    private static IEnumerable<(string Where, JsonObject Tag)> Tags(JsonObject provenance)
+    private static IReadOnlyList<string> SchemaProblems(CanonicalVector vector)
     {
-        if (provenance["current"] is JsonObject current)
-        {
-            yield return ("current", current);
-        }
+        var document = ProtocolSuite.ReadObject(vector.SourcePath);
+        var result = Schema.Evaluate(document, Options);
+        if (result.IsValid) return [];
 
-        if (provenance["prior"] is JsonArray prior)
+        return
+        [
+            .. Flatten(result)
+                .Where(d => !d.IsValid && d.Errors is { Count: > 0 })
+                .Select(d => $"{(string.IsNullOrEmpty(d.InstanceLocation.ToString()) ? "(root)" : d.InstanceLocation.ToString())}: {string.Join("; ", d.Errors!.Values)}")
+                .Distinct(StringComparer.Ordinal)
+                .Take(8),
+        ];
+    }
+
+    private static IEnumerable<EvaluationResults> Flatten(EvaluationResults results)
+    {
+        yield return results;
+        foreach (var child in results.Details.SelectMany(Flatten))
         {
-            for (var i = 0; i < prior.Count; i++)
-            {
-                if (prior[i] is JsonObject tag)
-                {
-                    yield return ($"prior[{i}]", tag);
-                }
-            }
+            yield return child;
         }
     }
 
