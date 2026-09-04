@@ -129,6 +129,8 @@ public sealed class ReviewGate(
                     : finalEntry.Status.ToReviewOutcome(entryId);
             }
 
+            RecordTransitionIfWon(expiryRowsAffected, entryId, context.SessionId, ReviewStatus.Expired);
+
             await transport.BroadcastToGroupAsync(
                 context.SessionId, TransportEvent.DocketExpired,
                 new DocketExpiredNotification(entryId), cancellationToken);
@@ -144,8 +146,11 @@ public sealed class ReviewGate(
         // Process the reviewer's decision.
         if (response.Decision == ApprovalDecision.Rejected)
         {
-            await docketStore.UpdateReviewStatusAsync(
+            var rejectedRows = await docketStore.UpdateReviewStatusAsync(
                 entryId, ReviewStatus.Rejected, cancellationToken);
+            RecordTransitionIfWon(
+                rejectedRows, entryId, context.SessionId, ReviewStatus.Rejected,
+                decisionKind: "reject");
             return new ReviewOutcome.Rejected(entryId, response.Reason ?? "No reason provided");
         }
 
@@ -162,10 +167,15 @@ public sealed class ReviewGate(
 
         // This call won the approval race — persist the reviewer's amendments (if any) onto
         // the entry it just transitioned. See EvidenceCardResponse.Amendments.
-        if (response.Amendments is { Count: > 0 })
+        var amended = response.Amendments is { Count: > 0 };
+        if (amended)
         {
-            await docketStore.UpdateAmendmentsAsync(entryId, response.Amendments, cancellationToken);
+            await docketStore.UpdateAmendmentsAsync(entryId, response.Amendments!, cancellationToken);
         }
+
+        RecordTransitionIfWon(
+            rowsAffected, entryId, context.SessionId, ReviewStatus.Approved,
+            decisionKind: "approve", amended: amended);
 
         return new ReviewOutcome.Approved(entryId);
     }
@@ -365,13 +375,29 @@ public sealed class ReviewGate(
                     "Filed DocketEntry {EntryId} for tool {ToolName}", entryId, proposal.ToolName);
             }
 
+            // TL-1 `affidavit.filed`. Emitted for a replay too, with created=false, because a host
+            // that retries a proposal wants to see the retry — an event that only fired on the first
+            // filing would make a retry storm invisible. `docket.requirement` is absent: this
+            // release files before it evaluates the policy chain (the rulebook's GT-1 order is the
+            // reverse), so at this point nothing knows the requirement, and a guess is worse than
+            // an absent attribute.
+            AffiantTelemetry.RecordAffidavitFiled(
+                proposal.ToolName,
+                context.SessionId,
+                entryId,
+                DocketStateName(ReviewStatus.Pending),
+                context.Affidavit.Fields.Length,
+                created: existing is null);
+
             // 3. Evaluate the approval policy pipeline before involving the reviewer.
             var requirement = await evaluator.EvaluateAsync(context.Affidavit, cancellationToken);
 
             // 4a. StandingOrder: auto-approve without client interaction.
             if (requirement == ReviewRequirement.StandingOrder)
             {
-                await docketStore.UpdateReviewStatusAsync(entryId, ReviewStatus.Approved, cancellationToken);
+                var approvedRows = await docketStore.UpdateReviewStatusAsync(
+                    entryId, ReviewStatus.Approved, cancellationToken);
+                RecordTransitionIfWon(approvedRows, entryId, context.SessionId, ReviewStatus.Approved);
                 logger.LogInformation("StandingOrder auto-approved DocketEntry {EntryId}", entryId);
                 return new ReviewFilingResult.Decided(new ReviewOutcome.Approved(entryId));
             }
@@ -379,7 +405,9 @@ public sealed class ReviewGate(
             // 4b. ReferralRequired: escalate without client interaction.
             if (requirement == ReviewRequirement.ReferralRequired)
             {
-                await docketStore.UpdateReviewStatusAsync(entryId, ReviewStatus.Deferred, cancellationToken);
+                var deferredRows = await docketStore.UpdateReviewStatusAsync(
+                    entryId, ReviewStatus.Deferred, cancellationToken);
+                RecordTransitionIfWon(deferredRows, entryId, context.SessionId, ReviewStatus.Deferred);
                 logger.LogInformation("Referral required for DocketEntry {EntryId}", entryId);
                 return new ReviewFilingResult.Decided(new ReviewOutcome.Referral(entryId, "referral-required"));
             }
@@ -571,6 +599,12 @@ public sealed class ReviewGate(
                     entryId);
             }
 
+            AffiantTelemetry.RecordDecisionUnauthorized(
+                entryId,
+                entry?.SessionId,
+                entry is null ? "entry-not-found" : "decision-not-pending",
+                DecidePath);
+
             return (new ReviewOutcome.Expired(entryId, amendmentsPreserved), null);
         }
 
@@ -586,6 +620,9 @@ public sealed class ReviewGate(
                 "HandleDecisionAsync: DocketEntry {EntryId} TTL lapsed before this decision arrived",
                 entryId);
 
+            AffiantTelemetry.RecordDecisionUnauthorized(
+                entryId, entry.SessionId, "decision-expired", DecidePath);
+
             var lateAmendmentsPreserved = false;
             if (amendments is { Count: > 0 })
             {
@@ -598,6 +635,9 @@ public sealed class ReviewGate(
 
             var expiryRowsAffected = await docketStore.UpdateReviewStatusAsync(
                 entryId, ReviewStatus.Expired, cancellationToken);
+            RecordTransitionIfWon(
+                expiryRowsAffected, entryId, entry.SessionId, ReviewStatus.Expired,
+                amended: lateAmendmentsPreserved);
 
             // Only the call whose own CAS affected a row may broadcast — see
             // DocketExpiryBroadcaster's remarks. A repeat late decision on the same entry (double
@@ -619,6 +659,9 @@ public sealed class ReviewGate(
         var rowsAffected = await docketStore.UpdateReviewStatusAsync(entryId, newStatus, cancellationToken);
         if (rowsAffected == 0)
         {
+            AffiantTelemetry.RecordDecisionUnauthorized(
+                entryId, entry.SessionId, "decision-lost-race", DecidePath);
+
             var current = await docketStore.GetDocketEntryAsync(entryId, cancellationToken);
             return current is null
                 ? (new ReviewOutcome.Expired(entryId), null)
@@ -626,10 +669,16 @@ public sealed class ReviewGate(
         }
 
         // This call won the transition race — persist the reviewer's amendments (if any).
-        if (decision == ApprovalDecision.Approved && amendments is { Count: > 0 })
+        var decisionAmended = decision == ApprovalDecision.Approved && amendments is { Count: > 0 };
+        if (decisionAmended)
         {
-            await docketStore.UpdateAmendmentsAsync(entryId, amendments, cancellationToken);
+            await docketStore.UpdateAmendmentsAsync(entryId, amendments!, cancellationToken);
         }
+
+        RecordTransitionIfWon(
+            rowsAffected, entryId, entry.SessionId, newStatus,
+            decisionKind: decision == ApprovalDecision.Approved ? "approve" : "reject",
+            amended: decisionAmended);
 
         ReviewOutcome outcome = decision == ApprovalDecision.Approved
             ? new ReviewOutcome.Approved(entryId)
@@ -638,4 +687,57 @@ public sealed class ReviewGate(
             "HandleDecisionAsync: DocketEntry {EntryId} {Decision} (restart path)", entryId, decision);
         return (outcome, createdAt);
     }
+
+    // ── The telemetry-key registry (TL-1) ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The <c>path</c> attribute value for a refusal raised by <see cref="HandleDecisionAsync"/>.
+    /// The registry's other two paths — <c>mark-executed</c> and <c>resubmit</c> — arrive with the
+    /// execution report and the authorization checks; this release refuses only on the decide path.
+    /// </summary>
+    private const string DecidePath = "decide";
+
+    /// <summary>
+    /// Emits <c>docket.transition</c> for a guarded write that affected a row, and nothing at all
+    /// for one that did not. A caller whose compare-and-set lost the race did not transition the
+    /// entry — the caller that won it reports the transition, exactly once, which is what makes a
+    /// count of these events a count of state changes rather than of attempts.
+    /// </summary>
+    private static void RecordTransitionIfWon(
+        int rowsAffected,
+        Guid entryId,
+        string? conversationId,
+        ReviewStatus to,
+        string? decisionKind = null,
+        bool? amended = null)
+    {
+        if (rowsAffected == 0) return;
+
+        // `from` is always `pending`: every store implementation guards the write with
+        // `WHERE Status = 'Pending'` (IDocketStore.UpdateReviewStatusAsync's double-submit
+        // contract), so a write that affected a row can only have come from pending.
+        AffiantTelemetry.RecordDocketTransition(
+            entryId,
+            conversationId,
+            DocketStateName(ReviewStatus.Pending),
+            DocketStateName(to),
+            amended: amended,
+            decisionKind: decisionKind);
+    }
+
+    /// <summary>
+    /// The rulebook's name for a review state (DK-1: <c>pending</c>, <c>approved</c>,
+    /// <c>rejected</c>, <c>expired</c>). <see cref="ReviewStatus.Deferred"/> has no rulebook state —
+    /// the referral transitions are reserved for protocol v0.2 — and is reported under its own name
+    /// rather than folded into one of the four.
+    /// </summary>
+    private static string DocketStateName(ReviewStatus status) => status switch
+    {
+        ReviewStatus.Pending => "pending",
+        ReviewStatus.Approved => "approved",
+        ReviewStatus.Rejected => "rejected",
+        ReviewStatus.Expired => "expired",
+        ReviewStatus.Deferred => "deferred",
+        _ => status.ToString().ToLowerInvariant(),
+    };
 }

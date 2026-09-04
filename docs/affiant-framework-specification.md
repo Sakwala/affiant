@@ -992,6 +992,13 @@ The framework emits L2 inference telemetry through the `Affiant.TaskInference` A
 
 All 12 attribute key strings are constants in `Affiant.Core.Observability.L2TelemetryKeys`. They are part of the public observability API at v1.0.0 — renaming or removing any key requires a v2.0.0 major-version bump.
 
+> **`affidavit.projected` is deprecated as of `1.0.0-beta.3`** in favour of the telemetry-key
+> registry's `affidavit.filed` (§8), with the hollow-Affidavit case moving to
+> `affidavit.refused.substance`, emitted from this same projection seam. It keeps being emitted for
+> one release so an existing alert does not go dark on upgrade, and is removed in the release after
+> `1.0.0-beta.3`. The `inference.*` events above are **not** deprecated — the registry does not
+> cover the inference step's own progress, and they keep their names.
+
 **Typed event publication.** After projection, `SchemaDrivenAffidavitProjection` publishes a typed `AffidavitEmittedEvent` record through `IObservabilityEventStream<AffidavitEmittedEvent>`. The event carries `ConversationId`, `AffidavitId`, `OperationType`, `EntityType`, `PopulatedFieldCount`, `AggregateConfidence`, and `EmptyProvenanceFieldCount`. The Phase 3.5 Validator subscribes to this stream to perform quality audits without coupling to OTel infrastructure; hosts that want dashboard-level monitoring subscribe to the OTel span events instead.
 
 *Source files:* `src/Affiant.Core/Observability/AffiantTelemetry.cs`, `src/Affiant.Abstractions/Models/AffidavitEmittedEvent.cs`, `src/Affiant.Core/Services/TaskInferenceRunner.cs`, `src/Affiant.Core/Services/SchemaDrivenAffidavitProjection.cs`
@@ -1558,9 +1565,59 @@ Every agent turn produces a root span with child spans for each LLM call, tool e
     affiant.turn.tool_count: 2
 ```
 
+### The telemetry-key registry
+
+Every event the gate emits is named in a versioned registry (protocol rule TL-1): `TelemetryKeys` in
+`Affiant.Abstractions.Telemetry`, shipped alongside an embedded `telemetry-keys.json` document that
+conforms to the rulebook's `telemetry-key.schema.json`. Operators build alerts on these names, so a
+key is **never renamed and never removed — only deprecated**, with the replacement named in the
+deprecation message. `TelemetryKeyRegistryTests` enforces that against a snapshot list.
+
+The nine v0.1 keys, and the seam each is emitted from:
+
+| Key | Emitted from | Attributes carried today |
+|---|---|---|
+| `affidavit.filed` | `ReviewGate.FileForReviewCoreAsync`, after the entry is filed | `gen_ai.tool.name`, `gen_ai.conversation.id`, `entry.id`, `docket.status`, `affidavit.field_count`, `created` |
+| `affidavit.refused.substance` | `SchemaDrivenAffidavitProjection`, on the hollow-Affidavit detection (GT-3) | `gen_ai.conversation.id`, `affidavit.field_count`, `reason` |
+| `coverage.refused` | `HostedToolAudit` in `Affiant.AgentFramework` and `Affiant.Extensions.AI`, at wire-up (CV-4) | `gen_ai.tool.name`, `coverage.category`, `phase` |
+| `docket.transition` | `ReviewGate`, per guarded write that affected a row (DK-1) | `entry.id`, `gen_ai.conversation.id`, `from`, `to`, `decision.kind`, `amended` |
+| `docket.expired` | `DocketExpiryService`, per entry the sweep's own write expired (DK-3) | `entry.id` |
+| `decision.unauthorized` | `ReviewGate.HandleDecisionAsync`, on every refusal path (AZ-2) | `entry.id`, `gen_ai.conversation.id`, `reason`, `path` |
+| `standing-order.fired` | `StandingOrderBase.EvaluateAsync`, when the order approves (AZ-1) | `policy.id`, `policy.version`, `risk.score` |
+| `standing-order.blocked` | `StandingOrderBase.EvaluateAsync`, when the verdict is not honoured (GT-5) | `policy.id`, `policy.version`, `blocked.reason`, `reason`, `risk.score`, `risk.threshold` |
+| `policy.invalid` | `ApprovalPolicyEvaluator` (an evaluate that threw) and `AffiantWireUpValidator` (an unusable deadline) — GT-4, CV-1 | `policy.id`, `option`, `reason` |
+
+**Attributes carry field names, never field values.** An event is an operational signal; the audit
+record is the Affidavit. Where a public standard already names the same thing, the standard's name is
+used (rule TL-2): OpenTelemetry's `gen_ai.tool.name`, `gen_ai.conversation.id` and
+`gen_ai.operation.name`.
+
+An attribute a release cannot yet know is **absent**, not guessed. In `1.0.0-beta.3` that means
+`docket.requirement` is absent from `affidavit.filed` (the gate files before it evaluates the policy
+chain), and `execution`, `decision.kind` where no decision drove the transition, `attestation.kind`
+and `principal.kind` are absent because this release has no execution-outcome state, no attestation
+record and no principal on the decision surface.
+
+**Deprecated for one release.** `affidavit.projected` is superseded by `affidavit.filed` (and, for
+the hollow case, `affidavit.refused.substance`). It is still emitted through `1.0.0-beta.3` and is
+removed in the release after it. The framework's other event names — `affiant.tool_error`,
+`affiant.review.filing_failed`, `affiant.review.broadcast_failed`, `affiant.extractor.failed` and
+the `inference.*` family — are not deprecated: they name things the registry does not cover.
+
 ### Key Metrics
 
-The framework emits four core metrics: `affiant.turn.duration` (histogram), `affiant.review.wait_duration` (histogram), `affiant.token.usage` (counter by purpose — orchestration vs inference), and `affiant.review.outcome` (counter by result — approved/rejected/expired/standing_order).
+The framework emits five core metrics: `affiant.turn.duration` (histogram), `affiant.review.wait_duration` (histogram), `affiant.token.usage` (counter by purpose — orchestration vs inference), `affiant.review.outcome` (counter by result — approved/rejected/expired/standing_order), and `affiant.docket.pending` (observable gauge — entries awaiting review, by tenant).
+
+**`affiant.docket.pending` and what it costs.** `DocketDepthInstrument` (registered by
+`AddAffiantCore` when `EnableObservability` is set) answers the question the other four cannot: how
+deep is the review queue right now. Reading it costs a `ListAllPendingAsync` against the docket
+store, so the instrument keeps that cost bounded and off the collection path — a scrape returns the
+last sample and, if it is older than 15 seconds, starts one background refresh, with at most one in
+flight. At most 100 tenant series are reported and the remaining tenants are summed into a single
+`__other__` series, so a collector's series count cannot track a host's tenant count. The value can
+be up to one refresh interval stale, and the first scrape after startup may report nothing: it is a
+trend signal, not a transactional count. A host with no `IDocketStore` reports no measurements and
+logs once.
 
 ---
 

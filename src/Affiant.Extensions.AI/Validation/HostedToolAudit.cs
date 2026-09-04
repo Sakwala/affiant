@@ -68,6 +68,12 @@ internal static class HostedToolAudit
 
         if (refused.Count > 0)
         {
+            // TL-1 `coverage.refused` (CV-4), one event per tool, emitted before the throw: a host
+            // reading the exception sees the list once, but a collector needs one event per tool to
+            // count which tools an adopter keeps trying to wire up uncovered.
+            foreach (var name in refused)
+                AffiantTelemetry.RecordCoverageRefused(name, "hosted", "wire-up");
+
             throw new InvalidOperationException(
                 "Affiant.Extensions.AI: WithAffiant refuses to wire up a tool list with uncovered " +
                 $"hosted/provider-side tools: {string.Join(", ", refused)}. Affiant intercepts a tool by " +

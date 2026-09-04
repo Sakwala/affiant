@@ -152,14 +152,19 @@ public sealed class SchemaDrivenAffidavitProjection : IAffidavitProjection
             f => f.Provenance.Current.Source == ProvenanceSource.Empty);
 
         // Emit affidavit.projected span event with per-projection summary attributes.
+        // DEPRECATED (1.0.0-beta.3): superseded by the registry's affidavit.filed, which ReviewGate
+        // emits when this Affidavit becomes a Docket entry. Still emitted for one release so an
+        // operator's existing alert keeps firing while they move it; removed in the release after.
+#pragma warning disable CS0618 // deliberate: the deprecated alias is emitted alongside the registry key for one release.
         Activity.Current?.AddEvent(new ActivityEvent(
-            "affidavit.projected",
+            DeprecatedTelemetryKeys.AffidavitProjected,
             tags: new ActivityTagsCollection
             {
                 { L2TelemetryKeys.AffidavitPopulatedFieldCount, populatedFieldCount },
                 { L2TelemetryKeys.AffidavitAggregateConfidence, affidavit.AggregateConfidence },
                 { L2TelemetryKeys.AffidavitEmptyProvenanceFieldCount, emptyProvenanceFieldCount },
             }));
+#pragma warning restore CS0618
 
         // Also set the summary tag on the current span for query-friendly lookup (PRD §6.3).
         // Activity.Current is typically a descendant of the invoke_agent root span;
@@ -174,6 +179,22 @@ public sealed class SchemaDrivenAffidavitProjection : IAffidavitProjection
         var conversationId = (fabric.GetByKey("__conversation__")?.Fields.GetValueOrDefault("ConversationId") as string)
             ?? Activity.Current?.GetBaggageItem("conversationId")
             ?? string.Empty;
+
+        // TL-1 `affidavit.refused.substance` (GT-3). This release does not yet REFUSE a hollow
+        // proposal at run time — the runtime refusal lands with the gate-pipeline change — so what
+        // this event records today is the detection, on the same seam the refusal will be raised
+        // from, with the same reason text. An operator can therefore build the alert now and see it
+        // start refusing rather than start firing. The compliance harness's test-time check
+        // (ComplianceHarness.AssertProvenanceIsSubstantive) uses the same three conditions.
+        var substanceRefusal = AffidavitSubstance.DescribeFailure(affidavit);
+        if (substanceRefusal is not null)
+        {
+            AffiantTelemetry.RecordSubstanceRefused(
+                toolName: null,
+                conversationId,
+                affidavit.Fields.Length,
+                substanceRefusal);
+        }
 
         _eventStream.Publish(new AffidavitEmittedEvent(
             ConversationId: conversationId,

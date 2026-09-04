@@ -12,6 +12,16 @@
     <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
+  <!-- The telemetry-key registry (rulebook rule TL-1) ships inside the assembly so a host, a
+       collector's config generator, or a conformance driver can read the exact key set a given
+       Affiant.Abstractions build emits, without depending on a file next to the package. LogicalName
+       is explicit so the resource name is a stated contract (TelemetryKeys.RegistryResourceName)
+       rather than a side effect of RootNamespace and folder layout. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Telemetry\telemetry-keys.json"
+                      LogicalName="Affiant.Abstractions.Telemetry.telemetry-keys.json" />
+  </ItemGroup>
+
   <!-- Zero Affiant package references — enforced by static analysis test in Story 6.11.
        Zero Microsoft.SemanticKernel / Microsoft.Agents.AI / Microsoft.Extensions.AI references —
        the interception contracts here are backend-neutral. -->

@@ -198,6 +198,19 @@ public static class ServiceCollectionExtensions
         {
             _ = AffiantTelemetry.AffiantActivitySource;
             _ = AffiantTelemetry.AffiantMeter;
+
+            // The docket-depth gauge (repo issue #66). Registered as a hosted service because
+            // constructing it is what publishes the instrument — a lazily-resolved singleton nothing
+            // asks for would never exist, and a gauge nobody created reports nothing. Guarded the
+            // same way AffiantWireUpValidator is, so a second AddAffiantCore() cannot publish a
+            // second instrument with the same name. Costs one docket listing per sample interval;
+            // see DocketDepthInstrument's own docs for the full cost.
+            if (!services.Any(d =>
+                    d.ServiceType == typeof(IHostedService) &&
+                    d.ImplementationType == typeof(DocketDepthInstrument)))
+            {
+                services.AddSingleton<IHostedService, DocketDepthInstrument>();
+            }
         }
 
         services.AddSingleton(options);

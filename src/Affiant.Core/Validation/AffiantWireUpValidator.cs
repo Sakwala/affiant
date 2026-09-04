@@ -4,6 +4,7 @@ using System.Text;
 using Affiant.Abstractions.Exceptions;
 using Affiant.Abstractions.Interfaces;
 using Affiant.Core.Extensions;
+using Affiant.Core.Observability;
 using Affiant.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -80,6 +81,8 @@ public sealed class AffiantWireUpValidator(
     /// <inheritdoc />
     public Task StartAsync(CancellationToken cancellationToken)
     {
+        ValidateDeadline();
+
         if (isService is null)
         {
             logger.LogDebug(
@@ -136,4 +139,43 @@ public sealed class AffiantWireUpValidator(
 
     /// <inheritdoc />
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    /// <summary>
+    /// Refuses a review deadline no entry could survive. A time-to-live that is not at least one
+    /// millisecond, or that is large enough to overflow the stamp, is a wire-up error — never an
+    /// entry born expired, and never an entry whose deadline is silently clamped.
+    ///
+    /// <para>
+    /// Checked here, before the container questions, because it needs nothing from the container and
+    /// because the failure it prevents is the quietest one in the gate: with a zero deadline every
+    /// entry is filed already past <c>ExpiresAt</c>, the sweep expires it on the next tick, and every
+    /// review "times out" with no error anywhere. There is no acknowledgment switch for it, unlike
+    /// <see cref="AffiantCoreOptions.AcknowledgeMissingReviewWiring"/>: a host can knowingly run
+    /// without a review loop, but no host means a deadline of zero.
+    /// </para>
+    /// </summary>
+    private void ValidateDeadline()
+    {
+        var ttl = options.DefaultDocketTtl;
+        var overflows = ttl > DateTimeOffset.MaxValue - DateTimeOffset.UtcNow;
+        if (ttl >= TimeSpan.FromMilliseconds(1) && !overflows) return;
+
+        var reason = overflows
+            ? "the deadline is too far in the future to stamp on an entry"
+            : "a deadline must be at least one millisecond";
+
+        // TL-1 `policy.invalid` (GT-4, CV-1). Emitted before the throw so a host whose startup
+        // failure is only visible in a collector still sees which option broke and why.
+        AffiantTelemetry.RecordPolicyInvalid(
+            typeof(AffiantCoreOptions).FullName!,
+            option: $"{nameof(AffiantCoreOptions)}.{nameof(AffiantCoreOptions.DefaultDocketTtl)}",
+            reason: reason);
+
+        throw new AffiantStartupException(
+            $"Affiant.Core: AffiantCoreOptions.DefaultDocketTtl is {ttl}, which is not a usable " +
+            $"review deadline — {reason}. Every DocketEntry's ExpiresAt and ReviewGate's own await " +
+            "window are stamped from this value, so a review filed under it could never be decided. " +
+            "Set it in AddAffiantCore(options => options.DefaultDocketTtl = ...) to the window a " +
+            "reviewer genuinely has (the default is 30 minutes).");
+    }
 }

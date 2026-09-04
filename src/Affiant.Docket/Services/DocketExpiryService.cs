@@ -2,6 +2,7 @@ using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
 using Affiant.Abstractions.Transport;
 using Affiant.Core.Extensions;
+using Affiant.Core.Observability;
 using Affiant.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -109,6 +110,13 @@ public sealed class DocketExpiryService(
                     continue; // lost the race to a concurrent transition — that caller owns the broadcast
 
                 wonCount++;
+
+                // TL-1 `docket.expired` (DK-3). Emitted only by the sweep whose own compare-and-set
+                // won the transition — a concurrent decision that claimed the same entry reports its
+                // own outcome, so a count of these events is a count of entries the sweep expired,
+                // not of entries it looked at.
+                AffiantTelemetry.RecordDocketExpired(entry.EntryId);
+
                 if (transport is not null)
                 {
                     await DocketExpiryBroadcaster.VerifyAndBroadcastIfExpiredAsync(

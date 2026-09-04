@@ -29,4 +29,6 @@ readonly Affiant.Policies.StandingOrders.StandingOrderBase.RiskScorer -> Affiant
 static Affiant.Policies.Extensions.ServiceCollectionExtensions.AddAffiantPolicies(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Affiant.Policies.Extensions.PoliciesBuilder!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 virtual Affiant.Policies.Services.RiskScoreCalculatorBase.ComputeAsync(Affiant.Abstractions.Models.Affidavit! affidavit, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<int>!
 virtual Affiant.Policies.StandingOrders.StandingOrderBase.GetAutoApproverIdAsync(Affiant.Abstractions.Models.Affidavit! affidavit, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string?>!
+virtual Affiant.Policies.StandingOrders.StandingOrderBase.PolicyId.get -> string!
+virtual Affiant.Policies.StandingOrders.StandingOrderBase.PolicyVersion.get -> string?
 virtual Affiant.Policies.StandingOrders.StandingOrderBase.RiskThreshold.get -> int

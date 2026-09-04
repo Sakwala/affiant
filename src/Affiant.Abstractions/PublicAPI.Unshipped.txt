@@ -187,6 +187,7 @@ Affiant.Abstractions.Models.AffidavitField.Provenance.init -> void
 Affiant.Abstractions.Models.AffidavitField.Value.get -> object?
 Affiant.Abstractions.Models.AffidavitField.Value.init -> void
 Affiant.Abstractions.Models.AffidavitFieldKind
+Affiant.Abstractions.Models.AffidavitSubstance
 Affiant.Abstractions.Models.ChatSession
 Affiant.Abstractions.Models.ChatSession.<Clone>$() -> Affiant.Abstractions.Models.ChatSession!
 Affiant.Abstractions.Models.ChatSession.ChatSession(string! SessionId, string! TenantId, string! UserId, System.DateTimeOffset CreatedAt, System.DateTimeOffset LastActivityAt) -> void
@@ -579,6 +580,32 @@ Affiant.Abstractions.Models.WriteProposal.Envelope.get -> object!
 Affiant.Abstractions.Models.WriteProposal.Envelope.init -> void
 Affiant.Abstractions.Models.WriteProposal.Equals(Affiant.Abstractions.Models.WriteProposal? other) -> bool
 Affiant.Abstractions.Models.WriteProposal.WriteProposal(string! ToolName, System.DateTimeOffset Timestamp, object! Envelope) -> void
+Affiant.Abstractions.Telemetry.TelemetryKeyEntry
+Affiant.Abstractions.Telemetry.TelemetryKeyEntry.<Clone>$() -> Affiant.Abstractions.Telemetry.TelemetryKeyEntry!
+Affiant.Abstractions.Telemetry.TelemetryKeyEntry.Attributes.get -> System.Collections.Immutable.ImmutableArray<string!>
+Affiant.Abstractions.Telemetry.TelemetryKeyEntry.Attributes.init -> void
+Affiant.Abstractions.Telemetry.TelemetryKeyEntry.Deconstruct(out string! Key, out string! Since, out string! Description, out System.Collections.Immutable.ImmutableArray<string!> Attributes) -> void
+Affiant.Abstractions.Telemetry.TelemetryKeyEntry.Description.get -> string!
+Affiant.Abstractions.Telemetry.TelemetryKeyEntry.Description.init -> void
+Affiant.Abstractions.Telemetry.TelemetryKeyEntry.Equals(Affiant.Abstractions.Telemetry.TelemetryKeyEntry? other) -> bool
+Affiant.Abstractions.Telemetry.TelemetryKeyEntry.Key.get -> string!
+Affiant.Abstractions.Telemetry.TelemetryKeyEntry.Key.init -> void
+Affiant.Abstractions.Telemetry.TelemetryKeyEntry.Since.get -> string!
+Affiant.Abstractions.Telemetry.TelemetryKeyEntry.Since.init -> void
+Affiant.Abstractions.Telemetry.TelemetryKeyEntry.TelemetryKeyEntry(string! Key, string! Since, string! Description, System.Collections.Immutable.ImmutableArray<string!> Attributes) -> void
+Affiant.Abstractions.Telemetry.TelemetryKeyRegistry
+Affiant.Abstractions.Telemetry.TelemetryKeyRegistry.<Clone>$() -> Affiant.Abstractions.Telemetry.TelemetryKeyRegistry!
+Affiant.Abstractions.Telemetry.TelemetryKeyRegistry.Deconstruct(out string! ProtocolVersion, out string! RegistryVersion, out System.Collections.Immutable.ImmutableArray<Affiant.Abstractions.Telemetry.TelemetryKeyEntry!> Keys) -> void
+Affiant.Abstractions.Telemetry.TelemetryKeyRegistry.Equals(Affiant.Abstractions.Telemetry.TelemetryKeyRegistry? other) -> bool
+Affiant.Abstractions.Telemetry.TelemetryKeyRegistry.Keys.get -> System.Collections.Immutable.ImmutableArray<Affiant.Abstractions.Telemetry.TelemetryKeyEntry!>
+Affiant.Abstractions.Telemetry.TelemetryKeyRegistry.Keys.init -> void
+Affiant.Abstractions.Telemetry.TelemetryKeyRegistry.ProtocolVersion.get -> string!
+Affiant.Abstractions.Telemetry.TelemetryKeyRegistry.ProtocolVersion.init -> void
+Affiant.Abstractions.Telemetry.TelemetryKeyRegistry.RegistryVersion.get -> string!
+Affiant.Abstractions.Telemetry.TelemetryKeyRegistry.RegistryVersion.init -> void
+Affiant.Abstractions.Telemetry.TelemetryKeyRegistry.TelemetryKeyRegistry(string! ProtocolVersion, string! RegistryVersion, System.Collections.Immutable.ImmutableArray<Affiant.Abstractions.Telemetry.TelemetryKeyEntry!> Keys) -> void
+Affiant.Abstractions.Telemetry.TelemetryKeys
+Affiant.Abstractions.Telemetry.TelemetryKeys.Attributes
 Affiant.Abstractions.Transport.ApprovalDecision
 Affiant.Abstractions.Transport.ApprovalDecision.Approved = 0 -> Affiant.Abstractions.Transport.ApprovalDecision
 Affiant.Abstractions.Transport.ApprovalDecision.Rejected = 1 -> Affiant.Abstractions.Transport.ApprovalDecision
@@ -682,6 +709,44 @@ const Affiant.Abstractions.Models.ToolErrorCodes.ReviewFilingFailed = "REVIEW_FI
 const Affiant.Abstractions.Models.ToolErrorCodes.Unknown = "UNKNOWN" -> string!
 const Affiant.Abstractions.Models.ToolErrorCodes.UpstreamUnavailable = "UPSTREAM_UNAVAILABLE" -> string!
 const Affiant.Abstractions.Models.ToolErrorCodes.ValidationFailed = "VALIDATION_FAILED" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.AffidavitFiled = "affidavit.filed" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.AffidavitRefusedSubstance = "affidavit.refused.substance" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.Attributes.AffidavitEmptyMandatoryFields = "affidavit.empty_mandatory_fields" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.Attributes.AffidavitFieldCount = "affidavit.field_count" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.Attributes.Amended = "amended" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.Attributes.AttestationKind = "attestation.kind" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.Attributes.BlockedReason = "blocked.reason" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.Attributes.CoverageCategory = "coverage.category" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.Attributes.Created = "created" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.Attributes.DecisionKind = "decision.kind" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.Attributes.DocketRequirement = "docket.requirement" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.Attributes.DocketStatus = "docket.status" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.Attributes.EntryId = "entry.id" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.Attributes.Execution = "execution" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.Attributes.From = "from" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.Attributes.GenAiConversationId = "gen_ai.conversation.id" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.Attributes.GenAiOperationName = "gen_ai.operation.name" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.Attributes.GenAiToolName = "gen_ai.tool.name" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.Attributes.Option = "option" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.Attributes.Path = "path" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.Attributes.Phase = "phase" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.Attributes.PolicyId = "policy.id" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.Attributes.PolicyVersion = "policy.version" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.Attributes.PrincipalKind = "principal.kind" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.Attributes.ProvenanceField = "provenance.field" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.Attributes.ProvenanceSource = "provenance.source" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.Attributes.Reason = "reason" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.Attributes.RiskScore = "risk.score" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.Attributes.RiskThreshold = "risk.threshold" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.Attributes.To = "to" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.CoverageRefused = "coverage.refused" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.DecisionUnauthorized = "decision.unauthorized" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.DocketExpired = "docket.expired" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.DocketTransition = "docket.transition" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.PolicyInvalid = "policy.invalid" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.RegistryResourceName = "Affiant.Abstractions.Telemetry.telemetry-keys.json" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.StandingOrderBlocked = "standing-order.blocked" -> string!
+const Affiant.Abstractions.Telemetry.TelemetryKeys.StandingOrderFired = "standing-order.fired" -> string!
 override Affiant.Abstractions.Models.AffiantChatMessage.Equals(object? obj) -> bool
 override Affiant.Abstractions.Models.AffiantChatMessage.GetHashCode() -> int
 override Affiant.Abstractions.Models.AffiantChatMessage.ToString() -> string!
@@ -811,6 +876,12 @@ override Affiant.Abstractions.Models.WriteProposal.<Clone>$() -> Affiant.Abstrac
 override Affiant.Abstractions.Models.WriteProposal.Equals(object? obj) -> bool
 override Affiant.Abstractions.Models.WriteProposal.GetHashCode() -> int
 override Affiant.Abstractions.Models.WriteProposal.ToString() -> string!
+override Affiant.Abstractions.Telemetry.TelemetryKeyEntry.Equals(object? obj) -> bool
+override Affiant.Abstractions.Telemetry.TelemetryKeyEntry.GetHashCode() -> int
+override Affiant.Abstractions.Telemetry.TelemetryKeyEntry.ToString() -> string!
+override Affiant.Abstractions.Telemetry.TelemetryKeyRegistry.Equals(object? obj) -> bool
+override Affiant.Abstractions.Telemetry.TelemetryKeyRegistry.GetHashCode() -> int
+override Affiant.Abstractions.Telemetry.TelemetryKeyRegistry.ToString() -> string!
 override Affiant.Abstractions.Transport.DocketExpiredNotification.Equals(object? obj) -> bool
 override Affiant.Abstractions.Transport.DocketExpiredNotification.GetHashCode() -> int
 override Affiant.Abstractions.Transport.DocketExpiredNotification.ToString() -> string!
@@ -854,6 +925,8 @@ static Affiant.Abstractions.Models.AffidavitEmittedEvent.operator !=(Affiant.Abs
 static Affiant.Abstractions.Models.AffidavitEmittedEvent.operator ==(Affiant.Abstractions.Models.AffidavitEmittedEvent? left, Affiant.Abstractions.Models.AffidavitEmittedEvent? right) -> bool
 static Affiant.Abstractions.Models.AffidavitField.operator !=(Affiant.Abstractions.Models.AffidavitField? left, Affiant.Abstractions.Models.AffidavitField? right) -> bool
 static Affiant.Abstractions.Models.AffidavitField.operator ==(Affiant.Abstractions.Models.AffidavitField? left, Affiant.Abstractions.Models.AffidavitField? right) -> bool
+static Affiant.Abstractions.Models.AffidavitSubstance.DescribeFailure(Affiant.Abstractions.Models.Affidavit! affidavit) -> string?
+static Affiant.Abstractions.Models.AffidavitSubstance.IsSubstantive(Affiant.Abstractions.Models.Affidavit! affidavit) -> bool
 static Affiant.Abstractions.Models.ChatSession.operator !=(Affiant.Abstractions.Models.ChatSession? left, Affiant.Abstractions.Models.ChatSession? right) -> bool
 static Affiant.Abstractions.Models.ChatSession.operator ==(Affiant.Abstractions.Models.ChatSession? left, Affiant.Abstractions.Models.ChatSession? right) -> bool
 static Affiant.Abstractions.Models.ConversationContext.operator !=(Affiant.Abstractions.Models.ConversationContext? left, Affiant.Abstractions.Models.ConversationContext? right) -> bool
@@ -930,6 +1003,13 @@ static Affiant.Abstractions.Models.ToolError.operator !=(Affiant.Abstractions.Mo
 static Affiant.Abstractions.Models.ToolError.operator ==(Affiant.Abstractions.Models.ToolError? left, Affiant.Abstractions.Models.ToolError? right) -> bool
 static Affiant.Abstractions.Models.WriteProposal.operator !=(Affiant.Abstractions.Models.WriteProposal? left, Affiant.Abstractions.Models.WriteProposal? right) -> bool
 static Affiant.Abstractions.Models.WriteProposal.operator ==(Affiant.Abstractions.Models.WriteProposal? left, Affiant.Abstractions.Models.WriteProposal? right) -> bool
+static Affiant.Abstractions.Telemetry.TelemetryKeyEntry.operator !=(Affiant.Abstractions.Telemetry.TelemetryKeyEntry? left, Affiant.Abstractions.Telemetry.TelemetryKeyEntry? right) -> bool
+static Affiant.Abstractions.Telemetry.TelemetryKeyEntry.operator ==(Affiant.Abstractions.Telemetry.TelemetryKeyEntry? left, Affiant.Abstractions.Telemetry.TelemetryKeyEntry? right) -> bool
+static Affiant.Abstractions.Telemetry.TelemetryKeyRegistry.operator !=(Affiant.Abstractions.Telemetry.TelemetryKeyRegistry? left, Affiant.Abstractions.Telemetry.TelemetryKeyRegistry? right) -> bool
+static Affiant.Abstractions.Telemetry.TelemetryKeyRegistry.operator ==(Affiant.Abstractions.Telemetry.TelemetryKeyRegistry? left, Affiant.Abstractions.Telemetry.TelemetryKeyRegistry? right) -> bool
+static Affiant.Abstractions.Telemetry.TelemetryKeys.All.get -> System.Collections.Immutable.ImmutableArray<string!>
+static Affiant.Abstractions.Telemetry.TelemetryKeys.Contains(string! key) -> bool
+static Affiant.Abstractions.Telemetry.TelemetryKeys.Registry.get -> Affiant.Abstractions.Telemetry.TelemetryKeyRegistry!
 static Affiant.Abstractions.Transport.DocketExpiredNotification.operator !=(Affiant.Abstractions.Transport.DocketExpiredNotification? left, Affiant.Abstractions.Transport.DocketExpiredNotification? right) -> bool
 static Affiant.Abstractions.Transport.DocketExpiredNotification.operator ==(Affiant.Abstractions.Transport.DocketExpiredNotification? left, Affiant.Abstractions.Transport.DocketExpiredNotification? right) -> bool
 static Affiant.Abstractions.Transport.DocketExpiringNotification.operator !=(Affiant.Abstractions.Transport.DocketExpiringNotification? left, Affiant.Abstractions.Transport.DocketExpiringNotification? right) -> bool

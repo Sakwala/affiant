@@ -57,6 +57,12 @@ Affiant.Core.Filters.ToolTracingFilter
 Affiant.Core.Filters.ToolTracingFilter.OnToolInvocationAsync(Affiant.Abstractions.Models.ToolInvocationContext! context, System.Func<Affiant.Abstractions.Models.ToolInvocationContext!, System.Threading.Tasks.Task!>! next, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Affiant.Core.Filters.ToolTracingFilter.ToolTracingFilter() -> void
 Affiant.Core.Observability.AffiantTelemetry
+Affiant.Core.Observability.DeprecatedTelemetryKeys
+Affiant.Core.Observability.DocketDepthInstrument
+Affiant.Core.Observability.DocketDepthInstrument.Dispose() -> void
+Affiant.Core.Observability.DocketDepthInstrument.DocketDepthInstrument(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory! scopeFactory, Microsoft.Extensions.Logging.ILogger<Affiant.Core.Observability.DocketDepthInstrument!>! logger) -> void
+Affiant.Core.Observability.DocketDepthInstrument.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Affiant.Core.Observability.DocketDepthInstrument.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Affiant.Core.Observability.InMemoryObservabilityEventStream<T>
 Affiant.Core.Observability.InMemoryObservabilityEventStream<T>.InMemoryObservabilityEventStream() -> void
 Affiant.Core.Observability.InMemoryObservabilityEventStream<T>.Publish(T event) -> void
@@ -165,6 +171,11 @@ abstract Affiant.Core.Filters.ContextExtractor.MatchesTool(string! toolName) -> 
 const Affiant.Core.Filters.ToolErrorFilter.ReviewFilingFailedCode = "REVIEW_FILING_FAILED" -> string!
 const Affiant.Core.Filters.ToolErrorFilter.UnattributedPostToolFilterType = "(unattributed post-tool filter — caught by ToolErrorFilter backstop)" -> string!
 const Affiant.Core.Filters.ToolTracingFilter.ReturnedToolErrorExceptionType = "ReturnedToolError" -> string!
+const Affiant.Core.Observability.DeprecatedTelemetryKeys.AffidavitProjected = "affidavit.projected" -> string!
+const Affiant.Core.Observability.DocketDepthInstrument.InstrumentName = "affiant.docket.pending" -> string!
+const Affiant.Core.Observability.DocketDepthInstrument.MaxTenantSeries = 100 -> int
+const Affiant.Core.Observability.DocketDepthInstrument.OverflowTenantId = "__other__" -> string!
+const Affiant.Core.Observability.DocketDepthInstrument.TenantTag = "tenant.id" -> string!
 const Affiant.Core.Observability.L2TelemetryKeys.AffidavitAggregateConfidence = "affiant.affidavit.aggregate_confidence" -> string!
 const Affiant.Core.Observability.L2TelemetryKeys.AffidavitEmptyProvenanceFieldCount = "affiant.affidavit.empty_provenance_field_count" -> string!
 const Affiant.Core.Observability.L2TelemetryKeys.AffidavitPopulatedFieldCount = "affiant.affidavit.populated_field_count" -> string!
@@ -202,7 +213,16 @@ static Affiant.Core.Filters.TaskInferenceResult.operator !=(Affiant.Core.Filters
 static Affiant.Core.Filters.TaskInferenceResult.operator ==(Affiant.Core.Filters.TaskInferenceResult? left, Affiant.Core.Filters.TaskInferenceResult? right) -> bool
 static Affiant.Core.Filters.TaskInferenceStep.ResolveByConfidence(Affiant.Abstractions.Models.ProvenanceTag! a, Affiant.Abstractions.Models.ProvenanceTag! b) -> Affiant.Abstractions.Models.ProvenanceTag!
 static Affiant.Core.Observability.AffiantTelemetry.FindAffiantActivity() -> System.Diagnostics.Activity?
+static Affiant.Core.Observability.AffiantTelemetry.RecordAffidavitFiled(string! toolName, string? conversationId, System.Guid entryId, string! status, int fieldCount, bool created, string? requirement = null) -> void
+static Affiant.Core.Observability.AffiantTelemetry.RecordCoverageRefused(string! toolName, string! category, string! phase) -> void
+static Affiant.Core.Observability.AffiantTelemetry.RecordDecisionUnauthorized(System.Guid entryId, string? conversationId, string! reason, string! path, string? principalKind = null) -> void
+static Affiant.Core.Observability.AffiantTelemetry.RecordDocketExpired(System.Guid entryId) -> void
+static Affiant.Core.Observability.AffiantTelemetry.RecordDocketTransition(System.Guid entryId, string? conversationId, string! from, string! to, bool? amended = null, string? execution = null, string? decisionKind = null, string? attestationKind = null) -> void
 static Affiant.Core.Observability.AffiantTelemetry.RecordExtractorFailedEvent(string! extractorType, string! toolName, System.Exception! ex) -> void
+static Affiant.Core.Observability.AffiantTelemetry.RecordPolicyInvalid(string! policyId, string! option, string! reason, string? policyVersion = null) -> void
+static Affiant.Core.Observability.AffiantTelemetry.RecordStandingOrderBlocked(string! policyId, string! blockedReason, string! reason, int? riskScore = null, int? riskThreshold = null, string? policyVersion = null, string? provenanceField = null, string? provenanceSource = null, string? emptyMandatoryFields = null) -> void
+static Affiant.Core.Observability.AffiantTelemetry.RecordStandingOrderFired(string! policyId, int? riskScore = null, System.Guid? entryId = null, string? policyVersion = null) -> void
+static Affiant.Core.Observability.AffiantTelemetry.RecordSubstanceRefused(string? toolName, string? conversationId, int fieldCount, string! reason) -> void
 static Affiant.Core.Services.DocketExpiryBroadcaster.VerifyAndBroadcastIfExpiredAsync(Affiant.Abstractions.Interfaces.IDocketStore! docketStore, Affiant.Abstractions.Interfaces.IStreamingTransport! transport, System.Guid entryId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Affiant.Abstractions.Models.ReviewStatus?>!
 static Affiant.Core.Services.EvidenceCardRequestFactory.CreateAsync(Affiant.Abstractions.Interfaces.IDocketStore! docketStore, System.Guid entryId, Affiant.Abstractions.Models.Affidavit! affidavit, System.DateTimeOffset expiresAt, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Transport.EvidenceCardRequest!>!
 static Affiant.Core.Services.ToolInvocationRequest.operator !=(Affiant.Core.Services.ToolInvocationRequest? left, Affiant.Core.Services.ToolInvocationRequest? right) -> bool
@@ -215,6 +235,7 @@ static readonly Affiant.Core.Observability.AffiantTelemetry.ReviewOutcome -> Sys
 static readonly Affiant.Core.Observability.AffiantTelemetry.ReviewWaitDuration -> System.Diagnostics.Metrics.Histogram<double>!
 static readonly Affiant.Core.Observability.AffiantTelemetry.TokenUsage -> System.Diagnostics.Metrics.Counter<long>!
 static readonly Affiant.Core.Observability.AffiantTelemetry.TurnDuration -> System.Diagnostics.Metrics.Histogram<double>!
+static readonly Affiant.Core.Observability.DocketDepthInstrument.MinimumSampleInterval -> System.TimeSpan
 virtual Affiant.Core.Filters.TaskInferenceMergeOutcome.<Clone>$() -> Affiant.Core.Filters.TaskInferenceMergeOutcome!
 virtual Affiant.Core.Filters.TaskInferenceMergeOutcome.EqualityContract.get -> System.Type!
 virtual Affiant.Core.Filters.TaskInferenceMergeOutcome.Equals(Affiant.Core.Filters.TaskInferenceMergeOutcome? other) -> bool

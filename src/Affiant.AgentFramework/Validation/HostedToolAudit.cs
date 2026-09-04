@@ -33,6 +33,12 @@ internal static class HostedToolAudit
         {
             if (!options.AllowUnauditableAgent)
             {
+                // TL-1 `coverage.refused` (CV-4): the whole agent is the uncovered surface here —
+                // its tool list could not be enumerated, so no tool name is knowable and the agent's
+                // type is what an operator has to act on.
+                AffiantTelemetry.RecordCoverageRefused(
+                    agent.GetType().FullName ?? agent.GetType().Name, "unauditable-agent", "wire-up");
+
                 throw new InvalidOperationException(
                     "Affiant.AgentFramework: WithAffiant cannot audit hosted-tool coverage for this agent " +
                     $"shape ('{agent.GetType()}') — agent.GetService(typeof(ChatOptions)) returned null. " +
@@ -84,6 +90,12 @@ internal static class HostedToolAudit
 
         if (refused.Count > 0)
         {
+            // TL-1 `coverage.refused` (CV-4), one event per tool, emitted before the throw: a host
+            // reading the exception sees the list once, but a collector needs one event per tool to
+            // count which tools an adopter keeps trying to wire up uncovered.
+            foreach (var name in refused)
+                AffiantTelemetry.RecordCoverageRefused(name, "hosted", "wire-up");
+
             throw new InvalidOperationException(
                 "Affiant.AgentFramework: WithAffiant refuses to wrap an agent with uncovered hosted/provider-side " +
                 $"tools: {string.Join(", ", refused)}. MAF's function-calling middleware fires only for " +
