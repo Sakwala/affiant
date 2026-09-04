@@ -643,6 +643,8 @@ Affiant.Abstractions.Models.UtteranceSpanRef.UtteranceSpanRef(int Offset, int Le
 Affiant.Abstractions.Serialization.AffiantJson
 Affiant.Abstractions.Serialization.IsoInstantJsonConverter
 Affiant.Abstractions.Serialization.IsoInstantJsonConverter.IsoInstantJsonConverter() -> void
+Affiant.Abstractions.Serialization.ProvenanceBindingConverter
+Affiant.Abstractions.Serialization.ProvenanceBindingConverter.ProvenanceBindingConverter() -> void
 Affiant.Abstractions.Telemetry.TelemetryKeyEntry
 Affiant.Abstractions.Telemetry.TelemetryKeyEntry.<Clone>$() -> Affiant.Abstractions.Telemetry.TelemetryKeyEntry!
 Affiant.Abstractions.Telemetry.TelemetryKeyEntry.Attributes.get -> System.Collections.Immutable.ImmutableArray<string!>
@@ -1052,6 +1054,8 @@ override Affiant.Abstractions.Models.UtteranceSpanRef.GetHashCode() -> int
 override Affiant.Abstractions.Models.UtteranceSpanRef.ToString() -> string!
 override Affiant.Abstractions.Serialization.IsoInstantJsonConverter.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> System.DateTimeOffset
 override Affiant.Abstractions.Serialization.IsoInstantJsonConverter.Write(System.Text.Json.Utf8JsonWriter! writer, System.DateTimeOffset value, System.Text.Json.JsonSerializerOptions! options) -> void
+override Affiant.Abstractions.Serialization.ProvenanceBindingConverter.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> Affiant.Abstractions.Models.ProvenanceBinding?
+override Affiant.Abstractions.Serialization.ProvenanceBindingConverter.Write(System.Text.Json.Utf8JsonWriter! writer, Affiant.Abstractions.Models.ProvenanceBinding! value, System.Text.Json.JsonSerializerOptions! options) -> void
 override Affiant.Abstractions.Telemetry.TelemetryKeyEntry.Equals(object? obj) -> bool
 override Affiant.Abstractions.Telemetry.TelemetryKeyEntry.GetHashCode() -> int
 override Affiant.Abstractions.Telemetry.TelemetryKeyEntry.ToString() -> string!
@@ -1178,6 +1182,7 @@ static Affiant.Abstractions.Interfaces.RetentionResult.operator ==(Affiant.Abstr
 static Affiant.Abstractions.Models.Affidavit.Create(string! operationType, string! entityType, string? entityId, Affiant.Abstractions.Models.AffidavitField![]! fields, string![]! warnings, bool requiresConfirmation = true, int? conversationTurn = null, System.DateTimeOffset? createdAt = null) -> Affiant.Abstractions.Models.Affidavit!
 static Affiant.Abstractions.Models.AffidavitAmendments.AmendmentTag(bool cleared, System.Guid entryId, System.DateTimeOffset decisionAt, string! reviewerId, int? conversationTurn) -> Affiant.Abstractions.Models.ProvenanceTag!
 static Affiant.Abstractions.Models.AffidavitAmendments.Apply(Affiant.Abstractions.Models.Affidavit! affidavit, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? amendments, System.Guid entryId, System.DateTimeOffset decisionAt, string! reviewerId) -> Affiant.Abstractions.Models.Affidavit!
+static Affiant.Abstractions.Models.AffidavitAmendments.Prefill(Affiant.Abstractions.Models.Affidavit! affidavit, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? amendments, System.Guid entryId, System.DateTimeOffset decisionAt, string! reviewerId) -> Affiant.Abstractions.Models.Affidavit!
 static Affiant.Abstractions.Models.AffidavitConfidence.Compute(System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.AffidavitField!>! fields) -> Affiant.Abstractions.Models.AffidavitConfidence
 static Affiant.Abstractions.Models.AffidavitConfidence.operator !=(Affiant.Abstractions.Models.AffidavitConfidence left, Affiant.Abstractions.Models.AffidavitConfidence right) -> bool
 static Affiant.Abstractions.Models.AffidavitConfidence.operator ==(Affiant.Abstractions.Models.AffidavitConfidence left, Affiant.Abstractions.Models.AffidavitConfidence right) -> bool

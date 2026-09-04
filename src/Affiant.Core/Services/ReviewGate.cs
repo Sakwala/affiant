@@ -172,6 +172,22 @@ public sealed class ReviewGate(
             throw;
         }
     }
+    /// <summary>
+    /// The reviewer act a resubmission prefills from: when the corrections were made and by whom.
+    /// </summary>
+    /// <remarks>
+    /// Preserved amendments carry both, because the gate wrote them from the decision it refused as
+    /// late. A row whose corrections were accepted instead carries them on the decision and the
+    /// attestation. Where neither says who acted, nothing is prefilled onto the record: a tag naming
+    /// an unknown person is worse than no tag, and the map beside the card still shows the values.
+    /// </remarks>
+    private static (DateTimeOffset At, string By)? ReviewerActOf(DocketEntry entry) =>
+        entry.PreservedAmendments is { } preserved
+            ? (preserved.At, preserved.By)
+            : entry.Attestation is { } attestation && entry.DecidedAt is { } decidedAt
+                ? (decidedAt, attestation.By.Subject)
+                : null;
+
 
     /// <summary>
     /// Resubmits an expired review for a fresh reviewer round (framework half of repo issue #9):
@@ -290,6 +306,17 @@ public sealed class ReviewGate(
             entry.PreservedAmendments?.Amendments ?? entry.Amendments);
         var priorAmendments = prefill is { Count: > 0 } ? prefill : null;
         var sworn = AffidavitFieldValues.Typed(entry.Envelope);
+
+        // Prefilled ON THE RECORD, not only in a map beside it. A resubmission that re-proposed the
+        // machine's original values would ask the reviewer to make the same correction a second
+        // time, and the card would show the value they had already rejected. Each corrected field
+        // carries the reviewer's own tag, bound to the decision they made it on (PV-2), with the
+        // tag it displaces kept beneath it (AF-4). A field they cleared stays on the card, empty,
+        // rather than vanishing — see AffidavitAmendments.Prefill.
+        if (priorAmendments is not null && ReviewerActOf(entry) is var (actAt, actBy))
+        {
+            sworn = AffidavitAmendments.Prefill(sworn, priorAmendments, expiredEntryId, actAt, actBy);
+        }
 
         var proposal = new WriteProposal(entry.ToolName, _time.GetUtcNow(), sworn);
         var filing = new ReviewContext(

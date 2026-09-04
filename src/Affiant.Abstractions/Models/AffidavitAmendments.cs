@@ -74,7 +74,50 @@ public static class AffidavitAmendments
         IReadOnlyDictionary<string, object?>? amendments,
         Guid entryId,
         DateTimeOffset decisionAt,
-        string reviewerId)
+        string reviewerId) =>
+        Fold(affidavit, amendments, entryId, decisionAt, reviewerId, keepCleared: false);
+
+    /// <summary>
+    /// <paramref name="affidavit"/> with <paramref name="amendments"/> put in front of a reviewer
+    /// again — what a resubmission proposes after the corrections a reviewer typed were kept but
+    /// never accepted (DK-2).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The same fold as <see cref="Apply"/>, with one difference that matters to the person looking
+    /// at the card: a field the reviewer CLEARED stays on the record, visible and empty, rather
+    /// than disappearing. An accepted amendment that clears an optional field means "this write no
+    /// longer proposes it" and the field is absent from the sworn record; a prefill means "you
+    /// cleared this, here it is again as you left it", and a field that vanished would silently
+    /// drop the correction it is supposed to be showing.
+    /// </para>
+    /// <para>
+    /// Every prefilled field carries the reviewer's own tag — <c>UserStated</c> at 1, bound to the
+    /// decision they made it on (PV-2) — with the tag it displaced kept beneath it (AF-4), so a
+    /// reader of the resubmitted record can see both what the machine proposed and what the person
+    /// corrected it to.
+    /// </para>
+    /// </remarks>
+    /// <param name="affidavit">The record being resubmitted.</param>
+    /// <param name="amendments">The corrections to put back in front of the reviewer.</param>
+    /// <param name="entryId">The Docket entry the corrections were made on — the superseded row.</param>
+    /// <param name="decisionAt">When they were made.</param>
+    /// <param name="reviewerId">Who made them, as the host identifies them.</param>
+    public static Affidavit Prefill(
+        Affidavit affidavit,
+        IReadOnlyDictionary<string, object?>? amendments,
+        Guid entryId,
+        DateTimeOffset decisionAt,
+        string reviewerId) =>
+        Fold(affidavit, amendments, entryId, decisionAt, reviewerId, keepCleared: true);
+
+    private static Affidavit Fold(
+        Affidavit affidavit,
+        IReadOnlyDictionary<string, object?>? amendments,
+        Guid entryId,
+        DateTimeOffset decisionAt,
+        string reviewerId,
+        bool keepCleared)
     {
         ArgumentNullException.ThrowIfNull(affidavit);
 
@@ -107,8 +150,9 @@ public static class AffidavitAmendments
             var cleared = amended is null;
 
             // A cleared optional field is a field the write no longer proposes, so it is absent
-            // rather than present with nothing in it.
-            if (cleared && !field.IsMandatory)
+            // rather than present with nothing in it — unless this is a prefill, where the point is
+            // to show the reviewer what they already did.
+            if (cleared && !field.IsMandatory && !keepCleared)
                 continue;
 
             // The turn is the AFFIDAVIT's, never the amended field's: a reviewer's correction
@@ -116,12 +160,25 @@ public static class AffidavitAmendments
             // says when the machine produced the value being replaced. The rulebook's amended vector
             // pins it — the record states turn 3, the displaced tag states none, and the minted tag
             // carries 3.
-            var tag = AmendmentTag(
-                cleared,
-                entryId,
-                decisionAt,
-                reviewerId,
-                affidavit.ConversationTurn);
+            // On an ACCEPTED amendment a cleared field is tagged Empty at 0: nobody has supplied a
+            // value and the entity still requires one. On a PREFILL the clearing is itself the
+            // reviewer's act being shown back to them — they emptied the field on purpose — so the
+            // tag names them, and the field arrives on the card as theirs and empty rather than as
+            // a field nothing is known about.
+            var tag = keepCleared && cleared
+                ? new ProvenanceTag(
+                    ProvenanceSource.UserStated,
+                    1.0f,
+                    $"Cleared by {reviewerId} on Docket entry {entryId}",
+                    affidavit.ConversationTurn,
+                    new ProvenanceBinding.ReviewerAct(new ReviewerActRef(entryId, decisionAt)),
+                    decisionAt)
+                : AmendmentTag(
+                    cleared,
+                    entryId,
+                    decisionAt,
+                    reviewerId,
+                    affidavit.ConversationTurn);
 
             fields.Add(field with
             {

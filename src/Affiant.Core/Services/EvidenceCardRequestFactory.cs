@@ -58,7 +58,15 @@ public static class EvidenceCardRequestFactory
         ArgumentNullException.ThrowIfNull(docketStore);
 
         var parent = await docketStore.GetResubmissionParentAsync(entryId, ct);
-        var priorAmendments = parent?.Amendments is { Count: > 0 } ? parent.Amendments : null;
+
+        // What the reviewer already typed on the row this one replaces. Two facts can carry it and
+        // they are not the same fact: PreservedAmendments is a correction the gate refused as late —
+        // nobody accepted it — and Amendments is what an approval accepted. A resubmission shows the
+        // first where it exists, because that is the reviewer's own uncommitted correction.
+        var priorAmendments =
+            parent?.PreservedAmendments?.Amendments is { Count: > 0 } preserved ? preserved
+            : parent?.Amendments is { Count: > 0 } accepted ? accepted
+            : null;
 
         // Everything the envelope repeats — the two companion confidence numbers (AF-2), the
         // warnings, whether a person must confirm, the per-field presentation hints — is lifted

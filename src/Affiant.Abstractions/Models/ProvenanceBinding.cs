@@ -27,12 +27,14 @@ namespace Affiant.Abstractions.Models;
 /// bytes have to read the same way whichever transport carried them.
 /// </para>
 /// </summary>
-[JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
-[JsonDerivedType(typeof(UtteranceSpan), ProvenanceBindingKind.UtteranceSpan)]
-[JsonDerivedType(typeof(ReviewerAct), ProvenanceBindingKind.ReviewerAct)]
-[JsonDerivedType(typeof(FormInput), ProvenanceBindingKind.FormInput)]
-[JsonDerivedType(typeof(ExternalRef), ProvenanceBindingKind.ExternalRef)]
-[JsonDerivedType(typeof(ComputationRef), ProvenanceBindingKind.ComputationRef)]
+/// <para>
+/// The converter, rather than <c>[JsonPolymorphic]</c>, because a binding does not always arrive
+/// with its discriminator first — PostgreSQL's <c>jsonb</c>, the column type the Docket stores an
+/// Affidavit in, sorts an object's keys and returns <c>ref</c> before <c>kind</c> — and the
+/// built-in polymorphic reader refuses such an object as having no discriminator at all. See
+/// <see cref="Serialization.ProvenanceBindingConverter"/>.
+/// </para>
+[JsonConverter(typeof(Serialization.ProvenanceBindingConverter))]
 public abstract record ProvenanceBinding
 {
     /// <summary>

@@ -476,6 +476,27 @@ public class ReviewGateTests
         // blank and asking them to type it again.
         Assert.NotNull(successor.Amendments);
         Assert.Equal("Corrected by the reviewer", successor.Amendments!["title"]);
+
+        // Prefilled ON THE RECORD, not only in a map beside it: the field the reviewer corrected
+        // carries their value, tagged as their own act and bound to the decision they made it on
+        // (PV-2), with the tag it displaced kept in the chain (AF-4). A resubmission that showed
+        // the machine's original value would ask the reviewer to make the same correction twice.
+        var corrected = successor.Envelope.Fields.Single(f => f.Name == "title");
+        Assert.Equal("Corrected by the reviewer", corrected.Value);
+        Assert.Equal(ProvenanceSource.UserStated, corrected.Provenance.Current.Source);
+        Assert.IsType<ProvenanceBinding.ReviewerAct>(corrected.Provenance.Current.Binding);
+        Assert.Equal(
+            lapsedEntry.EntryId,
+            Assert.IsType<ProvenanceBinding.ReviewerAct>(corrected.Provenance.Current.Binding).Ref.EntryId);
+        Assert.Single(corrected.Provenance.Prior);
+
+        // And the card the resubmission broadcasts says what was already corrected.
+        var card = transport.SentEvents
+            .Where(e => e.EventType == TransportEvent.EvidenceCardRequest)
+            .Select(e => Assert.IsType<EvidenceCardRequest>(e.Payload))
+            .Last(c => c.DocketId == requiresReview.EntryId);
+        Assert.NotNull(card.PriorAmendments);
+        Assert.Equal("Corrected by the reviewer", card.PriorAmendments!["title"]);
     }
 
     [Fact]

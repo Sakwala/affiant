@@ -101,7 +101,11 @@ public class ResubmissionValueTypesTests
         // the assertion is about the value and the fact that a scorer can read it as a number, not
         // about which integral type it landed in.
         Assert.Equal("Widget", Value(resubmitted.Envelope, "title"));
-        Assert.Equal(42m, Number(resubmitted.Envelope, "quantity"));
+
+        // The one field the reviewer corrected carries THEIR value, prefilled onto the record so
+        // they are not asked to type it again — and it is a number there too, which is the point of
+        // this test: a correction that arrived as JSON must not reach a scorer as JSON.
+        Assert.Equal(7m, Number(resubmitted.Envelope, "quantity"));
         Assert.Equal(19.95m, Number(resubmitted.Envelope, "unitPrice"));
         Assert.Equal(true, Value(resubmitted.Envelope, "expedited"));
 
