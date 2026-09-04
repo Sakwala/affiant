@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>QuickstartHost</RootNamespace>
+    <AssemblyName>QuickstartHost</AssemblyName>
+    <!-- Not a shipped package. The repo's Directory.Build.props turns IsPackable on for every
+         project so the ten framework packages inherit one version; a sample must opt out, or
+         `dotnet pack Affiant.slnx` would produce an eleventh nupkg and CI's "exactly 10 packages"
+         assertion would fail. IsPackable=false also keeps Directory.Build.targets from attaching
+         Microsoft.CodeAnalysis.PublicApiAnalyzers here: a sample has no public API contract to
+         freeze. -->
+    <IsPackable>false</IsPackable>
+    <!-- The sample's own types are documented for a reader, not for an IntelliSense package. -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <UserSecretsId>affiant-quickstart-host</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Affiant.Core/Affiant.Core.csproj" />
+    <ProjectReference Include="../../src/Affiant.SemanticKernel/Affiant.SemanticKernel.csproj" />
+    <ProjectReference Include="../../src/Affiant.EntityFramework/Affiant.EntityFramework.csproj" />
+    <ProjectReference Include="../../src/Affiant.Docket/Affiant.Docket.csproj" />
+    <ProjectReference Include="../../src/Affiant.Transport.SignalR/Affiant.Transport.SignalR.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="QuickstartHost.Tests" />
+  </ItemGroup>
+
+  <!-- Node/Playwright artefacts live next to the deck; never compile or publish them. -->
+  <ItemGroup>
+    <Compile Remove="node_modules/**" />
+    <Content Remove="node_modules/**" />
+    <None Remove="node_modules/**" />
+    <Compile Remove="e2e/**" />
+    <Content Remove="e2e/**" />
+    <Compile Remove="tests/**" />
+    <Content Remove="tests/**" />
+  </ItemGroup>
+
+</Project>

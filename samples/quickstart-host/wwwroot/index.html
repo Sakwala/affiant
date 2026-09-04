@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Affiant quickstart host</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #fbfaf8;
+        --fg: #16191d;
+        --muted: #5c6570;
+        --line: #dfdcd6;
+        --panel: #ffffff;
+        --accent: #2c6e4f;
+        --warn: #a8530b;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #14171a;
+          --fg: #e8e6e3;
+          --muted: #9aa3ad;
+          --line: #2b3037;
+          --panel: #1b1f23;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      }
+      main { max-width: 1080px; margin: 0 auto; padding: 24px 20px 64px; }
+      header h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.01em; }
+      header p { margin: 0; color: var(--muted); max-width: 62ch; }
+      .layout { display: grid; gap: 24px; margin-top: 24px; grid-template-columns: minmax(0, 1fr); }
+      @media (min-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+      section h2 {
+        font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em;
+        color: var(--muted); margin: 0 0 10px;
+      }
+      .panel {
+        background: var(--panel); border: 1px solid var(--line);
+        border-radius: 10px; padding: 14px;
+      }
+      #transcript { min-height: 90px; max-height: 260px; overflow-y: auto; }
+      #transcript p { margin: 0 0 8px; }
+      #transcript .role { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
+      form { display: flex; gap: 8px; margin-top: 10px; }
+      input[type="text"], select, button {
+        font: inherit; border-radius: 7px; border: 1px solid var(--line);
+        padding: 8px 10px; background: var(--panel); color: inherit;
+      }
+      input[type="text"] { flex: 1; }
+      button { cursor: pointer; }
+      button:disabled { opacity: 0.5; cursor: not-allowed; }
+      #notices { margin: 12px 0 0; padding: 0; list-style: none; }
+      #notices li {
+        border-left: 3px solid var(--warn); padding: 6px 10px; margin-bottom: 6px;
+        background: var(--panel); border-radius: 0 7px 7px 0; font-size: 14px;
+      }
+      .entry { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); margin-bottom: 16px; }
+      .entry-head {
+        display: flex; align-items: center; justify-content: space-between; gap: 10px;
+        padding: 10px 14px; border-bottom: 1px solid var(--line);
+      }
+      .entry-head code { font-size: 12px; color: var(--muted); }
+      .status {
+        font-size: 12px; font-weight: 600; letter-spacing: 0.03em;
+        padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line);
+      }
+      .status[data-state="pending"] { color: var(--accent); }
+      .status[data-state="expiring"], .status[data-state="submitting"] { color: var(--warn); }
+      .status[data-state="expired"], .status[data-state="rejected"] { color: var(--muted); }
+      .status[data-state="approved"] { color: var(--accent); }
+      .entry-tools {
+        display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+        padding: 10px 14px; border-top: 1px solid var(--line);
+      }
+      .entry-tools label { font-size: 13px; color: var(--muted); }
+      .empty { color: var(--muted); font-size: 14px; }
+      table { border-collapse: collapse; width: 100%; font-size: 14px; }
+      th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+      th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
+      .hint { color: var(--muted); font-size: 13px; margin-top: 10px; }
+      code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Leave requests, with a human in the way</h1>
+        <p>
+          Ask for leave and nothing is written. The tool returns a proposal, the proposal becomes an
+          Evidence Card, and a person approves, amends or rejects it. Only then does a row appear.
+        </p>
+      </header>
+
+      <div class="layout">
+        <section>
+          <h2>Conversation</h2>
+          <div class="panel">
+            <div id="transcript" data-testid="transcript">
+              <p class="empty" data-testid="transcript-empty">
+                Nothing said yet. With no model key configured, use the development seam instead —
+                see the sample's README.
+              </p>
+            </div>
+            <form id="chat-form">
+              <input
+                id="chat-input"
+                data-testid="chat-input"
+                type="text"
+                autocomplete="off"
+                placeholder="Two weeks off in November for Amara Silva, family visit" />
+              <button type="submit" data-testid="chat-send">Send</button>
+            </form>
+          </div>
+          <ul id="notices" data-testid="notices"></ul>
+
+          <h2 style="margin-top: 24px">Leave requests written</h2>
+          <div class="panel">
+            <table>
+              <thead>
+                <tr><th>Id</th><th>Employee</th><th>Type</th><th>Start</th><th>End</th></tr>
+              </thead>
+              <tbody id="records" data-testid="records"></tbody>
+            </table>
+            <p class="hint">
+              Refreshed after every decision. A row here is proof the write happened; an approved
+              card with no row would mean the write port never ran.
+            </p>
+          </div>
+        </section>
+
+        <section>
+          <h2>Awaiting review</h2>
+          <div id="cards" data-testid="cards">
+            <p class="empty" data-testid="cards-empty">No Evidence Cards yet.</p>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <script src="/lib/signalr.min.js"></script>
+    <script type="module" src="/affiant-evidence-card/register.js"></script>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

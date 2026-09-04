@@ -24,4 +24,8 @@
     <Project Path="tests/Affiant.Testing.ComplianceHarness.Tests/Affiant.Testing.ComplianceHarness.Tests.csproj" />
     <Project Path="tests/Affiant.Extensions.AI.Tests/Affiant.Extensions.AI.Tests.csproj" />
   </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/quickstart-host/QuickstartHost.csproj" />
+    <Project Path="samples/quickstart-host/tests/QuickstartHost.Tests/QuickstartHost.Tests.csproj" />
+  </Folder>
 </Solution>

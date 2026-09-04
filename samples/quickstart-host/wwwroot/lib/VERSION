@@ -1,0 +1,13 @@
+@microsoft/signalr 10.0.11
+
+signalr.min.js is that package's dist/browser/signalr.min.js, copied verbatim with its
+sourceMappingURL comment removed. It is the UMD build: loading it with a plain <script> tag
+defines the global `signalR`, with no bundler and no network access at page load.
+
+Vendored so the sample runs from a clone with no package manager involved. A host with a build
+step should `npm install @microsoft/signalr` instead.
+
+To refresh:
+  npm pack @microsoft/signalr --pack-destination <tmp>
+  tar -xzf <tmp>/microsoft-signalr-<version>.tgz -C <tmp>
+  cp <tmp>/package/dist/browser/signalr.min.js wwwroot/lib/

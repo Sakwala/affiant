@@ -5,6 +5,8 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # The sample's browser deck is manual-only — see the `sample-review-deck` job below.
+  workflow_dispatch:
 
 jobs:
   build-and-test:
@@ -32,8 +34,96 @@ jobs:
       - name: Pack framework packages
         run: dotnet pack Affiant.slnx -c Release -o ./nupkgs
 
+      # The sample host and its test project are in the solution but marked IsPackable=false, so
+      # this count is still the ten framework packages and nothing else.
       - name: Check 10 packages produced
         run: |
           count=$(ls ./nupkgs/*.nupkg | wc -l)
           echo "Produced $count packages"
           [ "$count" -eq 10 ] || (echo "Expected 10 packages, got $count" && exit 1)
+
+  # The quickstart sample's own tests: its affidavit projection, its development seam's filing
+  # path, the expiry transition, and the seam's environment gate. Its own job so a sample failure
+  # reads as a sample failure rather than as a framework one.
+  sample-quickstart-host:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Test the quickstart sample host
+        run: dotnet test samples/quickstart-host/tests/QuickstartHost.Tests/QuickstartHost.Tests.csproj -c Release
+
+  # The sample's seven-behaviour browser deck. Manual only, deliberately: two of its specs wait on
+  # the framework's 30-second expiry sweep, which makes them slow and timing-sensitive — a real
+  # behaviour worth locking, and a poor gate for every unrelated push. Run it from the Actions tab
+  # before touching the review lifecycle, the transport, or the sample's page. It is not
+  # continue-on-error: when it runs, a failure is a failure.
+  sample-review-deck:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build the sample host
+        run: dotnet build samples/quickstart-host/QuickstartHost.csproj -c Release
+
+      - name: Install the deck's dependencies
+        working-directory: samples/quickstart-host
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Start the sample host
+        working-directory: samples/quickstart-host
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+          ASPNETCORE_URLS: http://localhost:5077
+        run: |
+          rm -f ./*.db ./*.db-shm ./*.db-wal
+          nohup dotnet run --project QuickstartHost.csproj -c Release --no-build > host.log 2>&1 &
+          echo $! > host.pid
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:5077/api/employees > /dev/null; then
+              echo "host is up"; exit 0
+            fi
+            sleep 1
+          done
+          echo "host did not start"; cat host.log; exit 1
+
+      - name: Run the review-lifecycle deck
+        working-directory: samples/quickstart-host
+        env:
+          BASE_URL: http://localhost:5077
+        run: npm run test:e2e
+
+      - name: Stop the sample host
+        if: always()
+        working-directory: samples/quickstart-host
+        run: kill "$(cat host.pid)" || true
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: quickstart-host-deck
+          path: |
+            samples/quickstart-host/playwright-report/
+            samples/quickstart-host/test-results/
+            samples/quickstart-host/host.log
+          retention-days: 7

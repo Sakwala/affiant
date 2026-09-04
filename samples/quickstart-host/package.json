@@ -1,0 +1,15 @@
+{
+  "name": "affiant-quickstart-host-e2e",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The review-lifecycle regression deck for the Affiant quickstart sample host.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0"
+  }
+}
