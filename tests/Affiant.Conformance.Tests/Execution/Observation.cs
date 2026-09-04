@@ -174,7 +174,9 @@ internal static class Observation
                 CoverageCategory.ProviderExecuted => "provider-executed",
                 _ => "hosted-mcp",
             },
-            ["tool"] = c.ToolName,
+            // `toolName` is the key the fixtures state; a driver that spelled it `tool` would hold
+            // the row red on a key mismatch the day the gap this marker is about closes.
+            ["toolName"] = c.ToolName,
         },
         _ => new JsonObject { ["code"] = marker.Code },
     };

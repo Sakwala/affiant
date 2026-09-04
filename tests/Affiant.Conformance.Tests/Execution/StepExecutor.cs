@@ -219,8 +219,6 @@ internal sealed class StepExecutor(GateHarness harness, GivenSpec given)
         var mark = harness.Transport.Mark();
         var filing = await harness.GateFor(conversationId).FileForReviewAsync(proposal, context, ct);
 
-        // The requirement is not written to the row in this release; what the framework reported is
-        // the nearest true reading of the chain's answer. See Observation.Entry.
         var entryId = filing switch
         {
             ReviewFilingResult.RequiresReview r => r.EntryId,

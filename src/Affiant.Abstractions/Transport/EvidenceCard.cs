@@ -215,18 +215,21 @@ public sealed record FieldPresentation(
     public string? Pattern { get; init; } = Pattern;
 
     /// <summary>
-    /// The hints <paramref name="field"/> declares, or <c>null</c> when it declares none worth
-    /// sending — a plain text field with no closed set and no pattern needs no entry, and an empty
-    /// array of hints is noise on every card.
+    /// The hints <paramref name="field"/> declares, or <c>null</c> when it declares none.
     /// </summary>
+    /// <remarks>
+    /// A hint says what CONSTRAINS a reviewer's input: a closed set to pick from, or a pattern the
+    /// value must satisfy. A field that constrains nothing gets no entry at all — absence is how the
+    /// wire spells "render this field from its own kind", which the card already carries on the
+    /// field itself. An entry that repeated the kind and said nothing else would tell a reviewer
+    /// surface that a plain date is a constrained field, and an empty array of hints is noise on
+    /// every card.
+    /// </remarks>
     public static FieldPresentation? For(AffidavitField field)
     {
         ArgumentNullException.ThrowIfNull(field);
 
-        var hasHints =
-            !string.Equals(field.Kind, AffidavitFieldKind.Text, StringComparison.Ordinal) ||
-            field.AllowedValues is { Count: > 0 } ||
-            field.Pattern is not null;
+        var hasHints = field.AllowedValues is { Count: > 0 } || field.Pattern is not null;
 
         return hasHints
             ? new FieldPresentation(
