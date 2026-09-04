@@ -8,6 +8,10 @@
   scope every other member that moves a row takes; and every component that needs the current instant
   takes an injectable TimeProvider as an added constructor parameter.
 
+  A fourth: UpdateReviewStatusAsync is gone from the store — an entry id and a status, with no
+  tenant scope, no expected status and no attestation check — superseded by the guarded
+  TransitionAsync; and CountPendingAsync is added for the depth gauge.
+
   See CHANGELOG.md's upgrade notes.
 -->
 <Suppressions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
@@ -42,6 +46,13 @@
   <Suppression>
     <DiagnosticId>CP0002</DiagnosticId>
     <Target>M:Affiant.Docket.Stores.InMemoryDocketStore.UpdateAmendmentsAsync(System.Guid,System.Collections.Generic.IReadOnlyDictionary{System.String,System.Object},System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Docket.dll</Left>
+    <Right>lib/net10.0/Affiant.Docket.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Docket.Stores.InMemoryDocketStore.UpdateReviewStatusAsync(System.Guid,Affiant.Abstractions.Models.ReviewStatus,System.Threading.CancellationToken)</Target>
     <Left>lib/net10.0/Affiant.Docket.dll</Left>
     <Right>lib/net10.0/Affiant.Docket.dll</Right>
     <IsBaselineSuppression>true</IsBaselineSuppression>

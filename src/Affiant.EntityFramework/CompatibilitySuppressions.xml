@@ -8,6 +8,9 @@
   injectable TimeProvider as an added constructor parameter so expiry can be read as state against a
   clock a test can move.
 
+  Both EF stores also lose UpdateReviewStatusAsync, the unscoped, unguarded status write the
+  guarded TransitionAsync supersedes, and gain CountPendingAsync for the depth gauge.
+
   See CHANGELOG.md's upgrade notes.
 -->
 <Suppressions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
@@ -84,6 +87,20 @@
   <Suppression>
     <DiagnosticId>CP0002</DiagnosticId>
     <Target>M:Affiant.EntityFramework.Stores.SqliteDocketStore.UpdateAmendmentsAsync(System.Guid,System.Collections.Generic.IReadOnlyDictionary{System.String,System.Object},System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.EntityFramework.dll</Left>
+    <Right>lib/net10.0/Affiant.EntityFramework.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.EntityFramework.Stores.PostgresDocketStore.UpdateReviewStatusAsync(System.Guid,Affiant.Abstractions.Models.ReviewStatus,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.EntityFramework.dll</Left>
+    <Right>lib/net10.0/Affiant.EntityFramework.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.EntityFramework.Stores.SqliteDocketStore.UpdateReviewStatusAsync(System.Guid,Affiant.Abstractions.Models.ReviewStatus,System.Threading.CancellationToken)</Target>
     <Left>lib/net10.0/Affiant.EntityFramework.dll</Left>
     <Right>lib/net10.0/Affiant.EntityFramework.dll</Right>
     <IsBaselineSuppression>true</IsBaselineSuppression>

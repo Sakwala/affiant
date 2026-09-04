@@ -32,6 +32,13 @@
      types accordingly, and IDocketStore.MarkBlockedAsync takes the scope every other member that
      moves a row takes. UpdateAmendmentsAsync is removed: it was an unscoped, unguarded overwrite with
      no caller left, and a recorded fact is not edited in place.
+  7. The store guard is total. UpdateReviewStatusAsync is removed for the same reason as
+     UpdateAmendmentsAsync and a stronger one: it took an entry id and a status and nothing else, so
+     anything holding the store could write any status onto any row in any tenant, without the
+     expected-status compare-and-set, the tenant scope or the attestation the decision path checks.
+     TransitionAsync is the replacement and checks all three. IDocketStore also gains
+     CountPendingAsync, a count for the docket-depth gauge, which previously asked for every pending
+     row in the deployment on a timer; a store implementing the interface implements one more member.
 
   See CHANGELOG.md's upgrade notes.
 -->
@@ -312,6 +319,20 @@
   <Suppression>
     <DiagnosticId>CP0006</DiagnosticId>
     <Target>M:Affiant.Abstractions.Interfaces.IStreamingTransport.AwaitEvidenceCardResponseAsync(System.String,System.Guid,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Interfaces.IDocketStore.UpdateReviewStatusAsync(System.Guid,Affiant.Abstractions.Models.ReviewStatus,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0006</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Interfaces.IDocketStore.CountPendingAsync(System.Threading.CancellationToken)</Target>
     <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
     <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
     <IsBaselineSuppression>true</IsBaselineSuppression>
