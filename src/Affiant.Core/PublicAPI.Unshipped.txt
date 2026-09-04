@@ -65,6 +65,7 @@ Affiant.Core.Observability.L2TelemetryKeys
 Affiant.Core.Policies.ReviewerConfirmationPolicy
 Affiant.Core.Policies.ReviewerConfirmationPolicy.EvaluateAsync(Affiant.Abstractions.Models.Affidavit! affidavit, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Affiant.Abstractions.Models.ReviewRequirement?>!
 Affiant.Core.Policies.ReviewerConfirmationPolicy.ReviewerConfirmationPolicy() -> void
+Affiant.Core.Serialization.CanonicalSerializer
 Affiant.Core.Services.AffiantToolRegistry
 Affiant.Core.Services.AffiantToolRegistry.AffiantToolRegistry() -> void
 Affiant.Core.Services.AffiantToolRegistry.All.get -> System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.AffiantToolDescriptor!>!
@@ -204,8 +205,21 @@ static Affiant.Core.Filters.TaskInferenceResult.operator ==(Affiant.Core.Filters
 static Affiant.Core.Filters.TaskInferenceStep.ResolveByConfidence(Affiant.Abstractions.Models.ProvenanceTag! a, Affiant.Abstractions.Models.ProvenanceTag! b) -> Affiant.Abstractions.Models.ProvenanceTag!
 static Affiant.Core.Observability.AffiantTelemetry.FindAffiantActivity() -> System.Diagnostics.Activity?
 static Affiant.Core.Observability.AffiantTelemetry.RecordExtractorFailedEvent(string! extractorType, string! toolName, System.Exception! ex) -> void
+static Affiant.Core.Serialization.CanonicalSerializer.ApplyAmendmentsForCanonical(System.Text.Json.Nodes.JsonObject! affidavit, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? amendments, System.Guid entryId, System.DateTimeOffset decisionAt, string! reviewerId) -> System.Text.Json.Nodes.JsonObject!
+static Affiant.Core.Serialization.CanonicalSerializer.CanonicalHash(Affiant.Abstractions.Models.Affidavit! affidavit) -> string!
+static Affiant.Core.Serialization.CanonicalSerializer.CanonicalHash(Affiant.Abstractions.Models.Affidavit! affidavit, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? amendments, System.Guid entryId, System.DateTimeOffset decisionAt, string! reviewerId) -> string!
+static Affiant.Core.Serialization.CanonicalSerializer.CanonicalHash(System.Text.Json.Nodes.JsonNode? document) -> string!
+static Affiant.Core.Serialization.CanonicalSerializer.CanonicalString(Affiant.Abstractions.Models.Affidavit! affidavit) -> string!
+static Affiant.Core.Serialization.CanonicalSerializer.CanonicalString(Affiant.Abstractions.Models.Affidavit! affidavit, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? amendments, System.Guid entryId, System.DateTimeOffset decisionAt, string! reviewerId) -> string!
+static Affiant.Core.Serialization.CanonicalSerializer.CanonicalString(System.Text.Json.Nodes.JsonNode? document) -> string!
+static Affiant.Core.Serialization.CanonicalSerializer.Canonicalize(Affiant.Abstractions.Models.Affidavit! affidavit) -> byte[]!
+static Affiant.Core.Serialization.CanonicalSerializer.Canonicalize(Affiant.Abstractions.Models.Affidavit! affidavit, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? amendments, System.Guid entryId, System.DateTimeOffset decisionAt, string! reviewerId) -> byte[]!
+static Affiant.Core.Serialization.CanonicalSerializer.Canonicalize(System.Text.Json.Nodes.JsonNode? document) -> byte[]!
+static Affiant.Core.Serialization.CanonicalSerializer.Number(double value) -> string!
+static Affiant.Core.Serialization.CanonicalSerializer.Sha256Hex(byte[]! bytes) -> string!
+static Affiant.Core.Serialization.CanonicalSerializer.ToDocument(Affiant.Abstractions.Models.Affidavit! affidavit) -> System.Text.Json.Nodes.JsonNode!
 static Affiant.Core.Services.DocketExpiryBroadcaster.VerifyAndBroadcastIfExpiredAsync(Affiant.Abstractions.Interfaces.IDocketStore! docketStore, Affiant.Abstractions.Interfaces.IStreamingTransport! transport, System.Guid entryId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Affiant.Abstractions.Models.ReviewStatus?>!
-static Affiant.Core.Services.EvidenceCardRequestFactory.CreateAsync(Affiant.Abstractions.Interfaces.IDocketStore! docketStore, System.Guid entryId, Affiant.Abstractions.Models.Affidavit! affidavit, System.DateTimeOffset expiresAt, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Transport.EvidenceCardRequest!>!
+static Affiant.Core.Services.EvidenceCardRequestFactory.CreateAsync(Affiant.Abstractions.Interfaces.IDocketStore! docketStore, System.Guid entryId, Affiant.Abstractions.Models.Affidavit! affidavit, System.DateTimeOffset expiresAt, System.Threading.CancellationToken ct, string? hostOperation = null) -> System.Threading.Tasks.Task<Affiant.Abstractions.Transport.EvidenceCardRequest!>!
 static Affiant.Core.Services.ToolInvocationRequest.operator !=(Affiant.Core.Services.ToolInvocationRequest? left, Affiant.Core.Services.ToolInvocationRequest? right) -> bool
 static Affiant.Core.Services.ToolInvocationRequest.operator ==(Affiant.Core.Services.ToolInvocationRequest? left, Affiant.Core.Services.ToolInvocationRequest? right) -> bool
 static readonly Affiant.Core.Observability.AffiantTelemetry.AffiantActivitySource -> System.Diagnostics.ActivitySource!

@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://affiant.dev/schemas/0.1.0/evidence-card-request.schema.json",
+  "title": "EvidenceCardRequest",
+  "description": "The envelope that carries an Affidavit to a reviewer surface: the entry it is filed under, the sworn record, the deadline, the amendments already made on a superseded entry, and the presentation the core does not swear to — whether a person must confirm, the per-field rendering hints, the warnings a reviewer should see and the host's own verb for the operation, none of which is part of the canonical form (SR-1). A producer may send the same request for the same docketId more than once; a consumer treats a repeat as the SAME card, updating in place rather than adding a second one — a re-file is an idempotent replay that re-broadcasts the existing deadline, never a fresh one (INVARIANTS.md GT-4). AF-2 requires a card to show all three confidence numbers; aggregateConfidence is on the Affidavit and the two companions are repeated here, where the seed carried them, so a consumer written against either shape finds them.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocolVersion",
+    "docketId",
+    "affidavit",
+    "requiredBy",
+    "priorAmendments",
+    "populatedConfidence",
+    "emptyFieldCount",
+    "blocked",
+    "requiresConfirmation"
+  ],
+  "properties": {
+    "protocolVersion": {
+      "description": "The protocol version this envelope conforms to (SR-4).",
+      "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/protocolVersion"
+    },
+    "docketId": {
+      "description": "The Docket entry this card is filed under — the row's own entryId.",
+      "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/uuid"
+    },
+    "affidavit": {
+      "description": "The record awaiting a decision: the proposal, or the state an accepted amendment produced.",
+      "$ref": "https://affiant.dev/schemas/0.1.0/affidavit.schema.json"
+    },
+    "requiredBy": {
+      "description": "When the review window closes — the entry's own expiresAt (GT-4).",
+      "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/isoInstant"
+    },
+    "priorAmendments": {
+      "description": "Set only when this card resubmits a review that expired: the amendments a reviewer made on the original entry, so the next reviewer sees what was already agreed. Null for a first filing. DK-2 holds inside the map — a null under a key means the reviewer CLEARED that field, which is distinct from the key being absent.",
+      "oneOf": [
+        { "$ref": "https://affiant.dev/schemas/0.1.0/amendments.schema.json" },
+        { "type": "null" }
+      ]
+    },
+    "populatedConfidence": {
+      "description": "The minimum confidence over the non-Empty proposed fields, or null when there are none (AF-2). The same number the Affidavit carries; repeated on the envelope for one version, since this is where the seed put it.",
+      "oneOf": [
+        { "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/unitInterval" },
+        { "type": "null" }
+      ]
+    },
+    "emptyFieldCount": {
+      "description": "How many proposed fields are tagged Empty (AF-2). The same number the Affidavit carries; repeated on the envelope for one version.",
+      "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/nonNegativeInteger"
+    },
+    "blocked": {
+      "description": "Why no decision on this entry will be accepted, or null when it can be decided (AZ-4, CV-4). On the envelope so a reviewer surface can render it rather than infer it from a warning string.",
+      "oneOf": [
+        { "$ref": "https://affiant.dev/schemas/0.1.0/blocked.schema.json" },
+        { "type": "null" }
+      ]
+    },
+    "presentation": {
+      "description": "How a reviewer surface should render each field's input, supplied by the host and sworn to by nobody. One entry per field it has a hint for, naming a field the Affidavit carries; a card with no hints omits the property entirely, and a card may carry hints for some of its fields and not others. This is PRESENTATION, not substance: the gate carries a hint and validates nothing against it, and nothing here is part of the canonical form, which is defined over the Affidavit and its accepted amendments alone (SR-1). It lives on the envelope for the same reason requiresConfirmation does — the core swears to what a value is and where it came from, not to how it should be shown. That a name here is a field of THIS card's Affidavit is a relation between two objects and no JSON Schema can check it; the fixture lint does (conformance/lint/lint.mjs).",
+      "type": "array",
+      "items": {
+        "title": "FieldPresentation",
+        "description": "The rendering hints for one field.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "description": "The field these hints are about. A name present in affidavit.fields.",
+            "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/identifier"
+          },
+          "kind": {
+            "description": "The rendering hint the field carries, repeated here so a surface reading only the presentation array has it. When present it agrees with that field's own kind; the Affidavit's copy is the one the record swears to.",
+            "$ref": "https://affiant.dev/schemas/0.1.0/affidavit-field.schema.json#/properties/kind"
+          },
+          "allowedValues": {
+            "description": "The closed set an amendment input offers for this field, in the order a surface should show them. Absent when the host declared none. The gate validates no value against it: a proposed or amended value outside the set is still recorded, and the set is a hint to the control, not a constraint on the record.",
+            "type": "array",
+            "items": {
+              "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/jsonValue"
+            }
+          },
+          "pattern": {
+            "description": "The regular expression an amendment input is constrained by, as the host wrote it. Absent when the host declared none. Carried verbatim and never compiled or applied by the gate — it is the surface's input mask, and a host that wants a value refused enforces that in its own policy, not here.",
+            "type": "string"
+          }
+        }
+      }
+    },
+    "warnings": {
+      "description": "Sentences a reviewer should see beside the record: the reason a policy gave for its verdict, and the sentence a blocked entry shows. Absent when there are none. Presentation, not substance — the machine-readable half of a blocked entry is the blocked marker, which a surface renders rather than parsing a string out of this array, and nothing here is part of the canonical form (SR-1). A consumer never switches on the text of a warning.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "hostOperation": {
+      "description": "The host's own verb for the operation \u2014 \"WriteUpdate\", \"Reprice\", \"Onboard\" \u2014 absent when the host named none. PRESENTATION, like the three slots above it, and never part of the canonical form (SR-1): a host that renames a verb has not changed the evidence. affidavit.operationType is the protocol's two-valued SHAPE, because a rule about shape has to be a predicate a policy can test without knowing any host's vocabulary; this is the word that host uses for the same act, carried beside it so a reviewer surface can head the card with the term a person recognises rather than with \"create\" or \"update\". Never instead of it: a consumer that switched on this string would be switching on a host's vocabulary.",
+      "type": "string",
+      "minLength": 1
+    },
+    "requiresConfirmation": {
+      "description": "Whether a person must confirm this write before it commits. The POLICY CHAIN's verdict, not a property of the evidence, which is why it sits on the envelope and not on the Affidavit. False on a blocked entry: a card carrying a marker that says no decision will be accepted must not also offer a reviewer surface an approve button that cannot work.",
+      "type": "boolean"
+    }
+  }
+}

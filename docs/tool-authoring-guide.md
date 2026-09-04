@@ -196,7 +196,7 @@ public class SearchEmployeesPlugin(IServiceScopeFactory scopeFactory)
 - The composable query pattern (`AsQueryable()` + successive `.Where()` calls) is standard across all read tools with optional filter parameters
 - `AsNoTracking()` is essential for read-only queries — skips EF Core's change-tracking overhead
 - Return empty `EntityRef[]` (not an error) when zero results are found — let the LLM reason about the empty result
-- `.ToJsonString()` serializes with the `$type` discriminator that the UI layer uses for polymorphic deserialization
+- `.ToJsonString()` serializes with the `kind` discriminator the UI layer switches on for polymorphic deserialization (it was `$type` through `1.0.0-beta.1` — see the CHANGELOG's upgrade note)
 
 **The scope-factory pattern is the rule, not an alternative (affiant#21).** The worked example
 above already uses it. A second host example, for completeness — this is the same pattern, not a

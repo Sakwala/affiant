@@ -58,7 +58,7 @@ provenance:
 
 ```jsonc
 {
-  "$type": "write",
+  "kind": "write",
   "toolName": "RequestLeave",
   "timestamp": "2026-07-04T09:24:11Z",
   "envelope": {
@@ -72,7 +72,8 @@ provenance:
         "previousValue": null,
         "provenance": {
           "current": { "source": "UserStated", "confidence": 1.0,
-                       "evidence": "User stated: StartDate", "conversationTurn": 3 },
+                       "note": "User stated: StartDate", "conversationTurn": 3,
+                       "at": null, "binding": null },
           "prior": []
         }
       },
@@ -82,7 +83,10 @@ provenance:
         "previousValue": null,
         "provenance": {
           "current": { "source": "External", "confidence": 0.95,
-                       "evidence": "Resolved from directory lookup", "conversationTurn": 2 },
+                       "note": "Resolved from directory lookup", "conversationTurn": 2,
+                       "at": null,
+                       "binding": { "kind": "external-ref",
+                                    "ref": { "system": "directory", "recordId": "4021" } } },
           "prior": []
         }
       },
@@ -92,12 +96,18 @@ provenance:
         "previousValue": null,
         "provenance": {
           "current": { "source": "Computed", "confidence": 1.0,
-                       "evidence": "currentBalance(17) - requestedDays(5)", "conversationTurn": 3 },
+                       "note": "currentBalance(17) - requestedDays(5)", "conversationTurn": 3,
+                       "at": null,
+                       "binding": { "kind": "computation-ref",
+                                    "ref": { "rule": "leave.remainingAfter",
+                                             "inputs": ["currentBalance", "requestedDays"] } } },
           "prior": []
         }
       }
     ],
-    "aggregateConfidence": 0.98,
+    "aggregateConfidence": 0.95,       // the MINIMUM over the proposed fields
+    "populatedConfidence": 0.95,       // the minimum over the fields that are populated
+    "emptyFieldCount": 0,
     "warnings": [],
     "requiresConfirmation": true
   }

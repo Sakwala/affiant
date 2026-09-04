@@ -81,11 +81,19 @@ Every field value in the system carries a `ProvenanceTag`. There are no exceptio
 public sealed record ProvenanceTag(
     ProvenanceSource Source,      // Which of the 7 sources produced this value
     float Confidence,             // Clamped into [0, 1] by the record; always 0 when Source is Empty
-    string? Evidence,             // Human-readable explanation of why this source was assigned
+    string? Evidence,             // Human-readable explanation of why this source was assigned — spelled `note` on the wire
     int? ConversationTurn,        // Which conversation turn produced this value (null for non-conversational sources)
-    ProvenanceBinding? Binding = null  // What an auditor looks at to check the value; null when there is nothing to point at
+    ProvenanceBinding? Binding = null,  // What an auditor looks at to check the value; null when there is nothing to point at
+    DateTimeOffset? At = null     // When the tag was minted; null until the injected clock lands
 );
 ```
+
+**On the wire**, a tag is `{ source, confidence, note, at, conversationTurn, binding }`. `Evidence`
+is spelled `note` because the whole record is the evidence and this property is the one sentence a
+person reads. `At` says *when* a claim was made — a chain whose tags cannot be placed in time is a
+history a reader cannot order — and is stamped today only by the one tag minted with an instant
+already in hand, a reviewer's accepted amendment; the rest carry null until the framework has an
+injected clock to read.
 
 **The confidence range is enforced by the type, not by each mint site.** A producer that reports
 1.4, -0.2 or `NaN` gets 1, 0 and 0. An `Empty` tag always reads 0 — "nobody knows where this came
@@ -201,7 +209,40 @@ argument, a `(code, retryable)` classification-tuple arm, or a hand-rolled JSON 
 field) — proven to catch both the rogue-arm mutation and a reverted `ManualToolInvoker` literal, and
 restored byte-identical after each proof.
 
-**JSON polymorphism**: Use `[JsonDerivedType]` attributes (matching SK's own `KernelContent` pattern) to enable polymorphic deserialization in the filter pipeline. The `type` discriminator field distinguishes variants during deserialization.
+**JSON polymorphism.** The three variants are one discriminated union carried on a **single
+discriminator property, `kind`**, holding `"read"`, `"write"` or `"error"`. A consumer switches on
+the discriminator, never on the presence of fields — a consumer that tested for a `markdown` property
+to decide it had a read result would break the moment a write proposal grew one.
+
+The discriminator was spelled `$type` through `1.0.0-beta.1`, inherited from Semantic Kernel's own
+`KernelContent` pattern rather than chosen. `$`-prefixed names are reserved by JSON Schema, so a
+discriminator spelled that way is one no schema can name and nothing can validate. The rename is a
+breaking wire change and is declared in the CHANGELOG's upgrade notes.
+
+### 2.4.1 Serialization: one set of conventions
+
+Every envelope the framework writes goes through `Affiant.Abstractions.Serialization.AffiantJson`,
+which declares the conventions once:
+
+- **camelCase** property names.
+- **Enums as strings**, in the exact casing each wire shape freezes: a `ProvenanceSource` is
+  PascalCase (`"UserStated"`), a `ReviewStatus` is lowercase (`"pending"`), a `ReviewRequirement`
+  is PascalCase (`"MultiParty"`). No implementation case-folds an enum value on the wire.
+- **Nulls written.** A property that is required and may be null is written `null` rather than
+  omitted, so a reader never has to tell "nothing to report" from "the property was left off". A
+  property that is genuinely optional — the Evidence Card's `presentation`, `warnings` and
+  `hostOperation` — is omitted when it has nothing to say.
+- **One spelling per instant**: UTC, milliseconds, a trailing `Z` (`2026-08-01T00:05:00.000Z`).
+- **Money as two strings** — see §2.6.1.
+
+`AffiantJson.Configure(options)` applies them to an options object of your own; the SignalR hub
+protocol calls it rather than restating them, and a host serializing an Affiant record itself should
+too, so its bytes and the framework's agree.
+
+**Every envelope carries `protocolVersion`** — the protocol version string the build speaks, written
+once as `AffiantProtocol.Version`. It is a version of the *protocol*, not of the packages: while the
+major is `0`, a schema-breaking change bumps the minor. A consumer refuses a payload whose major
+differs from the one it targets and may warn on a newer minor.
 
 ### 2.5 EntityRef (Record)
 
@@ -265,6 +306,65 @@ where the field had none. Those values come from the host, through
 `SchemaDrivenAffidavitProjection` consults **for updates only**; a create carries `null` throughout.
 A host whose write tools declare update operations and registers no source fails at startup
 (`AffiantWireUpValidator`), rather than filing create-shaped records for updates.
+
+### 2.6.1 Money on the wire
+
+A monetary field value is `Money` — `{ "amount": "<decimal string>", "currency": "<ISO 4217>" }` —
+and never a JSON number. `MoneyJsonConverter` refuses one, naming the rule.
+
+The reason is not fussiness about types. No binary float represents `0.10`, so a card that showed
+"£4,000.10" and a store that holds `4000.099999999999` disagree about what was approved, with
+nothing on the record to say which one the reviewer saw. A decimal string is the value the reviewer
+read, byte for byte, and it survives every JSON parser in every language unchanged — including
+amounts no `decimal` holds.
+
+This is a **wire** rule. A host stores what it likes — integer minor units, a database `decimal`,
+its own money type — and converts at the edge; the store persists the wire value without
+reinterpreting it. `"10.00"` is never normalised to `"10"`: the trailing zeros are what the reviewer
+saw, and dropping them would change the canonical bytes of a value nobody amended. No currency list
+is embedded — ISO 4217 changes, and a table frozen into a serialization type would be wrong within a
+year — so `Money` checks the *shape* (three uppercase ASCII letters) and membership is the host's
+check. `money.ScaleFits(minorUnits)` is how a host declares a scale: `2` for sterling, `0` for the
+yen, `3` for the dinar.
+
+### 2.6.2 The canonical form and its hash
+
+`Affiant.Core.Serialization.CanonicalSerializer` produces the **canonical form** of an Affidavit —
+one deterministic byte sequence per record — and the SHA-256 over it.
+
+```csharp
+byte[] bytes  = CanonicalSerializer.Canonicalize(affidavit);
+string digest = CanonicalSerializer.CanonicalHash(affidavit);              // 64 lowercase hex chars
+string sworn  = CanonicalSerializer.CanonicalHash(                        // the accepted state
+    affidavit, amendments, entryId, decisionAt, reviewerId);
+```
+
+The rules, in full: UTF-8; object keys sorted by Unicode **code point** at every level (not by UTF-16
+code unit — a private-use character at U+E000 sorts *before* an emoji at U+1F600, which a naive
+comparator gets backwards); no insignificant whitespace; numbers as the shortest decimal that
+round-trips, written **positionally** (`1e21` in full, never `1e+21`), with `-0` written `0` and a
+non-finite number refused; strings escaped only as JSON requires (a solidus never, non-ASCII as
+itself); `null` written and an absent property omitted; money as its two strings; and an amended
+field's reviewer-act tag included in its chain.
+
+**The form is taken over the accepted state** — the amended record where a reviewer amended one, the
+proposal otherwise. This is the whole point. A host's execution grant binds to the hash of what the
+reviewer accepted; if the form covered the proposal alone, a grant minted for the record a reviewer
+*was shown* would still validate the record they *amended*, which is the substitution this framework
+exists to prevent. The amendment is folded in by `AffidavitAmendments.Apply`, the same function the
+gate uses, so the bytes a decision produces and the amended record a Docket row keeps cannot
+disagree about that decision.
+
+Three things depend on two independent implementations agreeing on these bytes: a conformance
+fixture compares canonical forms; an utterance-span binding hashes the span it points at; and an
+execution grant hashes the accepted state. Any of them breaks if two implementations disagree about
+how to write the number `1.0` or where to put the key `é` — which is why the form is specified to the
+byte and pinned by seven normative vectors rather than left to a serializer's defaults.
+
+`CanonicalSerializer` also accepts a `JsonNode` document, for a record that did not come from this
+framework's model — one read back from a store written by an older release, say — where re-typing it
+would silently rename properties the model has since changed and produce different bytes for a
+document nobody edited.
 
 ### 2.7 DocketEntry (Record) — The Review Queue Item
 
@@ -414,7 +514,8 @@ public enum TransportEvent
 {
     EvidenceCardRequest,   // -> "ConfirmAction" — framework broadcasts a write proposal awaiting
                            // human review to the UI. Payload: the EvidenceCardRequest record
-                           // (Affiant.Abstractions.Transport), carrying the Affidavit under review.
+                           // (Affiant.Abstractions.Transport), carrying the Affidavit under review
+                           // plus the envelope described below.
     EvidenceCardResponse,  // -> "EvidenceCardResponse" — reserved for the document-reserved
                            // blocking review path (§3.1); production traffic delivers the
                            // reviewer's decision through a host hub RPC method instead, never
@@ -427,15 +528,47 @@ public enum TransportEvent
                            // (Level, Message) — Level is a plain string, not a C# enum; its
                            // allowed values are pinned by the host contract net, not this type.
     DocketExpiring,        // -> "DocketExpiring" — a Pending DocketEntry (§2.7) is approaching
-                           // its review TTL. Payload: DocketExpiringNotification.
+                           // its review TTL. Payload: DocketExpiringNotification, kind
+                           // "docket-expiring".
     DocketExpired,         // -> "DocketExpired" — a Pending DocketEntry transitioned to Expired
-                           // without a reviewer decision. Payload: DocketExpiredNotification.
+                           // without a reviewer decision. Payload: DocketExpiredNotification,
+                           // kind "docket-expired".
     UiGuidance             // -> "GuideUI" — starts a UI guidance walkthrough (Rule 6, §6).
                            // Payload: Affiant.Abstractions.Transport.UiGuidancePayload. The wire
                            // name "GuideUI" is pinned to match a reference host's existing client
                            // listener — see §6's Rule 6 note for why.
 }
 ```
+
+**The Docket notifications are one discriminated union.** `DocketExpiringNotification`,
+`DocketExpiredNotification` and `DocketTransitionNotification` derive from `DocketNotification` and
+each carries a `kind` (`"docket-expiring"`, `"docket-expired"`, `"docket-transition"`) and a
+`protocolVersion`. They were told apart by *which properties they carried* — a payload with an
+`expiresAt` was the warning and one without it was the expiry — and a consumer switching on the
+presence of fields is exactly what the discriminated-union rule forbids. A notification remains a
+**hint**, never a fact a consumer may act on alone: expiry is queryable state, so an entry past its
+deadline reads expired whether or not any sweep has run or any notification arrived.
+
+**The Evidence Card envelope.** `EvidenceCardRequest` carries the record under review *plus* what a
+reviewer surface needs and the record does not swear to:
+
+| Property | What it is |
+| --- | --- |
+| `protocolVersion` | The protocol this envelope speaks. |
+| `docketId`, `affidavit`, `requiredBy` | The entry, the record, the deadline. |
+| `priorAmendments` | The amendments made on a superseded entry, or null on a first filing. A null *under a key* means the reviewer cleared that field — distinct from the key being absent. |
+| `populatedConfidence`, `emptyFieldCount` | The two companions of the aggregate (§2.6). A card shows all three numbers. |
+| `requiresConfirmation` | The policy chain's verdict — not a property of the evidence, which is why it is here. False on a blocked entry: a card that says no decision will be accepted must not also offer an approve button that cannot work. |
+| `blocked` | Why no decision will be accepted, or null. Structured, so a surface renders it rather than parsing a warning string. |
+| `presentation` | Per-field rendering hints (`name`, `kind`, `allowedValues`, `pattern`) lifted from the host's own field metadata. The gate carries a hint and validates nothing against it. |
+| `warnings` | Sentences a reviewer should see. A consumer never switches on the text of one. |
+| `hostOperation` | The host's own verb — "Reprice", "Onboard" — carried *beside* `affidavit.operationType`, never instead of it, so a card can be headed with the term a person recognises while a policy still tests the shape. |
+
+None of `presentation`, `warnings`, `hostOperation` or `requiresConfirmation` is part of the
+canonical form (§2.6.2): a host that renames a verb or changes an input mask has not changed the
+evidence. Build a card with `EvidenceCardRequest.For(...)`, which fills every repeated number from
+the record it is given — passing them by hand is how a card ends up reporting a confidence that is
+about a different set of values than the ones it shows.
 
 **Historical note.** The founding commit that first implemented this enum (2026-04-30) also
 defined a `UserMessage` member (the fourth of its original eight), added in the same commit and same line range as

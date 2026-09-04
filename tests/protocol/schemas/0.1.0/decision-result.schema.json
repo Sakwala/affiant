@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://affiant.dev/schemas/0.1.0/decision-result.schema.json",
+  "title": "DecisionResult",
+  "description": "What became of a review, as the producer reports it back: the entry, the outcome, who agreed, and — once an executor has reported — what became of the write (INVARIANTS.md DK-1, AZ-1). A decision result is a REPORT, never an authorization: the Docket row is the sole record of approval authority, and nothing replayed from this envelope stands in for the row (AZ-5). \"resubmitted\" is the outcome an expired entry reads once a successor has superseded it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocolVersion", "docketId", "outcome", "attestation", "execution"],
+  "properties": {
+    "protocolVersion": {
+      "description": "The protocol version this envelope conforms to (SR-4).",
+      "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/protocolVersion"
+    },
+    "docketId": {
+      "description": "The Docket entry this reports on.",
+      "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/uuid"
+    },
+    "outcome": {
+      "description": "What became of the review.",
+      "type": "string",
+      "enum": ["approved", "rejected", "expired", "resubmitted"]
+    },
+    "attestation": {
+      "description": "Who agreed, or null when nobody did — a rejection and an expiry carry none (AZ-1). No attribution, no execution.",
+      "oneOf": [
+        { "$ref": "https://affiant.dev/schemas/0.1.0/attestation.schema.json" },
+        { "type": "null" }
+      ]
+    },
+    "execution": {
+      "description": "What became of the write, or null when the review did not approve it. \"unexecuted\" until the host's executor reports (AZ-7).",
+      "oneOf": [
+        { "$ref": "https://affiant.dev/schemas/0.1.0/docket-entry.schema.json#/$defs/execution" },
+        { "type": "null" }
+      ]
+    }
+  }
+}

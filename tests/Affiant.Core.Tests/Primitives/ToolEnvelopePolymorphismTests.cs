@@ -29,7 +29,7 @@ public class ToolEnvelopePolymorphismTests
         // Serialize through the base type so JsonDerivedType emits the $type discriminator
         var json = JsonSerializer.Serialize<ToolEnvelope>(original, s_opts);
 
-        Assert.Contains("\"$type\"", json);
+        Assert.Contains("\"kind\"", json);
 
         var result = JsonSerializer.Deserialize<ToolEnvelope>(json, s_opts);
 
@@ -50,7 +50,7 @@ public class ToolEnvelopePolymorphismTests
 
         var json = JsonSerializer.Serialize<ToolEnvelope>(original, s_opts);
 
-        Assert.Contains("\"$type\"", json);
+        Assert.Contains("\"kind\"", json);
 
         var result = JsonSerializer.Deserialize<ToolEnvelope>(json, s_opts);
 
@@ -76,7 +76,7 @@ public class ToolEnvelopePolymorphismTests
 
         var json = JsonSerializer.Serialize<ToolEnvelope>(original, s_opts);
 
-        Assert.Contains("\"$type\"", json);
+        Assert.Contains("\"kind\"", json);
 
         var result = JsonSerializer.Deserialize<ToolEnvelope>(json, s_opts);
 

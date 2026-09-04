@@ -63,7 +63,7 @@ public class ReviewGateFilterOrderingTests
             Assert.Single(scope.ServiceProvider.GetServices<IAutoFunctionInvocationFilter>()));
 
         var writeProposalJson =
-            """{"$type":"write","toolName":"DoWrite","timestamp":"2026-01-01T00:00:00Z","envelope":null}""";
+            """{"kind":"write","toolName":"DoWrite","timestamp":"2026-01-01T00:00:00Z","envelope":null}""";
         var kernel = new Kernel(scope.ServiceProvider);
         var function = KernelFunctionFactory.CreateFromMethod(() => "unused", "DoWrite");
         var initialResult = new FunctionResult(function, writeProposalJson);

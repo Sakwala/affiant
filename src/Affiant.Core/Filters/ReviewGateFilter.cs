@@ -114,7 +114,7 @@ public sealed class ReviewGateFilter(ILogger<ReviewGateFilter> logger) : IComple
         catch (Exception ex) when (ex is JsonException or NotSupportedException)
         {
             // STJ throws JsonException for malformed JSON and NotSupportedException when a
-            // polymorphic type (ToolEnvelope) lacks the required $type discriminator.
+            // polymorphic type (ToolEnvelope) lacks the required `kind` discriminator (AF-5).
             // Both mean the result is not a WriteProposal — skip silently.
             return;
         }

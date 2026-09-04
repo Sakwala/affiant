@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://affiant.dev/schemas/0.1.0/affidavit-field.schema.json",
+  "title": "AffidavitField",
+  "description": "One sworn field inside an Affidavit: the proposed value, the value it replaces, and the whole provenance chain behind it. A field the operation does not propose — untouched on an update, not applicable to the operation — is ABSENT from the Affidavit; a proposed field whose provenance is unknown is PRESENT and tagged Empty at confidence 0. The two are never confused, which is what makes the field list a statement of intent a policy can read (INVARIANTS.md AF-1). Presentation the reviewer surface needs but the record does not swear to — the closed value set an input offers, the pattern an input is constrained by — travels beside the Affidavit, not on it: see evidence-card-request.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "kind", "value", "previousValue", "provenance", "isMandatory"],
+  "properties": {
+    "name": {
+      "description": "The field's name on the target entity. Also the key the amendment maps use.",
+      "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/identifier"
+    },
+    "kind": {
+      "description": "Rendering hint for a reviewer surface, drawn from a fixed set. It never constrains the value: the gate carries a hint and validates nothing against it.",
+      "type": "string",
+      "enum": ["text", "number", "date", "enum"]
+    },
+    "value": {
+      "description": "The proposed value. Any JSON value, null included. A monetary value is a Money object (SR-2), never a JSON number.",
+      "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/jsonValue"
+    },
+    "previousValue": {
+      "description": "The stored value this replaces. Null on a create, and also on an update field the entity had no stored value for; the two are distinguished by the Affidavit's operationType, not by the field (AF-3). On an update the key is always present — the host's projection port supplies the values.",
+      "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/jsonValue"
+    },
+    "provenance": {
+      "description": "Where the value came from, and everything it displaced.",
+      "$ref": "https://affiant.dev/schemas/0.1.0/provenance-chain.schema.json"
+    },
+    "isMandatory": {
+      "description": "Whether the target entity requires this field. A Standing Order is never honoured while a mandatory proposed field reads Empty (GT-5), so this is not decoration.",
+      "type": "boolean"
+    }
+  }
+}

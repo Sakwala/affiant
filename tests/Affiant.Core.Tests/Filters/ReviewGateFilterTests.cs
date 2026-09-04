@@ -27,7 +27,7 @@ public class ReviewGateFilterTests
     private static readonly ReviewGateFilter Filter = new(NullLogger<ReviewGateFilter>.Instance);
 
     private static string BuildWriteProposalJson(string toolName) =>
-        $$"""{"$type":"write","toolName":"{{toolName}}","timestamp":"2026-01-01T00:00:00Z","envelope":null}""";
+        $$"""{"kind":"write","toolName":"{{toolName}}","timestamp":"2026-01-01T00:00:00Z","envelope":null}""";
 
     private static ToolInvocationContext Ctx(IServiceProvider services, object? toolResult)
     {
@@ -186,7 +186,7 @@ public class ReviewGateFilterTests
 
         var resultJson = Assert.IsType<string>(ctx.Result);
         using var doc = JsonDocument.Parse(resultJson);
-        Assert.Equal("error", doc.RootElement.GetProperty("$type").GetString());
+        Assert.Equal("error", doc.RootElement.GetProperty("kind").GetString());
         Assert.Equal("REVIEW_FILING_FAILED", doc.RootElement.GetProperty("code").GetString());
         Assert.False(doc.RootElement.GetProperty("retryable").GetBoolean());
 

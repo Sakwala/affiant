@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://affiant.dev/schemas/0.1.0/operation.schema.json",
+  "title": "Operation",
+  "description": "The registry of operation shapes an Affidavit may swear to. Two in v0.1, and they are shapes rather than the host's own verbs: a create names no entity and swears to no previous values; an update names the entity it changes and carries a previousValue key on every proposed field (INVARIANTS.md AF-3). \"Create-only\" is therefore a predicate a policy can test without knowing what the host calls its operations. The host's own verb travels beside this, never instead of it.",
+  "type": "string",
+  "oneOf": [
+    {
+      "const": "create",
+      "description": "A new entity. entityId is null and every field's previousValue is null."
+    },
+    {
+      "const": "update",
+      "description": "An existing entity. entityId names it, and every proposed field carries a previousValue key holding the stored value or null where there was none."
+    }
+  ],
+  "enum": ["create", "update"]
+}

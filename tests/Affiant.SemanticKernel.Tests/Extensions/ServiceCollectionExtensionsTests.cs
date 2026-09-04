@@ -216,7 +216,7 @@ public class ServiceCollectionExtensionsTests
 
         using var scope = sp.CreateScope();
         var writeProposalJson =
-            """{"$type":"write","toolName":"DoWrite","timestamp":"2026-01-01T00:00:00Z","envelope":null}""";
+            """{"kind":"write","toolName":"DoWrite","timestamp":"2026-01-01T00:00:00Z","envelope":null}""";
         var kernel = new Kernel(scope.ServiceProvider);
         var function = KernelFunctionFactory.CreateFromMethod(() => "unused", "DoWrite");
         var initialResult = new FunctionResult(function, writeProposalJson);
@@ -228,7 +228,7 @@ public class ServiceCollectionExtensionsTests
         var resultText = context.Result.GetValue<object>() as string;
         Assert.NotNull(resultText);
         Assert.Contains("REVIEW_FILING_FAILED", resultText);
-        Assert.DoesNotContain("\"$type\":\"write\"", resultText); // proves ReviewGate ran, not skipped
+        Assert.DoesNotContain("\"kind\":\"write\"", resultText); // proves ReviewGate ran, not skipped
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

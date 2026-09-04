@@ -137,7 +137,7 @@ public class AffiantFunctionInvocationMiddlewareTests
 
         var middleware = new AffiantFunctionInvocationMiddleware(Pipeline(sp), new StubRegistry());
         var writeProposalJson =
-            """{"$type":"write","toolName":"DoWrite","timestamp":"2026-01-01T00:00:00Z","envelope":null}""";
+            """{"kind":"write","toolName":"DoWrite","timestamp":"2026-01-01T00:00:00Z","envelope":null}""";
         var function = MakeFunction("DoWrite", () => writeProposalJson);
         var context = BuildContext(function);
 
@@ -146,8 +146,8 @@ public class AffiantFunctionInvocationMiddlewareTests
 
         var resultJson = Assert.IsType<string>(result);
         Assert.Contains("REVIEW_FILING_FAILED", resultJson);
-        Assert.Contains("\"$type\":\"error\"", resultJson);
-        Assert.DoesNotContain("\"$type\":\"write\"", resultJson); // not the raw, unfiled proposal
+        Assert.Contains("\"kind\":\"error\"", resultJson);
+        Assert.DoesNotContain("\"kind\":\"write\"", resultJson); // not the raw, unfiled proposal
     }
 
     private static ReviewContext BuildReviewContext() => new(

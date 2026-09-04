@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://affiant.dev/schemas/0.1.0/outside-gate.schema.json",
+  "title": "OutsideGateMarker",
+  "description": "A write a host made outside the gate — an import, a migration, a backfill (INVARIANTS.md AZ-1). It is deliberately a DIFFERENT shape from an attestation and not a fourth attestor kind: no export may render it in an attestation position, and a card shows it as outside the guarantee. The honest boundary as a mechanism rather than a paragraph — a system that quietly attributed a bulk import to whoever ran it would make the attestation record worth less than the paper it is not printed on.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["reason", "recordedBy", "at"],
+  "properties": {
+    "reason": {
+      "description": "Why the write happened outside the gate, in the host's own words.",
+      "type": "string",
+      "minLength": 1
+    },
+    "recordedBy": {
+      "description": "Who recorded the fact — the operator or the process. Not an approver: nobody approved this through the gate.",
+      "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/identifier"
+    },
+    "at": {
+      "description": "When the fact was recorded.",
+      "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/isoInstant"
+    }
+  }
+}

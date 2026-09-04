@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://affiant.dev/schemas/0.1.0/money.schema.json",
+  "title": "Money",
+  "description": "A monetary field value: a decimal string and an ISO 4217 alphabetic currency code, never a binary float (INVARIANTS.md SR-2). The reason is not fussiness about types. An Affidavit is a record a person swears to and an auditor reads back years later; a binary float cannot represent 0.10, so a card showing \"4000.10\" and a store holding 4000.099999999999 disagree about what was approved and nothing in the record says which one the reviewer saw. A decimal string is the value the reviewer read, byte for byte. This is a wire rule only: a host stores what it likes (integer minor units, a database decimal) and converts at the edge. No currency list is embedded here — ISO 4217 changes, and a table frozen into a schema would be wrong within a year; the shape is checked here and membership is the host's check.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["amount", "currency"],
+  "properties": {
+    "amount": {
+      "description": "The amount as a decimal string: an optional minus, an integer part with no leading zeros, and an optional fractional part. No exponent (\"1e3\"), no thousands separator (\"1,000\"), no leading plus, no currency symbol. At most the currency's minor-unit scale unless the host declares otherwise — that scale is the host's declaration, not a constraint this schema can carry.",
+      "type": "string",
+      "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+    },
+    "currency": {
+      "description": "The ISO 4217 alphabetic code: three uppercase ASCII letters. Never case-folded anywhere on the wire (SR-3).",
+      "type": "string",
+      "pattern": "^[A-Z]{3}$"
+    }
+  }
+}

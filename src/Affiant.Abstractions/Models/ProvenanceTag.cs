@@ -103,8 +103,35 @@ public enum InferenceSource
 /// <see cref="float.NaN"/> gets 1, 0 and 0 respectively; the clamp lives here rather than at each
 /// mint site so no caller can route around it.
 /// </param>
-/// <param name="Evidence">A human-readable line for the reviewer, or null when there is nothing to say.</param>
+/// <param name="Evidence">
+/// A human-readable line for the reviewer, or null when there is nothing to say.
+///
+/// <b>Spelled <c>note</c> on the wire</b> (SR-3): the whole record is the evidence, and this
+/// property is the one sentence a person reads. The seed wire called it <c>evidence</c>; the v0.1
+/// schema renames it. The CLR name stays <c>Evidence</c> so existing .NET call sites compile
+/// unchanged.
+/// </param>
 /// <param name="ConversationTurn">Index of the turn the value came from, or null.</param>
+/// <param name="At">
+/// When the tag was minted, or null when the producer did not stamp one.
+///
+/// <para>
+/// New in v0.1: the seed wire had nowhere to put it, so a chain read off the seed could not say
+/// <i>when</i> a claim was made — and a provenance chain whose tags cannot be placed in time is a
+/// history a reader cannot order. The v0.1 schema requires it on every tag.
+/// </para>
+///
+/// <para>
+/// <b>Nullable, and null at every framework mint site in this change.</b> Stamping it means reading
+/// a clock, and the framework's one time seam — <c>TimeProvider</c> injected into the gate and the
+/// Docket stores — arrives in a separate change that this one is not stacked on. The one place a
+/// tag is minted with an instant already in hand is a reviewer's accepted amendment, whose
+/// <c>decisionAt</c> is passed in rather than read from a clock, and that tag carries it (see
+/// <see cref="AffidavitAmendments.AmendmentTag"/>). Every other mint site stamps null until the
+/// clock seam lands, at which point they take it from the injected provider rather than from
+/// <c>DateTimeOffset.UtcNow</c>.
+/// </para>
+/// </param>
 /// <param name="Binding">
 /// What to look at to check the value, or null when the producer had nothing to point at. A tag
 /// graded above <see cref="ProvenanceSource.Conversation"/> should carry one — see
@@ -113,13 +140,14 @@ public enum InferenceSource
 public sealed record ProvenanceTag(
     ProvenanceSource Source,
     float Confidence,
-    string? Evidence,
+    [property: JsonPropertyName("note")] string? Evidence,
     int? ConversationTurn,
-    ProvenanceBinding? Binding = null)
+    ProvenanceBinding? Binding = null,
+    DateTimeOffset? At = null)
 {
     private readonly float _confidence = Normalize(Source, Confidence);
 
-    /// <inheritdoc cref="ProvenanceTag(ProvenanceSource, float, string?, int?, ProvenanceBinding?)" />
+    /// <inheritdoc cref="ProvenanceTag(ProvenanceSource, float, string?, int?, ProvenanceBinding?, DateTimeOffset?)" />
     public float Confidence
     {
         get => this.Source == ProvenanceSource.Empty ? 0f : _confidence;
