@@ -144,7 +144,9 @@ update at all.
    Affidavit the gate returns on `ReviewOutcome.Approved.AmendedAffidavit`, or call
    `AffidavitAmendments.Apply` — one fold, one answer.
 
-### Added
+### The telemetry-key registry
+
+#### Added
 
 - **The telemetry-key registry** (`Affiant.Abstractions.Telemetry.TelemetryKeys`, plus an embedded
   `telemetry-keys.json` conforming to the Affiant protocol's `telemetry-key.schema.json`). Every
@@ -184,7 +186,7 @@ update at all.
   its policies gets those names on `standing-order.fired` and `standing-order.blocked` instead of
   the type name.
 
-### Changed
+#### Changed
 
 - **`AffiantWireUpValidator` now refuses an unusable review deadline.** An
   `AffiantCoreOptions.DefaultDocketTtl` under one millisecond, or large enough to overflow the
@@ -195,7 +197,7 @@ update at all.
 - **A host approval policy whose `EvaluateAsync` throws now emits `policy.invalid` before the
   exception propagates.** The throw is not swallowed — the chain still fails closed.
 
-### Deprecated
+#### Deprecated
 
 - **`affidavit.projected`** — superseded by `affidavit.filed`, emitted by `ReviewGate` when the
   Affidavit becomes a Docket entry, and by `affidavit.refused.substance` for the hollow-Affidavit
@@ -206,6 +208,114 @@ update at all.
   `affiant.tool_error`, `affiant.review.filing_failed`, `affiant.review.broadcast_failed`,
   `affiant.extractor.failed` and the `inference.*` family — are **not** deprecated: they name things
   the registry does not cover, and they keep their names.
+
+### The gate pipeline in protocol order
+
+The gate now runs the steps in the order the rules fix — **substance refusal → the approval-policy
+chain → the deadline stamped from what the chain returned → filed** — and refuses, rather than skips,
+three wirings it cannot run. Four defects close together because they are one defect seen from four
+angles: the gate did things in an order that made two of its own rules unreachable, and passed a
+write through when it could not do them at all.
+
+#### Changed
+
+- **The pipeline order is fixed.** `ReviewGate.FileForReviewCoreAsync` previously filed the Docket
+  row first, with a deadline computed from one process-wide default, and evaluated the approval
+  policy afterwards. It now refuses a proposal that swears to nothing, then walks the policy chain,
+  then stamps the deadline from what the chain returned, then files. *Why it matters:* in the old
+  order a policy could not name a review window at all — the window was already stamped by the time
+  the policy spoke — and nothing checked whether the proposal swore to anything before a reviewer was
+  asked about it.
+- **An idempotent re-file keeps the entry's existing deadline.** A file with an `EntryId` that
+  already exists returns that entry's state and, while it is still pending, re-broadcasts *that
+  entry's* card with its **existing** `ExpiresAt`. It previously broadcast a card carrying a freshly
+  computed deadline while the row kept its original, so a reviewer could be shown a deadline the
+  record does not hold.
+- **`ReviewGateFilter` fails closed** (closes `Sakwala/affiant#75`). Three branches that returned
+  quietly at debug-log level — no `IReviewContextProvider` registered, no review context available
+  for this call, no `ReviewGate` registered — left the raw proposal as the tool's visible result, so
+  the model was free to report an unfiled, unreviewed write as done. All three are now refusals
+  carrying `wireup-invalid`. A tool the framework's registry declares write-capable that returns
+  something *other* than a proposal is refused too, rather than skipped. This is the failure mode for
+  exactly the call sites that most need the gate: a queue consumer, a cron trigger, a background job.
+- **`AffiantWireUpValidator` refuses a host that declares a write-capable tool and registers no
+  `IReviewContextProvider` or no `ReviewGate`** — at startup, before any turn.
+  `AffiantCoreOptions.AcknowledgeMissingReviewWiring` does **not** downgrade these two: it exists for
+  a host deliberately running the read and inference half with no review loop, and a host that has
+  declared a write-capable tool is, by its own declaration, not that host. There is no option that
+  turns the gate off for a tool it covers.
+- **A Standing Order held back by its risk ceiling degrades instead of vanishing.**
+  `StandingOrderBase.EvaluateAsync` returned `null` when the host's score was above the threshold,
+  letting a later policy speak as though the order had never fired. It now returns a verdict
+  requiring reviewer confirmation, with the reason on the record.
+
+#### Added
+
+- **`ApprovalVerdict`**, and `IApprovalPolicy.EvaluateAsync` returns one rather than a bare
+  `ReviewRequirement`. It carries the requirement in force, this write's `TimeToLive`, a one-line
+  `Reason` for the reviewer's card, the stable `BlockedReason` code when a Standing Order was held
+  back, and `DegradedFrom`. A bare `ReviewRequirement` converts to one implicitly, so a policy with
+  nothing to say about the deadline still reads as one line.
+- **`IApprovalPolicy.DefaultTimeToLive`** and **`IApprovalPolicy.DeclaredInputs`** — both default
+  interface members, so an existing implementation needs no new code. The deadline is the verdict's,
+  else the policy's default, else `AffiantCoreOptions.DefaultDocketTtl`.
+- **Runtime substance refusal (`substance-refused`).** A proposal with no fields, with every proposed
+  field tagged `Empty`, or with a value asserted under `Empty` provenance is refused at the gate —
+  not filed, not counted, not broadcast — and the refusal is the tool's error result. `0`, `false`,
+  an empty array and an empty object are values; only `null` and a blank string are empty. The check
+  previously existed only in `ComplianceHarness`, which runs in an adopter's own test suite and never
+  in production; the harness keeps it, and the gate now has one too.
+- **Two policy faults are refused at evaluation with nothing filed** (`wireup-invalid`): a verdict
+  carrying a review window that is not a deadline, and an `EvaluateAsync` that throws. Both raise
+  `AffiantPolicyException` after emitting `policy.invalid`. The throw is not swallowed — a chain that
+  cannot answer must not fall through to a weaker requirement.
+- **A Standing Order is never honoured while a proposed field marked mandatory reads `Empty`**
+  (`mandatory-field-empty`), **nor while a provenance grade the policy predicates on points at
+  nothing** (`unbound-declared-input`). Both degrade the verdict to reviewer confirmation, keep the
+  policy's own review window — the degrade changes who decides, not when the window closes — and name
+  themselves on `standing-order.blocked`. The checks run in a fixed order: the empty required field
+  first (it depends on nothing the policy declared, so a host's risk scorer is never spent on a
+  proposal with a hole in it), then the binding check, then the risk comparison. An *optional* field
+  left `Empty` does not hold a Standing Order back; a host that wants it to predicates its own policy
+  on `PopulatedConfidence` or `EmptyFieldCount`.
+- **`AffiantRefusalException`** with `AffiantSubstanceException` and `AffiantPolicyException`;
+  **`StandingOrderGuard`** and **`StandingOrderGuardrails`** (the two host-independent checks as one
+  shared implementation, so the base class, the chain and a fixture cannot drift); **`ReviewDeadline`**
+  (what counts as a review window, held to one definition by the wire-up validator and the chain);
+  **`ToolErrorCodes.SubstanceRefused`** and **`ToolErrorCodes.WireUpInvalid`**.
+
+#### Fixed
+
+- `Sakwala/affiant#58` — the deadline was stamped from one global default before the policy chain ran.
+- `Sakwala/affiant#60` — the hollow-Affidavit check ran only in `ComplianceHarness`, never at runtime.
+- `Sakwala/affiant#75` — `ReviewGateFilter` failed open silently when unwired.
+
+#### Upgrade notes (breaking changes; pre-1.0 breaks are permitted and declared)
+
+1. **`IApprovalPolicy.EvaluateAsync` returns `Task<ApprovalVerdict?>`** (was
+   `Task<ReviewRequirement?>`). *Migration:* change the return type. The bodies usually need no other
+   change — a `ReviewRequirement` converts to an `ApprovalVerdict` implicitly. A
+   `Task.FromResult<ReviewRequirement?>(x)` becomes `Task.FromResult<ApprovalVerdict?>(x)`.
+2. **`IApprovalPolicyEvaluator.EvaluateAsync` returns `Task<ApprovalVerdict>`** (was
+   `Task<ReviewRequirement>`). *Migration:* read `.Requirement` at the call site, or take the whole
+   verdict — it is what carries the deadline and the degrade reason.
+3. **A `StandingOrderBase` subclass held back by its ceiling now returns a verdict, not `null`.** A
+   host chain that relied on a later policy speaking after an over-threshold order will now stop at
+   the degraded verdict — which asks a person, the safe direction. *Migration:* if a later policy was
+   meant to have the final say, order it before the Standing Order.
+4. **A host that declares a write-capable tool must register an `IReviewContextProvider`** or the
+   application fails at startup, whatever `AcknowledgeMissingReviewWiring` says. *Migration:* register
+   one, or declare the tool a read with `services.AddAffiantReadTool(...)` if it genuinely does not
+   write.
+5. **A tool whose Affidavit swears to nothing now fails at run time** instead of filing a card a
+   reviewer could approve. *Migration:* fill the fields the tool declares and tag each with where its
+   value came from. A compliance fixture that asserted a filed entry for a hollow proposal now asserts
+   the refusal.
+6. **A write tool declared write-capable that returns a non-proposal result is refused**, where it was
+   previously passed through. *Migration:* return a `WriteProposal`, or declare the tool a read.
+7. **A tool that writes inside its own body is outside the guarantee (GT-6)** — no filter and no
+   wire-up check can see it. This is stated, not fixed: the framework guarantees only that such a tool
+   cannot commit *through* it.
 
 ## [1.0.0-beta.1.1] — unreleased
 

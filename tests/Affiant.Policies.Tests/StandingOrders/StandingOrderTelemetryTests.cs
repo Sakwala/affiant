@@ -16,15 +16,32 @@ using Xunit;
 /// </summary>
 public class StandingOrderTelemetryTests
 {
+    /// <summary>
+    /// A by-the-book Standing Order — match, no risk ceiling — fires, and says so. No
+    /// <c>risk.score</c> attribute: nothing was scored, and an absent attribute is honest where a
+    /// zero would read as "scored, and it was zero".
+    /// </summary>
     [Fact]
     public async Task AnOrderThatFires_EmitsStandingOrderFired()
     {
         using var probe = new TelemetryProbe();
 
-        await new LowRiskOrder().EvaluateAsync(NoFields());
+        await new ByTheBookOrder().EvaluateAsync(NoFields());
 
         var attributes = probe.Attributes(TelemetryKeys.StandingOrderFired);
-        Assert.Equal(typeof(LowRiskOrder).FullName, attributes[TelemetryKeys.Attributes.PolicyId]);
+        Assert.Equal(typeof(ByTheBookOrder).FullName, attributes[TelemetryKeys.Attributes.PolicyId]);
+        Assert.False(attributes.ContainsKey(TelemetryKeys.Attributes.RiskScore));
+        Assert.False(probe.Saw(TelemetryKeys.StandingOrderBlocked));
+    }
+
+    [Fact]
+    public async Task AnOrderThatFiresUnderItsCeiling_CarriesTheScoreItWasJudgedOn()
+    {
+        using var probe = new TelemetryProbe();
+
+        await new UnderThresholdOrder().EvaluateAsync(NoFields());
+
+        var attributes = probe.Attributes(TelemetryKeys.StandingOrderFired);
         Assert.Equal((int)RiskLevel.Low, attributes[TelemetryKeys.Attributes.RiskScore]);
         Assert.False(probe.Saw(TelemetryKeys.StandingOrderBlocked));
     }
@@ -34,9 +51,12 @@ public class StandingOrderTelemetryTests
     {
         using var probe = new TelemetryProbe();
 
-        var requirement = await new DefaultScoredOrder().EvaluateAsync(HighValue());
+        var verdict = await new OverThresholdOrder().EvaluateAsync(HighValue());
 
-        Assert.Null(requirement);
+        // The order matched and had an opinion, so it degrades to ReviewerConfirmation rather
+        // than returning null and letting a later policy speak as though it never fired.
+        Assert.Equal(ReviewRequirement.ReviewerConfirmation, verdict!.Requirement);
+        Assert.Equal(ReviewRequirement.StandingOrder, verdict.DegradedFrom);
         var attributes = probe.Attributes(TelemetryKeys.StandingOrderBlocked);
         Assert.Equal("risk-above-threshold", attributes[TelemetryKeys.Attributes.BlockedReason]);
         Assert.Equal((int)RiskLevel.Low, attributes[TelemetryKeys.Attributes.RiskThreshold]);
@@ -74,38 +94,47 @@ public class StandingOrderTelemetryTests
 
     // ── Test doubles ─────────────────────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// A host-supplied scorer that answers Low.
-    ///
-    /// <para>
-    /// It has to exist for these tests to reach the fired path at all: the shipped
-    /// <see cref="RiskScoreCalculatorBase"/> default never returns
-    /// <see cref="RiskLevel.Low"/> while <see cref="StandingOrderBase.RiskThreshold"/> defaults to
-    /// Low, so a by-the-book Standing Order built on the defaults can never fire. That is the
-    /// defect rule GT-5 names, and moving the risk function to the host is the gate change's job,
-    /// not this one's — recorded here so the workaround is not mistaken for the test being contrived.
-    /// </para>
-    /// </summary>
+    /// <summary>A host-supplied scorer that answers Low — under any Low ceiling.</summary>
     private sealed class LowScoringCalculator : RiskScoreCalculatorBase
     {
         public override Task<int> ComputeAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
             => Task.FromResult((int)RiskLevel.Low);
     }
 
-    private sealed class LowRiskOrder() : StandingOrderBase(new LowScoringCalculator())
+    /// <summary>Match and nothing else — the shape the framework documents. It needs no scorer.</summary>
+    private sealed class ByTheBookOrder : StandingOrderBase
     {
         protected override Task<bool> MatchesAsync(Affidavit affidavit, CancellationToken ct)
             => Task.FromResult(true);
     }
 
-    private sealed class DefaultScoredOrder() : StandingOrderBase(new DefaultRiskScoreCalculator())
+    private sealed class UnderThresholdOrder() : StandingOrderBase(new LowScoringCalculator())
     {
+        protected override int? RiskThreshold => (int)RiskLevel.Low;
+
         protected override Task<bool> MatchesAsync(Affidavit affidavit, CancellationToken ct)
             => Task.FromResult(true);
     }
 
-    private sealed class NeverMatchingOrder() : StandingOrderBase(new DefaultRiskScoreCalculator())
+    /// <summary>A host-supplied scorer that answers High — over any Low ceiling.</summary>
+    private sealed class HighScoringCalculator : RiskScoreCalculatorBase
     {
+        public override Task<int> ComputeAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
+            => Task.FromResult((int)RiskLevel.High);
+    }
+
+    private sealed class OverThresholdOrder() : StandingOrderBase(new HighScoringCalculator())
+    {
+        protected override int? RiskThreshold => (int)RiskLevel.Low;
+
+        protected override Task<bool> MatchesAsync(Affidavit affidavit, CancellationToken ct)
+            => Task.FromResult(true);
+    }
+
+    private sealed class NeverMatchingOrder() : StandingOrderBase(new HighScoringCalculator())
+    {
+        protected override int? RiskThreshold => (int)RiskLevel.Low;
+
         protected override Task<bool> MatchesAsync(Affidavit affidavit, CancellationToken ct)
             => Task.FromResult(false);
     }
@@ -158,12 +187,13 @@ public class StandingOrderTelemetryTests
 
     // ── Helpers ──────────────────────────────────────────────────────────────────────────────
 
-    private static Affidavit NoFields() => new(
-        OperationType: "Test", EntityType: "TestEntity", EntityId: null, Fields: [],
-        AggregateConfidence: 1.0f, Warnings: [], RequiresConfirmation: false);
+    private static Affidavit NoFields() => Affidavit.Create(
+        operationType: "Test", entityType: "TestEntity", entityId: null, fields: [],
+        warnings: [], requiresConfirmation: false);
 
-    private static Affidavit HighValue() => new(
-        OperationType: "Test", EntityType: "TestEntity", EntityId: null,
-        Fields: [new AffidavitField("Value", 100m, null, ProvenanceChain.From(ProvenanceTag.Empty))],
-        AggregateConfidence: 1.0f, Warnings: [], RequiresConfirmation: false);
+    private static Affidavit HighValue() => Affidavit.Create(
+        operationType: "Test", entityType: "TestEntity", entityId: null,
+        fields: [new AffidavitField("Value", 100m, null,
+            ProvenanceChain.From(ProvenanceTag.FromInference(InferenceSource.Inferred, "Value", 0.8f)))],
+        warnings: [], requiresConfirmation: false);
 }

@@ -81,6 +81,17 @@ public sealed class AffiantWireUpValidator(
         "Affidavit carries the value each field replaces so a reviewer can see what is changing. " +
         "Register a source, or declare those tools as creates";
 
+    private static string ReviewContextProviderFix(IReadOnlyList<string> writeTools) =>
+        "register a host IReviewContextProvider that builds a ReviewContext from the caller's " +
+        "identity — needed because " + $"[{string.Join(", ", writeTools)}] " +
+        "are declared write-capable, and a proposal the gate cannot route to a reviewer is a write " +
+        "nobody reviews";
+
+    private static string ReviewGateFix(IReadOnlyList<string> writeTools) =>
+        "call services.AddAffiantCore(...) in this application's composition root — needed because " +
+        $"[{string.Join(", ", writeTools)}] are declared write-capable and there is nothing " +
+        "registered to file their proposals with";
+
     private const string DocketStoreFix =
         "call services.AddAffiantEntityFramework(ef => ef.UseSqlite(...) | ef.UsePostgres(...)) " +
         "(package Affiant.EntityFramework) for a durable review queue, or " +
@@ -116,15 +127,41 @@ public sealed class AffiantWireUpValidator(
         // wiring changes.
         var updateTools = toolRegistry?.All
             .Where(d => Operation.IsUpdateShaped(d.Operation.Kind))
-            .Select(d => d.PluginName is null ? d.FunctionName : $"{d.PluginName}.{d.FunctionName}")
+            .Select(Describe)
             .ToArray() ?? [];
 
         if (updateTools.Length > 0 && !isService.IsService(typeof(IPreviousValueSource)))
             missing.Add((typeof(IPreviousValueSource).FullName!, PreviousValueSourceFix(updateTools)));
 
-        if (missing.Count == 0) return Task.CompletedTask;
+        // CV-1: a tool this application declares write-capable must have somewhere for its proposal
+        // to go and someone for the review to be routed to, or the gate is a decoration. Two of the
+        // three ways ReviewGateFilter could previously pass a write through unreviewed are visible
+        // from here — no IReviewContextProvider and no ReviewGate — and refusing them at startup is
+        // strictly better than refusing the first write of the first conversation. The third (a
+        // provider that returns no context for this particular call) only a live request can know,
+        // and the filter refuses it there.
+        var writeTools = toolRegistry?.All
+            .Where(d => d.Operation.Kind != Operation.ReadQuery.Kind)
+            .Select(Describe)
+            .ToArray() ?? [];
 
-        if (options.AcknowledgeMissingReviewWiring)
+        var gateMissing = new List<(string Contract, string Fix)>();
+        if (writeTools.Length > 0)
+        {
+            if (!isService.IsService(typeof(IReviewContextProvider)))
+                gateMissing.Add((typeof(IReviewContextProvider).FullName!, ReviewContextProviderFix(writeTools)));
+
+            if (!isService.IsService(typeof(ReviewGate)))
+                gateMissing.Add((typeof(ReviewGate).FullName!, ReviewGateFix(writeTools)));
+        }
+
+        if (missing.Count == 0 && gateMissing.Count == 0) return Task.CompletedTask;
+
+        // "No option turns the gate off for a tool it covers" (CV-1). The acknowledgment exists for
+        // the host that deliberately runs Affiant's read/inference half with no review loop — and a
+        // host that has declared a write-capable tool is, by its own declaration, not that host. So
+        // it downgrades the review-wiring contracts and never these two.
+        if (options.AcknowledgeMissingReviewWiring && gateMissing.Count == 0)
         {
             foreach (var (contract, fix) in missing)
             {
@@ -144,9 +181,20 @@ public sealed class AffiantWireUpValidator(
             "machine every write proposal is filed through, and the Affidavit projection that builds " +
             "what a reviewer sees — but the following contracts it needs were not registered by any " +
             "package in this application:");
-        foreach (var (contract, fix) in missing)
+        foreach (var (contract, fix) in missing.Concat(gateMissing))
             message.AppendLine($"- {contract} — {fix}.");
         message.AppendLine();
+        if (gateMissing.Count > 0)
+        {
+            message.AppendLine(
+                "AffiantCoreOptions.AcknowledgeMissingReviewWiring does not apply to the entries " +
+                "above that name a write-capable tool: it exists for a host that deliberately runs " +
+                "the read and inference half with no review loop, and this host has declared tools " +
+                "that propose writes. There is no option that turns the gate off for a tool it " +
+                "covers — declare those tools as reads with services.AddAffiantReadTool(...) if they " +
+                "genuinely do not write.");
+            message.AppendLine();
+        }
         message.AppendLine(
             "Without them the application starts and converses normally, and the gap surfaces only " +
             "when a tool first produces a WriteProposal — mid-conversation, at the one moment " +
@@ -163,6 +211,9 @@ public sealed class AffiantWireUpValidator(
 
     /// <inheritdoc />
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    private static string Describe(AffiantToolDescriptor d) =>
+        d.PluginName is null ? d.FunctionName : $"{d.PluginName}.{d.FunctionName}";
 
     /// <summary>
     /// Refuses a review deadline no entry could survive. A time-to-live that is not at least one

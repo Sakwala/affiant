@@ -54,10 +54,10 @@ public class ApprovalPolicyEvaluatorIntegrationTests
     {
         public int CallCount { get; private set; }
 
-        public Task<ReviewRequirement?> EvaluateAsync(Affidavit affidavit, CancellationToken ct = default)
+        public Task<ApprovalVerdict?> EvaluateAsync(Affidavit affidavit, CancellationToken ct = default)
         {
             CallCount++;
-            return Task.FromResult<ReviewRequirement?>(null);
+            return Task.FromResult<ApprovalVerdict?>(null);
         }
     }
 
@@ -84,7 +84,7 @@ public class ApprovalPolicyEvaluatorIntegrationTests
 
         var result = await evaluator.EvaluateAsync(MakeAffidavit());
 
-        Assert.Equal(ReviewRequirement.ReviewerConfirmation, result);
+        Assert.Equal(ReviewRequirement.ReviewerConfirmation, result!.Requirement);
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public class ApprovalPolicyEvaluatorIntegrationTests
 
         var result = await evaluator.EvaluateAsync(MakeAffidavit());
 
-        Assert.Equal(ReviewRequirement.ReviewerConfirmation, result);
+        Assert.Equal(ReviewRequirement.ReviewerConfirmation, result!.Requirement);
     }
 
     [Fact]
@@ -115,7 +115,7 @@ public class ApprovalPolicyEvaluatorIntegrationTests
 
         var result = await evaluator.EvaluateAsync(MakeAffidavit());
 
-        Assert.Equal(ReviewRequirement.ReferralRequired, result);
+        Assert.Equal(ReviewRequirement.ReferralRequired, result!.Requirement);
         Assert.Equal(1, neverPolicy.CallCount);  // NeverMatchingPolicy was called once then chain stopped at Referral
     }
 
@@ -140,8 +140,8 @@ public class ApprovalPolicyEvaluatorIntegrationTests
         var resultA = await evaluatorA.EvaluateAsync(affidavit);
         var resultB = await evaluatorB.EvaluateAsync(affidavit);
 
-        Assert.Equal(ReviewRequirement.StandingOrder, resultA);
-        Assert.Equal(ReviewRequirement.ReferralRequired, resultB);
+        Assert.Equal(ReviewRequirement.StandingOrder, resultA!.Requirement);
+        Assert.Equal(ReviewRequirement.ReferralRequired, resultB!.Requirement);
     }
 
     [Fact]
@@ -161,7 +161,7 @@ public class ApprovalPolicyEvaluatorIntegrationTests
 
         var result = await evaluator.EvaluateAsync(MakeAffidavit());
 
-        Assert.Equal(ReviewRequirement.StandingOrder, result);
+        Assert.Equal(ReviewRequirement.StandingOrder, result!.Requirement);
     }
 
     [Fact]
@@ -175,7 +175,7 @@ public class ApprovalPolicyEvaluatorIntegrationTests
 
         var result = await evaluator.EvaluateAsync(MakeAffidavit());
 
-        Assert.Equal(ReviewRequirement.StandingOrder, result);
+        Assert.Equal(ReviewRequirement.StandingOrder, result!.Requirement);
     }
 
     [Fact]
@@ -190,7 +190,7 @@ public class ApprovalPolicyEvaluatorIntegrationTests
 
         var result = await evaluator.EvaluateAsync(MakeAffidavit());
 
-        Assert.Equal(ReviewRequirement.ReviewerConfirmation, result);
+        Assert.Equal(ReviewRequirement.ReviewerConfirmation, result!.Requirement);
     }
 
     [Fact]
@@ -209,7 +209,7 @@ public class ApprovalPolicyEvaluatorIntegrationTests
 
         var result = await evaluator.EvaluateAsync(MakeAffidavit());
 
-        Assert.Equal(ReviewRequirement.StandingOrder, result);
+        Assert.Equal(ReviewRequirement.StandingOrder, result!.Requirement);
     }
 
     private sealed class AlwaysLowCalculator : RiskScoreCalculatorBase

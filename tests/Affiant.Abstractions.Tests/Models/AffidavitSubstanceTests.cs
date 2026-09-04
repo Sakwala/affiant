@@ -37,7 +37,7 @@ public class AffidavitSubstanceTests
     public void AValueUnderEmptyProvenance_IsTheHollowSignature_AndNamesTheField()
     {
         var affidavit = Affidavit([
-            Field("title", "Q3 invoice", ProvenanceTag.FromInference("title", 0.9f)),
+            Field("title", "Q3 invoice", ProvenanceTag.FromInference(InferenceSource.Inferred, "title", 0.9f)),
             Field("amount", 4200, ProvenanceTag.Empty),
         ]);
 
@@ -57,7 +57,7 @@ public class AffidavitSubstanceTests
     public void AnEmptyValueUnderEmptyProvenance_IsNotHollow(string? value)
     {
         var affidavit = Affidavit([
-            Field("title", "Q3 invoice", ProvenanceTag.FromInference("title", 0.9f)),
+            Field("title", "Q3 invoice", ProvenanceTag.FromInference(InferenceSource.Inferred, "title", 0.9f)),
             Field("amount", value, ProvenanceTag.Empty),
         ]);
 
@@ -68,7 +68,7 @@ public class AffidavitSubstanceTests
     public void OneSubstantiveField_IsEnough()
     {
         var affidavit = Affidavit([
-            Field("title", "Q3 invoice", ProvenanceTag.FromInference("title", 0.9f)),
+            Field("title", "Q3 invoice", ProvenanceTag.FromInference(InferenceSource.Inferred, "title", 0.9f)),
             Field("amount", value: null, ProvenanceTag.Empty),
         ]);
 
@@ -95,12 +95,11 @@ public class AffidavitSubstanceTests
     private static AffidavitField Field(string name, object? value, ProvenanceTag tag) =>
         new(name, value, null, ProvenanceChain.From(tag));
 
-    private static Affidavit Affidavit(AffidavitField[] fields) => new(
-        OperationType: "CreateInvoice",
-        EntityType: "Invoice",
-        EntityId: null,
-        Fields: fields,
-        AggregateConfidence: 0f,
-        Warnings: [],
-        RequiresConfirmation: true);
+    private static Affidavit Affidavit(AffidavitField[] fields) =>
+        Abstractions.Models.Affidavit.Create(
+            operationType: "CreateInvoice",
+            entityType: "Invoice",
+            entityId: null,
+            fields: fields,
+            warnings: []);
 }

@@ -228,8 +228,13 @@ public class RegistryTelemetryTests
         using var probe = new TelemetryProbe();
         var evaluator = new ApprovalPolicyEvaluator([new ThrowingPolicy()]);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
+        // The host's throw is not swallowed — it becomes a stated refusal carrying wireup-invalid
+        // (CV-1) with the original throw as the inner exception, so the tool seam can hand the model
+        // an error result instead of letting a raw stack trace escape.
+        var refusal = await Assert.ThrowsAsync<AffiantPolicyException>(
             () => evaluator.EvaluateAsync(BuildAffidavit()));
+        Assert.Equal("wireup-invalid", refusal.Code);
+        Assert.IsType<InvalidOperationException>(refusal.InnerException);
 
         var attributes = probe.Attributes(TelemetryKeys.PolicyInvalid);
         Assert.Equal(typeof(ThrowingPolicy).FullName, attributes[TelemetryKeys.Attributes.PolicyId]);
@@ -244,7 +249,7 @@ public class RegistryTelemetryTests
 
         var requirement = await evaluator.EvaluateAsync(BuildAffidavit());
 
-        Assert.Equal(ReviewRequirement.ReviewerConfirmation, requirement);
+        Assert.Equal(ReviewRequirement.ReviewerConfirmation, requirement!.Requirement);
         Assert.False(probe.Saw(TelemetryKeys.PolicyInvalid));
     }
 
@@ -282,7 +287,7 @@ public class RegistryTelemetryTests
 
     private sealed class ThrowingPolicy : IApprovalPolicy
     {
-        public Task<ReviewRequirement?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
+        public Task<ApprovalVerdict?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
             => throw new InvalidOperationException("this policy is broken");
     }
 
@@ -359,8 +364,8 @@ public class RegistryTelemetryTests
 
     private sealed class FixedRequirementEvaluator(ReviewRequirement requirement) : IApprovalPolicyEvaluator
     {
-        public Task<ReviewRequirement> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
-            => Task.FromResult(requirement);
+        public Task<ApprovalVerdict> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
+            => Task.FromResult<ApprovalVerdict>(requirement);
     }
 
     private static (ReviewGate Gate, TestDocketStore Store) CreateGate(
@@ -373,15 +378,13 @@ public class RegistryTelemetryTests
         return (gate, store);
     }
 
-    private static Affidavit BuildAffidavit() => new(
-        OperationType: "CreateOrder",
-        EntityType: "Order",
-        EntityId: null,
-        Fields: [new AffidavitField("title", "Test Order", null,
-            ProvenanceChain.From(ProvenanceTag.FromInference("title", 0.8f)))],
-        AggregateConfidence: 0.8f,
-        Warnings: [],
-        RequiresConfirmation: true);
+    private static Affidavit BuildAffidavit() => Affidavit.Create(
+        operationType: "CreateOrder",
+        entityType: "Order",
+        entityId: null,
+        fields: [new AffidavitField("title", "Test Order", null,
+            ProvenanceChain.From(ProvenanceTag.FromInference(InferenceSource.Inferred, "title", 0.8f)))],
+        warnings: []);
 
     private static (WriteProposal Proposal, ReviewContext Context) CreateInput(Guid? entryId = null)
     {

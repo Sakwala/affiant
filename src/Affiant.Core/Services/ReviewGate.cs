@@ -1,6 +1,7 @@
 namespace Affiant.Core.Services;
 
 using System.Diagnostics;
+using Affiant.Abstractions.Exceptions;
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
 using Affiant.Abstractions.Transport;
@@ -331,11 +332,30 @@ public sealed class ReviewGate(
     }
 
     /// <summary>
-    /// Shared filing core for <see cref="FileForReviewAsync"/> and <see cref="ResubmitAsync"/>:
-    /// idempotency check, DocketEntry filing, policy evaluation (StandingOrder / ReferralRequired
-    /// short-circuits), and — when a human reviewer must act — the Evidence Card broadcast. Never
+    /// Shared filing core for <see cref="FileForReviewAsync"/> and <see cref="ResubmitAsync"/>, run
+    /// in the order the protocol fixes (rule GT-1): <b>runtime substance refusal → idempotent
+    /// replay → the approval-policy chain → the deadline stamped from what the chain returned →
+    /// filed</b>, and — when a human reviewer must act — the Evidence Card broadcast. Never
     /// registers a waiter and never blocks on a reviewer response.
+    ///
+    /// <para>
+    /// <b>What changed and why (GT-1, GT-3, GT-4).</b> Until <c>1.0.0-beta.1</c> this method filed
+    /// the row first, with a deadline computed from one process-wide default, and evaluated the
+    /// policy chain afterwards. Two rules were unreachable in that order. A policy could not name a
+    /// review window, because the window was already stamped by the time the policy spoke — so "five
+    /// minutes for a high-risk write, a day for a routine one" had nowhere to be said. And nothing
+    /// checked whether the proposal swore to anything before a reviewer was asked about it: the
+    /// substance rule lived only in the compliance harness, which runs in an adopter's test suite
+    /// and never in production. Both are closed here, in the order the rule states, so a proposal
+    /// that swears to nothing never reaches a policy and a deadline is never stamped before one.
+    /// </para>
     /// </summary>
+    /// <exception cref="AffiantSubstanceException">
+    /// The proposal swears to nothing (GT-3). Nothing was filed and nothing was broadcast.
+    /// </exception>
+    /// <exception cref="AffiantPolicyException">
+    /// A policy named a review window that is not a deadline, or threw (CV-1). Nothing was filed.
+    /// </exception>
     private async Task<ReviewFilingResult> FileForReviewCoreAsync(
         WriteProposal proposal,
         ReviewContext context,
@@ -344,58 +364,95 @@ public sealed class ReviewGate(
         ArgumentNullException.ThrowIfNull(proposal);
         ArgumentNullException.ThrowIfNull(context);
 
+        // GT-3, first and outside the try: a proposal that swears to nothing is refused before any
+        // store is touched, so the refusal cannot be confused with a filing failure.
+        RefuseProposalWithoutSubstance(proposal, context);
+
         var entryId = context.EntryId ?? Guid.NewGuid();
-        var expiresAt = DateTimeOffset.UtcNow.Add(options.DefaultDocketTtl);
 
         try
         {
-            // 1. Check for an existing entry (idempotency: same EntryId filed twice).
+            // 1. An existing entry with this id is an idempotent replay, never a second entry and
+            //    never an error (GT-4, DK-1). A terminal one reports its state; a pending one
+            //    re-broadcasts ITS OWN card with ITS OWN deadline. Never a fresh one: a reviewer
+            //    shown a deadline the record does not hold is being shown a lie, and the retry
+            //    would silently extend a window the first filing already set.
             var existing = await docketStore.GetDocketEntryAsync(entryId, cancellationToken);
-            if (existing is not null && existing.Status != ReviewStatus.Pending)
-                return new ReviewFilingResult.Decided(existing.Status.ToReviewOutcome(entryId));
-
-            // 2. File a new entry if one does not already exist.
-            if (existing is null)
+            if (existing is not null)
             {
-                // Same shape as DocketEntry.Amendments since the Area-8 amendments unification —
-                // no copy or value-type widening needed on the way in.
-                var amendments = context.Amendments is { Count: > 0 } ? context.Amendments : null;
+                // TL-1 `affidavit.filed` with created=false: a host that retries a proposal wants to
+                // see the retry — an event that only fired on the first filing would make a retry
+                // storm invisible.
+                AffiantTelemetry.RecordAffidavitFiled(
+                    proposal.ToolName,
+                    context.SessionId,
+                    entryId,
+                    DocketStateName(existing.Status),
+                    existing.Envelope.Fields.Length,
+                    created: false);
 
-                var entry = new DocketEntry(
-                    EntryId: entryId,
-                    SessionId: context.SessionId,
-                    TenantId: context.TenantId,
-                    UserId: context.UserId,
-                    ReviewerUserId: context.ReviewerUserId,
-                    OperationType: proposal.ToolName,
-                    Envelope: context.Affidavit,
-                    Status: ReviewStatus.Pending,
-                    CreatedAt: DateTimeOffset.UtcNow,
-                    ExpiresAt: expiresAt,
-                    Amendments: amendments);
-                await docketStore.FileDocketEntryAsync(entry, cancellationToken);
+                if (existing.Status != ReviewStatus.Pending)
+                    return new ReviewFilingResult.Decided(existing.Status.ToReviewOutcome(entryId));
+
+                var replay = await EvidenceCardRequestFactory.CreateAsync(
+                    docketStore, entryId, existing.Envelope, existing.ExpiresAt, cancellationToken);
+                await BroadcastEvidenceCardWithRetryAsync(
+                    context.SessionId, entryId, existing.OperationType, replay, cancellationToken);
+
                 logger.LogInformation(
-                    "Filed DocketEntry {EntryId} for tool {ToolName}", entryId, proposal.ToolName);
+                    "Replayed DocketEntry {EntryId} for tool {ToolName}: still pending, re-broadcast " +
+                    "with its existing deadline {ExpiresAt}",
+                    entryId, proposal.ToolName, existing.ExpiresAt);
+                return new ReviewFilingResult.RequiresReview(entryId);
             }
 
-            // TL-1 `affidavit.filed`. Emitted for a replay too, with created=false, because a host
-            // that retries a proposal wants to see the retry — an event that only fired on the first
-            // filing would make a retry storm invisible. `docket.requirement` is absent: this
-            // release files before it evaluates the policy chain (the rulebook's GT-1 order is the
-            // reverse), so at this point nothing knows the requirement, and a guess is worse than
-            // an absent attribute.
+            // 2. The approval-policy chain, BEFORE the row is filed (GT-1). The chain walks the
+            //    policies in registration order, takes the first non-null verdict, applies the GT-5
+            //    and PV-4 checks to it, and defaults to ReviewerConfirmation when none speaks. A
+            //    policy that names an unusable window or throws refuses here with nothing filed.
+            var verdict = await evaluator.EvaluateAsync(context.Affidavit, cancellationToken);
+            var requirement = verdict.Requirement;
+
+            // 3. The deadline, stamped from the policy result and only now (GT-4): the verdict's own
+            //    window, else the policy's declared default (the chain already folded that in), else
+            //    this gate's. One global default applied before the policy chain is what the rule
+            //    calls non-conformant, and it is what this method used to do.
+            var expiresAt = DateTimeOffset.UtcNow.Add(verdict.TimeToLive ?? options.DefaultDocketTtl);
+
+            // 4. File (DK-1).
+            //    Same shape as DocketEntry.Amendments since the Area-8 amendments unification —
+            //    no copy or value-type widening needed on the way in.
+            var amendments = context.Amendments is { Count: > 0 } ? context.Amendments : null;
+
+            var entry = new DocketEntry(
+                EntryId: entryId,
+                SessionId: context.SessionId,
+                TenantId: context.TenantId,
+                UserId: context.UserId,
+                ReviewerUserId: context.ReviewerUserId,
+                OperationType: proposal.ToolName,
+                Envelope: context.Affidavit,
+                Status: ReviewStatus.Pending,
+                CreatedAt: DateTimeOffset.UtcNow,
+                ExpiresAt: expiresAt,
+                Amendments: amendments);
+            await docketStore.FileDocketEntryAsync(entry, cancellationToken);
+            logger.LogInformation(
+                "Filed DocketEntry {EntryId} for tool {ToolName} as {Requirement}, deadline {ExpiresAt}",
+                entryId, proposal.ToolName, requirement, expiresAt);
+
+            // TL-1 `affidavit.filed`. `docket.requirement` is present now that the chain runs before
+            // the filing: the event says what the row was filed as, not a guess.
             AffiantTelemetry.RecordAffidavitFiled(
                 proposal.ToolName,
                 context.SessionId,
                 entryId,
                 DocketStateName(ReviewStatus.Pending),
                 context.Affidavit.Fields.Length,
-                created: existing is null);
+                created: true,
+                requirement: requirement.ToString());
 
-            // 3. Evaluate the approval policy pipeline before involving the reviewer.
-            var requirement = await evaluator.EvaluateAsync(context.Affidavit, cancellationToken);
-
-            // 4a. StandingOrder: auto-approve without client interaction.
+            // 5a. StandingOrder: auto-approve without client interaction.
             if (requirement == ReviewRequirement.StandingOrder)
             {
                 var approvedRows = await docketStore.UpdateReviewStatusAsync(
@@ -405,7 +462,7 @@ public sealed class ReviewGate(
                 return new ReviewFilingResult.Decided(new ReviewOutcome.Approved(entryId));
             }
 
-            // 4b. ReferralRequired: escalate without client interaction.
+            // 5b. ReferralRequired: escalate without client interaction.
             if (requirement == ReviewRequirement.ReferralRequired)
             {
                 var deferredRows = await docketStore.UpdateReviewStatusAsync(
@@ -415,7 +472,7 @@ public sealed class ReviewGate(
                 return new ReviewFilingResult.Decided(new ReviewOutcome.Referral(entryId, "referral-required"));
             }
 
-            // 4c. ReviewerConfirmation / MultiParty: send the Evidence Card. No waiter registered
+            // 5c. ReviewerConfirmation / MultiParty: send the Evidence Card. No waiter registered
             // here — that is the caller's choice (FileReviewAsync awaits it; FileForReviewAsync
             // callers route the eventual decision through HandleDecisionAsync instead). Built via
             // the shared factory (Area-5 Decision 3, affiant#28) so this payload and the sweep's
@@ -743,6 +800,57 @@ public sealed class ReviewGate(
             return null;
         }
     }
+    /// <summary>
+    /// Refuses a proposal that swears to nothing, before anything is filed and before any policy
+    /// runs (protocol rule GT-3): every proposed field reads <c>Empty</c>, there are no fields at
+    /// all, or a field asserts a value while its provenance reads <c>Empty</c> — the hollow
+    /// signature. Nothing is filed, nothing is counted, nothing is broadcast, and the caller's tool
+    /// result becomes the error arm carrying <c>substance-refused</c>.
+    ///
+    /// <para>
+    /// <b>Why at run time and not only in a test harness.</b> The founding incident this rule exists
+    /// for is a system whose structural tests were entirely green — right shape, right field names,
+    /// right envelope — while every Affidavit it produced swore to nothing, so a proposal that knew
+    /// nothing reached a reviewer looking exactly like one that knew everything. Until
+    /// <c>1.0.0-beta.1</c> the framework's answer was
+    /// <c>ComplianceHarness.AssertProvenanceIsSubstantive</c>, which runs in an adopter's own test
+    /// suite and never in production, plus a telemetry event at the projection that reported the
+    /// case and carried on. A rule that only holds where someone wrote a test is not a rule the gate
+    /// enforces. The harness keeps its check — a host wants the failure at build time too — and the
+    /// gate now refuses at run time as well.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>What counts as empty.</b> <see langword="null"/> and a blank string. <c>0</c>,
+    /// <see langword="false"/>, an empty array and an empty object are values a field can honestly
+    /// swear to, and a proposal that says "the count is zero" is a proposal, not a hollow one.
+    /// </para>
+    /// </summary>
+    private void RefuseProposalWithoutSubstance(WriteProposal proposal, ReviewContext context)
+    {
+        var failure = AffidavitSubstance.DescribeFailure(context.Affidavit);
+        if (failure is null) return;
+
+        // TL-1 `affidavit.refused.substance` (GT-3). The reason names field NAMES, which are schema,
+        // and never a field value.
+        AffiantTelemetry.RecordSubstanceRefused(
+            proposal.ToolName,
+            context.SessionId,
+            context.Affidavit.Fields.Length,
+            failure);
+
+        logger.LogWarning(
+            "ReviewGate refused the proposal from {ToolName}: {Reason}. Nothing was filed and no " +
+            "reviewer was asked.",
+            proposal.ToolName, failure);
+
+        throw new AffiantSubstanceException(
+            $"GT-3: the write '{proposal.ToolName}' proposed swears to nothing — {failure}. It was " +
+            "not filed, not counted and not broadcast: a reviewer confirming a proposal that knows " +
+            "nothing is the incident this gate exists to prevent, not an edge case it tolerates. " +
+            "Check that the tool's Affidavit projection is filling the fields it declares.");
+    }
+
     // ── The telemetry-key registry (TL-1) ────────────────────────────────────────────────────
 
     /// <summary>

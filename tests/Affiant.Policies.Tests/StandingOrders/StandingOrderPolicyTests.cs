@@ -92,9 +92,10 @@ public class StandingOrderPolicyTests
         OperationType: "Test",
         EntityType: "TestEntity",
         EntityId: null,
-        Fields: [],
-        AggregateConfidence: 1.0f,
-        PopulatedConfidence: 1.0f,
+        Fields: [new AffidavitField("field", "value", null,
+            ProvenanceChain.From(ProvenanceTag.FromTool("fixture")))],
+        AggregateConfidence: 0.9f,
+        PopulatedConfidence: 0.9f,
         EmptyFieldCount: 0,
         Warnings: [],
         RequiresConfirmation: false);
@@ -119,7 +120,7 @@ public class StandingOrderPolicyTests
 
         var result = await policy.EvaluateAsync(EmptyAffidavit());
 
-        Assert.Equal(ReviewRequirement.StandingOrder, result);
+        Assert.Equal(ReviewRequirement.StandingOrder, result!.Requirement);
     }
 
     [Fact]
@@ -170,17 +171,25 @@ public class StandingOrderPolicyTests
 
         var result = await policy.EvaluateAsync(EmptyAffidavit());
 
-        Assert.Equal(ReviewRequirement.StandingOrder, result);
+        Assert.Equal(ReviewRequirement.StandingOrder, result!.Requirement);
     }
 
+    /// <summary>
+    /// An order held back by its own ceiling <b>degrades</b> rather than returning null (GT-5). The
+    /// order matched and had an opinion; returning null would let a later policy speak as though
+    /// this one never fired, and would leave the record unable to tell a Standing Order that was
+    /// held back from a policy that simply asked for confirmation.
+    /// </summary>
     [Fact]
-    public async Task EvaluateAsync_returns_null_when_risk_exceeds_threshold()
+    public async Task EvaluateAsync_degrades_to_the_reviewer_when_risk_exceeds_threshold()
     {
         var policy = new LowCeilingOrder(new FixedScoreCalculator((int)RiskLevel.High));
 
         var result = await policy.EvaluateAsync(EmptyAffidavit());
 
-        Assert.Null(result);
+        Assert.Equal(ReviewRequirement.ReviewerConfirmation, result!.Requirement);
+        Assert.Equal(ReviewRequirement.StandingOrder, result.DegradedFrom);
+        Assert.Equal(StandingOrderBlockedReasons.RiskAboveThreshold, result.BlockedReason);
     }
 
     [Fact]
@@ -190,7 +199,7 @@ public class StandingOrderPolicyTests
 
         var result = await policy.EvaluateAsync(EmptyAffidavit());
 
-        Assert.Equal(ReviewRequirement.StandingOrder, result);
+        Assert.Equal(ReviewRequirement.StandingOrder, result!.Requirement);
     }
 
     [Fact]

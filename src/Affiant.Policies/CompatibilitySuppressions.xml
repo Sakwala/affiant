@@ -1,10 +1,36 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <!-- https://learn.microsoft.com/dotnet/fundamentals/package-validation/diagnostic-ids -->
-<!-- Declared break, permitted before 1.0: the framework's stock risk formula is removed so that a Standing Order written to the documented contract can actually auto-approve. -->
+<!--
+  Declared breaks against 1.0.0-beta.1, permitted by the repository's prerelease-stability policy and
+  required by it to be declared. Two changes account for every entry here:
+
+  1. The framework's stock risk formula is removed so that a Standing Order written to the documented
+     contract can actually auto-approve: what counts as risk is the host's to say, and the framework
+     owns only the comparison.
+  2. A Standing Order and a Referral rule return a verdict rather than a bare requirement, so an order
+     held back by one of the three checks degrades to reviewer confirmation on the record instead of
+     vanishing, and so a policy can name this write's review window.
+
+  See CHANGELOG.md's upgrade notes.
+-->
 <Suppressions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
   <Suppression>
     <DiagnosticId>CP0001</DiagnosticId>
     <Target>T:Affiant.Policies.Services.DefaultRiskScoreCalculator</Target>
+    <Left>lib/net10.0/Affiant.Policies.dll</Left>
+    <Right>lib/net10.0/Affiant.Policies.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Policies.Referrals.ReferralRuleBase.EvaluateAsync(Affiant.Abstractions.Models.Affidavit,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Policies.dll</Left>
+    <Right>lib/net10.0/Affiant.Policies.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Policies.StandingOrders.StandingOrderBase.EvaluateAsync(Affiant.Abstractions.Models.Affidavit,System.Threading.CancellationToken)</Target>
     <Left>lib/net10.0/Affiant.Policies.dll</Left>
     <Right>lib/net10.0/Affiant.Policies.dll</Right>
     <IsBaselineSuppression>true</IsBaselineSuppression>

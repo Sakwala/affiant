@@ -199,14 +199,17 @@ public class ServiceCollectionExtensionsTests
                 OperationType: "WriteCreate",
                 EntityType: "StubEntity",
                 EntityId: null,
-                Fields: [],
-                AggregateConfidence: 1.0f,
-                PopulatedConfidence: 1.0f,
+                // A substantive field: the gate refuses a proposal that swears to nothing (GT-3),
+                // so a fixture exercising the filing path has to swear to something.
+                Fields: [new AffidavitField("field", "value", null,
+                    ProvenanceChain.From(ProvenanceTag.FromTool("fixture")))],
+                AggregateConfidence: 0.9f,
+                PopulatedConfidence: 0.9f,
                 EmptyFieldCount: 0,
                 Warnings: [],
                 RequiresConfirmation: true);
             var requirement = await evaluator.EvaluateAsync(affidavit);
-            Assert.Equal(ReviewRequirement.StandingOrder, requirement);
+            Assert.Equal(ReviewRequirement.StandingOrder, requirement!.Requirement);
         }
 
         // (c) Two separate scopes get DISTINCT policy-dependency instances — kills the
@@ -232,8 +235,8 @@ public class ServiceCollectionExtensionsTests
     {
         public StubScopedPolicyDependency Dependency => dependency;
 
-        public Task<ReviewRequirement?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default) =>
-            Task.FromResult<ReviewRequirement?>(ReviewRequirement.StandingOrder);
+        public Task<ApprovalVerdict?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default) =>
+            Task.FromResult<ApprovalVerdict?>(ReviewRequirement.StandingOrder);
     }
 
     // --- Stubs for adapter interfaces ---
@@ -300,7 +303,7 @@ public class ServiceCollectionExtensionsTests
 
     private sealed class StubApprovalPolicy : IApprovalPolicy
     {
-        public Task<ReviewRequirement?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default) =>
-            Task.FromResult<ReviewRequirement?>(null);
+        public Task<ApprovalVerdict?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default) =>
+            Task.FromResult<ApprovalVerdict?>(null);
     }
 }

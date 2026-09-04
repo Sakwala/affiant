@@ -41,8 +41,8 @@ public class SubstanceRefusalTelemetryTests
         using var probe = new TelemetryProbe();
 
         var fabric = new ContextFabric();
-        fabric.SetFieldChain("Color", ProvenanceChain.From(ProvenanceTag.FromInference("Color", 0.8f)));
-        fabric.SetFieldChain("Weight", ProvenanceChain.From(ProvenanceTag.FromInference("Weight", 0.6f)));
+        fabric.SetFieldChain("Color", ProvenanceChain.From(ProvenanceTag.FromInference(InferenceSource.Inferred, "Color", 0.8f)));
+        fabric.SetFieldChain("Weight", ProvenanceChain.From(ProvenanceTag.FromInference(InferenceSource.Inferred, "Weight", 0.6f)));
         fabric.Upsert(new EntityRef("Widget", "Widget", "Widget", new Dictionary<string, object>
         {
             ["Color"] = "Red",

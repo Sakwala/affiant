@@ -283,7 +283,9 @@ public sealed record DocketEntry(
     Affidavit Envelope,
     ReviewStatus Status,
     DateTimeOffset CreatedAt,
-    DateTimeOffset ExpiresAt,                  // Default TTL: 10 minutes (configurable via Standing Order)
+    DateTimeOffset ExpiresAt,                  // Stamped AFTER the policy chain, from the verdict's
+                                                // TimeToLive, else the policy's DefaultTimeToLive,
+                                                // else AffiantCoreOptions.DefaultDocketTtl
     IReadOnlyDictionary<string, object?>? Amendments,  // Fields the reviewer changed; null value = explicitly cleared
     Guid? ResubmittedTo = null                 // Set once, by ConsumeForResubmitAsync, when this
                                                 // (Expired) entry is resubmitted — see "Resubmission
@@ -552,13 +554,52 @@ public interface IDocketStore
 ### 3.3 Approval Policy (Standing Orders and Referrals)
 
 ```csharp
-// Determines whether an Affidavit requires review, auto-approves (Standing Order), or escalates (Referral)
+// Determines whether an Affidavit requires review, auto-approves (Standing Order), or escalates
+// (Referral) — and how long the window to decide stays open.
 public interface IApprovalPolicy
 {
-    Task<ReviewRequirement> EvaluateAsync(Affidavit envelope, ConversationIdentity identity);
+    // null = "this rule has no opinion here"; the chain continues. The first non-null verdict wins;
+    // a chain that produces none falls back to ReviewerConfirmation — the safe default is a person.
+    Task<ApprovalVerdict?> EvaluateAsync(Affidavit affidavit, CancellationToken ct = default);
+
+    // The provenance sources this policy predicates on. Before a StandingOrder verdict is honoured,
+    // every proposed field whose tag in force names one of these AND is graded above Conversation
+    // must carry a binding; if any does not, the verdict degrades to ReviewerConfirmation and the
+    // policy's own window still applies. Empty (the default) for a policy that predicates only on
+    // field values or host state.
+    IReadOnlyCollection<ProvenanceSource> DeclaredInputs => [];
+
+    // This policy's own review window when its verdict names none. null falls through to
+    // AffiantCoreOptions.DefaultDocketTtl.
+    TimeSpan? DefaultTimeToLive => null;
 }
 
+public sealed record ApprovalVerdict(
+    ReviewRequirement Requirement,      // The requirement IN FORCE, after the checks below
+    TimeSpan? TimeToLive = null,        // This write's window; stamped after the chain
+    string? Reason = null,              // One line for the reviewer's card
+    string? BlockedReason = null,       // Why a Standing Order was held back, as a stable code
+    ReviewRequirement? DegradedFrom = null);
+
 public enum ReviewRequirement { StandingOrder, ReviewerConfirmation, ReferralRequired, MultiParty }
+
+// A Standing Order is never honoured while any of three checks holds it back, run in this order:
+//   1. mandatory-field-empty   — a proposed field marked mandatory reads Empty. First, because it
+//                                depends on nothing the policy declared and nothing a host port
+//                                returns, so a host's risk scorer is never spent on a proposal
+//                                with a hole in it. An OPTIONAL field left Empty does not block.
+//   2. unbound-declared-input  — a DeclaredInputs grade above Conversation points at nothing.
+//   3. risk-above-threshold    — the host's score is above the order's declared ceiling. The
+//                                framework ships no scoring formula and no floor; it owns only the
+//                                comparison, and an order that declares no ceiling needs no scorer.
+// A check that fires degrades the verdict to ReviewerConfirmation, keeps the policy's own window,
+// and names itself on the row and on the `standing-order.blocked` event.
+public static class StandingOrderBlockedReasons
+{
+    public const string MandatoryFieldEmpty  = "mandatory-field-empty";
+    public const string UnboundDeclaredInput = "unbound-declared-input";
+    public const string RiskAboveThreshold   = "risk-above-threshold";
+}
 
 // The ReviewGate's response types — adopted from Pydantic AI's ToolApproved | ToolDenied pattern
 public abstract record ReviewResponse;
@@ -1366,6 +1407,12 @@ These rules are non-negotiable. Every implementation, code review, and plugin au
 
 **Rule 3: Write tools never write.** Write-intent tools produce `WriteProposal` envelopes containing the *proposed* Affidavit with full provenance. The actual write happens only after the `ReviewGate` receives reviewer confirmation and invokes the host's `IWriteExecutor`. *Rationale*: This is the entire point of the framework — deterministic, auditable, reversible-before-commit mutations. *Anti-pattern*: A "write" tool that calls `dbContext.SaveChanges()` inside the `[KernelFunction]` method.
 
+> **The gate fails closed, and says where its guarantee ends.** `ReviewGateFilter` no longer skips a write it cannot route. Three conditions that previously returned quietly at debug-log level, leaving the raw proposal as the tool's visible result — no `IReviewContextProvider` registered, no review context available for this call, no `ReviewGate` registered — are refusals: the tool result becomes the error arm carrying `wireup-invalid`, and nothing is passed through. The first and third are also refused at startup by `AffiantWireUpValidator` (and, for an unregistered `[KernelFunction]`, by `AffiantStartupValidator`), before any turn runs. A tool the framework's registry declares write-capable that returns something *other* than a proposal is refused too, rather than skipped. `AffiantCoreOptions.AcknowledgeMissingReviewWiring` does not apply to a host that has declared a write-capable tool: it exists for a host deliberately running the read and inference half with no review loop, and there is no option that turns the gate off for a tool it covers.
+>
+> **The honest boundary.** The filter runs *after* the tool body, because that is the only seam either host framework exposes. A tool that opens its own connection and writes inside its body is **outside the guarantee** — no filter and no wire-up check can see it, and this specification states that rather than implying a coverage the framework does not have. What it does guarantee is that such a tool cannot commit *through* the framework: the gate never calls a write tool's own execute, no public API lets a tool commit through it, and a declared write tool that does not hand back a proposal is refused.
+>
+> **A proposal that swears to nothing is refused at run time**, before the policy chain runs, with `substance-refused`: no fields at all, every proposed field tagged `Empty`, or a field asserting a value while its provenance reads `Empty`. `0`, `false`, an empty array and an empty object are values; only `null` and a blank string are empty. Until the conformance release this check existed only in `ComplianceHarness`, which runs in an adopter's own test suite and never in production — a rule that holds only where someone wrote a test is not a rule the gate enforces. The harness keeps its check; the gate now has one too.
+
 **Rule 4: Filters over prompts for determinism.** Context extraction, task inference, and review gating happen in SK filters, not in prompt engineering. Prompts request tool calls; filters process the results deterministically. *Rationale*: Prompt-based context extraction is non-deterministic, non-auditable, and varies by model. Filter-based extraction produces identical results regardless of which LLM provider is active. *Anti-pattern*: Adding "After calling the tool, extract the customer's email from the result" to the system prompt.
 
 **L2 example (Story 16.3, 2026-05-16):** The empty-Affidavit regression of 2026-04-30 (commit `b72c1fa`) decomposed Meridian's host-side pre-tool inference filter into a generic post-tool framework filter that ran after every auto-invoked tool. The decomposition was behaviorally lossy: structured-output JSON from the LLM's *intent* (pre-tool) ended up parsed from the tool's *return value* (post-tool), where it never existed. The L2 fix (Story 16.3) restored pre-tool inference as a framework filter — `InferenceTriggerFilter` — which decides per-tool whether to run inference and forwards through `TaskInferenceRunner` to a host-specified `ITaskInferenceStrategy`. The fix is faithful to Rule 4: pre-tool decision logic stays in a filter, never in a prompt. Hosts cannot "ask the LLM to fill in fields" by string concatenation; they declare a strategy and the framework's filter handles the rest. See §3.12 Inference Orchestration & Affidavit Projection for the full surface.
@@ -1745,7 +1792,9 @@ ConversationContext:
 
 **Docket idempotency**: On review submission, execute `UPDATE Docket SET Status = 'Approved' WHERE EntryId = @id AND Status = 'Pending'` — the `WHERE Status = 'Pending'` clause prevents double-submit races.
 
-**Expiry sweep**: An `IHostedService` running every 30 seconds marks expired Docket entries. Default TTL is 10 minutes, configurable per `IApprovalPolicy` (Standing Order). A SignalR `DocketExpiring` notification is sent 60 seconds before expiry.
+**Expiry sweep**: An `IHostedService` running every 30 seconds marks expired Docket entries. A SignalR `DocketExpiring` notification is sent before expiry, inside `AffiantCoreOptions.DocketExpiryWarningWindow`.
+
+**The review window comes from the policy result, after the chain** — the verdict's `TimeToLive`, else the policy's own `DefaultTimeToLive`, else `AffiantCoreOptions.DefaultDocketTtl`. One global default applied *before* the policy chain is non-conformant: a policy that knows a capture is worthless in five minutes has nowhere to say so. A window that is not at least one millisecond, or too large to stamp, is a configuration error refused with `wireup-invalid` — never an entry born expired. A re-file with an existing `EntryId` is an idempotent replay: it returns the existing entry's state and, while it is still pending, re-broadcasts *that entry's* card with its **existing** deadline, never a fresh one.
 
 ---
 

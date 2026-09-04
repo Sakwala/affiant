@@ -45,14 +45,13 @@ public class ServiceCollectionExtensionsTests
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static Affidavit EmptyAffidavit() => new(
-        OperationType: "Test",
-        EntityType: "TestEntity",
-        EntityId: null,
-        Fields: [],
-        AggregateConfidence: 1.0f,
-        Warnings: [],
-        RequiresConfirmation: false);
+    private static Affidavit EmptyAffidavit() => Affidavit.Create(
+        operationType: "Test",
+        entityType: "TestEntity",
+        entityId: null,
+        fields: [],
+        warnings: [],
+        requiresConfirmation: false);
 
     // ── Tests ─────────────────────────────────────────────────────────────────
 
@@ -151,8 +150,8 @@ public class ServiceCollectionExtensionsTests
             .AddStandingOrder<ThresholdStandingOrder>()
             .SetRiskScoreCalculator<CustomRiskCalculator>());
 
-        Assert.Equal(ReviewRequirement.StandingOrder, await scorerFirst.EvaluateAsync(EmptyAffidavit()));
-        Assert.Equal(ReviewRequirement.StandingOrder, await orderFirst.EvaluateAsync(EmptyAffidavit()));
+        Assert.Equal(ReviewRequirement.StandingOrder, (await scorerFirst.EvaluateAsync(EmptyAffidavit()))!.Requirement);
+        Assert.Equal(ReviewRequirement.StandingOrder, (await orderFirst.EvaluateAsync(EmptyAffidavit()))!.Requirement);
     }
 
     [Fact]

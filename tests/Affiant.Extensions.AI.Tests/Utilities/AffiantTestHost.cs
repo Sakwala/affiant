@@ -103,9 +103,12 @@ internal static class AffiantTestHost
             OperationType: "create",
             EntityType: "Widget",
             EntityId: null,
-            Fields: [],
-            AggregateConfidence: 1.0f,
-            PopulatedConfidence: 1.0f,
+            // A substantive field: the gate refuses a proposal that swears to nothing (GT-3),
+            // so a fixture exercising the filing path has to swear to something.
+            Fields: [new AffidavitField("field", "value", null,
+                ProvenanceChain.From(ProvenanceTag.FromTool("fixture")))],
+            AggregateConfidence: 0.9f,
+            PopulatedConfidence: 0.9f,
             EmptyFieldCount: 0,
             Warnings: [],
             RequiresConfirmation: false));
@@ -118,8 +121,8 @@ internal static class AffiantTestHost
 
     private sealed class StandingOrderPolicy : IApprovalPolicy
     {
-        public Task<ReviewRequirement?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
-            => Task.FromResult<ReviewRequirement?>(ReviewRequirement.StandingOrder);
+        public Task<ApprovalVerdict?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
+            => Task.FromResult<ApprovalVerdict?>(ReviewRequirement.StandingOrder);
     }
 
     private sealed class UnusedStreamingTransport : IStreamingTransport
@@ -172,9 +175,9 @@ internal sealed class StubInferenceChatClient : IChatClient
 /// </summary>
 internal sealed class ReviewerConfirmationPolicy : IApprovalPolicy
 {
-    public Task<ReviewRequirement?> EvaluateAsync(
+    public Task<ApprovalVerdict?> EvaluateAsync(
         Affidavit affidavit, CancellationToken cancellationToken = default)
-        => Task.FromResult<ReviewRequirement?>(ReviewRequirement.ReviewerConfirmation);
+        => Task.FromResult<ApprovalVerdict?>(ReviewRequirement.ReviewerConfirmation);
 }
 
 /// <summary>

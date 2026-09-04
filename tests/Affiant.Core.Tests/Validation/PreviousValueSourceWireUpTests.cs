@@ -96,12 +96,21 @@ public sealed class PreviousValueSourceWireUpTests
         services.AddLogging();
         services.AddAffiantCore(configureCore);
         // The review loop itself is wired, so the only thing under test is the previous-value port.
+        // IReviewContextProvider is part of that loop since the conformance release: a host that
+        // declares a write-capable tool and registers no provider is refused by the same validator
+        // (CV-1), and every case here declares one.
         services.AddSingleton<IStreamingTransport, UnusedStreamingTransport>();
         services.AddSingleton<IDocketStore, UnusedDocketStore>();
+        services.AddSingleton<IReviewContextProvider, UnusedReviewContextProvider>();
         wiring(services);
 
         var provider = services.BuildServiceProvider();
         return provider.GetServices<IHostedService>().OfType<AffiantWireUpValidator>().Single();
+    }
+
+    private sealed class UnusedReviewContextProvider : IReviewContextProvider
+    {
+        public ReviewContext? BuildReviewContext(WriteProposal proposal) => throw new NotSupportedException();
     }
 
     private sealed class UnusedStreamingTransport : IStreamingTransport

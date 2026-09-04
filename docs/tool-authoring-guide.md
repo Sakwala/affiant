@@ -247,6 +247,18 @@ on a `Scoped` service (a `DbContext`, or any per-request dependency your host re
 - Build the record with `Affidavit.Create(...)`, which computes the three confidence numbers from the fields — `AggregateConfidence` (the minimum over every proposed field, an `Empty` field counting as 0), `PopulatedConfidence` and `EmptyFieldCount`. Never hand-write them
 - `EntityId` is non-null **if and only if** the operation is update-shaped, and an update fills every field's `PreviousValue` — from your own store in a hand-written tool, or from an `IPreviousValueSource` when the schema-driven projection builds the record
 
+**Three ways the gate refuses a write tool, and what each one means.** All three are the *error* arm of the tool result — the same three-kind union a read result and a proposal travel in — carrying a stable code, never a silent skip:
+
+| Code | What happened | Fix |
+|---|---|---|
+| `substance-refused` | The proposal swore to nothing: no fields at all, every field tagged `Empty`, or a field asserting a value while its provenance reads `Empty` (the *hollow* signature). Nothing was filed and no reviewer saw it. `0`, `false`, an empty array and an empty object are values — only `null` and a blank string are empty. | Fill the fields the tool declares, and tag each one with where its value actually came from. |
+| `wireup-invalid` | The gate was asked to run a wiring it cannot run: no `IReviewContextProvider`, no review context for this call, no `ReviewGate` registered, a tool declared write-capable that returned something other than a proposal, or an approval policy that named an unusable review window or threw. Nothing was filed. | Fix the registration. The first and third are also refused at startup, before any turn. |
+| `REVIEW_FILING_FAILED` | The proposal was well-formed and the wiring was sound, but the Docket store itself failed. Nothing was filed. | Retry, or check the store. |
+
+**The honest boundary.** The framework's filter runs *after* your tool's body, because that is the only seam either host framework exposes. A tool that opens its own connection and writes inside its body is therefore **outside the guarantee** — no filter and no wire-up check can see it, and the framework says so rather than implying a coverage it does not have. What it does guarantee is that such a tool cannot commit *through* it: the gate never calls a write tool's own execute, no public API lets a tool commit through the framework, and a tool declared write-capable that does not hand back a proposal is refused rather than skipped. Declare a tool that genuinely does not write with `services.AddAffiantReadTool(...)`; there is no option that turns the gate off for a tool it covers.
+
+**Naming the review window.** Your `IApprovalPolicy` names it, and the gate stamps the deadline *after* the chain has run — `ApprovalVerdict.TimeToLive` first, then the policy's own `DefaultTimeToLive`, then `AffiantCoreOptions.DefaultDocketTtl`. So "five minutes for a high-risk write, a day for a routine one" is a property of the verdict, not a global setting. A window under one millisecond is refused rather than stamped: an entry born expired is a write that silently never happens.
+
 **Worked example — multi-field write proposal with mixed provenance:**
 
 ```csharp
@@ -1112,9 +1124,9 @@ return new ToolError(toolName, DateTimeOffset.UtcNow,
 
 **Symptom:** `WriteProposal` is returned correctly, but the review flow is skipped.
 
-**Cause:** `Affidavit.RequiresConfirmation` is `false`, or your `IApprovalPolicy` auto-approves silently.
+**Cause:** `Affidavit.RequiresConfirmation` is `false`, or your `IApprovalPolicy` auto-approves silently. Since the gate began refusing at run time, a third cause is common: the proposal swore to nothing and was refused with `substance-refused` before any policy ran — check the tool's result for the error arm rather than assuming the card was lost.
 
-**Fix:** Set `RequiresConfirmation: true` unless you explicitly want auto-approval. Check your `IApprovalPolicy` implementation — `StandingOrderPolicy` and `ReviewerConfirmationPolicy` have distinct bypass conditions.
+**Fix:** Set `RequiresConfirmation: true` unless you explicitly want auto-approval. Check your `IApprovalPolicy` implementation — `StandingOrderPolicy` and `ReviewerConfirmationPolicy` have distinct bypass conditions. If a Standing Order that used to fire has stopped, read the `standing-order.blocked` event's `blocked.reason`: a Standing Order is never honoured over a proposed field marked mandatory that reads `Empty` (`mandatory-field-empty`), nor over a provenance grade the policy predicates on that points at nothing (`unbound-declared-input`), nor over a host risk score above its ceiling (`risk-above-threshold`). In each case the verdict degrades to reviewer confirmation and a person is asked — the write is not lost.
 
 ---
 

@@ -265,8 +265,8 @@ public class ReviewGateTests
 
     private sealed class FakeApprovalPolicyEvaluator(ReviewRequirement requirement) : IApprovalPolicyEvaluator
     {
-        public Task<ReviewRequirement> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
-            => Task.FromResult(requirement);
+        public Task<ApprovalVerdict> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
+            => Task.FromResult<ApprovalVerdict>(requirement);
     }
 
     /// <summary>Records every log call so a test can assert on level/message without a mocking library.</summary>

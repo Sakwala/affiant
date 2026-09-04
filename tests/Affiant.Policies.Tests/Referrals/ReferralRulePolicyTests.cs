@@ -28,9 +28,10 @@ public class ReferralRulePolicyTests
         OperationType: "Test",
         EntityType: "TestEntity",
         EntityId: null,
-        Fields: [],
-        AggregateConfidence: 1.0f,
-        PopulatedConfidence: 1.0f,
+        Fields: [new AffidavitField("field", "value", null,
+            ProvenanceChain.From(ProvenanceTag.FromTool("fixture")))],
+        AggregateConfidence: 0.9f,
+        PopulatedConfidence: 0.9f,
         EmptyFieldCount: 0,
         Warnings: [],
         RequiresConfirmation: false);
@@ -55,7 +56,7 @@ public class ReferralRulePolicyTests
         var result = await rule.EvaluateAsync(MakeAffidavit());
 
         Assert.NotNull(result);
-        Assert.Equal(ReviewRequirement.ReferralRequired, result);
+        Assert.Equal(ReviewRequirement.ReferralRequired, result!.Requirement);
     }
 
     [Fact]
@@ -90,7 +91,7 @@ public class ReferralRulePolicyTests
 
         // Both return ReferralRequired; the ReviewerUserId is carried by the Docket entry
         // update in the host, not by the enum value itself.
-        Assert.Equal(ReviewRequirement.ReferralRequired, result1);
-        Assert.Equal(ReviewRequirement.ReferralRequired, result2);
+        Assert.Equal(ReviewRequirement.ReferralRequired, result1!.Requirement);
+        Assert.Equal(ReviewRequirement.ReferralRequired, result2!.Requirement);
     }
 }

@@ -159,9 +159,12 @@ public class AffiantFunctionInvocationMiddlewareTests
             OperationType: "DoWrite",
             EntityType: "TestEntity",
             EntityId: null,
-            Fields: [],
-            AggregateConfidence: 1.0f,
-            PopulatedConfidence: 1.0f,
+            // A substantive field: the gate refuses a proposal that swears to nothing (GT-3),
+            // so a fixture exercising the filing path has to swear to something.
+            Fields: [new AffidavitField("field", "value", null,
+                ProvenanceChain.From(ProvenanceTag.FromTool("fixture")))],
+            AggregateConfidence: 0.9f,
+            PopulatedConfidence: 0.9f,
             EmptyFieldCount: 0,
             Warnings: [],
             RequiresConfirmation: true));
@@ -173,8 +176,8 @@ public class AffiantFunctionInvocationMiddlewareTests
 
     private sealed class StandingOrderPolicy : IApprovalPolicy
     {
-        public Task<ReviewRequirement?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
-            => Task.FromResult<ReviewRequirement?>(ReviewRequirement.StandingOrder);
+        public Task<ApprovalVerdict?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
+            => Task.FromResult<ApprovalVerdict?>(ReviewRequirement.StandingOrder);
     }
 
     private sealed class ThrowingDocketStore : IDocketStore
