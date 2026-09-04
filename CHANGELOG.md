@@ -13,7 +13,26 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
 
 ## [Unreleased]
 
-_Nothing yet — changes after `v1.0.0-beta.1.1` accumulate here._
+### Added
+
+- **`tests/Affiant.Conformance.Tests` — the conformance driver.** Runs the
+  [`Sakwala/affiant-protocol`](https://github.com/Sakwala/affiant-protocol) rulebook's promoted
+  fixture suite (56 declarative fixtures and 7 canonical byte vectors) against the shipped packages
+  and publishes what it finds. The suite is vendored from the ref `conformance/PROTOCOL_PIN` names
+  and verified against checksums, so the driver builds offline and an edited fixture cannot pass
+  unnoticed (`conformance/sync.sh`). The run emits a machine-readable log
+  (`conformance/results/dotnet-1.0.0-beta.1.json`), and CI asserts that the set of fixtures that
+  fail is **exactly** the set the parity manifest declares — in either direction, so a gap that
+  closes has to be published rather than quietly disappearing. First run against `1.0.0-beta.1`:
+  3 of 63 pass; the parity report at `conformance/parity/dotnet-v0.1.json` names every one of the
+  60 that do not, the rule it is about and what is being done, and
+  `conformance/results/ORACLE-RUN-1.0.0-beta.1.md` reads the run against the rulebook's negative
+  oracle. Nothing in `src/` changed: this release is measured, not modified. The pin is the
+  rulebook's [`v0.1.0`](https://github.com/Sakwala/affiant-protocol/releases/tag/v0.1.0) tag; the
+  60 rows are 50 `planned` — 49 for `1.0.0-beta.3` and one for `1.0.0-beta.1.1` — and 10 `fenced`.
+  None is `fixed`: that value names a release a reader can **install**, and the risk-floor
+  correction behind `gate/standing-order-by-the-book` is green on a branch (#53) in a release that
+  has not shipped.
 
 ## [1.0.0-beta.1.1] — unreleased
 
