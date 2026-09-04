@@ -1050,21 +1050,10 @@ delivered its own `EvidenceCardResponse` unblocked the waiter and the row was wr
   attestation names the entry it attests to, and a filing's Evidence Card agrees with the row it
   was broadcast for.
 
-  **Reading against the rulebook's `v0.1.1` pin on this candidate: 62 of 63 pass.** The parity
-  manifest at `conformance/parity/dotnet-v0.1.json` names the one that does not, the rule it is
-  about, and what is being done. The details are written from the run's own diffs and the manifest
-  regenerates byte for byte from the run log committed beside it
-  (`conformance/regenerate-parity.py`).
-
-  **The one open row is a question for the rulebook, not a gap in this implementation.**
-  `decide/amend-recompute` pins the content hash of a row whose amended field is bound to the Docket
-  decision that amended it, so the hash contains a *derived* entry id. GT-4 requires the id to be
-  derived from the proposal rather than invented — which this implementation does, from the tenant,
-  the conversation, the tool name and the canonical form of the Affidavit — but the rule does not
-  say from what material or in what layout, and the implementation that produced the pinned hash
-  derives it from different material. Two implementations that derive different ids for the same
-  proposal disagree about which row a proposal *is*. Everything else in that fixture's canonical
-  form reproduces byte for byte.
+  **Reading against the rulebook's `v0.1.1` pin on this candidate: all 63 pass.** The parity manifest at
+  `conformance/parity/dotnet-v0.1.json` therefore declares an empty failing list, which is what this
+  release's acceptance asks for, and it regenerates byte for byte from the run log committed beside
+  it (`conformance/regenerate-parity.py`).
 
   `conformance/results/ORACLE-RUN-1.0.0-beta.1.md` reads the shipped release's own run against the
   rulebook's negative oracle, and `conformance/results/dotnet-1.0.0-beta.1.json` is that release's

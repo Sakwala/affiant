@@ -60,27 +60,12 @@ def run_log():
 # value for each -- see affiant-protocol conformance/PARITY.md.
 PLANNED_FOR = "1.0.0-beta.3"
 
-# disposition, detail, and the extra key that disposition requires.
-CAUSES = {
-    "GT-4-entry-id": (
-        "planned",
-        "The fixture pins the content hash of a row whose amended field is bound to the Docket "
-        "decision that amended it, so the hash contains the entry id -- and the id is DERIVED. GT-4 "
-        "requires it to be derived from the proposal rather than invented, which this "
-        "implementation does, but the rule does not say from what material or by what digest: this "
-        "one hashes the tenant, the conversation, the tool name and the canonical form of the "
-        "Affidavit; the implementation that produced the pinned hash hashes the tenant, the "
-        "conversation, the tool name, the operation and the model's raw arguments, and lays the "
-        "digest out as a version-8 UUID. Two implementations that derive different ids for the same "
-        "proposal disagree about which row a proposal IS, and no execution grant minted by one "
-        "validates against the other. THE OPEN QUESTION, for the rulebook and not for an "
-        "implementation to answer on its own: is the derivation normative, and if so over exactly "
-        "what material and in what layout? Everything else in this fixture's canonical form -- the "
-        "record's properties, the tag's grade, note, instant and binding, the amendment fold -- "
-        "already reproduces byte for byte.",
-        {},
-    ),
-}
+# disposition, detail, and the extra key that disposition requires. Empty: this tree passes every
+# fixture in the vendored suite, so there is no row to attribute. A fixture that starts failing stops
+# this script with its own id rather than being given the nearest sentence that once fit something
+# else — a detail that has outlived the defect it describes is worse than no detail, because it reads
+# as a measurement.
+CAUSES: dict[str, tuple[str, str, dict[str, str]]] = {}
 
 # Rows scheduled for a release other than PLANNED_FOR. `fixedIn` is for a release that has SHIPPED
 # -- a version a reader can install -- and nothing here qualifies yet, so a row that named its own
@@ -88,14 +73,10 @@ CAUSES = {
 SCHEDULED: dict[str, tuple[str, str]] = {}
 
 # Where the ordered path scan is not the right reading, the fixture is named.
-OVERRIDES = {
-    "decide/amend-recompute": "GT-4-entry-id",
-}
+OVERRIDES: dict[str, str] = {}
 
 # Most fundamental first: the first pattern a fixture's diffs match names its root cause.
-SCAN = [
-    ("GT-4-entry-id", r"^canonicalHash$"),
-]
+SCAN: list[tuple[str, str]] = []
 
 
 def cause_of(result):
@@ -188,33 +169,29 @@ CHECKED_INSTEAD = {
 
 NOTES = (
     "The .NET conformance driver, run by this repository's own test suite against the packages this "
-    "tree builds, read at the rulebook's v0.1.1. Sixty-two of the sixty-three fixtures pass. "
-    "Four things a reader of this document alone should know. "
+    "tree builds, read at the rulebook's v0.1.1. ALL SIXTY-THREE FIXTURES PASS: the failing list is "
+    "empty, which is what this release's acceptance asks for. "
+    "Three things a reader of this document alone should know. "
     "(1) WHAT THIS RUN IS. It is a BRANCH BUILD of the 1.0.0-beta.3 candidate, not a shipped "
     "release: the version here names what the tree builds, and nothing carrying it has been "
-    "published. The release's own acceptance is a manifest whose failing list is EMPTY. "
-    "(2) THE ONE ROW. It is not a gap in what this implementation does; it is a question the "
-    "rulebook has not answered. The fixture pins a content hash over a record whose amended field "
-    "is bound to the Docket decision that amended it, so the hash contains a DERIVED entry id, and "
-    "GT-4 says an id is derived without saying from what. Everything else about that record "
-    "reproduces byte for byte. "
-    "(3) THE CANONICAL FORM IS THE PROTOCOL'S RECORD. Every byte vector is reproduced through the "
-    "SHIPPED serializer -- the same exported helper a host calls to mint an execution grant -- and "
-    "never through a canonicaliser written beside the test: the rule says a driver reproduces the "
-    "bytes and the digest rather than re-deriving them. The amended vector's sworn form is folded "
-    "by the shipped amendment fold and checked against the accepted state the vector writes down "
-    "before its bytes are compared, and every vector is validated against "
-    "canonical-vector.schema.json before it runs. One disagreement inside the rulebook is worth "
-    "recording: its Affidavit schema REQUIRES protocolVersion on the record and its vectors carry "
-    "it, while every fixture-pinned content hash was produced by a record that does not. A hash is "
-    "what an execution grant binds to, so this implementation's canonical form follows the hashes "
-    "and its record still carries the version on the wire. "
-    "(4) WHAT THE DRIVER CHECKS WITHOUT BEING ASKED. Every filing a fixture performs -- prior steps "
+    "published. "
+    "(2) THE CANONICAL FORM AND THE ENTRY ID ARE THE PROTOCOL'S. Every byte vector is reproduced "
+    "through the SHIPPED serializer -- the same exported helper a host calls to mint an execution "
+    "grant -- and never through a canonicaliser written beside the test: the rule says a driver "
+    "reproduces the bytes and the digest rather than re-deriving them. The amended vector's sworn "
+    "form is folded by the shipped amendment fold and checked against the accepted state the vector "
+    "writes down before its bytes are compared, and every vector is validated against "
+    "canonical-vector.schema.json before it runs. A Docket entry id is derived from the tenant, the "
+    "conversation, the tool and the canonical form of the operation and its arguments, digested and "
+    "laid out as the rule states, so an id minted here and an id minted by another implementation "
+    "for the same proposal are the same id -- which they must be, because the id travels inside the "
+    "record and therefore inside the hash a grant binds to. "
+    "(3) WHAT THE DRIVER CHECKS WITHOUT BEING ASKED. Every filing a fixture performs -- prior steps "
     "included -- is card-checked: the card points at its row, carries that row's deadline and "
     "protocol version, repeats the record's three confidence numbers, and says on its face when the "
     "row is blocked. Every attestation is checked to name the entry it attests to. `wrap-execute` "
-    "runs the shipped tool-wrapping pipeline rather than a restatement of it, and the run log names "
-    "the entry point each of the eight step kinds is bound to."
+    "runs the shipped tool-wrapping pipeline rather than a restatement of it, and the driver's "
+    "README names the entry point each of the eight step kinds is bound to."
 )
 
 if __name__ == "__main__":
