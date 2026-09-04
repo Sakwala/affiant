@@ -295,7 +295,7 @@ public class RegistryTelemetryTests
 
     private sealed class SilentTransport : IStreamingTransport
     {
-        public bool TryDeliverResponse(Guid docketId, EvidenceCardResponse response) => false;
+        public bool TryDeliverResponse(Guid docketId, DecisionHandOff response) => false;
 
         public Task SendAsync(string connectionId, TransportEvent eventType, object payload, CancellationToken ct)
             => Task.CompletedTask;
@@ -303,9 +303,9 @@ public class RegistryTelemetryTests
         public Task BroadcastToGroupAsync(string groupId, TransportEvent eventType, object payload, CancellationToken ct)
             => Task.CompletedTask;
 
-        public Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(
+        public Task<DecisionHandOff> AwaitEvidenceCardResponseAsync(
             string sessionId, Guid docketId, CancellationToken ct)
-            => Task.FromException<EvidenceCardResponse>(new OperationCanceledException(ct));
+            => Task.FromException<DecisionHandOff>(new OperationCanceledException(ct));
     }
 
     private sealed class TestDocketStore : IDocketStore

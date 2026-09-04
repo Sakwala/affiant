@@ -74,6 +74,81 @@ public sealed class DocketStoreContractTests
         Assert.Equal(entry.Envelope.OperationType, stored.Envelope.OperationType);
     }
 
+    /// <summary>
+    /// AZ-1: a decided row names who agreed and what they chose, or it is not written. Defence in
+    /// depth — the gate's decision core makes this state unreachable, and the store makes it
+    /// unwritable for a caller holding an <see cref="IDocketStore"/> directly.
+    /// </summary>
+    [Theory]
+    [ClassData(typeof(DocketStoreProviderFactory))]
+    public async Task Transition_ToADecisionWithNoAttestation_IsRefused(
+        IDocketStore store, string providerName)
+    {
+        Assert.NotEmpty(providerName);
+        var tenantId = NewTenant();
+        var entry = TestDocketEntry.CreateDefault(tenantId: tenantId);
+        await store.FileDocketEntryAsync(entry, CancellationToken.None);
+
+        var decidedAt = DateTimeOffset.UtcNow;
+
+        // Approved with a decision but nobody on it.
+        await Assert.ThrowsAsync<ArgumentException>(() => store.TransitionAsync(
+            entry.EntryId,
+            new DocketScope(tenantId),
+            ReviewStatus.Pending,
+            new DocketTransitionPatch(
+                ReviewStatus.Approved,
+                Decision: new DecisionRecord(DecisionKind.Approve, null, decidedAt),
+                DecidedAt: decidedAt),
+            CancellationToken.None));
+
+        // Rejected likewise: a rejection is a decision, and a decision has an author.
+        await Assert.ThrowsAsync<ArgumentException>(() => store.TransitionAsync(
+            entry.EntryId,
+            new DocketScope(tenantId),
+            ReviewStatus.Pending,
+            new DocketTransitionPatch(
+                ReviewStatus.Rejected,
+                Decision: new DecisionRecord(DecisionKind.Reject, "no", decidedAt),
+                DecidedAt: decidedAt),
+            CancellationToken.None));
+
+        // And an attestation with no decision record: who agreed, but not what they chose.
+        await Assert.ThrowsAsync<ArgumentException>(() => store.TransitionAsync(
+            entry.EntryId,
+            new DocketScope(tenantId),
+            ReviewStatus.Pending,
+            new DocketTransitionPatch(
+                ReviewStatus.Approved,
+                Attestation: new Attestation(
+                    Attestor.Member.FromStorage("member-1"), decidedAt, entry.EntryId),
+                DecidedAt: decidedAt),
+            CancellationToken.None));
+
+        var stored = await store.GetDocketEntryAsync(entry.EntryId, CancellationToken.None);
+        Assert.Equal(ReviewStatus.Pending, stored!.Status);
+        Assert.Null(stored.Attestation);
+    }
+
+    /// <summary>
+    /// AZ-5: an executor is reachable only through a row that carries an attestation, so a row that
+    /// never earned one cannot be reported on. The store cannot hold such a row — the transition
+    /// above refuses to write it — so this pins the read the gate performs before it reports.
+    /// </summary>
+    [Theory]
+    [ClassData(typeof(DocketStoreProviderFactory))]
+    public async Task RecordExecution_OnARowWithNoAttestation_HasNoWayToArise(
+        IDocketStore store, string providerName)
+    {
+        Assert.NotEmpty(providerName);
+        var tenantId = NewTenant();
+        var entry = await ApprovedEntryAsync(store, tenantId);
+
+        var stored = await store.GetDocketEntryAsync(entry.EntryId, CancellationToken.None);
+        Assert.Equal(ReviewStatus.Approved, stored!.Status);
+        Assert.NotNull(stored.Attestation);
+    }
+
     [Theory]
     [ClassData(typeof(DocketStoreProviderFactory))]
     public async Task Transition_ASecondDecision_IsRefusedAsAlreadyDecided_AndChangesNothing(
@@ -87,11 +162,11 @@ public sealed class DocketStoreContractTests
 
         Assert.IsType<DocketTransitionResult.Transitioned>(await store.TransitionAsync(
             entry.EntryId, scope, ReviewStatus.Pending,
-            new DocketTransitionPatch(ReviewStatus.Approved), CancellationToken.None));
+            Decided(ReviewStatus.Approved, entry.EntryId), CancellationToken.None));
 
         var second = await store.TransitionAsync(
             entry.EntryId, scope, ReviewStatus.Pending,
-            new DocketTransitionPatch(ReviewStatus.Rejected), CancellationToken.None);
+            Decided(ReviewStatus.Rejected, entry.EntryId), CancellationToken.None);
 
         Assert.IsType<DocketTransitionResult.AlreadyDecided>(second);
 
@@ -114,7 +189,7 @@ public sealed class DocketStoreContractTests
 
         var result = await store.TransitionAsync(
             entry.EntryId, new DocketScope(tenantId), ReviewStatus.Pending,
-            new DocketTransitionPatch(ReviewStatus.Approved), CancellationToken.None);
+            Decided(ReviewStatus.Approved, entry.EntryId), CancellationToken.None);
 
         Assert.IsType<DocketTransitionResult.Expired>(result);
     }
@@ -131,7 +206,7 @@ public sealed class DocketStoreContractTests
 
         var result = await store.TransitionAsync(
             entry.EntryId, new DocketScope(NewTenant()), ReviewStatus.Pending,
-            new DocketTransitionPatch(ReviewStatus.Approved), CancellationToken.None);
+            Decided(ReviewStatus.Approved, entry.EntryId), CancellationToken.None);
 
         // Indistinguishable from an id that does not exist: anything else leaks the existence of
         // another tenant's rows to whoever can guess an id.
@@ -155,7 +230,7 @@ public sealed class DocketStoreContractTests
         // to, which is the check every host hand-rolls and gets wrong.
         await Assert.ThrowsAsync<ArgumentException>(() => store.TransitionAsync(
             entry.EntryId, DocketScope.EntireStore, ReviewStatus.Pending,
-            new DocketTransitionPatch(ReviewStatus.Approved), CancellationToken.None));
+            Decided(ReviewStatus.Approved, entry.EntryId), CancellationToken.None));
     }
 
     [Theory]
@@ -175,7 +250,7 @@ public sealed class DocketStoreContractTests
         var scope = new DocketScope(tenantId);
         var decision = await store.TransitionAsync(
             entry.EntryId, scope, ReviewStatus.Pending,
-            new DocketTransitionPatch(ReviewStatus.Approved), CancellationToken.None);
+            Decided(ReviewStatus.Approved, entry.EntryId), CancellationToken.None);
 
         // Never decided, never executed, never degraded to a weaker requirement.
         Assert.IsType<DocketTransitionResult.AlreadyDecided>(decision);
@@ -720,6 +795,21 @@ public sealed class DocketStoreContractTests
     private static string NewTenant() => Guid.NewGuid().ToString();
 
     /// <summary>A filed entry taken through the guarded transition to approved-and-unexecuted.</summary>
+    /// <summary>
+    /// A decision patch that names who agreed and what they chose — the least a store will accept
+    /// for a row leaving pending (AZ-1).
+    /// </summary>
+    private static DocketTransitionPatch Decided(ReviewStatus status, Guid entryId)
+    {
+        var at = DateTimeOffset.UtcNow;
+        return new DocketTransitionPatch(
+            status,
+            Decision: new DecisionRecord(
+                status == ReviewStatus.Approved ? DecisionKind.Approve : DecisionKind.Reject, null, at),
+            Attestation: new Attestation(Attestor.Member.FromStorage("member-1"), at, entryId),
+            DecidedAt: at);
+    }
+
     private static async Task<DocketEntry> ApprovedEntryAsync(
         IDocketStore store,
         string tenantId,
@@ -732,11 +822,18 @@ public sealed class DocketStoreContractTests
             expiresAt: DateTimeOffset.UtcNow.AddHours(1));
         await store.FileDocketEntryAsync(entry, CancellationToken.None);
 
+        // An approved row names who agreed and what they chose: the store refuses to write one that
+        // does not (AZ-1).
+        var at = decidedAt ?? DateTimeOffset.UtcNow;
         var result = await store.TransitionAsync(
             entry.EntryId,
             new DocketScope(tenantId),
             ReviewStatus.Pending,
-            new DocketTransitionPatch(ReviewStatus.Approved, DecidedAt: decidedAt),
+            new DocketTransitionPatch(
+                ReviewStatus.Approved,
+                Decision: new DecisionRecord(DecisionKind.Approve, null, at),
+                Attestation: new Attestation(Attestor.Member.FromStorage("member-1"), at, entry.EntryId),
+                DecidedAt: decidedAt),
             CancellationToken.None);
 
         return Assert.IsType<DocketTransitionResult.Transitioned>(result).Entry;

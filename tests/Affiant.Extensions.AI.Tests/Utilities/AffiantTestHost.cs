@@ -138,7 +138,7 @@ internal static class AffiantTestHost
         public Task BroadcastToGroupAsync(string groupId, TransportEvent eventType, object payload, CancellationToken ct)
             => throw new InvalidOperationException("UnusedStreamingTransport.BroadcastToGroupAsync should not be called");
 
-        public Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default)
+        public Task<DecisionHandOff> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default)
             => throw new InvalidOperationException("UnusedStreamingTransport.AwaitEvidenceCardResponseAsync should not be called");
     }
 }
@@ -218,7 +218,7 @@ internal sealed class RecordingStreamingTransport : IStreamingTransport
         return Task.CompletedTask;
     }
 
-    public Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(
+    public Task<DecisionHandOff> AwaitEvidenceCardResponseAsync(
         string sessionGroupId, Guid docketId, CancellationToken ct = default)
         => throw new InvalidOperationException(
             "RecordingStreamingTransport.AwaitEvidenceCardResponseAsync should not be called — the " +

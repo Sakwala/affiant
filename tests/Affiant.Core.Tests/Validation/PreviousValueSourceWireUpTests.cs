@@ -123,7 +123,7 @@ public sealed class PreviousValueSourceWireUpTests
         public Task BroadcastToGroupAsync(string groupId, TransportEvent eventType, object payload, CancellationToken ct)
             => throw new NotSupportedException();
 
-        public Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(
+        public Task<DecisionHandOff> AwaitEvidenceCardResponseAsync(
             string sessionGroupId, Guid docketId, CancellationToken ct = default)
             => throw new NotSupportedException();
     }

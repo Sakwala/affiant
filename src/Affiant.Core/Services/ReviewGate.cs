@@ -71,38 +71,28 @@ public sealed class ReviewGate(
         => FileForReviewCoreAsync(proposal, context, cancellationToken);
 
     /// <summary>
-    /// <b>Document-reserved (P1a, area-4 Decision-1 ruling 2026-08-04) — retired, not deleted.
-    /// Structurally deadlocks over the framework's only shipped transport; not the production
-    /// default.</b> File a review for the given <paramref name="proposal"/> and block until the
-    /// final outcome is known. Delegates the filing + policy-evaluation work to
-    /// <see cref="FileForReviewAsync"/> and adds only the blocking await for a reviewer decision.
+    /// <b>Obsolete (<c>AFFIANT0002</c>), kept for one release.</b> Files a review for
+    /// <paramref name="proposal"/> and blocks until the outcome is known. Use
+    /// <see cref="FileForReviewAsync"/> to file and <see cref="HandleDecisionAsync"/> to decide.
     /// <para>
-    /// <b>Why this deadlocks:</b> when policy requires a human reviewer, this method awaits
+    /// <b>Why it is going.</b> When policy requires a person, this method awaits
     /// <see cref="IStreamingTransport.AwaitEvidenceCardResponseAsync"/> on the SAME call chain the
     /// caller's own connection is holding open. Over SignalR — the framework's only shipped
-    /// transport — <c>HubOptions.MaximumParallelInvocationsPerClient</c> defaults to <c>1</c> and is
-    /// never overridden by either reference host, so the one hub invocation that could deliver the
-    /// reviewer's decision (e.g. an <c>ApproveAction</c>/<c>RejectAction</c> RPC) queues behind the
-    /// very invocation blocked here awaiting it — a same-connection deadlock proven live
-    /// (host-apps#25, Jaeger-traced 610.7s block; the incident's own words: "live approval has
-    /// plausibly never once succeeded through the browser UI"). Every call to this method that
-    /// requires human review will wait out <see cref="AffiantCoreOptions.DefaultDocketTtl"/> and
-    /// resolve as <see cref="ReviewOutcome.Expired"/> under that condition, not because the reviewer
-    /// failed to act, but because their decision cannot physically reach this awaiting call.
+    /// transport — <c>HubOptions.MaximumParallelInvocationsPerClient</c> defaults to <c>1</c>, so the
+    /// one hub invocation that could deliver the reviewer's decision queues behind the very
+    /// invocation blocked here awaiting it: a same-connection deadlock proven live (host-apps#25,
+    /// Jaeger-traced 610.7s block). Every call that requires human review waits out
+    /// <see cref="AffiantCoreOptions.DefaultDocketTtl"/> and resolves as
+    /// <see cref="ReviewOutcome.Expired"/> under that condition — not because the reviewer failed to
+    /// act, but because their decision cannot physically reach this awaiting call.
     /// </para>
     /// <para>
-    /// <b>What to use instead:</b> the production default is
-    /// <see cref="Affiant.Core.Filters.ReviewGateFilter"/> calling the non-blocking
-    /// <see cref="FileForReviewAsync"/> and ending the calling turn on
-    /// <see cref="ReviewFilingResult.RequiresReview"/> (P5a) — the eventual decision arrives through
-    /// a separate hub RPC routed to <c>HandleDecisionAsync</c>, never through this method's
-    /// own await. This method remains callable — kept because the underlying design (a synchronous
-    /// wait-for-external-event, mirroring the Azure Durable Functions <c>WaitForExternalEvent</c>
-    /// pattern; framework spec §4) is legitimate and has a real future use (a caller that must not
-    /// proceed to a dependent tool call until the write is confirmed) — but it needs the decision to
-    /// travel on a channel other than the blocked connection to be sound. That redesign is tracked in
-    /// affiant#29 (design ticket, no implementation planned yet); do not reach for this method in new
-    /// code until it lands.
+    /// <b>It decides nothing.</b> This call waits for a <see cref="DecisionHandOff"/> and reports
+    /// it. Every decision — the principal, the tenant-scoped row, the host's authorization port, the
+    /// state and blocked checks, and the attestation — runs in <see cref="HandleDecisionAsync"/>,
+    /// which has already written the row by the time a hand-off exists (AZ-1, AZ-2). What this path
+    /// still owns is the timeout: a review nobody answered inside the window expires here, and only
+    /// the caller whose own compare-and-set won that transition reports it.
     /// </para>
     /// </summary>
     /// <param name="proposal">The proposed write operation awaiting review.</param>
@@ -112,6 +102,11 @@ public sealed class ReviewGate(
     /// <see cref="ReviewOutcome.Approved"/>, <see cref="ReviewOutcome.Rejected"/>,
     /// <see cref="ReviewOutcome.Expired"/>, or <see cref="ReviewOutcome.Referral"/>.
     /// </returns>
+    [Obsolete(
+        "Blocking review is retired: it deadlocks over the only shipped transport. File with " +
+        "FileForReviewAsync and decide with HandleDecisionAsync. This member is kept for one " +
+        "release.",
+        DiagnosticId = "AFFIANT0002")]
     public async Task<ReviewOutcome> FileReviewAsync(
         WriteProposal proposal,
         ReviewContext context,
@@ -123,16 +118,18 @@ public sealed class ReviewGate(
 
         var entryId = ((ReviewFilingResult.RequiresReview)filing).EntryId;
 
-        EvidenceCardResponse response;
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(options.DefaultDocketTtl);
-            response = await transport.AwaitEvidenceCardResponseAsync(
+            var handOff = await transport.AwaitEvidenceCardResponseAsync(
                 context.SessionId, entryId, cts.Token);
             logger.LogInformation(
-                "Received EvidenceCardResponse for DocketEntry {EntryId}: {Decision}",
-                entryId, response.Decision);
+                "Received a decision hand-off for DocketEntry {EntryId}: {Decision}",
+                entryId, handOff.Decision);
+
+            // The row is already written, attested and reported. Nothing is decided here.
+            return handOff.Outcome;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -141,11 +138,10 @@ public sealed class ReviewGate(
                 "EvidenceCardRequest timed out for DocketEntry {EntryId} after {Minutes} minutes",
                 entryId, options.DefaultDocketTtl.TotalMinutes);
 
-            // Guarded update: 0 rows means a reviewer's decision (restart path, via
-            // HandleDecisionAsync) already transitioned this entry a beat earlier. Only broadcast
-            // DocketExpired — and only report Expired — when this call is the one that actually
-            // performed the transition; otherwise report and leave untouched the status the entry
-            // genuinely landed in, so we never lie to the session group about what happened.
+            // Guarded update: 0 rows means a decision transitioned this entry a beat earlier. Only
+            // broadcast DocketExpired — and only report Expired — when this call is the one that
+            // actually performed the transition; otherwise report and leave untouched the status the
+            // entry genuinely landed in, so we never lie to the session group about what happened.
             var expiryRowsAffected = await docketStore.UpdateReviewStatusAsync(
                 entryId, ReviewStatus.Expired, cancellationToken);
             if (expiryRowsAffected == 0)
@@ -169,69 +165,7 @@ public sealed class ReviewGate(
                 "FileReviewAsync cancelled awaiting decision for tool {ToolName}", proposal.ToolName);
             throw;
         }
-
-        // Process the reviewer's decision. The attestation came with it (AZ-1): a decision this
-        // path could not attribute is one HandleDecisionAsync already refused, so there is no case
-        // in which a row is written here with nobody on it.
-        var attestation = response.Attestation;
-        var accepted = response.Decision == ApprovalDecision.Approved && response.Amendments is { Count: > 0 }
-            ? response.Amendments
-            : null;
-
-        var amendedAffidavit = accepted is null
-            ? null
-            : FoldAmendments(
-                context.Affidavit, accepted, entryId,
-                attestation?.By.Subject ?? ReviewerOf(context));
-
-        var patch = new DocketTransitionPatch(
-            Status: response.Decision == ApprovalDecision.Approved
-                ? ReviewStatus.Approved
-                : ReviewStatus.Rejected,
-            Decision: new DecisionRecord(
-                response.Decision == ApprovalDecision.Approved ? DecisionKind.Approve : DecisionKind.Reject,
-                response.Reason,
-                attestation?.At ?? _time.GetUtcNow()),
-            Amendments: accepted,
-            AmendedAffidavit: amendedAffidavit,
-            Attestation: attestation,
-            DecidedAt: attestation?.At ?? _time.GetUtcNow());
-
-        var transition = await docketStore.TransitionAsync(
-            entryId, new DocketScope(context.TenantId), ReviewStatus.Pending, patch, cancellationToken);
-
-        if (transition is not DocketTransitionResult.Transitioned settled)
-        {
-            // Somebody else moved the row first — report what it actually landed in rather than
-            // what this call was about to write.
-            var finalEntry = await docketStore.GetDocketEntryAsync(entryId, cancellationToken);
-            return finalEntry is null
-                ? new ReviewOutcome.Expired(entryId)
-                : finalEntry.Status.ToReviewOutcome(entryId);
-        }
-
-        AffiantTelemetry.RecordDocketTransition(
-            entryId,
-            context.SessionId,
-            DocketStateName(ReviewStatus.Pending),
-            DocketStateName(settled.Entry.Status),
-            amended: accepted is not null,
-            execution: ExecutionStateName(settled.Entry.Execution),
-            decisionKind: response.Decision == ApprovalDecision.Approved ? "approve" : "reject",
-            attestationKind: attestation?.By.Kind);
-
-        return response.Decision == ApprovalDecision.Approved
-            ? new ReviewOutcome.Approved(entryId, settled.Entry.AmendedAffidavit ?? amendedAffidavit)
-            : new ReviewOutcome.Rejected(entryId, response.Reason ?? "No reason provided");
     }
-
-    /// <summary>
-    /// Who an amendment is attributed to when the decision carried no attestation — the routing
-    /// hint the filing context had. Reachable only from a transport that delivered a response the
-    /// gate did not build, which is a host substituting its own; the framework's own path always
-    /// carries the attestation.
-    /// </summary>
-    private static string ReviewerOf(ReviewContext context) => context.ReviewerUserId;
 
     /// <summary>
     /// Resubmits an expired review for a fresh reviewer round (framework half of repo issue #9):
@@ -885,21 +819,10 @@ public sealed class ReviewGate(
             return (Unauthorized(entryId, AttestationRule), null);
         }
 
-        // Live path: a FileReviewAsync call is awaiting — deliver and let it own the outcome. The
-        // attestation travels with the response so the row that call writes names who agreed, exactly
-        // as the row this call would have written does (AZ-1): the awaiting caller holds the filing
-        // context, and this one holds the identity, and neither is allowed to guess the other's half.
-        var handOff = new EvidenceCardResponse(entryId, decision, context.Reason, amendments)
-        {
-            Attestation = new Attestation(attestor, context.At ?? _time.GetUtcNow(), entryId),
-        };
-        if (transport.TryDeliverResponse(entryId, handOff))
-            return (null, null);
-
         // (ii) The tenant is the boundary, and a miss is a miss (AZ-2).
         var entry = await RequireEntryAsync(entryId, context, DecidePath, cancellationToken);
         if (entry is null)
-            return (new ReviewOutcome.Refused(entryId, DocketRefusalCodes.EntryNotFound), null);
+            return (NotFound(entryId), null);
 
         // (iii) The host's own answer.
         if (!await IsAuthorizedAsync(principal, entry, context, DecidePath, cancellationToken))
@@ -951,7 +874,7 @@ public sealed class ReviewGate(
         {
             case DocketTransitionResult.Transitioned transitioned:
                 logger.LogInformation(
-                    "HandleDecisionAsync: DocketEntry {EntryId} {Decision} (restart path), attested {Attestation}",
+                    "HandleDecisionAsync: DocketEntry {EntryId} {Decision}, attested {Attestation}",
                     entryId, decision, attestor.Kind);
 
                 // TL-1 `docket.transition`, emitted by the caller whose own compare-and-set won it.
@@ -965,15 +888,29 @@ public sealed class ReviewGate(
                     decisionKind: decision == ApprovalDecision.Approved ? "approve" : "reject",
                     attestationKind: transitioned.Entry.Attestation?.By.Kind ?? attestor.Kind);
 
-                return (transitioned.Entry.Status == ReviewStatus.Approved
-                    ? new ReviewOutcome.Approved(entryId, transitioned.Entry.AmendedAffidavit)
-                    : new ReviewOutcome.Rejected(entryId, context.Reason ?? "No reason provided"),
-                    createdAt);
+                var settled = transitioned.Entry.Status == ReviewStatus.Approved
+                    ? (ReviewOutcome)new ReviewOutcome.Approved(entryId, transitioned.Entry.AmendedAffidavit)
+                    : new ReviewOutcome.Rejected(entryId, context.Reason ?? "No reason provided");
+
+                // A blocking FileReviewAsync may be holding this row open. It is unblocked by the
+                // RESULT of the sequence above and performs no part of it: the row is already
+                // written, attested, and reported here (AZ-1, AZ-2). A hand-off is the gate's to
+                // mint, so nothing a host delivers can stand in for one.
+                transport.TryDeliverResponse(
+                    entryId,
+                    new DecisionHandOff(
+                        entryId,
+                        decision,
+                        transitioned.Entry.Attestation ?? new Attestation(attestor, decidedAt, entryId),
+                        settled,
+                        createdAt));
+
+                return (settled, createdAt);
 
             case DocketTransitionResult.NotFound:
                 AffiantTelemetry.RecordDecisionUnauthorized(
                     entryId, entry.SessionId, DocketRefusalCodes.EntryNotFound, DecidePath, principal.Kind);
-                return (new ReviewOutcome.Refused(entryId, DocketRefusalCodes.EntryNotFound), createdAt);
+                return (NotFound(entryId), createdAt);
 
             case DocketTransitionResult.Expired:
                 return (await HandleLateDecisionAsync(
@@ -993,7 +930,15 @@ public sealed class ReviewGate(
                     "HandleDecisionAsync: DocketEntry {EntryId} refused with {Code}", entryId, code);
                 AffiantTelemetry.RecordDecisionUnauthorized(
                     entryId, entry.SessionId, code, DecidePath, principal.Kind);
-                return (new ReviewOutcome.Refused(entryId, code), createdAt);
+                return (new ReviewOutcome.Refused(
+                        entryId,
+                        code,
+                        code == DocketRefusalCodes.DecisionLostRace
+                            ? "Another decision on this entry won the race; the first one stands, and a " +
+                              "decision is recorded once."
+                            : $"DocketEntry {entryId} is no longer pending, and a decision is accepted " +
+                              "only while it is."),
+                    createdAt);
 
             default:
                 throw new InvalidOperationException(
@@ -1070,10 +1015,28 @@ public sealed class ReviewGate(
 
         var entry = await RequireEntryAsync(entryId, context, MarkExecutedPath, cancellationToken);
         if (entry is null)
-            return new ReviewOutcome.Refused(entryId, DocketRefusalCodes.EntryNotFound);
+            return NotFound(entryId);
 
         if (!await IsAuthorizedAsync(principal, entry, context, MarkExecutedPath, cancellationToken))
             return Unauthorized(entryId, AuthorizationRule);
+
+        // AZ-5: an executor is reachable only through a Docket entry that CARRIES AN ATTESTATION.
+        // The row is read before the report is written, so a row approved with nobody on it — a
+        // state the decision core makes unreachable and the stores refuse to write — cannot be
+        // executed against even if one existed. A row that is simply not approved is a different
+        // answer, `decision-not-pending`, which the store's own guard produces below: there is no
+        // authorised write for an executor to have performed, and that is not an authorization
+        // failure to report to an operator.
+        if (entry.Status == ReviewStatus.Approved && entry.Attestation is null)
+        {
+            AffiantTelemetry.RecordDecisionUnauthorized(
+                entryId, entry.SessionId, NotAuthorizedReason, MarkExecutedPath, principal.Kind);
+            logger.LogWarning(
+                "MarkExecutedAsync: DocketEntry {EntryId} is approved and carries no attestation; an " +
+                "executor is reachable only through an entry that says who approved it",
+                entryId);
+            return Unauthorized(entryId, "AZ-5");
+        }
 
         var scope = new DocketScope(entry.TenantId);
         var result = await docketStore.RecordExecutionAsync(
@@ -1098,21 +1061,28 @@ public sealed class ReviewGate(
                 AffiantTelemetry.RecordDecisionUnauthorized(
                     entryId, entry.SessionId, DocketRefusalCodes.EntryNotFound, MarkExecutedPath,
                     principal.Kind);
-                return new ReviewOutcome.Refused(entryId, DocketRefusalCodes.EntryNotFound);
+                return NotFound(entryId);
 
             case RecordExecutionResult.NotApproved:
                 logger.LogWarning(
                     "MarkExecutedAsync: DocketEntry {EntryId} is {Status}, so there is no authorised " +
                     "write for an executor to have performed",
                     entryId, entry.Status);
-                return new ReviewOutcome.Refused(entryId, DocketRefusalCodes.DecisionNotPending);
+                return new ReviewOutcome.Refused(
+                    entryId,
+                    DocketRefusalCodes.DecisionNotPending,
+                    $"DocketEntry {entryId} is {entry.Status}, so there is no authorised write for an " +
+                    "executor to have performed.");
 
             case RecordExecutionResult.ExecutionAlreadyRecorded:
                 logger.LogWarning(
                     "MarkExecutedAsync: DocketEntry {EntryId} already carries an execution outcome; " +
                     "this report is refused rather than written over it",
                     entryId);
-                return new ReviewOutcome.Refused(entryId, DocketRefusalCodes.ExecutionAlreadyRecorded);
+                return new ReviewOutcome.Refused(
+                    entryId,
+                    DocketRefusalCodes.ExecutionAlreadyRecorded,
+                    ExecutionReportsOnce);
 
             default:
                 throw new InvalidOperationException(
@@ -1306,6 +1276,14 @@ public sealed class ReviewGate(
     /// <summary>The rule that refuses an unresolved principal, a wrong tenant or a declining host port.</summary>
     private const string AuthorizationRule = "AZ-2";
 
+    /// <summary>
+    /// Why a second execution report is refused, on the refusal itself and not only in a log line
+    /// (AZ-5). A caller learns what happened from what it is handed back.
+    /// </summary>
+    private const string ExecutionReportsOnce =
+        "This entry already carries an execution outcome. A host reports once, when the write's fate " +
+        "is known: overwriting would let an approved-and-committed row later read failed.";
+
     /// <summary>The rule that refuses a machine caller trying to attest a decision.</summary>
     private const string AttestationRule = "AZ-3";
 
@@ -1327,14 +1305,35 @@ public sealed class ReviewGate(
 
 
     /// <summary>The refusal a blocked entry answers every act with, carrying the marker's own context.</summary>
-    private static ReviewOutcome.Refused RefuseBlocked(Guid entryId, BlockedMarker marker) => marker switch
+    /// <remarks>
+    /// <b>AZ-4.</b> The code is <c>decision-not-pending</c> — the row is pending and no decision on
+    /// it will ever be accepted, which is exactly what that code is registered to mean — and the
+    /// marker's own code and context travel in the detail. Answering with the marker's code
+    /// <em>as</em> the refusal code would tell a caller that its act failed validation, when what
+    /// happened is that this row does not accept decisions at all.
+    /// </remarks>
+    private static ReviewOutcome.Refused RefuseBlocked(Guid entryId, BlockedMarker marker) =>
+        new(entryId, DocketRefusalCodes.DecisionNotPending, BlockedDetail(marker));
+
+    /// <summary>The blocked marker's code, and the context that code makes meaningful.</summary>
+    private static string BlockedDetail(BlockedMarker marker) => marker switch
     {
-        BlockedMarker.RequirementNotImplemented r =>
-            new ReviewOutcome.Refused(entryId, DocketRefusalCodes.RequirementNotImplemented, r.Level.ToString()),
-        BlockedMarker.CoverageRefused c =>
-            new ReviewOutcome.Refused(entryId, DocketRefusalCodes.CoverageRefused, c.ToolName),
-        _ => new ReviewOutcome.Refused(entryId, marker.Code)
+        BlockedMarker.RequirementNotImplemented r => $"{r.Code}: {r.Level}",
+        BlockedMarker.CoverageRefused c => $"{c.Code}: {c.ToolName}",
+        _ => marker.Code,
     };
+
+    /// <summary>
+    /// The refusal a row the caller may not see answers with, and the reason it gives.
+    /// </summary>
+    /// <remarks>
+    /// A row in another tenant and a row that does not exist are the same answer on purpose (AZ-2):
+    /// telling a caller that an id it may not touch exists is the leak the check is for. The detail
+    /// says which act was refused and nothing about the row.
+    /// </remarks>
+    private static ReviewOutcome.Refused NotFound(Guid entryId) =>
+        new(entryId, DocketRefusalCodes.EntryNotFound,
+            $"No Docket entry {entryId} is visible to this caller.");
 
     /// <summary>
     /// Folds an accepted amendment into the filed proposal, returning the amended

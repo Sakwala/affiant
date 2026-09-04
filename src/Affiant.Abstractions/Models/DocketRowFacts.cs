@@ -158,12 +158,14 @@ public abstract record Attestor
         }
 
         /// <summary>
-        /// Reads back an attestation a store already holds. Not a second way to <em>make</em> one:
-        /// it takes an id and no principal at all, so there is still no expression anywhere that
-        /// turns a <see cref="Principal.Service"/> into a member attestation. Reconstructing a
-        /// record that was written under the rule is not the same act as writing one that was not.
+        /// Reads back an attestation a store already holds. <b>Internal</b>: rehydration is the
+        /// stores' business, and a factory that mints a member attestation from a bare string is a
+        /// factory a machine caller can reach (AZ-3). The assemblies that may see it are named in
+        /// <c>Affiant.Abstractions.csproj</c>; a host is not among them, so the only member
+        /// attestation a host can produce is <see cref="Of(Principal.Member)"/>'s, which takes a
+        /// person.
         /// </summary>
-        public static Member FromStorage(string id)
+        internal static Member FromStorage(string id)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(id);
             return new Member(id);
@@ -209,7 +211,7 @@ public abstract record Attestor
         }
 
         /// <inheritdoc cref="Member.FromStorage(string)"/>
-        public static MemberViaRelay FromStorage(string memberId, AttestationRelay relay)
+        internal static MemberViaRelay FromStorage(string memberId, AttestationRelay relay)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(memberId);
             ArgumentNullException.ThrowIfNull(relay);
@@ -256,7 +258,7 @@ public abstract record Attestor
         }
 
         /// <inheritdoc cref="Member.FromStorage(string)"/>
-        public static StandingOrder FromStorage(string policyId, string version)
+        internal static StandingOrder FromStorage(string policyId, string version)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(policyId);
             ArgumentException.ThrowIfNullOrWhiteSpace(version);

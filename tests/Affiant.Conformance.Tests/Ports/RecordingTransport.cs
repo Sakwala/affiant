@@ -55,11 +55,11 @@ internal sealed class RecordingTransport : IStreamingTransport
         return Task.CompletedTask;
     }
 
-    public Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default) =>
+    public Task<DecisionHandOff> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default) =>
         throw new NotSupportedException(
             "The conformance driver never blocks on a reviewer: a fixture's decide step goes through HandleDecisionAsync.");
 
-    public bool TryDeliverResponse(Guid docketId, EvidenceCardResponse response) => false;
+    public bool TryDeliverResponse(Guid docketId, DecisionHandOff response) => false;
 
     /// <summary>One push: the group or connection it went to, what kind it was, and the payload.</summary>
     internal sealed record Broadcast(string Target, TransportEvent Event, object Payload);

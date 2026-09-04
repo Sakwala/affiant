@@ -94,8 +94,8 @@ internal static class GateFixture
         public Task BroadcastToGroupAsync(string groupId, TransportEvent eventType, object payload, CancellationToken ct)
             => Task.CompletedTask;
 
-        public Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(
+        public Task<DecisionHandOff> AwaitEvidenceCardResponseAsync(
             string sessionGroupId, Guid docketId, CancellationToken ct = default)
-            => Task.FromException<EvidenceCardResponse>(new OperationCanceledException(ct));
+            => Task.FromException<DecisionHandOff>(new OperationCanceledException(ct));
     }
 }

@@ -154,11 +154,17 @@ public sealed class DocketRehydrationTests
 
         if (approve)
         {
+            // An approved row names who agreed: the store refuses to write one that does not (AZ-1).
             await store.TransitionAsync(
                 entryId,
                 new DocketScope(TenantId),
                 ReviewStatus.Pending,
-                new DocketTransitionPatch(ReviewStatus.Approved),
+                new DocketTransitionPatch(
+                    ReviewStatus.Approved,
+                    Decision: new DecisionRecord(DecisionKind.Approve, null, filedAt),
+                    Attestation: new Attestation(
+                        Attestor.Member.Of(new Principal.Member("reviewer-1")), filedAt, entryId),
+                    DecidedAt: filedAt),
                 CancellationToken.None);
         }
 

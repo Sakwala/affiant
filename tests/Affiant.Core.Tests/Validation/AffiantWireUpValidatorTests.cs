@@ -129,7 +129,7 @@ public sealed class AffiantWireUpValidatorTests
         public Task BroadcastToGroupAsync(string groupId, TransportEvent eventType, object payload, CancellationToken ct)
             => Task.CompletedTask;
 
-        public Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(
+        public Task<DecisionHandOff> AwaitEvidenceCardResponseAsync(
             string sessionGroupId, Guid docketId, CancellationToken ct = default)
             => throw new NotSupportedException();
     }

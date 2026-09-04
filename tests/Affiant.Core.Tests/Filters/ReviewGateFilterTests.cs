@@ -335,7 +335,7 @@ public class ReviewGateFilterTests
         public Task BroadcastToGroupAsync(string groupId, TransportEvent eventType, object payload, CancellationToken ct)
             => throw new InvalidOperationException("UnusedStreamingTransport.BroadcastToGroupAsync should not be called");
 
-        public Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default)
+        public Task<DecisionHandOff> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default)
             => throw new InvalidOperationException("UnusedStreamingTransport.AwaitEvidenceCardResponseAsync should not be called");
     }
 
@@ -355,7 +355,7 @@ public class ReviewGateFilterTests
         public Task BroadcastToGroupAsync(string groupId, TransportEvent eventType, object payload, CancellationToken ct)
             => Task.CompletedTask;
 
-        public Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default)
+        public Task<DecisionHandOff> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default)
             => throw new InvalidOperationException(
                 "AwaitEvidenceCardResponseAsync was called — the non-blocking FileForReviewAsync path must never do this.");
     }
@@ -380,7 +380,7 @@ public class ReviewGateFilterTests
             return Task.CompletedTask;
         }
 
-        public Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default)
+        public Task<DecisionHandOff> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default)
             => throw new InvalidOperationException("RecordingStreamingTransport.AwaitEvidenceCardResponseAsync should not be called");
     }
 

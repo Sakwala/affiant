@@ -6,6 +6,8 @@
 *REMOVED*Affiant.Abstractions.Interfaces.IApprovalPolicyEvaluator.EvaluateAsync(Affiant.Abstractions.Models.Affidavit! affidavit, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Affiant.Abstractions.Models.ReviewRequirement>!
 *REMOVED*Affiant.Abstractions.Interfaces.IDocketStore.ListExpiredAsync(System.DateTimeOffset expiresBeforeUtc, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.DocketEntry!>!>!
 *REMOVED*Affiant.Abstractions.Interfaces.IDocketStore.MarkExpiredAsync(System.Collections.Generic.IEnumerable<System.Guid>! entryIds, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
+*REMOVED*Affiant.Abstractions.Interfaces.IStreamingTransport.AwaitEvidenceCardResponseAsync(string! sessionGroupId, System.Guid docketId, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Affiant.Abstractions.Transport.EvidenceCardResponse!>!
+*REMOVED*Affiant.Abstractions.Interfaces.IStreamingTransport.TryDeliverResponse(System.Guid docketId, Affiant.Abstractions.Transport.EvidenceCardResponse! response) -> bool
 *REMOVED*Affiant.Abstractions.Models.Affidavit.Affidavit(string! OperationType, string! EntityType, string? EntityId, Affiant.Abstractions.Models.AffidavitField![]! Fields, float AggregateConfidence, string![]! Warnings, bool RequiresConfirmation) -> void
 *REMOVED*Affiant.Abstractions.Models.Affidavit.Deconstruct(out string! OperationType, out string! EntityType, out string? EntityId, out Affiant.Abstractions.Models.AffidavitField![]! Fields, out float AggregateConfidence, out string![]! Warnings, out bool RequiresConfirmation) -> void
 *REMOVED*Affiant.Abstractions.Models.ApprovalVerdict.ApprovalVerdict(Affiant.Abstractions.Models.ReviewRequirement Requirement, System.TimeSpan? TimeToLive = null, string? Reason = null, string? BlockedReason = null, Affiant.Abstractions.Models.ReviewRequirement? DegradedFrom = null) -> void
@@ -162,6 +164,8 @@ Affiant.Abstractions.Interfaces.IDocketStore.RecordSupersessionAsync(System.Guid
 Affiant.Abstractions.Interfaces.IDocketStore.TransitionAsync(System.Guid entryId, Affiant.Abstractions.Interfaces.DocketScope! scope, Affiant.Abstractions.Models.ReviewStatus expected, Affiant.Abstractions.Interfaces.DocketTransitionPatch! patch, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.DocketTransitionResult!>!
 Affiant.Abstractions.Interfaces.IPreviousValueSource
 Affiant.Abstractions.Interfaces.IPreviousValueSource.GetPreviousValuesAsync(string! entityType, string! entityId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyDictionary<string!, object?>?>!
+Affiant.Abstractions.Interfaces.IStreamingTransport.AwaitEvidenceCardResponseAsync(string! sessionGroupId, System.Guid docketId, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Affiant.Abstractions.Transport.DecisionHandOff!>!
+Affiant.Abstractions.Interfaces.IStreamingTransport.TryDeliverResponse(System.Guid docketId, Affiant.Abstractions.Transport.DecisionHandOff! handOff) -> bool
 Affiant.Abstractions.Interfaces.PreserveAmendmentsResult
 Affiant.Abstractions.Interfaces.PreserveAmendmentsResult.NotExpired
 Affiant.Abstractions.Interfaces.PreserveAmendmentsResult.NotExpired.Equals(Affiant.Abstractions.Interfaces.PreserveAmendmentsResult.NotExpired? other) -> bool
@@ -651,6 +655,12 @@ Affiant.Abstractions.Telemetry.TelemetryKeyRegistry.RegistryVersion.init -> void
 Affiant.Abstractions.Telemetry.TelemetryKeyRegistry.TelemetryKeyRegistry(string! ProtocolVersion, string! RegistryVersion, System.Collections.Immutable.ImmutableArray<Affiant.Abstractions.Telemetry.TelemetryKeyEntry!> Keys) -> void
 Affiant.Abstractions.Telemetry.TelemetryKeys
 Affiant.Abstractions.Telemetry.TelemetryKeys.Attributes
+Affiant.Abstractions.Transport.DecisionHandOff
+Affiant.Abstractions.Transport.DecisionHandOff.Attestation.get -> Affiant.Abstractions.Models.Attestation!
+Affiant.Abstractions.Transport.DecisionHandOff.CreatedAt.get -> System.DateTimeOffset
+Affiant.Abstractions.Transport.DecisionHandOff.Decision.get -> Affiant.Abstractions.Transport.ApprovalDecision
+Affiant.Abstractions.Transport.DecisionHandOff.EntryId.get -> System.Guid
+Affiant.Abstractions.Transport.DecisionHandOff.Outcome.get -> Affiant.Abstractions.Models.ReviewOutcome!
 Affiant.Abstractions.Transport.DecisionOutcome
 Affiant.Abstractions.Transport.DecisionOutcome.Approved = 0 -> Affiant.Abstractions.Transport.DecisionOutcome
 Affiant.Abstractions.Transport.DecisionOutcome.Expired = 2 -> Affiant.Abstractions.Transport.DecisionOutcome
@@ -1168,15 +1178,12 @@ static Affiant.Abstractions.Models.Attestation.operator ==(Affiant.Abstractions.
 static Affiant.Abstractions.Models.AttestationRelay.operator !=(Affiant.Abstractions.Models.AttestationRelay? left, Affiant.Abstractions.Models.AttestationRelay? right) -> bool
 static Affiant.Abstractions.Models.AttestationRelay.operator ==(Affiant.Abstractions.Models.AttestationRelay? left, Affiant.Abstractions.Models.AttestationRelay? right) -> bool
 static Affiant.Abstractions.Models.Attestor.For(Affiant.Abstractions.Models.Principal! principal) -> Affiant.Abstractions.Models.Attestor?
-static Affiant.Abstractions.Models.Attestor.Member.FromStorage(string! id) -> Affiant.Abstractions.Models.Attestor.Member!
 static Affiant.Abstractions.Models.Attestor.Member.Of(Affiant.Abstractions.Models.Principal.Member! principal) -> Affiant.Abstractions.Models.Attestor.Member!
 static Affiant.Abstractions.Models.Attestor.Member.operator !=(Affiant.Abstractions.Models.Attestor.Member? left, Affiant.Abstractions.Models.Attestor.Member? right) -> bool
 static Affiant.Abstractions.Models.Attestor.Member.operator ==(Affiant.Abstractions.Models.Attestor.Member? left, Affiant.Abstractions.Models.Attestor.Member? right) -> bool
-static Affiant.Abstractions.Models.Attestor.MemberViaRelay.FromStorage(string! memberId, Affiant.Abstractions.Models.AttestationRelay! relay) -> Affiant.Abstractions.Models.Attestor.MemberViaRelay!
 static Affiant.Abstractions.Models.Attestor.MemberViaRelay.Of(Affiant.Abstractions.Models.Principal.Service! principal) -> Affiant.Abstractions.Models.Attestor.MemberViaRelay?
 static Affiant.Abstractions.Models.Attestor.MemberViaRelay.operator !=(Affiant.Abstractions.Models.Attestor.MemberViaRelay? left, Affiant.Abstractions.Models.Attestor.MemberViaRelay? right) -> bool
 static Affiant.Abstractions.Models.Attestor.MemberViaRelay.operator ==(Affiant.Abstractions.Models.Attestor.MemberViaRelay? left, Affiant.Abstractions.Models.Attestor.MemberViaRelay? right) -> bool
-static Affiant.Abstractions.Models.Attestor.StandingOrder.FromStorage(string! policyId, string! version) -> Affiant.Abstractions.Models.Attestor.StandingOrder!
 static Affiant.Abstractions.Models.Attestor.StandingOrder.Of(string! policyId, string? version) -> Affiant.Abstractions.Models.Attestor.StandingOrder!
 static Affiant.Abstractions.Models.Attestor.StandingOrder.operator !=(Affiant.Abstractions.Models.Attestor.StandingOrder? left, Affiant.Abstractions.Models.Attestor.StandingOrder? right) -> bool
 static Affiant.Abstractions.Models.Attestor.StandingOrder.operator ==(Affiant.Abstractions.Models.Attestor.StandingOrder? left, Affiant.Abstractions.Models.Attestor.StandingOrder? right) -> bool

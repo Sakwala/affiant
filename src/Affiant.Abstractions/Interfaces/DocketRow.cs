@@ -124,6 +124,39 @@ public static class DocketRow
             throw new ArgumentException(
                 $"A {patch.Status} entry carries no execution outcome.", patchParameterName);
         }
+
+        // AZ-1: a row that leaves pending approved or rejected names who agreed, or it is not
+        // written at all.
+        //
+        // This is the second of two defences and the one that makes the state UNWRITABLE: the gate's
+        // decision core makes an unattested approval unreachable, and this makes it impossible to
+        // store even for a caller holding an IDocketStore directly. A decided row that cannot name
+        // who agreed is not a record, and an executor reached through one would be a write nobody
+        // authorised (AZ-5). Expiry is unaffected — nobody decided it, so it carries neither.
+        if (patch.Status is not (ReviewStatus.Approved or ReviewStatus.Rejected))
+            return;
+
+        if (patch.Attestation is null)
+        {
+            throw new ArgumentException(
+                $"AZ-1: a transition to {patch.Status} carries an attestation. A decided row that " +
+                "cannot name who agreed is not a record, and an executor reached through one would " +
+                "be a write nobody authorised (AZ-5).",
+                patchParameterName);
+        }
+
+        // The decision record is what a PERSON chose and why. A Standing Order approval has an
+        // attestation and no decision record, because nobody chose anything — so the requirement is
+        // read off the attestor rather than applied to every approval alike.
+        if (patch.Attestation.By is not Attestor.StandingOrder && patch.Decision is null)
+        {
+            throw new ArgumentException(
+                $"AZ-1: a transition to {patch.Status} attested to " +
+                $"{patch.Attestation.By.Kind} carries a decision record saying what that person " +
+                "chose and why. Only a Standing Order approval has none, because nobody chose " +
+                "anything.",
+                patchParameterName);
+        }
     }
 
     /// <summary>Refuses an execution report that contradicts the guard it claims to run under.</summary>

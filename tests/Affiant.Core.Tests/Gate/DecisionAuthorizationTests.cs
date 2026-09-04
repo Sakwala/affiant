@@ -737,9 +737,9 @@ public class DecisionAuthorizationTests
         public Task BroadcastToGroupAsync(string groupId, TransportEvent eventType, object payload, CancellationToken ct)
             => Task.CompletedTask;
 
-        public Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(
+        public Task<DecisionHandOff> AwaitEvidenceCardResponseAsync(
             string sessionGroupId, Guid docketId, CancellationToken ct = default)
-            => Task.FromException<EvidenceCardResponse>(new OperationCanceledException(ct));
+            => Task.FromException<DecisionHandOff>(new OperationCanceledException(ct));
     }
 
     /// <summary>Degraded mode's transport: nothing can be delivered, and no rule bends because of it.</summary>
@@ -751,7 +751,7 @@ public class DecisionAuthorizationTests
         public Task BroadcastToGroupAsync(string groupId, TransportEvent eventType, object payload, CancellationToken ct)
             => throw new InvalidOperationException("no transport is connected");
 
-        public Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(
+        public Task<DecisionHandOff> AwaitEvidenceCardResponseAsync(
             string sessionGroupId, Guid docketId, CancellationToken ct = default)
             => throw new InvalidOperationException("no transport is connected");
     }

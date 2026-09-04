@@ -15,7 +15,7 @@ using Microsoft.AspNetCore.SignalR;
 public sealed class SignalRStreamingTransport<THub>(IHubContext<THub> hubContext) : IStreamingTransport
     where THub : AffiantHub
 {
-    private readonly ConcurrentDictionary<Guid, TaskCompletionSource<EvidenceCardResponse>> _pending = new();
+    private readonly ConcurrentDictionary<Guid, TaskCompletionSource<DecisionHandOff>> _pending = new();
 
     public Task SendAsync(string connectionId, TransportEvent eventType, object payload, CancellationToken ct)
         => hubContext.Clients.Client(connectionId).SendAsync(eventType.ToClientEventName(), payload, ct);
@@ -24,10 +24,10 @@ public sealed class SignalRStreamingTransport<THub>(IHubContext<THub> hubContext
         => hubContext.Clients.Group(groupId).SendAsync(eventType.ToClientEventName(), payload, ct);
 
     /// <summary>Document-reserved (P1a) — see <see cref="IStreamingTransport.AwaitEvidenceCardResponseAsync"/>'s docs.</summary>
-    public async Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(
+    public async Task<DecisionHandOff> AwaitEvidenceCardResponseAsync(
         string sessionGroupId, Guid docketId, CancellationToken ct = default)
     {
-        var tcs = new TaskCompletionSource<EvidenceCardResponse>(
+        var tcs = new TaskCompletionSource<DecisionHandOff>(
             TaskCreationOptions.RunContinuationsAsynchronously);
 
         if (!_pending.TryAdd(docketId, tcs))
@@ -58,7 +58,7 @@ public sealed class SignalRStreamingTransport<THub>(IHubContext<THub> hubContext
     /// on <paramref name="docketId"/>. Returns <c>true</c> if a live waiter was found;
     /// <c>false</c> if the host was restarted and the docket-replay path must be used.
     /// </summary>
-    public bool TryDeliverResponse(Guid docketId, EvidenceCardResponse response)
+    public bool TryDeliverResponse(Guid docketId, DecisionHandOff response)
     {
         if (_pending.TryRemove(docketId, out var tcs))
         {

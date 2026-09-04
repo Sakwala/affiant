@@ -25,21 +25,24 @@ using Xunit;
 /// Uses inline test doubles (FakeStreamingTransport, InMemoryDocketStore, FakeApprovalPolicy).
 /// TODO (Story 6.12): Replace inline doubles with shared fixtures from Affiant.TestInfrastructure.
 /// </summary>
+// The blocking review path is deprecated (AFFIANT0002) and kept for one release; the tests that
+// pin its behaviour are the reason it still has to work.
+#pragma warning disable AFFIANT0002
 public class ReviewGateTests
 {
     // ── Test doubles ──────────────────────────────────────────────────────────
 
     private sealed class FakeStreamingTransport : IStreamingTransport
     {
-        private readonly Queue<EvidenceCardResponse> _responses = new();
-        private readonly TaskCompletionSource<EvidenceCardResponse> _delivered =
+        private readonly Queue<Func<Guid, Task>> _scripted = new();
+        private readonly TaskCompletionSource<DecisionHandOff> _delivered =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
         private bool _simulateTimeout;
         private bool _hangUntilCancelled;
         private Func<Task>? _beforeTimeoutThrow;
 
         public List<(string GroupId, TransportEvent EventType, object Payload)> SentEvents { get; } = [];
-        public List<EvidenceCardResponse> DeliveredResponses { get; } = [];
+        public List<DecisionHandOff> DeliveredHandOffs { get; } = [];
 
         /// <summary>When true, <see cref="TryDeliverResponse"/> simulates a live waiter.</summary>
         public bool HasLiveWaiter { get; set; }
@@ -56,7 +59,26 @@ public class ReviewGateTests
         /// </summary>
         public void FailNextEvidenceCardBroadcasts(int count) => _failNextEvidenceCardBroadcasts = count;
 
-        public void EnqueueResponse(EvidenceCardResponse response) => _responses.Enqueue(response);
+        /// <summary>
+        /// A reviewer who decides the moment the card is filed. The decision goes through the gate —
+        /// the only thing that can conclude one — so what unblocks the awaiting call is the
+        /// <em>result</em> of the authorization sequence and never a response a test wrote by hand
+        /// (AZ-1, AZ-2).
+        /// </summary>
+        public void EnqueueDecision(
+            ReviewGate gate,
+            ApprovalDecision decision,
+            DecisionContext context,
+            string? reason = null,
+            IReadOnlyDictionary<string, object?>? amendments = null)
+        {
+            HasLiveWaiter = true;
+            _scripted.Enqueue(entryId => gate.HandleDecisionAsync(
+                entryId,
+                decision,
+                context with { Reason = reason ?? context.Reason },
+                amendments));
+        }
 
         /// <param name="beforeThrow">
         /// Optional callback run immediately before the simulated timeout exception is thrown —
@@ -76,9 +98,9 @@ public class ReviewGateTests
         /// </summary>
         public void HangUntilCancelled() => _hangUntilCancelled = true;
 
-        public bool TryDeliverResponse(Guid docketId, EvidenceCardResponse response)
+        public bool TryDeliverResponse(Guid docketId, DecisionHandOff response)
         {
-            DeliveredResponses.Add(response);
+            DeliveredHandOffs.Add(response);
 
             // A live waiter is one that actually receives the response — including whatever the
             // gate attached to it on the way through, which is how the awaiting call learns who
@@ -111,7 +133,7 @@ public class ReviewGateTests
             return Task.CompletedTask;
         }
 
-        public async Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(
+        public async Task<DecisionHandOff> AwaitEvidenceCardResponseAsync(
             string sessionGroupId, Guid docketId, CancellationToken ct = default)
         {
             if (_simulateTimeout)
@@ -133,14 +155,24 @@ public class ReviewGateTests
                 await Task.Delay(Timeout.InfiniteTimeSpan, ct);
             }
 
-            if (_responses.TryDequeue(out var response))
-                return response;
+            if (_scripted.TryDequeue(out var decide))
+            {
+                await decide(docketId);
+                if (!_delivered.Task.IsCompleted)
+                {
+                    throw new InvalidOperationException(
+                        "FakeStreamingTransport: the scripted decision was refused, so no hand-off " +
+                        "reached the waiter. A refusal is not a decision.");
+                }
 
-            // No queued script: wait for a real TryDeliverResponse, the way a live waiter does.
+                return await _delivered.Task;
+            }
+
+            // No script: wait for a real TryDeliverResponse, the way a live waiter does.
             if (HasLiveWaiter)
                 return await _delivered.Task.WaitAsync(ct);
 
-            throw new InvalidOperationException("FakeStreamingTransport: no queued EvidenceCardResponse");
+            throw new InvalidOperationException("FakeStreamingTransport: no scripted decision");
         }
     }
 
@@ -460,7 +492,7 @@ public class ReviewGateTests
     public async Task FileReviewAsync_ReviewerConfirmation_Approved_ReturnsApproved()
     {
         var (gate, transport, store) = CreateGate(ReviewRequirement.ReviewerConfirmation);
-        transport.EnqueueResponse(new EvidenceCardResponse(Guid.Empty, ApprovalDecision.Approved));
+        transport.EnqueueDecision(gate, ApprovalDecision.Approved, Ctx());
 
         var (proposal, context) = CreateTestInput();
         var outcome = await gate.FileReviewAsync(proposal, context);
@@ -513,7 +545,7 @@ public class ReviewGateTests
     public async Task FileReviewAsync_ClientRejects_ReturnsRejected()
     {
         var (gate, transport, _) = CreateGate(ReviewRequirement.ReviewerConfirmation);
-        transport.EnqueueResponse(new EvidenceCardResponse(Guid.Empty, ApprovalDecision.Rejected, "Budget exceeded"));
+        transport.EnqueueDecision(gate, ApprovalDecision.Rejected, Ctx(), "Budget exceeded");
 
         var (proposal, context) = CreateTestInput();
         var outcome = await gate.FileReviewAsync(proposal, context);
@@ -576,8 +608,13 @@ public class ReviewGateTests
         // Referral is a transition no implementation has run, so this version records the level and
         // refuses rather than writing a Deferred status that names semantics nobody has fixed.
         var refused = Assert.IsType<ReviewOutcome.Refused>(outcome);
-        Assert.Equal(DocketRefusalCodes.RequirementNotImplemented, refused.Code);
-        Assert.Equal(nameof(ReviewRequirement.ReferralRequired), refused.Detail);
+        // AZ-4: the row is pending and no decision on it will ever be accepted, which is what
+        // `decision-not-pending` is registered to mean. The marker's own code and level travel in
+        // the detail rather than standing in for the refusal code.
+        Assert.Equal(DocketRefusalCodes.DecisionNotPending, refused.Code);
+        Assert.Equal(
+            $"{DocketRefusalCodes.RequirementNotImplemented}: {nameof(ReviewRequirement.ReferralRequired)}",
+            refused.Detail);
 
         var entry = await store.GetDocketEntryAsync(context.EntryId!.Value, default);
         Assert.NotNull(entry);
@@ -601,8 +638,10 @@ public class ReviewGateTests
         // A blocked entry never accepts a decision, and the refusal names the code that blocked it
         // rather than a bare "not pending" a host cannot act on.
         var refused = Assert.IsType<ReviewOutcome.Refused>(outcome);
-        Assert.Equal(DocketRefusalCodes.RequirementNotImplemented, refused.Code);
-        Assert.Equal(nameof(ReviewRequirement.MultiParty), refused.Detail);
+        Assert.Equal(DocketRefusalCodes.DecisionNotPending, refused.Code);
+        Assert.Equal(
+            $"{DocketRefusalCodes.RequirementNotImplemented}: {nameof(ReviewRequirement.MultiParty)}",
+            refused.Detail);
 
         var entry = await store.GetDocketEntryAsync(context.EntryId!.Value, default);
         Assert.Equal(ReviewStatus.Pending, entry!.Status);
@@ -614,7 +653,7 @@ public class ReviewGateTests
     {
         var entryId = Guid.NewGuid();
         var (gate, transport, store) = CreateGate(ReviewRequirement.ReviewerConfirmation);
-        transport.EnqueueResponse(new EvidenceCardResponse(Guid.Empty, ApprovalDecision.Approved));
+        transport.EnqueueDecision(gate, ApprovalDecision.Approved, Ctx());
 
         var (proposal, context) = CreateTestInput(entryId);
 
@@ -651,7 +690,7 @@ public class ReviewGateTests
     public async Task FileReviewAsync_MultiParty_IsBlockedNotDegradedToOneReviewer()
     {
         var (gate, transport, store) = CreateGate(ReviewRequirement.MultiParty);
-        transport.EnqueueResponse(new EvidenceCardResponse(Guid.Empty, ApprovalDecision.Approved));
+        transport.EnqueueDecision(gate, ApprovalDecision.Approved, Ctx());
 
         var (proposal, context) = CreateTestInput(Guid.NewGuid());
         var outcome = await gate.FileReviewAsync(proposal, context);
@@ -659,8 +698,10 @@ public class ReviewGateTests
         // The failure this rule exists to prevent: a write needing several parties' joint approval
         // used to fall through to the one-reviewer branch and be satisfied by a single click.
         var refused = Assert.IsType<ReviewOutcome.Refused>(outcome);
-        Assert.Equal(DocketRefusalCodes.RequirementNotImplemented, refused.Code);
-        Assert.Equal(nameof(ReviewRequirement.MultiParty), refused.Detail);
+        Assert.Equal(DocketRefusalCodes.DecisionNotPending, refused.Code);
+        Assert.Equal(
+            $"{DocketRefusalCodes.RequirementNotImplemented}: {nameof(ReviewRequirement.MultiParty)}",
+            refused.Detail);
 
         var entry = await store.GetDocketEntryAsync(context.EntryId!.Value, default);
         Assert.Equal(ReviewStatus.Pending, entry!.Status);
@@ -682,8 +723,7 @@ public class ReviewGateTests
             ["title"] = "Reviewer-Edited Title",
             ["notes"] = null
         };
-        transport.EnqueueResponse(
-            new EvidenceCardResponse(entryId, ApprovalDecision.Approved, Amendments: amendments));
+        transport.EnqueueDecision(gate, ApprovalDecision.Approved, Ctx(), amendments: amendments);
 
         var (proposal, context) = CreateTestInput(entryId);
         var outcome = await gate.FileReviewAsync(proposal, context);
@@ -705,10 +745,9 @@ public class ReviewGateTests
     {
         var entryId = Guid.NewGuid();
         var (gate, transport, store) = CreateGate(ReviewRequirement.ReviewerConfirmation);
-        transport.EnqueueResponse(new EvidenceCardResponse(
-            entryId,
-            ApprovalDecision.Approved,
-            Amendments: new Dictionary<string, object?> { ["title"] = "Reviewer-Edited Title" }));
+        transport.EnqueueDecision(
+            gate, ApprovalDecision.Approved, Ctx(),
+            amendments: new Dictionary<string, object?> { ["title"] = "Reviewer-Edited Title" });
 
         var (proposal, context) = CreateTestInput(entryId);
         var outcome = await gate.FileReviewAsync(proposal, context);
@@ -734,7 +773,7 @@ public class ReviewGateTests
     public async Task FileReviewAsync_ApprovedUnchanged_CarriesNoAmendedAffidavit()
     {
         var (gate, transport, _) = CreateGate(ReviewRequirement.ReviewerConfirmation);
-        transport.EnqueueResponse(new EvidenceCardResponse(Guid.Empty, ApprovalDecision.Approved));
+        transport.EnqueueDecision(gate, ApprovalDecision.Approved, Ctx());
 
         var (proposal, context) = CreateTestInput();
         var outcome = await gate.FileReviewAsync(proposal, context);
@@ -772,10 +811,9 @@ public class ReviewGateTests
         // the approval stands, and only the amended record is withheld.
         var entryId = Guid.NewGuid();
         var (gate, transport, store) = CreateGate(ReviewRequirement.ReviewerConfirmation);
-        transport.EnqueueResponse(new EvidenceCardResponse(
-            entryId,
-            ApprovalDecision.Approved,
-            Amendments: new Dictionary<string, object?> { ["notes"] = "not a proposed field" }));
+        transport.EnqueueDecision(
+            gate, ApprovalDecision.Approved, Ctx(),
+            amendments: new Dictionary<string, object?> { ["notes"] = "not a proposed field" });
 
         var (proposal, context) = CreateTestInput(entryId);
         var outcome = await gate.FileReviewAsync(proposal, context);
@@ -793,7 +831,7 @@ public class ReviewGateTests
     {
         var entryId = Guid.NewGuid();
         var (gate, transport, store) = CreateGate(ReviewRequirement.ReviewerConfirmation);
-        transport.EnqueueResponse(new EvidenceCardResponse(entryId, ApprovalDecision.Approved));
+        transport.EnqueueDecision(gate, ApprovalDecision.Approved, Ctx());
 
         var (proposal, context) = CreateTestInput(entryId);
         await gate.FileReviewAsync(proposal, context);
@@ -803,27 +841,37 @@ public class ReviewGateTests
         Assert.Null(entry.Amendments);
     }
 
+    /// <summary>
+    /// A waiter is handed the <em>result</em> of the decision, never the decision itself: the row is
+    /// already written and attested by the time a hand-off exists, so the awaiting call reports it
+    /// and writes nothing (AZ-1, AZ-2).
+    /// </summary>
     [Fact]
-    public async Task HandleDecisionAsync_LiveWaiter_ThreadsAmendmentsIntoDeliveredResponse()
+    public async Task HandleDecisionAsync_LiveWaiter_HandsOverTheSettledOutcomeAndItsAttestation()
     {
-        var (gate, transport, _) = CreateGate();
-        transport.HasLiveWaiter = true;
         var entryId = Guid.NewGuid();
-        var amendments = new Dictionary<string, object?> { ["title"] = "Reviewer-Edited Title" };
+        var (gate, transport, store) = CreateGate(ReviewRequirement.ReviewerConfirmation);
+        transport.HasLiveWaiter = true;
+
+        var (proposal, context) = CreateTestInput(entryId);
+        await gate.FileForReviewAsync(proposal, context);
 
         var (outcome, createdAt) = await gate.HandleDecisionAsync(
             entryId, ApprovalDecision.Approved, Ctx(),
-            amendments);
+            new Dictionary<string, object?> { ["title"] = "Reviewer-Edited Title" });
 
-        // Live path: the awaiting FileReviewAsync call owns the outcome — this method returns nulls.
-        Assert.Null(outcome);
-        Assert.Null(createdAt);
+        // The deciding call owns the outcome, waiter or no waiter.
+        Assert.IsType<ReviewOutcome.Approved>(outcome);
+        Assert.NotNull(createdAt);
 
-        var delivered = Assert.Single(transport.DeliveredResponses);
-        Assert.Equal(entryId, delivered.DocketId);
+        var delivered = Assert.Single(transport.DeliveredHandOffs);
+        Assert.Equal(entryId, delivered.EntryId);
         Assert.Equal(ApprovalDecision.Approved, delivered.Decision);
-        Assert.NotNull(delivered.Amendments);
-        Assert.Equal("Reviewer-Edited Title", delivered.Amendments!["title"]);
+        Assert.Equal("reviewer-456", Assert.IsType<Attestor.Member>(delivered.Attestation.By).Id);
+        Assert.IsType<ReviewOutcome.Approved>(delivered.Outcome);
+
+        var row = await store.GetDocketEntryAsync(entryId, default);
+        Assert.Equal("Reviewer-Edited Title", row!.Amendments!["title"]);
     }
 
     [Fact]
@@ -906,7 +954,7 @@ public class ReviewGateTests
             var (gate, transport, store) = CreateGate(
                 ReviewRequirement.ReviewerConfirmation,
                 new AffiantCoreOptions { DefaultDocketTtl = ttl });
-            transport.EnqueueResponse(new EvidenceCardResponse(Guid.Empty, ApprovalDecision.Approved));
+            transport.EnqueueDecision(gate, ApprovalDecision.Approved, Ctx());
             var (proposal, context) = CreateTestInput(Guid.NewGuid());
             await gate.FileReviewAsync(proposal, context);
             var entry = await store.GetDocketEntryAsync(context.EntryId!.Value, default);
@@ -1554,7 +1602,7 @@ public class ReviewGateTests
     public async Task RebroadcastPendingCardsAsync_ApprovedEntry_NotRebroadcast()
     {
         var (gate, transport, _) = CreateGate(ReviewRequirement.ReviewerConfirmation);
-        transport.EnqueueResponse(new EvidenceCardResponse(Guid.Empty, ApprovalDecision.Approved));
+        transport.EnqueueDecision(gate, ApprovalDecision.Approved, Ctx());
         var (proposal, context) = CreateTestInput(Guid.NewGuid());
         await gate.FileReviewAsync(proposal, context);
         transport.SentEvents.Clear();
@@ -1790,3 +1838,4 @@ public class ReviewGateTests
         Assert.DoesNotContain(transport.SentEvents, e => e.EventType == TransportEvent.EvidenceCardRequest);
     }
 }
+#pragma warning restore AFFIANT0002

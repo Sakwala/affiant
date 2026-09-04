@@ -157,7 +157,7 @@ internal sealed class RecordingTransport : IStreamingTransport
         return Task.CompletedTask;
     }
 
-    public Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(
+    public Task<DecisionHandOff> AwaitEvidenceCardResponseAsync(
         string sessionGroupId, Guid docketId, CancellationToken ct = default)
         => throw new InvalidOperationException(
             "The non-blocking filing path must never await a reviewer response.");

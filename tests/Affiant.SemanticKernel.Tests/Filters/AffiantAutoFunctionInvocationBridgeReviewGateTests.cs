@@ -369,7 +369,7 @@ public class AffiantAutoFunctionInvocationBridgeReviewGateTests
             return Task.CompletedTask;
         }
 
-        public Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default)
+        public Task<DecisionHandOff> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default)
             => throw new InvalidOperationException("should not be called");
     }
 }

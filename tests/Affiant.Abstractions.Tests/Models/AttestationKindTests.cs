@@ -60,20 +60,80 @@ public class AttestationKindTests
     }
 
     /// <summary>
-    /// The member factory's signature is the enforcement: it takes a member principal, so there is
-    /// no argument a caller could pass to reach it with a service one.
+    /// AZ-3 structurally: <b>every</b> public static member of this package that returns an attestor
+    /// takes a principal, and the only one that returns a member attestor takes a
+    /// <see cref="Principal.Member"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Written over the whole public surface rather than over one named factory, because the defect
+    /// this replaces was a second factory nobody had thought to name: <c>FromStorage(string)</c>
+    /// minted a member attestation from a bare string, and the earlier reflection tests were blind
+    /// to it — one looked only for a parameter accepting a service principal, the other filtered on
+    /// the method name <c>Of</c>. A rule enforced against a list of names is a rule the next member
+    /// added is exempt from.
+    /// </para>
+    /// <para>
+    /// The rehydration factories still exist; they are <c>internal</c>, visible only to the packages
+    /// named in <c>Affiant.Abstractions.csproj</c>, so a host cannot reach one.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void EveryPublicFactoryReturningAnAttestor_TakesAPrincipalItIsEntitledTo()
+    {
+        var offenders = new List<string>();
+
+        foreach (var type in typeof(Attestor).Assembly.GetExportedTypes())
+        {
+            foreach (var member in type.GetMethods(BindingFlags.Public | BindingFlags.Static)
+                         .Where(m => m.DeclaringType == type))
+            {
+                if (!Produces(member.ReturnType, typeof(Attestor))) continue;
+
+                var parameters = member.GetParameters();
+
+                // A member attestor is a person's signature: the only public way to one takes a
+                // resolved member principal, and nothing else.
+                if (Produces(member.ReturnType, typeof(Attestor.Member)))
+                {
+                    if (parameters.Length != 1 || parameters[0].ParameterType != typeof(Principal.Member))
+                        offenders.Add($"{type.FullName}.{member.Name} -> {member.ReturnType.Name}");
+
+                    continue;
+                }
+
+                // Every other public factory still starts from a principal, or from the policy that
+                // fired — never from a bare identifier with nothing behind it.
+                if (parameters.Length == 0)
+                    offenders.Add($"{type.FullName}.{member.Name} -> {member.ReturnType.Name}");
+            }
+        }
+
+        Assert.True(
+            offenders.Count == 0,
+            "AZ-3: every public factory that produces an attestor must start from a principal, and " +
+            "only a member principal produces a member attestor. These do not:\n" +
+            string.Join("\n", offenders));
+    }
+
+    /// <summary>
+    /// Rehydration is not public surface: reading an attestation back off a row is the stores'
+    /// business, and a public factory taking a bare id is a way for a machine caller to name a
+    /// person.
     /// </summary>
     [Fact]
-    public void TheMemberFactory_TakesAMemberPrincipalAndNothingElse()
+    public void NoRehydrationFactoryIsPublic()
     {
-        var factories = typeof(Attestor.Member)
-            .GetMethods(BindingFlags.Public | BindingFlags.Static)
-            .Where(m => m.ReturnType == typeof(Attestor.Member) && m.Name == nameof(Attestor.Member.Of))
+        var exported = typeof(Attestor).Assembly.GetExportedTypes()
+            .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Static))
+            .Where(m => m.Name == "FromStorage")
+            .Select(m => $"{m.DeclaringType!.FullName}.{m.Name}")
             .ToArray();
 
-        var factory = Assert.Single(factories);
-        var parameter = Assert.Single(factory.GetParameters());
-        Assert.Equal(typeof(Principal.Member), parameter.ParameterType);
+        Assert.True(
+            exported.Length == 0,
+            "AZ-3: rehydration is the stores' business, and these are public:\n" +
+            string.Join("\n", exported));
     }
 
     [Fact]

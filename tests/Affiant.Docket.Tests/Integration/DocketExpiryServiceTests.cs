@@ -202,7 +202,11 @@ public sealed class DocketExpiryServiceTests
             racer.EntryId,
             new DocketScope(tenantId),
             ReviewStatus.Pending,
-            new DocketTransitionPatch(ReviewStatus.Approved),
+            new DocketTransitionPatch(
+                ReviewStatus.Approved,
+                Decision: new DecisionRecord(DecisionKind.Approve, null, DateTimeOffset.UtcNow),
+                Attestation: new Attestation(
+                    Attestor.Member.FromStorage("member-1"), DateTimeOffset.UtcNow, racer.EntryId)),
             CancellationToken.None);
         Assert.IsType<DocketTransitionResult.Transitioned>(claimed);
 
@@ -511,7 +515,7 @@ public sealed class DocketExpiryServiceTests
         public Task SendAsync(string connectionId, TransportEvent eventType, object payload, CancellationToken ct)
             => throw new InvalidOperationException("SpyStreamingTransport.SendAsync should not be called by DocketExpiryService");
 
-        public Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default)
+        public Task<DecisionHandOff> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default)
             => throw new InvalidOperationException("SpyStreamingTransport.AwaitEvidenceCardResponseAsync should not be called by DocketExpiryService");
     }
 

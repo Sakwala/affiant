@@ -246,7 +246,7 @@ public class ServiceCollectionExtensionsTests
     {
         public Task SendAsync(string connectionId, TransportEvent eventType, object payload, CancellationToken ct) => Task.CompletedTask;
         public Task BroadcastToGroupAsync(string groupId, TransportEvent eventType, object payload, CancellationToken ct) => Task.CompletedTask;
-        public Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default) => Task.FromCanceled<EvidenceCardResponse>(ct);
+        public Task<DecisionHandOff> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default) => Task.FromCanceled<DecisionHandOff>(ct);
     }
 
     private sealed class StubDocketStore : IDocketStore
