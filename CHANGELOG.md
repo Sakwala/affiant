@@ -234,6 +234,26 @@ update at all.
   `conversationTurn` and `createdAt` as optional trailing arguments. A host with its own
   `IAffidavitProjection` should pass both; a host that passes neither gets a record the gate stamps
   and a `null` turn.
+- **The canonical form is the PROTOCOL's record, not this framework's.** `CanonicalSerializer` takes
+  its form over the ten properties the rulebook's own byte vectors pin: this framework's four
+  extras — the record's warnings and confirmation verdict, and a field's closed set and pattern,
+  all of which the protocol keeps on the card envelope, where this framework's card also carries
+  them — are not part of it, and the operation is written in the protocol's two-valued vocabulary
+  (`create` / `update`) rather than this framework's four-valued one. A .NET record and a
+  TypeScript record built from the same facts now produce the same bytes and the same digest, which
+  is the whole of SR-1: an execution grant minted by one implementation validates against the other.
+  **This changes the hash of every record**, so a grant minted by `1.0.0-beta.1` does not validate
+  against a record canonicalised by this release; nothing shipped mints one yet.
+- **Every tag the framework mints says when it was minted**, and says where the value came from in
+  the protocol's own words. `ProvenanceTag.FromInference` takes the instant (the v0.1 tag requires
+  one) and `TaskInferenceStep` stamps it from the injected `TimeProvider`; the note a tag carries
+  for a value read literally out of the turn, and for one the model reasoned to, is the protocol's
+  phrasing, because a note is part of the record a hash is taken over and two implementations that
+  worded it differently could never agree on a digest. An `utterance-span` binding's digest is the
+  canonical form's own — 64 lowercase hexadecimal characters and no prefix.
+- **A value keeps the JSON type the port reported it as.** The inference step read every scalar as
+  text, so a number reported as `40` was filed and shown as `"40"`. A field's `kind` is a rendering
+  hint for a reviewer surface, not a licence to re-type the value.
 - **`Affidavit.PopulatedConfidence` (`float?`) and `Affidavit.EmptyFieldCount` (`int`).** A safety
   number that reads `0` tells a reviewer nothing about how much of the record is blank or how good
   the populated part is. `PopulatedConfidence` is the minimum over the fields that *are* populated —
@@ -958,6 +978,25 @@ delivered its own `EvidenceCardResponse` unblocked the waiter and the row was wr
 
 #### Added
 
+- **`Affiant.Core.Services.ToolCoverage` — coverage is a concept the gate holds** (CV-4, CV-1).
+  Affiant intercepts a write by *being* the tool that performs it, and three kinds of write-capable
+  tool cannot be intercepted at all: one the model provider executes on its own side, one a hosted
+  MCP server performs, and one declared write-capable with no execute step for the gate to replace.
+  A write made through any of them reaches a system of record with no Affidavit, no reviewer and no
+  Docket row — and looked, from the outside, exactly like a write that had been through the gate.
+  Until now the only refusal anywhere in the framework was an internal audit inside the two adapter
+  packages, so a host on a third wiring had none at all.
+
+  Two halves, because the gap is knowable at two moments. `ToolCoverage.Audit(name, writeCapable,
+  category)` refuses at **wire-up**, with the protocol's `coverage-refused` code and one
+  `coverage.refused` event per tool: a coverage gap must not be discoverable only by the write it
+  silently let through. `ToolCoverage.DeclareUncovered(name, category)` is the other half — a host
+  that knows it cannot cover a tool and says so. An entry filed for a declared tool is **blocked**
+  with the category: never auto-approved whatever the policy said, no decision on it ever accepted,
+  and the Evidence Card carries the marker and says why in words. A Standing Order approves a write
+  the gate stands in front of; a declared-uncovered tool is one the gate has been told it cannot.
+  Register it with `services.AddSingleton<ToolCoverage>()` and declare at start-up; a host that
+  declares nothing sees no change.
 - **`tests/Affiant.Conformance.Tests` — the conformance driver.** Runs the
   [`Sakwala/affiant-protocol`](https://github.com/Sakwala/affiant-protocol) rulebook's promoted
   fixture suite (56 declarative fixtures and 7 canonical byte vectors) against the packages this
@@ -977,22 +1016,25 @@ delivered its own `EvidenceCardResponse` unblocked the waiter and the row was wr
   attestation names the entry it attests to, and a filing's Evidence Card agrees with the row it
   was broadcast for.
 
-  **Reading against the rulebook's `v0.1.1` pin on this candidate: 46 of 63 pass.** The parity
-  manifest at `conformance/parity/dotnet-v0.1.json` names every one of the 17 that do not, the rule
-  it is about, and what is being done: 15 `planned` for `1.0.0-beta.3` and 2 `fenced` behind a
-  host-side workaround that is also planned for it. None is `fixed`, which names a release a reader
-  can install. The details are written from the run's own diffs and the manifest regenerates byte
-  for byte from the run log committed beside it (`conformance/regenerate-parity.py`).
+  **Reading against the rulebook's `v0.1.1` pin on this candidate: 62 of 63 pass.** The parity
+  manifest at `conformance/parity/dotnet-v0.1.json` names the one that does not, the rule it is
+  about, and what is being done. The details are written from the run's own diffs and the manifest
+  regenerates byte for byte from the run log committed beside it
+  (`conformance/regenerate-parity.py`).
 
-  What is left is four things and their consequences: the Affidavit record cannot carry the
-  protocol version, conversation turn and created-at instant the canonical form pins (every
-  canonical vector, and both fixtures that pin a content hash); a tool argument the model wrote is
-  graded the same as a value the member said, so the model's argument stands on the card; a
-  resubmission does not prefill from the correction preserved on the row it supersedes; and
-  coverage has no runtime concept in the core, so a declared-uncovered tool is filed and approved
-  like any other. `conformance/results/ORACLE-RUN-1.0.0-beta.1.md` reads the shipped release's own
-  run against the rulebook's negative oracle, and
-  `conformance/results/dotnet-1.0.0-beta.1.json` is that release's record, kept as it was published.
+  **The one open row is a question for the rulebook, not a gap in this implementation.**
+  `decide/amend-recompute` pins the content hash of a row whose amended field is bound to the Docket
+  decision that amended it, so the hash contains a *derived* entry id. GT-4 requires the id to be
+  derived from the proposal rather than invented — which this implementation does, from the tenant,
+  the conversation, the tool name and the canonical form of the Affidavit — but the rule does not
+  say from what material or in what layout, and the implementation that produced the pinned hash
+  derives it from different material. Two implementations that derive different ids for the same
+  proposal disagree about which row a proposal *is*. Everything else in that fixture's canonical
+  form reproduces byte for byte.
+
+  `conformance/results/ORACLE-RUN-1.0.0-beta.1.md` reads the shipped release's own run against the
+  rulebook's negative oracle, and `conformance/results/dotnet-1.0.0-beta.1.json` is that release's
+  record, kept as it was published.
 
 ## [1.0.0-beta.1.1] — unreleased
 

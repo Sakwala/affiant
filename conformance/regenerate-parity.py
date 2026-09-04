@@ -62,83 +62,22 @@ PLANNED_FOR = "1.0.0-beta.3"
 
 # disposition, detail, and the extra key that disposition requires.
 CAUSES = {
-    "GT-3-hollow-signature": (
+    "GT-4-entry-id": (
         "planned",
-        "The gate refuses a proposal that swears to nothing before anything is filed, and the "
-        "refusal carries the protocol's substance-refused code. What it cannot do is name the "
-        "hollow signature -- a field asserting a value while its provenance reads Empty -- because "
-        "the schema-driven projection never carries a value it has no provenance for: by the time "
-        "the Affidavit reaches the gate that field is valueless, and the refusal names the other "
-        "signature, that no proposed field carries provenance other than Empty. Only an Affidavit "
-        "built by a host's own projection can reach the gate hollow, and that one is refused with "
-        "the sentence that names it.",
-        {},
-    ),
-    "CV-4-coverage": (
-        "fenced",
-        "There is no coverage concept in the core. A tool the fixture declares uncovered is filed "
-        "like any other and approved by the Standing Order that covers its risk: the row carries no "
-        "blocked marker and the Evidence Card carries no warning naming the uncovered write, and no "
-        "refusal is raised at wire-up either. The only coverage refusal in the tree is "
-        "HostedToolAudit, an internal class inside the two adapter packages, raised when a tool "
-        "catalogue is wired through WithAffiant.",
-        {
-            "fence": "Wire the tool catalogue through WithAffiant in Affiant.Extensions.AI or "
-            "Affiant.AgentFramework: its HostedToolAudit refuses a tool list carrying "
-            "provider-executed or hosted tools at start-up, before anything can be proposed. That "
-            "closes the wire-up case only -- there is still no runtime refusal and no marker on a "
-            "filed row."
-        },
-    ),
-    "DK-2-resubmission": (
-        "planned",
-        "A reviewer's correction is preserved on the row it was typed on, with the instant and the "
-        "person, and an accepted amendment is folded into the amended Affidavit. A resubmission "
-        "does not read either: the new row is projected from the conversation again, so the "
-        "corrected field comes back with the machine's value tagged Conversation and bound to "
-        "nothing, where the record it supersedes holds that value as the reviewer's own act. The "
-        "card broadcast for the resubmission carries no prior amendments, so the reviewer is asked "
-        "the same question again with no sign that they already answered it.",
-        {},
-    ),
-    "PV-1-tool-argument": (
-        "planned",
-        "A tool argument the model wrote and a value the member actually said are graded the same. "
-        "ProvenanceTag.FromTool tags an argument Conversation at 0.9 -- the grade the rulebook "
-        "reserves for what was read out of the turn -- so a literal from the utterance at the same "
-        "confidence does not displace it and the incumbent stands. The card then shows the model's "
-        "own argument where the member's words should be, tagged as though the member had said it. "
-        "The merge itself is one comparison and is applied; what is wrong is the grade going in.",
-        {},
-    ),
-    "SR-1-model": (
-        "planned",
-        "The canonical form the rulebook pins carries three things the Affidavit record does not: a "
-        "protocol version, the conversation turn the proposal belongs to, and a created-at instant. "
-        "The driver's independent canonicaliser reproduces the pinned bytes and the pinned digest "
-        "for six of the seven vectors with no change to it, so what disagrees is the shape of the "
-        "record and not the serialization -- and a fixture that pins a content hash cannot match a "
-        "digest taken over a form this record cannot express.",
-        {},
-    ),
-    "SR-1-amended-vector": (
-        "planned",
-        "The one vector whose sworn form is the Affidavit combined with its accepted amendments. "
-        "The framework folds an accepted amendment into an amended Affidavit on approval, but a "
-        "vector is a document rather than a filing: the driver builds it as JSON and has no "
-        "accepted-amendment path to fold it through, so the pinned bytes and digest are compared "
-        "against the unamended form. This vector also names the three properties the Affidavit "
-        "record cannot hold.",
-        {},
-    ),
-    "TL-1-registry": (
-        "planned",
-        "A registry event that only the framework's own hosted component emits. `docket.expired` is "
-        "emitted by DocketExpiryService, the hosted scheduler; a host that schedules the sweep "
-        "itself and calls IDocketStore.ExpireDueAsync directly -- which DK-3 explicitly sanctions "
-        "-- records the expiry durably and emits nothing, so an operator counting expiries sees a "
-        "number that depends on which of two supported wirings the host chose. The event belongs "
-        "where the expiry is recorded rather than where it happens to be scheduled from.",
+        "The fixture pins the content hash of a row whose amended field is bound to the Docket "
+        "decision that amended it, so the hash contains the entry id -- and the id is DERIVED. GT-4 "
+        "requires it to be derived from the proposal rather than invented, which this "
+        "implementation does, but the rule does not say from what material or by what digest: this "
+        "one hashes the tenant, the conversation, the tool name and the canonical form of the "
+        "Affidavit; the implementation that produced the pinned hash hashes the tenant, the "
+        "conversation, the tool name, the operation and the model's raw arguments, and lays the "
+        "digest out as a version-8 UUID. Two implementations that derive different ids for the same "
+        "proposal disagree about which row a proposal IS, and no execution grant minted by one "
+        "validates against the other. THE OPEN QUESTION, for the rulebook and not for an "
+        "implementation to answer on its own: is the derivation normative, and if so over exactly "
+        "what material and in what layout? Everything else in this fixture's canonical form -- the "
+        "record's properties, the tag's grade, note, instant and binding, the amendment fold -- "
+        "already reproduces byte for byte.",
         {},
     ),
 }
@@ -150,23 +89,12 @@ SCHEDULED: dict[str, tuple[str, str]] = {}
 
 # Where the ordered path scan is not the right reading, the fixture is named.
 OVERRIDES = {
-    "gate/substance-hollow-refused": "GT-3-hollow-signature",
-    "gate/substance-zero-field-refused": "GT-3-hollow-signature",
-    "gate/coverage-refused-declared": "CV-4-coverage",
-    "sequence-a/coverage-refused-at-wire-up": "CV-4-coverage",
-    "decide/resubmit-prefills": "DK-2-resubmission",
-    "sequence-a/late-amendments-preserved": "DK-2-resubmission",
-    "canonical/wire-evidence-card-request-amended": "SR-1-amended-vector",
+    "decide/amend-recompute": "GT-4-entry-id",
 }
 
 # Most fundamental first: the first pattern a fixture's diffs match names its root cause.
 SCAN = [
-    ("CV-4-coverage", r"^(entry|superseded|card)\.blocked$"),
-    ("DK-2-resubmission", r"^card\.priorAmendments$|^(entry|superseded)\.preservedAmendments"),
-    ("SR-1-model", r"^canonicalHash$|^model\."),
-    ("PV-1-tool-argument", r"\.fields\[\d+\]\.(value|source|confidence|bound|bindingKind|priorSources)"),
-    ("GT-3-hollow-signature", r"^error"),
-    ("TL-1-registry", r"^telemetry\["),
+    ("GT-4-entry-id", r"^canonicalHash$"),
 ]
 
 
@@ -260,40 +188,33 @@ CHECKED_INSTEAD = {
 
 NOTES = (
     "The .NET conformance driver, run by this repository's own test suite against the packages this "
-    "tree builds, read at the rulebook's v0.1.1. "
-    "Five things a reader of this document alone should know. "
+    "tree builds, read at the rulebook's v0.1.1. Sixty-two of the sixty-three fixtures pass. "
+    "Four things a reader of this document alone should know. "
     "(1) WHAT THIS RUN IS. It is a BRANCH BUILD of the 1.0.0-beta.3 candidate, not a shipped "
-    "release: the version in this manifest names what the tree builds, and nothing carrying it has "
-    "been published. The release's own acceptance is a manifest whose failing list is EMPTY, so "
-    "every row below is a gap still open in the candidate and every one is planned for that "
-    "release. No row is \"fixed\", which names a version a reader can install; the coverage rows "
-    "are \"fenced\", which names a host-side workaround that contains the gap today and does not "
-    "end the work. "
-    "(2) THE CLOCK IS INJECTABLE. Every instant the gate, the Docket and the sweep write comes from "
-    "an injected TimeProvider; there is no DateTimeOffset.UtcNow anywhere in the packages. A "
-    "fixture that moves its own clock moves the framework's, so the expiry, late-decision and "
-    "resubmission fixtures are exercised rather than read off the API -- and where one of them "
-    "still fails, the failure is about what the row carries, not about time. "
-    "(3) THE CANONICAL VECTORS. The seven byte vectors are reproduced through the SHIPPED "
-    "canonical serializer -- the same exported helper a host calls to mint an execution grant -- "
-    "and never through a canonicaliser written beside the test. The rule says a driver reproduces "
-    "the bytes and the digest rather than re-deriving them: the three paths that must agree are the "
-    "implementation, a second canonicaliser written out from the rule (the rulebook's, which "
-    "produced the pinned bytes), and an off-the-shelf SHA-256. The amended vector's sworn form is "
-    "folded by the shipped amendment fold and checked against the accepted state the vector writes "
-    "down, property for property, before its bytes are compared; every vector is held against "
-    "canonical-vector.schema.json before it runs. "
-    "(4) TELEMETRY. The framework emits the rulebook's registry names, and every telemetry clause "
-    "in the suite is checked against them. One registry event is emitted from one wiring only: "
-    "`docket.expired` comes from the hosted DocketExpiryService, so a host that schedules the sweep "
-    "itself -- which DK-3 sanctions -- records the expiry durably and emits nothing. That is the "
-    "single telemetry row below. "
-    "(5) TWO SMALLER FINDINGS THE ROOT-CAUSE COLUMN DOES NOT NAME, both in the run log's diffs. An "
-    "Evidence Card carries a presentation hint for every field whose kind is not text, where the "
-    "suite expects a hint only for a field that actually constrains the reviewer's input -- a "
-    "closed set or a pattern -- so a plain date field is sent a hint that says nothing. And the "
-    "substance refusal names the signature it found rather than the one the fixture pins; see the "
-    "GT-3 row for why the other signature cannot arise from the built-in projection."
+    "release: the version here names what the tree builds, and nothing carrying it has been "
+    "published. The release's own acceptance is a manifest whose failing list is EMPTY. "
+    "(2) THE ONE ROW. It is not a gap in what this implementation does; it is a question the "
+    "rulebook has not answered. The fixture pins a content hash over a record whose amended field "
+    "is bound to the Docket decision that amended it, so the hash contains a DERIVED entry id, and "
+    "GT-4 says an id is derived without saying from what. Everything else about that record "
+    "reproduces byte for byte. "
+    "(3) THE CANONICAL FORM IS THE PROTOCOL'S RECORD. Every byte vector is reproduced through the "
+    "SHIPPED serializer -- the same exported helper a host calls to mint an execution grant -- and "
+    "never through a canonicaliser written beside the test: the rule says a driver reproduces the "
+    "bytes and the digest rather than re-deriving them. The amended vector's sworn form is folded "
+    "by the shipped amendment fold and checked against the accepted state the vector writes down "
+    "before its bytes are compared, and every vector is validated against "
+    "canonical-vector.schema.json before it runs. One disagreement inside the rulebook is worth "
+    "recording: its Affidavit schema REQUIRES protocolVersion on the record and its vectors carry "
+    "it, while every fixture-pinned content hash was produced by a record that does not. A hash is "
+    "what an execution grant binds to, so this implementation's canonical form follows the hashes "
+    "and its record still carries the version on the wire. "
+    "(4) WHAT THE DRIVER CHECKS WITHOUT BEING ASKED. Every filing a fixture performs -- prior steps "
+    "included -- is card-checked: the card points at its row, carries that row's deadline and "
+    "protocol version, repeats the record's three confidence numbers, and says on its face when the "
+    "row is blocked. Every attestation is checked to name the entry it attests to. `wrap-execute` "
+    "runs the shipped tool-wrapping pipeline rather than a restatement of it, and the run log names "
+    "the entry point each of the eight step kinds is bound to."
 )
 
 if __name__ == "__main__":
