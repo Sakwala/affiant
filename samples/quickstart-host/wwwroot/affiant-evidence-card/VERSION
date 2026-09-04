@@ -1,0 +1,15 @@
+@affiant/evidence-card 0.1.0-alpha.0
+Sakwala/affiant-ts@a20a43c
+
+The four .js files beside this one are that package's built output, copied verbatim from
+packages/evidence-card/dist/ with the sourceMappingURL comments removed (the .map files are not
+vendored). They are ES modules with no dependencies of any kind — importing register.js defines
+<affiant-evidence-card>.
+
+Vendored rather than installed because the package is not on npm yet, and because this sample
+should run from a clone with no package manager involved. When it publishes, replace this
+directory with the package and delete this file.
+
+To refresh from source:
+  pnpm -C <affiant-ts> install && pnpm -C <affiant-ts> build
+  cp <affiant-ts>/packages/evidence-card/dist/*.js wwwroot/affiant-evidence-card/
