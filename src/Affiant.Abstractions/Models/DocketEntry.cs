@@ -28,7 +28,7 @@ public record ReviewStep(
 /// A pending <see cref="Affidavit"/> awaiting human review. The Docket is the
 /// durable review queue; each entry is keyed by <see cref="EntryId"/>, a
 /// <see cref="Guid"/> that doubles as the idempotency key for
-/// <see cref="IDocketStore.UpdateReviewStatusAsync"/>'s optimistic concurrency guard.
+/// <see cref="IDocketStore.TransitionAsync"/>'s guarded compare-and-set.
 ///
 /// <see cref="ReviewerUserId"/> is null when the entry is self-reviewed by the same
 /// user who proposed it; set to a different user id for Referrals (delegated review).

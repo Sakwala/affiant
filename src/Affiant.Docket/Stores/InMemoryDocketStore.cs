@@ -41,6 +41,9 @@ public sealed class InMemoryDocketStore(TimeProvider? timeProvider = null) : IDo
     {
         ct.ThrowIfCancellationRequested();
 
+        // A row is filed pending and leaves that state only through the guarded transition (AZ-1).
+        DocketRow.ValidateFiling(entry, nameof(entry));
+
         // Same lock as the status-transition guard — first write wins, matching the
         // documented idempotency contract (a second call for an existing EntryId is a no-op,
         // not an overwrite, even onto an already-terminal entry).
@@ -55,21 +58,6 @@ public sealed class InMemoryDocketStore(TimeProvider? timeProvider = null) : IDo
     {
         ct.ThrowIfCancellationRequested();
         return Task.FromResult(_entries.TryGetValue(entryId, out var entry) ? Project(entry) : null);
-    }
-
-    public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct)
-    {
-        ct.ThrowIfCancellationRequested();
-
-        // Lock ensures the check-and-update is atomic — same double-submit guard as the DB stores.
-        lock (_statusLock)
-        {
-            if (!_entries.TryGetValue(entryId, out var existing) || existing.Status != ReviewStatus.Pending)
-                return Task.FromResult(0);
-
-            _entries[entryId] = existing with { Status = status };
-            return Task.FromResult(1);
-        }
     }
 
     public Task<int> ConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
@@ -212,7 +200,9 @@ public sealed class InMemoryDocketStore(TimeProvider? timeProvider = null) : IDo
             if (!_entries.TryGetValue(entryId, out var existing) || !DocketRow.InScope(existing, scope))
                 return Task.FromResult<RecordExecutionResult>(new RecordExecutionResult.NotFound());
 
-            if (existing.Status != ReviewStatus.Approved)
+            // AZ-5: an executor is reachable only through a row that carries an attestation, and an
+            // approved row with nobody on it is not an authorised write either.
+            if (existing.Status != ReviewStatus.Approved || !DocketRow.MayRecordExecution(existing))
                 return Task.FromResult<RecordExecutionResult>(new RecordExecutionResult.NotApproved());
 
             if ((existing.Execution ?? ExecutionOutcome.Unexecuted) != ExecutionOutcome.Unexecuted)

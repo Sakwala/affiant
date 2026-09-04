@@ -166,23 +166,22 @@ public sealed class DecisionCoreTests
         await filing.WaitAsync(TimeSpan.FromSeconds(5));
     }
 
+    /// <summary>
+    /// AZ-5: an executor is reachable only through a Docket entry that carries an attestation.
+    /// </summary>
+    /// <remarks>
+    /// The row this refuses cannot arise through the shipped stores — a row is filed pending, leaves
+    /// that state only through the guarded transition, and that transition refuses an approval with
+    /// nobody on it. The store double here is what a store with a bug, or a host's own
+    /// implementation, could hand the gate; the gate reads the row before it reports and refuses it
+    /// there too, which is where a host learns why.
+    /// </remarks>
     [Fact]
     public async Task AnExecutionReport_OnARowWithNoAttestation_IsRefused()
     {
-        var store = new InMemoryDocketStore();
-        var gate = Build(new WaiterTransport(), store, new AllowAll());
-
-        // A row approved with nobody on it — the state R-1 makes unreachable through the gate, and
-        // which this asserts is unusable even if a store somewhere held one (AZ-5).
         var entryId = Guid.NewGuid();
-        var affidavit = OneField();
-        await store.FileDocketEntryAsync(
-            new DocketEntry(
-                entryId, "conversation-1", TenantA, "ana", "ana", "CreateOrder", affidavit,
-                ReviewStatus.Approved,
-                DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch.AddHours(1), null,
-                Execution: ExecutionOutcome.Unexecuted),
-            default);
+        var store = new UnattestedApprovedRow(entryId, TenantA, OneField());
+        var gate = Build(new WaiterTransport(), store, new AllowAll());
 
         var outcome = await gate.MarkExecutedAsync(
             entryId, ExecutionOutcome.Executed, "order-9",
@@ -191,9 +190,23 @@ public sealed class DecisionCoreTests
         var refused = Assert.IsType<ReviewOutcome.Refused>(outcome);
         Assert.Equal(DocketRefusalCodes.DecisionUnauthorized, refused.Code);
         Assert.Equal("AZ-5", refused.Detail);
+        Assert.False(store.Reported, "AZ-5: the store must never be asked to record the outcome.");
+    }
 
-        var row = await store.GetDocketEntryAsync(entryId, default);
-        Assert.Equal(ExecutionOutcome.Unexecuted, row!.Execution);
+    [Fact]
+    public async Task ARowApprovedWithNobodyOnIt_CannotBeFiled()
+    {
+        var store = new InMemoryDocketStore();
+
+        var refused = await Assert.ThrowsAsync<ArgumentException>(() => store.FileDocketEntryAsync(
+            new DocketEntry(
+                Guid.NewGuid(), "conversation-1", TenantA, "ana", "ana", "CreateOrder", OneField(),
+                ReviewStatus.Approved,
+                DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch.AddHours(1), null,
+                Execution: ExecutionOutcome.Unexecuted),
+            default));
+
+        Assert.Contains("AZ-1", refused.Message, StringComparison.Ordinal);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -265,6 +278,92 @@ public sealed class DecisionCoreTests
             Calls++;
             return Task.FromResult(false);
         }
+    }
+
+    /// <summary>
+    /// A store holding one row approved with nobody on it — the state the shipped stores refuse to
+    /// write, offered to the gate so its own AZ-5 guard is under test rather than assumed.
+    /// </summary>
+    private sealed class UnattestedApprovedRow(Guid entryId, string tenantId, Affidavit sworn)
+        : IDocketStore
+    {
+        private readonly DocketEntry _row = new(
+            entryId, "conversation-1", tenantId, "ana", "ana", "CreateOrder", sworn,
+            ReviewStatus.Approved, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch.AddHours(1),
+            null, Execution: ExecutionOutcome.Unexecuted);
+
+        /// <summary>Whether the gate asked the store to record an outcome.</summary>
+        public bool Reported { get; private set; }
+
+        public Task<DocketEntry?> GetDocketEntryAsync(Guid id, CancellationToken ct)
+            => Task.FromResult<DocketEntry?>(id == _row.EntryId ? _row : null);
+
+        public Task<RecordExecutionResult> RecordExecutionAsync(
+            Guid id, DocketScope scope, ExecutionOutcome outcome, string? detail,
+            ExecutionOutcome expected, CancellationToken ct)
+        {
+            Reported = true;
+            return Task.FromResult<RecordExecutionResult>(new RecordExecutionResult.NotApproved());
+        }
+
+        public Task SaveContextAsync(string sessionId, ConversationContext context, CancellationToken ct)
+            => Task.CompletedTask;
+
+        public Task<ConversationContext?> LoadContextAsync(string sessionId, CancellationToken ct)
+            => Task.FromResult<ConversationContext?>(null);
+
+        public Task FileDocketEntryAsync(DocketEntry entry, CancellationToken ct) => Task.CompletedTask;
+
+        public Task<int> ConsumeForResubmitAsync(Guid id, Guid newEntryId, CancellationToken ct)
+            => Task.FromResult(0);
+
+        public Task<DocketEntry?> GetResubmissionParentAsync(Guid id, CancellationToken ct)
+            => Task.FromResult<DocketEntry?>(null);
+
+#pragma warning disable AFFIANT0001 // the unscoped listings, still on the interface for one release
+        public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct)
+            => Task.FromResult<IReadOnlyList<DocketEntry>>([]);
+
+        public Task<IReadOnlyList<DocketEntry>> ListAllPendingAsync(CancellationToken ct)
+            => Task.FromResult<IReadOnlyList<DocketEntry>>([]);
+#pragma warning restore AFFIANT0001
+
+        public Task<DocketTransitionResult> TransitionAsync(
+            Guid id, DocketScope scope, ReviewStatus expected, DocketTransitionPatch patch, CancellationToken ct)
+            => Task.FromResult<DocketTransitionResult>(new DocketTransitionResult.NotFound());
+
+        public Task<PreserveAmendmentsResult> PreserveAmendmentsAsync(
+            Guid id, DocketScope scope, IReadOnlyDictionary<string, object?> amendments,
+            PreservedAct act, CancellationToken ct)
+            => Task.FromResult<PreserveAmendmentsResult>(new PreserveAmendmentsResult.NotFound());
+
+        public Task<RecordSupersessionResult> RecordSupersessionAsync(
+            Guid id, DocketScope scope, Guid supersededBy, CancellationToken ct)
+            => Task.FromResult<RecordSupersessionResult>(new RecordSupersessionResult.NotFound());
+
+        public Task<int> MarkBlockedAsync(Guid id, DocketScope scope, BlockedMarker marker, CancellationToken ct)
+            => Task.FromResult(0);
+
+        public Task<DocketPageResult<DocketEntry>> ListPendingAsync(
+            DocketScope scope, DocketPage page, CancellationToken ct)
+            => Task.FromResult(new DocketPageResult<DocketEntry>([], null, false));
+
+        public Task<DocketPageResult<DocketEntry>> ListApprovedUnexecutedAsync(
+            DocketScope scope, DocketPage page, CancellationToken ct)
+            => Task.FromResult(new DocketPageResult<DocketEntry>([], null, false));
+
+        public Task<ExpireDueResult> ExpireDueAsync(
+            DateTimeOffset now, DocketScope scope, int limit, CancellationToken ct)
+            => Task.FromResult(new ExpireDueResult([], false));
+
+        public Task<RetentionResult> ApplyRetentionAsync(
+            DocketRetentionPolicy policy, DocketScope scope, int limit, CancellationToken ct)
+            => Task.FromResult(new RetentionResult(0, false));
+
+        public Task<int> PurgeTenantAsync(string tenantId, CancellationToken ct) => Task.FromResult(0);
+
+        public IAsyncEnumerable<DocketEntry> ExportAsync(DocketScope scope, CancellationToken ct)
+            => AsyncEnumerable.Empty<DocketEntry>();
     }
 
     /// <summary>A transport with a real in-process waiter registry, like the shipped SignalR one.</summary>

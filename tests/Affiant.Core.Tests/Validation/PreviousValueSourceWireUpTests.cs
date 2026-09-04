@@ -142,8 +142,6 @@ public sealed class PreviousValueSourceWireUpTests
         public Task<DocketEntry?> GetDocketEntryAsync(Guid entryId, CancellationToken ct)
             => throw new NotSupportedException();
 
-        public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct)
-            => throw new NotSupportedException();
 
         public Task<int> ConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
             => throw new NotSupportedException();

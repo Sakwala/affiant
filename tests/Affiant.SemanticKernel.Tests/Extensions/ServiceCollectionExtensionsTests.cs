@@ -285,8 +285,6 @@ public class ServiceCollectionExtensionsTests
             throw new InvalidOperationException("simulated docket store outage");
         public Task<DocketEntry?> GetDocketEntryAsync(Guid entryId, CancellationToken ct) =>
             Task.FromResult<DocketEntry?>(null);
-        public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct) =>
-            Task.FromResult(0);
         public Task<int> ConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct) =>
             Task.FromResult(0);
         public Task<DocketEntry?> GetResubmissionParentAsync(Guid entryId, CancellationToken ct) =>

@@ -12,9 +12,9 @@ using Affiant.Abstractions.Models;
 /// <para>
 /// This is a correctness-critical contract, not a CRUD wrapper. Two members carry explicit
 /// atomicity obligations that <c>ReviewGate</c> relies on and that a naive read-then-write
-/// implementation will violate: <see cref="UpdateReviewStatusAsync"/> (double-submit prevention)
-/// and <see cref="ConsumeForResubmitAsync"/> (double-resubmit prevention). Both express their
-/// result as rows-affected — 1 means this caller won, 0 means someone else already did — so the
+/// implementation will violate: <see cref="TransitionAsync"/> (double-submit prevention) and
+/// <see cref="ConsumeForResubmitAsync"/> (double-resubmit prevention). Both express their result as
+/// an outcome the caller can branch on — this caller won, or somebody else already did — so the
 /// guard must live in the write itself, never in surrounding C#. Read each member's remarks before
 /// implementing; the per-member contracts are the specification.
 /// </para>
@@ -42,6 +42,13 @@ public interface IDocketStore
     /// Implementations must enforce an idempotency guard on EntryId:
     /// a second call with the same EntryId is a no-op.
     /// </summary>
+    /// <remarks>
+    /// A row is filed <see cref="ReviewStatus.Pending"/> and leaves that state only through
+    /// <see cref="TransitionAsync"/>, which is where who agreed is checked (AZ-1). A store refuses
+    /// a row that arrives in any other state: filing a decided row directly would put a state
+    /// nobody agreed to in front of the host's executor, and the transition's guard would never be
+    /// consulted.
+    /// </remarks>
     Task FileDocketEntryAsync(DocketEntry entry, CancellationToken ct);
 
     /// <summary>
@@ -60,10 +67,10 @@ public interface IDocketStore
     /// The projection is a read-time one — it does not write. The sweep
     /// (<c>Affiant.Docket.Services.DocketExpiryService</c>) still persists
     /// <see cref="ReviewStatus.Expired"/> onto the row, and the guarded
-    /// <see cref="UpdateReviewStatusAsync"/> / <see cref="ConsumeForResubmitAsync"/> writes still
-    /// test the <em>persisted</em> status, so a caller that needs the transition durably recorded
-    /// (a resubmission, an audit read after a restart) must still let the sweep — or its own
-    /// <see cref="UpdateReviewStatusAsync"/> call — commit it.
+    /// <see cref="TransitionAsync"/> / <see cref="ConsumeForResubmitAsync"/> writes still test the
+    /// <em>persisted</em> status, so a caller that needs the transition durably recorded (a
+    /// resubmission, an audit read after a restart) must still let the sweep — or its own
+    /// <see cref="ExpireDueAsync"/> call — commit it.
     /// </para>
     /// <para>
     /// Implementations read the current instant from an injected <see cref="TimeProvider"/>, never
@@ -72,27 +79,6 @@ public interface IDocketStore
     /// </remarks>
     Task<DocketEntry?> GetDocketEntryAsync(Guid entryId, CancellationToken ct);
 
-    /// <summary>
-    /// Transition a DocketEntry's review status.
-    /// </summary>
-    /// <returns>
-    /// The number of rows affected (1 on success, 0 if the entry was not in
-    /// <see cref="ReviewStatus.Pending"/> state — see remarks for the double-submit contract).
-    /// </returns>
-    /// <remarks>
-    /// <para><strong>Double-Submit Prevention Contract:</strong></para>
-    /// <para>
-    /// Implementations MUST enforce atomic read-before-write semantics.
-    /// The update MUST include a guard condition equivalent to <c>WHERE Status = 'Pending'</c>
-    /// so that a second update attempt on the same <paramref name="entryId"/> (already
-    /// approved/rejected/expired) results in 0 rows affected rather than a second transition.
-    /// </para>
-    /// <para>
-    /// <c>ReviewGate</c> relies on this invariant: if <c>UpdateReviewStatusAsync</c> returns
-    /// 0, the entry is no longer pending and the gate handles it idempotently.
-    /// </para>
-    /// </remarks>
-    Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct);
 
     /// <summary>
     /// Atomically claims <paramref name="entryId"/> for resubmission by recording
@@ -109,11 +95,11 @@ public interface IDocketStore
     /// <para>
     /// Implementations MUST enforce atomic read-before-write semantics with a guard condition
     /// equivalent to <c>WHERE Status = 'Expired' AND ResubmittedTo IS NULL</c> — the same
-    /// 0/1-rows-affected CAS idiom <see cref="UpdateReviewStatusAsync"/> uses for its own guard —
-    /// so two concurrent calls for the same <paramref name="entryId"/> can never both succeed.
+    /// compare-and-set idiom <see cref="TransitionAsync"/> uses for its own guard — so two
+    /// concurrent calls for the same <paramref name="entryId"/> can never both succeed.
     /// </para>
     /// <para>
-    /// Unlike <see cref="UpdateReviewStatusAsync"/>, this does not transition <see cref="DocketEntry.Status"/>:
+    /// Unlike <see cref="TransitionAsync"/>, this does not transition <see cref="DocketEntry.Status"/>:
     /// there is no <c>ReviewStatus.Resubmitted</c> by design (Area-5 Decision 2). The entry stays
     /// <see cref="ReviewStatus.Expired"/>; <see cref="DocketEntry.ResubmittedTo"/> alone records that
     /// it was superseded and by which new entry.

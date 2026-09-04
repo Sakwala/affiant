@@ -7,6 +7,7 @@
 *REMOVED*Affiant.Abstractions.Interfaces.IDocketStore.ListExpiredAsync(System.DateTimeOffset expiresBeforeUtc, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.DocketEntry!>!>!
 *REMOVED*Affiant.Abstractions.Interfaces.IDocketStore.MarkExpiredAsync(System.Collections.Generic.IEnumerable<System.Guid>! entryIds, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
 *REMOVED*Affiant.Abstractions.Interfaces.IDocketStore.UpdateAmendmentsAsync(System.Guid entryId, System.Collections.Generic.IReadOnlyDictionary<string!, object?>! amendments, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
+*REMOVED*Affiant.Abstractions.Interfaces.IDocketStore.UpdateReviewStatusAsync(System.Guid entryId, Affiant.Abstractions.Models.ReviewStatus status, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<int>!
 *REMOVED*Affiant.Abstractions.Interfaces.IStreamingTransport.AwaitEvidenceCardResponseAsync(string! sessionGroupId, System.Guid docketId, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Affiant.Abstractions.Transport.EvidenceCardResponse!>!
 *REMOVED*Affiant.Abstractions.Interfaces.IStreamingTransport.TryDeliverResponse(System.Guid docketId, Affiant.Abstractions.Transport.EvidenceCardResponse! response) -> bool
 *REMOVED*Affiant.Abstractions.Models.Affidavit.Affidavit(string! OperationType, string! EntityType, string? EntityId, Affiant.Abstractions.Models.AffidavitField![]! Fields, float AggregateConfidence, string![]! Warnings, bool RequiresConfirmation) -> void
@@ -1110,11 +1111,13 @@ static Affiant.Abstractions.Interfaces.DocketRetentionPolicy.operator ==(Affiant
 static Affiant.Abstractions.Interfaces.DocketRow.Apply(Affiant.Abstractions.Models.DocketEntry! entry, Affiant.Abstractions.Interfaces.DocketTransitionPatch! patch, System.DateTimeOffset now) -> Affiant.Abstractions.Models.DocketEntry!
 static Affiant.Abstractions.Interfaces.DocketRow.InScope(Affiant.Abstractions.Models.DocketEntry! entry, Affiant.Abstractions.Interfaces.DocketScope! scope) -> bool
 static Affiant.Abstractions.Interfaces.DocketRow.IsApprovedUnexecuted(Affiant.Abstractions.Models.DocketEntry! entry) -> bool
+static Affiant.Abstractions.Interfaces.DocketRow.MayRecordExecution(Affiant.Abstractions.Models.DocketEntry! entry) -> bool
 static Affiant.Abstractions.Interfaces.DocketRow.Project(Affiant.Abstractions.Models.DocketEntry! entry, System.DateTimeOffset now) -> Affiant.Abstractions.Models.DocketEntry!
 static Affiant.Abstractions.Interfaces.DocketRow.ReadStatus(Affiant.Abstractions.Models.DocketEntry! entry, System.DateTimeOffset now) -> Affiant.Abstractions.Models.ReviewStatus
 static Affiant.Abstractions.Interfaces.DocketRow.RequireTenant(Affiant.Abstractions.Interfaces.DocketScope! scope, string! parameterName) -> void
 static Affiant.Abstractions.Interfaces.DocketRow.TerminalAt(Affiant.Abstractions.Models.DocketEntry! entry, System.DateTimeOffset now) -> System.DateTimeOffset?
 static Affiant.Abstractions.Interfaces.DocketRow.ValidateExecutionReport(Affiant.Abstractions.Models.ExecutionOutcome outcome, Affiant.Abstractions.Models.ExecutionOutcome expected, string! outcomeParameterName, string! expectedParameterName) -> void
+static Affiant.Abstractions.Interfaces.DocketRow.ValidateFiling(Affiant.Abstractions.Models.DocketEntry! entry, string! paramName) -> void
 static Affiant.Abstractions.Interfaces.DocketRow.ValidateTransition(Affiant.Abstractions.Interfaces.DocketTransitionPatch! patch, Affiant.Abstractions.Models.ReviewStatus expected, string! patchParameterName, string! expectedParameterName) -> void
 static Affiant.Abstractions.Interfaces.DocketScope.Conversation(string! tenantId, string! conversationId) -> Affiant.Abstractions.Interfaces.DocketScope!
 static Affiant.Abstractions.Interfaces.DocketScope.EntireStore.get -> Affiant.Abstractions.Interfaces.DocketScope!

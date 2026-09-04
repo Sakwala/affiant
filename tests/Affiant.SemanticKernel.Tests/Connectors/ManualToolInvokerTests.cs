@@ -202,13 +202,6 @@ public class ManualToolInvokerTests
         public Task<DocketEntry?> GetDocketEntryAsync(Guid entryId, CancellationToken ct)
             => Task.FromResult<DocketEntry?>(Filed.FirstOrDefault(e => e.EntryId == entryId));
 
-        public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct)
-        {
-            var idx = Filed.FindIndex(e => e.EntryId == entryId && e.Status == ReviewStatus.Pending);
-            if (idx < 0) return Task.FromResult(0);
-            Filed[idx] = Filed[idx] with { Status = status };
-            return Task.FromResult(1);
-        }
 
         public Task UpdateAmendmentsAsync(
             Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct)

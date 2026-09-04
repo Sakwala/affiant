@@ -4,6 +4,7 @@
 *REMOVED*Affiant.Docket.Stores.InMemoryDocketStore.ListExpiredAsync(System.DateTimeOffset expiresBeforeUtc, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.DocketEntry!>!>!
 *REMOVED*Affiant.Docket.Stores.InMemoryDocketStore.MarkExpiredAsync(System.Collections.Generic.IEnumerable<System.Guid>! entryIds, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
 *REMOVED*Affiant.Docket.Stores.InMemoryDocketStore.UpdateAmendmentsAsync(System.Guid entryId, System.Collections.Generic.IReadOnlyDictionary<string!, object?>! amendments, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
+*REMOVED*Affiant.Docket.Stores.InMemoryDocketStore.UpdateReviewStatusAsync(System.Guid entryId, Affiant.Abstractions.Models.ReviewStatus status, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<int>!
 Affiant.Docket.Options.AffiantDocketOptions
 Affiant.Docket.Options.AffiantDocketOptions.AffiantDocketOptions() -> void
 Affiant.Docket.Options.AffiantDocketOptions.ExpirySweepBatchSize.get -> int

@@ -94,6 +94,9 @@ internal sealed class EfDocketOperations(AffiantDbContext db, ILogger logger, Ti
 
     public async Task FileDocketEntryAsync(DocketEntry entry, CancellationToken ct)
     {
+        // A row is filed pending and leaves that state only through the guarded transition (AZ-1).
+        DocketRow.ValidateFiling(entry, nameof(entry));
+
         ct.ThrowIfCancellationRequested();
 
         var exists = await db.Docket.AnyAsync(d => d.EntryId == entry.EntryId, ct);
@@ -137,20 +140,6 @@ internal sealed class EfDocketOperations(AffiantDbContext db, ILogger logger, Ti
 
         var entity = await db.Docket.AsNoTracking().FirstOrDefaultAsync(d => d.EntryId == entryId, ct);
         return entity is null ? null : DocketRow.Project(ToDomain(entity), time.GetUtcNow());
-    }
-
-    public async Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct)
-    {
-        ct.ThrowIfCancellationRequested();
-
-        var now = time.GetUtcNow();
-        var name = status.ToString();
-        return await db.Docket
-            .Where(d => d.EntryId == entryId && d.Status == s_pending)
-            .ExecuteUpdateAsync(s => s
-                .SetProperty(d => d.Status, name)
-                .SetProperty(d => d.DecidedAt, now)
-                .SetProperty(d => d.DecidedAtTicks, now.UtcTicks), ct);
     }
 
     public async Task<int> ConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
@@ -335,8 +324,11 @@ internal sealed class EfDocketOperations(AffiantDbContext db, ILogger logger, Ti
 
         var name = outcome.ToString();
         var rows = await Scoped(scope)
+            // AZ-5: an approved row with no attestation is not an authorised write, and the store
+            // will not record an outcome against one.
             .Where(d => d.EntryId == entryId
                 && d.Status == s_approved
+                && d.AttestationJson != null
                 && (d.Execution == null || d.Execution == s_unexecuted))
             .ExecuteUpdateAsync(s => s
                 .SetProperty(d => d.Execution, name)
@@ -352,7 +344,7 @@ internal sealed class EfDocketOperations(AffiantDbContext db, ILogger logger, Ti
 
         var current = await ReadScopedAsync(entryId, scope, ct);
         if (current is null) return new RecordExecutionResult.NotFound();
-        return current.Status == ReviewStatus.Approved
+        return current.Status == ReviewStatus.Approved && DocketRow.MayRecordExecution(current)
             ? new RecordExecutionResult.ExecutionAlreadyRecorded()
             : new RecordExecutionResult.NotApproved();
     }

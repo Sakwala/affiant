@@ -352,8 +352,7 @@ public sealed class DocketExpiryServiceTests
     public async Task ExpireOverdueAsync_NonPendingEntry_NoEvidenceCardRebroadcast()
     {
         var store = new InMemoryDocketStore();
-        var entry = TestDocketEntry.CreateDefault(status: ReviewStatus.Approved);
-        await store.FileDocketEntryAsync(entry, CancellationToken.None);
+        var entry = await TestDocketEntry.FileDecidedAsync(store, ReviewStatus.Approved);
 
         var transport = new SpyStreamingTransport();
         var expiryService = BuildExpiryService(store, transport);
@@ -373,13 +372,17 @@ public sealed class DocketExpiryServiceTests
         var priorAmendments = new Dictionary<string, object?> { ["title"] = "Edited before expiry" };
 
         var childId = Guid.NewGuid();
-        var parent = TestDocketEntry.CreateDefault(sessionId: sessionId, status: ReviewStatus.Expired)
-            with
-        { Amendments = priorAmendments, ResubmittedTo = childId };
-        var child = TestDocketEntry.CreateDefault(entryId: childId, sessionId: sessionId);
 
-        await store.FileDocketEntryAsync(parent, CancellationToken.None);
+        // The parent is filed pending carrying the reviewer's edits, runs out of time, and is
+        // superseded — the only order in which those three facts can arrive.
+        var parentRow = await TestDocketEntry.FileDecidedAsync(
+            store, ReviewStatus.Expired,
+            TestDocketEntry.CreateDefault(sessionId: sessionId) with { Amendments = priorAmendments });
+
+        var child = TestDocketEntry.CreateDefault(entryId: childId, sessionId: sessionId);
         await store.FileDocketEntryAsync(child, CancellationToken.None);
+        await store.RecordSupersessionAsync(
+            parentRow.EntryId, new DocketScope(parentRow.TenantId), childId, CancellationToken.None);
 
         var transport = new SpyStreamingTransport();
         var expiryService = BuildExpiryService(store, transport);
@@ -555,16 +558,17 @@ public sealed class DocketExpiryServiceTests
 
         // The read-time projection reports every one of them Expired — that is the point of expiry
         // being a queryable state — so what the batch bounds is the PERSISTED transition, which
-        // UpdateReviewStatusAsync's Pending guard is the only honest witness to: a row this tick
-        // already committed refuses a second transition (0 rows), one it has not yet reached accepts.
+        // the guarded transition's Pending check is the only honest witness to: a row this tick
+        // already committed refuses a second transition, one it has not yet reached accepts.
         Assert.All(afterFirstTick, e => Assert.Equal(ReviewStatus.Expired, e.Status));
 
         var committedAfterFirstTick = new List<Guid>();
         foreach (var entry in entries)
         {
-            var rows = await store.UpdateReviewStatusAsync(
-                entry.EntryId, ReviewStatus.Expired, CancellationToken.None);
-            if (rows == 0)
+            var swept = await store.TransitionAsync(
+                entry.EntryId, new DocketScope(entry.TenantId), ReviewStatus.Pending,
+                new DocketTransitionPatch(ReviewStatus.Expired), CancellationToken.None);
+            if (swept is not DocketTransitionResult.Transitioned)
                 committedAfterFirstTick.Add(entry.EntryId);
         }
 
@@ -614,9 +618,10 @@ public sealed class DocketExpiryServiceTests
 
         foreach (var entry in entries)
         {
-            var rows = await store.UpdateReviewStatusAsync(
-                entry.EntryId, ReviewStatus.Expired, CancellationToken.None);
-            Assert.Equal(0, rows);
+            var swept = await store.TransitionAsync(
+                entry.EntryId, new DocketScope(entry.TenantId), ReviewStatus.Pending,
+                new DocketTransitionPatch(ReviewStatus.Expired), CancellationToken.None);
+            Assert.IsNotType<DocketTransitionResult.Transitioned>(swept);
         }
     }
 

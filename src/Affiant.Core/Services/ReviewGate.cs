@@ -138,13 +138,19 @@ public sealed class ReviewGate(
                 "EvidenceCardRequest timed out for DocketEntry {EntryId} after {Minutes} minutes",
                 entryId, options.DefaultDocketTtl.TotalMinutes);
 
-            // Guarded update: 0 rows means a decision transitioned this entry a beat earlier. Only
-            // broadcast DocketExpired — and only report Expired — when this call is the one that
-            // actually performed the transition; otherwise report and leave untouched the status the
-            // entry genuinely landed in, so we never lie to the session group about what happened.
-            var expiryRowsAffected = await docketStore.UpdateReviewStatusAsync(
-                entryId, ReviewStatus.Expired, cancellationToken);
-            if (expiryRowsAffected == 0)
+            // The guarded, scoped transition every other write on this row goes through. Anything
+            // but Transitioned means a decision claimed the entry a beat earlier: report and leave
+            // untouched the status it genuinely landed in, so we never tell the session group
+            // something that did not happen. Expiry carries no attestation because nobody decided
+            // it, which is the one case the attestation guard exempts (AZ-1).
+            var expiry = await docketStore.TransitionAsync(
+                entryId,
+                new DocketScope(context.TenantId),
+                ReviewStatus.Pending,
+                new DocketTransitionPatch(ReviewStatus.Expired),
+                cancellationToken);
+
+            if (expiry is not DocketTransitionResult.Transitioned)
             {
                 var finalEntry = await docketStore.GetDocketEntryAsync(entryId, cancellationToken);
                 return finalEntry is null
@@ -152,7 +158,7 @@ public sealed class ReviewGate(
                     : finalEntry.Status.ToReviewOutcome(entryId);
             }
 
-            RecordTransitionIfWon(expiryRowsAffected, entryId, context.SessionId, ReviewStatus.Expired);
+            RecordTransitionIfWon(1, entryId, context.SessionId, ReviewStatus.Expired);
 
             await transport.BroadcastToGroupAsync(
                 context.SessionId, TransportEvent.DocketExpired,
@@ -1097,8 +1103,9 @@ public sealed class ReviewGate(
 
         // AZ-5: an executor is reachable only through a Docket entry that CARRIES AN ATTESTATION.
         // The row is read before the report is written, so a row approved with nobody on it — a
-        // state the decision core makes unreachable and the stores refuse to write — cannot be
-        // executed against even if one existed. A row that is simply not approved is a different
+        // state the decision core makes unreachable, and which no store member will write or
+        // execute against — is refused here too, which is where a host learns why. A row that is
+        // simply not approved is a different
         // answer, `decision-not-pending`, which the store's own guard produces below: there is no
         // authorised write for an executor to have performed, and that is not an authorization
         // failure to report to an operator.
@@ -1598,7 +1605,7 @@ public sealed class ReviewGate(
         if (rowsAffected == 0) return;
 
         // `from` is always `pending`: every store implementation guards the write with
-        // `WHERE Status = 'Pending'` (IDocketStore.UpdateReviewStatusAsync's double-submit
+        // `WHERE Status = 'Pending'` (IDocketStore.TransitionAsync's double-submit
         // contract), so a write that affected a row can only have come from pending.
         AffiantTelemetry.RecordDocketTransition(
             entryId,

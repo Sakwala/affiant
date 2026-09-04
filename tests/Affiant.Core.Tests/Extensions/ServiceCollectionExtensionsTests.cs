@@ -255,7 +255,6 @@ public class ServiceCollectionExtensionsTests
         public Task<ConversationContext?> LoadContextAsync(string sessionId, CancellationToken ct) => Task.FromResult<ConversationContext?>(null);
         public Task FileDocketEntryAsync(DocketEntry entry, CancellationToken ct) => Task.CompletedTask;
         public Task<DocketEntry?> GetDocketEntryAsync(Guid entryId, CancellationToken ct) => Task.FromResult<DocketEntry?>(null);
-        public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct) => Task.FromResult(0);
         public Task<int> ConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct) => Task.FromResult(0);
         public Task<DocketEntry?> GetResubmissionParentAsync(Guid entryId, CancellationToken ct) => Task.FromResult<DocketEntry?>(null);
         public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct) =>

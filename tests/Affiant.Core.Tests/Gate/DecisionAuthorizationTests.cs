@@ -570,8 +570,6 @@ public class DecisionAuthorizationTests
         public Task FileDocketEntryAsync(DocketEntry entry, CancellationToken ct)
             => inner.FileDocketEntryAsync(entry, ct);
 
-        public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct)
-            => inner.UpdateReviewStatusAsync(entryId, status, ct);
 
         public Task<int> ConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
             => inner.ConsumeForResubmitAsync(entryId, newEntryId, ct);
@@ -650,8 +648,6 @@ public class DecisionAuthorizationTests
         public Task FileDocketEntryAsync(DocketEntry entry, CancellationToken ct)
             => inner.FileDocketEntryAsync(entry, ct);
 
-        public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct)
-            => inner.UpdateReviewStatusAsync(entryId, status, ct);
 
         public Task<int> ConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
             => inner.ConsumeForResubmitAsync(entryId, newEntryId, ct);

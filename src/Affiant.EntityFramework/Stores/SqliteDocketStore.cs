@@ -44,9 +44,6 @@ public sealed class SqliteDocketStore(
     public Task<DocketEntry?> GetDocketEntryAsync(Guid entryId, CancellationToken ct)
         => _docket.GetDocketEntryAsync(entryId, ct);
 
-    public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct)
-        => _docket.UpdateReviewStatusAsync(entryId, status, ct);
-
     public Task<int> ConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
         => _docket.ConsumeForResubmitAsync(entryId, newEntryId, ct);
 

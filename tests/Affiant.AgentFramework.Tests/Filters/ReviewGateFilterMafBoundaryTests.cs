@@ -224,13 +224,6 @@ public class ReviewGateFilterMafBoundaryTests
         public Task<DocketEntry?> GetDocketEntryAsync(Guid entryId, CancellationToken ct) =>
             Task.FromResult(_entries.TryGetValue(entryId, out var e) ? e : null);
 
-        public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct)
-        {
-            if (!_entries.TryGetValue(entryId, out var existing) || existing.Status != ReviewStatus.Pending)
-                return Task.FromResult(0);
-            _entries[entryId] = existing with { Status = status };
-            return Task.FromResult(1);
-        }
 
         public Task<int> ConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
         {

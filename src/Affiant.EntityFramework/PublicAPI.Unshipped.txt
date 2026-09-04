@@ -5,11 +5,13 @@
 *REMOVED*Affiant.EntityFramework.Stores.PostgresDocketStore.MarkExpiredAsync(System.Collections.Generic.IEnumerable<System.Guid>! entryIds, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
 *REMOVED*Affiant.EntityFramework.Stores.PostgresDocketStore.PostgresDocketStore(Affiant.EntityFramework.AffiantDbContext! db, Microsoft.Extensions.Logging.ILogger<Affiant.EntityFramework.Stores.PostgresDocketStore!>! logger) -> void
 *REMOVED*Affiant.EntityFramework.Stores.PostgresDocketStore.UpdateAmendmentsAsync(System.Guid entryId, System.Collections.Generic.IReadOnlyDictionary<string!, object?>! amendments, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
+*REMOVED*Affiant.EntityFramework.Stores.PostgresDocketStore.UpdateReviewStatusAsync(System.Guid entryId, Affiant.Abstractions.Models.ReviewStatus status, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<int>!
 *REMOVED*Affiant.EntityFramework.Stores.SqliteChatSessionStore.SqliteChatSessionStore(Affiant.EntityFramework.AffiantDbContext! db) -> void
 *REMOVED*Affiant.EntityFramework.Stores.SqliteDocketStore.ListExpiredAsync(System.DateTimeOffset expiresBeforeUtc, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.DocketEntry!>!>!
 *REMOVED*Affiant.EntityFramework.Stores.SqliteDocketStore.MarkExpiredAsync(System.Collections.Generic.IEnumerable<System.Guid>! entryIds, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
 *REMOVED*Affiant.EntityFramework.Stores.SqliteDocketStore.SqliteDocketStore(Affiant.EntityFramework.AffiantDbContext! db, Microsoft.Extensions.Logging.ILogger<Affiant.EntityFramework.Stores.SqliteDocketStore!>! logger) -> void
 *REMOVED*Affiant.EntityFramework.Stores.SqliteDocketStore.UpdateAmendmentsAsync(System.Guid entryId, System.Collections.Generic.IReadOnlyDictionary<string!, object?>! amendments, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
+*REMOVED*Affiant.EntityFramework.Stores.SqliteDocketStore.UpdateReviewStatusAsync(System.Guid entryId, Affiant.Abstractions.Models.ReviewStatus status, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<int>!
 Affiant.EntityFramework.Migrations.AddDocketRowFacts
 Affiant.EntityFramework.Migrations.AddDocketRowFacts.AddDocketRowFacts() -> void
 Affiant.EntityFramework.Models.DocketEntryEntity.AmendedAffidavitJson.get -> string?

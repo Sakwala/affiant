@@ -30,6 +30,18 @@ using Xunit;
 #pragma warning disable AFFIANT0002
 public class ReviewGateTests
 {
+    /// <summary>
+    /// Files a row and runs it out of time the only way a row leaves pending: the guarded
+    /// transition. Expiry carries no attestation — nobody decided it (AZ-1).
+    /// </summary>
+    private static async Task FileExpiredAsync(IDocketStore store, DocketEntry entry)
+    {
+        await store.FileDocketEntryAsync(entry, default);
+        await store.TransitionAsync(
+            entry.EntryId, new DocketScope(entry.TenantId), ReviewStatus.Pending,
+            new DocketTransitionPatch(ReviewStatus.Expired), default);
+    }
+
     // ── Test doubles ──────────────────────────────────────────────────────────
 
     private sealed class FakeStreamingTransport : IStreamingTransport
@@ -221,8 +233,6 @@ public class ReviewGateTests
         public Task<DocketEntry?> GetDocketEntryAsync(Guid entryId, CancellationToken ct)
             => inner.GetDocketEntryAsync(entryId, ct);
 
-        public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct)
-            => inner.UpdateReviewStatusAsync(entryId, status, ct);
 
         public async Task<int> ConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
         {
@@ -583,8 +593,16 @@ public class ReviewGateTests
 
         // Simulate the restart path (HandleDecisionAsync) applying Approved a beat before the
         // blocking-timeout path's own guarded UPDATE runs — the guard must see 0 rows affected.
-        transport.SimulateTimeout(beforeThrow: () =>
-            store.UpdateReviewStatusAsync(entryId, ReviewStatus.Approved, default));
+        transport.SimulateTimeout(beforeThrow: () => store.TransitionAsync(
+            entryId, new DocketScope(TenantId), ReviewStatus.Pending,
+            new DocketTransitionPatch(
+                ReviewStatus.Approved,
+                Decision: new DecisionRecord(DecisionKind.Approve, null, DateTimeOffset.UnixEpoch),
+                Attestation: new Attestation(
+                    Attestor.Member.Of(new Principal.Member("reviewer-456")),
+                    DateTimeOffset.UnixEpoch, entryId),
+                DecidedAt: DateTimeOffset.UnixEpoch),
+            default));
 
         var (proposal, context) = CreateTestInput(entryId);
         var outcome = await gate.FileReviewAsync(proposal, context);
@@ -1063,11 +1081,11 @@ public class ReviewGateTests
             ReviewerUserId: context.ReviewerUserId,
             OperationType: "CreateOrder",
             Envelope: context.Affidavit,
-            Status: ReviewStatus.Expired,
+            Status: ReviewStatus.Pending,
             CreatedAt: DateTimeOffset.UtcNow.AddMinutes(-15),
             ExpiresAt: DateTimeOffset.UtcNow.AddMinutes(-5),
             Amendments: null);
-        await store.FileDocketEntryAsync(expiredEntry, default);
+        await FileExpiredAsync(store, expiredEntry);
 
         var lateAmendments = new Dictionary<string, object?> { ["title"] = "Late reviewer edit" };
         var actAt = DateTimeOffset.UtcNow.AddMinutes(-1);
@@ -1421,11 +1439,11 @@ public class ReviewGateTests
             ReviewerUserId: "reviewer-456",
             OperationType: "CreateOrder",
             Envelope: CreateTestInput().context.Affidavit,
-            Status: ReviewStatus.Expired,
+            Status: ReviewStatus.Pending,
             CreatedAt: DateTimeOffset.UtcNow.AddMinutes(-20),
             ExpiresAt: DateTimeOffset.UtcNow.AddMinutes(-10),
             Amendments: priorAmendments);
-        await store.FileDocketEntryAsync(expiredEntry, default);
+        await FileExpiredAsync(store, expiredEntry);
 
         var filing = await gate.ResubmitAsync(expiredEntry.EntryId, Ctx());
 
@@ -1467,11 +1485,11 @@ public class ReviewGateTests
             ReviewerUserId: "reviewer-456",
             OperationType: "CreateOrder",
             Envelope: CreateTestInput().context.Affidavit,
-            Status: ReviewStatus.Expired,
+            Status: ReviewStatus.Pending,
             CreatedAt: DateTimeOffset.UtcNow.AddMinutes(-20),
             ExpiresAt: DateTimeOffset.UtcNow.AddMinutes(-10),
             Amendments: null);
-        await innerStore.FileDocketEntryAsync(expiredEntry, default);
+        await FileExpiredAsync(innerStore, expiredEntry);
 
         await Assert.ThrowsAsync<OperationCanceledException>(
             () => gate.ResubmitAsync(expiredEntry.EntryId, Ctx(), cts.Token));
@@ -1535,11 +1553,11 @@ public class ReviewGateTests
             ReviewerUserId: "reviewer-456",
             OperationType: "CreateOrder",
             Envelope: CreateTestInput().context.Affidavit,
-            Status: ReviewStatus.Expired,
+            Status: ReviewStatus.Pending,
             CreatedAt: DateTimeOffset.UtcNow.AddMinutes(-20),
             ExpiresAt: DateTimeOffset.UtcNow.AddMinutes(-10),
             Amendments: null);
-        await store.FileDocketEntryAsync(expiredEntry, default);
+        await FileExpiredAsync(store, expiredEntry);
 
         async Task<ReviewFilingResult?> TryResubmitAsync()
         {
@@ -1642,11 +1660,11 @@ public class ReviewGateTests
             ReviewerUserId: "reviewer-456",
             OperationType: "CreateOrder",
             Envelope: CreateTestInput().context.Affidavit,
-            Status: ReviewStatus.Expired,
+            Status: ReviewStatus.Pending,
             CreatedAt: DateTimeOffset.UtcNow.AddMinutes(-20),
             ExpiresAt: DateTimeOffset.UtcNow.AddMinutes(-10),
             Amendments: priorAmendments);
-        await store.FileDocketEntryAsync(expiredEntry, default);
+        await FileExpiredAsync(store, expiredEntry);
 
         var filing = await gate.ResubmitAsync(expiredEntry.EntryId, Ctx());
         var newEntryId = Assert.IsType<ReviewFilingResult.RequiresReview>(filing).EntryId;
@@ -1760,7 +1778,9 @@ public class ReviewGateTests
 
         // ...and the row itself is still Pending underneath, which is what leaves the guarded
         // transition for the sweep (or a decision) to win exactly once.
-        Assert.Equal(1, await store.UpdateReviewStatusAsync(entryId, ReviewStatus.Expired, default));
+        Assert.IsType<DocketTransitionResult.Transitioned>(await store.TransitionAsync(
+            entryId, new DocketScope(TenantId), ReviewStatus.Pending,
+            new DocketTransitionPatch(ReviewStatus.Expired), default));
     }
 
     [Fact]

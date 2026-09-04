@@ -195,8 +195,6 @@ public class AffiantFunctionInvocationMiddlewareTests
         public Task<DocketEntry?> GetDocketEntryAsync(Guid entryId, CancellationToken ct)
             => Task.FromResult<DocketEntry?>(null);
 
-        public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct)
-            => Task.FromResult(0);
 
         public Task<int> ConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
             => Task.FromResult(0);

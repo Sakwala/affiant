@@ -1,3 +1,4 @@
+using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
 
 namespace Affiant.Docket.Tests.Fixtures;
@@ -75,4 +76,45 @@ public static class TestDocketEntry
     public static DocketEntry Expired(string? sessionId = null, string? tenantId = null)
         => CreateDefault(
             sessionId: sessionId, tenantId: tenantId, expiresAt: DateTimeOffset.UtcNow.AddSeconds(-5));
+
+    /// <summary>
+    /// Files a row and moves it to <paramref name="status"/> the only way a row leaves pending: the
+    /// guarded transition, carrying who agreed (AZ-1).
+    /// </summary>
+    /// <remarks>
+    /// A store refuses a row filed in any state but pending, so a test that wants a decided row
+    /// makes one the way the framework does. Expiry carries no attestation — nobody decided it.
+    /// </remarks>
+    public static async Task<DocketEntry> FileDecidedAsync(
+        IDocketStore store,
+        ReviewStatus status,
+        DocketEntry? entry = null,
+        DateTimeOffset? decidedAt = null,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(store);
+        var row = entry ?? CreateDefault();
+        await store.FileDocketEntryAsync(row, ct);
+
+        var at = decidedAt ?? row.CreatedAt;
+        var patch = status == ReviewStatus.Expired
+            ? new DocketTransitionPatch(ReviewStatus.Expired)
+            : new DocketTransitionPatch(
+                status,
+                Decision: new DecisionRecord(
+                    status == ReviewStatus.Approved ? DecisionKind.Approve : DecisionKind.Reject, null, at),
+                Attestation: new Attestation(Attestor.Member.FromStorage("member-1"), at, row.EntryId),
+                DecidedAt: at);
+
+        var moved = await store.TransitionAsync(
+            row.EntryId,
+            new DocketScope(row.TenantId),
+            ReviewStatus.Pending,
+            patch,
+            ct);
+
+        return moved is DocketTransitionResult.Transitioned t
+            ? t.Entry
+            : throw new InvalidOperationException($"could not move the row to {status}: {moved.GetType().Name}");
+    }
 }

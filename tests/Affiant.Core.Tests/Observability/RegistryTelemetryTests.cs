@@ -332,13 +332,6 @@ public class RegistryTelemetryTests
         public Task<DocketEntry?> GetDocketEntryAsync(Guid entryId, CancellationToken ct)
             => Task.FromResult(Entries.TryGetValue(entryId, out var e) ? e : null);
 
-        public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct)
-        {
-            if (!Entries.TryGetValue(entryId, out var entry) || entry.Status != ReviewStatus.Pending)
-                return Task.FromResult(0);
-            Entries[entryId] = entry with { Status = status };
-            return Task.FromResult(1);
-        }
 
         public Task<int> ConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
             => Task.FromResult(0);

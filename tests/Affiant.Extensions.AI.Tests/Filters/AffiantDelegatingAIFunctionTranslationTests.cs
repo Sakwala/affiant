@@ -230,8 +230,6 @@ public class AffiantDelegatingAIFunctionTranslationTests
         public Task<DocketEntry?> GetDocketEntryAsync(Guid entryId, CancellationToken ct) =>
             Task.FromResult<DocketEntry?>(null);
 
-        public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct) =>
-            throw new InvalidOperationException("docket store is down");
 
 
         public Task<int> ConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct) =>

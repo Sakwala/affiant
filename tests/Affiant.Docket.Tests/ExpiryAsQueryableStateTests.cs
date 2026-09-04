@@ -15,7 +15,7 @@ namespace Affiant.Docket.Tests;
 /// <remarks>
 /// The projection is a read-time one. The persisted row stays Pending until the sweep — or a
 /// decision, or a resubmission — commits the transition, and each case below proves that too:
-/// <c>UpdateReviewStatusAsync</c>'s <c>WHERE Status = 'Pending'</c> guard still returns 1 for an
+/// <c>TransitionAsync</c>'s <c>WHERE Status = 'Pending'</c> guard still wins for an
 /// entry the reads already call Expired.
 /// </remarks>
 public sealed class ExpiryAsQueryableStateTests
@@ -42,9 +42,10 @@ public sealed class ExpiryAsQueryableStateTests
         Assert.Equal(ReviewStatus.Expired, atDeadline!.Status);
 
         // Nothing has been written: the guarded transition is still there for the sweep to win.
-        var rows = await store.UpdateReviewStatusAsync(
-            entry.EntryId, ReviewStatus.Expired, CancellationToken.None);
-        Assert.Equal(1, rows);
+        var swept = await store.TransitionAsync(
+            entry.EntryId, new DocketScope(entry.TenantId), ReviewStatus.Pending,
+            new DocketTransitionPatch(ReviewStatus.Expired), CancellationToken.None);
+        Assert.IsType<DocketTransitionResult.Transitioned>(swept);
     }
 
     [Theory]
@@ -72,7 +73,15 @@ public sealed class ExpiryAsQueryableStateTests
         var deadline = Origin.AddMinutes(10);
         var entry = TestDocketEntry.CreateDefault(expiresAt: deadline);
         await store.FileDocketEntryAsync(entry, CancellationToken.None);
-        await store.UpdateReviewStatusAsync(entry.EntryId, ReviewStatus.Approved, CancellationToken.None);
+        var at = Origin;
+        await store.TransitionAsync(
+            entry.EntryId, new DocketScope(entry.TenantId), ReviewStatus.Pending,
+            new DocketTransitionPatch(
+                ReviewStatus.Approved,
+                Decision: new DecisionRecord(DecisionKind.Approve, null, at),
+                Attestation: new Attestation(Attestor.Member.FromStorage("member-1"), at, entry.EntryId),
+                DecidedAt: at),
+            CancellationToken.None);
 
         clock.SetUtcNow(deadline.AddHours(1));
 

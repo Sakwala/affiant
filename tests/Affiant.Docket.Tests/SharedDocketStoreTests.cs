@@ -12,7 +12,7 @@ namespace Affiant.Docket.Tests;
 ///
 /// Three invariants from the framework spec are validated (R1, R3, round-trip):
 ///   Case 1 — Round-trip preservation: all DocketEntry fields survive file → retrieve.
-///   Case 2 — Double-submit guard: UpdateReviewStatusAsync returns 0 when entry is no longer Pending.
+///   Case 2 — Double-submit guard: TransitionAsync refuses when the entry is no longer Pending.
 ///   Case 3 — Expiry idempotency: MarkExpiredAsync called twice does not corrupt state.
 ///   Case 4 — Amendments round-trip (issue #6): UpdateAmendmentsAsync persists reviewer edits,
 ///            including an explicit null value for a field the reviewer cleared.
@@ -26,7 +26,7 @@ namespace Affiant.Docket.Tests;
 ///            fabric-persistence path Area 3 built on IDocketStore, previously zero framework
 ///            coverage on any backend (evidence pack area-5-store-parity.md §3 "escapes").
 ///   Case 9 — Genuinely concurrent races beyond Case 6 (Area-5 P4 item I): double
-///            UpdateReviewStatusAsync CAS on one Pending entry, and double FileDocketEntryAsync
+///            TransitionAsync CAS on one Pending entry, and double FileDocketEntryAsync
 ///            on the same EntryId — both via Task.WhenAll against independent store instances,
 ///            not sequential simulation.
 /// </summary>
@@ -85,27 +85,28 @@ public sealed class SharedDocketStoreTests
 
     [Theory]
     [ClassData(typeof(DocketStoreProviderFactory))]
-    public async Task UpdateReviewStatus_DoubleSubmitGuard_RejectsUpdateOnNonPendingEntry(
+    public async Task Transition_DoubleSubmitGuard_RejectsASecondDecisionOnANonPendingEntry(
         IDocketStore store, string providerName)
     {
         Assert.NotEmpty(providerName);
         var entry = TestDocketEntry.CreateDefault();
         await store.FileDocketEntryAsync(entry, CancellationToken.None);
 
-        // First update: entry is Pending → guard passes, 1 row affected
-        var firstRows = await store.UpdateReviewStatusAsync(
-            entry.EntryId, ReviewStatus.Approved, CancellationToken.None);
-        Assert.Equal(1, firstRows);
+        // First decision: the row is pending → the compare-and-set wins.
+        var first = await store.TransitionAsync(
+            entry.EntryId, new DocketScope(entry.TenantId), ReviewStatus.Pending,
+            Decided(ReviewStatus.Approved, entry.EntryId), CancellationToken.None);
+        Assert.IsType<DocketTransitionResult.Transitioned>(first);
 
         var afterFirst = await store.GetDocketEntryAsync(entry.EntryId, CancellationToken.None);
         Assert.Equal(ReviewStatus.Approved, afterFirst!.Status);
 
-        // Second update: entry is Approved → guard (WHERE Status = Pending) rejects, 0 rows affected
-        var secondRows = await store.UpdateReviewStatusAsync(
-            entry.EntryId, ReviewStatus.Rejected, CancellationToken.None);
-        Assert.Equal(0, secondRows);
+        // Second decision: the row is approved → refused, not applied.
+        var second = await store.TransitionAsync(
+            entry.EntryId, new DocketScope(entry.TenantId), ReviewStatus.Pending,
+            Decided(ReviewStatus.Rejected, entry.EntryId), CancellationToken.None);
+        Assert.IsType<DocketTransitionResult.AlreadyDecided>(second);
 
-        // Status must remain Approved — the guard prevented the overwrite
         var afterSecond = await store.GetDocketEntryAsync(entry.EntryId, CancellationToken.None);
         Assert.Equal(ReviewStatus.Approved, afterSecond!.Status);
     }
@@ -176,7 +177,9 @@ public sealed class SharedDocketStoreTests
 
         var first = TestDocketEntry.CreateDefault(entryId: entryId, sessionId: "session-first");
         await store.FileDocketEntryAsync(first, CancellationToken.None);
-        await store.UpdateReviewStatusAsync(entryId, ReviewStatus.Approved, CancellationToken.None);
+        await store.TransitionAsync(
+            entryId, new DocketScope(first.TenantId), ReviewStatus.Pending,
+            Decided(ReviewStatus.Approved, entryId), CancellationToken.None);
 
         // A retried filing (or a race the store-level guard was meant to catch) arrives after
         // the entry already went terminal. The documented contract — and issue #32's fix — say
@@ -199,8 +202,7 @@ public sealed class SharedDocketStoreTests
         IDocketStore storeA, IDocketStore storeB, string providerName)
     {
         Assert.NotEmpty(providerName);
-        var entry = TestDocketEntry.CreateDefault(status: ReviewStatus.Expired);
-        await storeA.FileDocketEntryAsync(entry, CancellationToken.None);
+        var entry = await TestDocketEntry.FileDecidedAsync(storeA, ReviewStatus.Expired);
 
         var firstNewId = Guid.NewGuid();
         var secondNewId = Guid.NewGuid();
@@ -244,8 +246,7 @@ public sealed class SharedDocketStoreTests
         IDocketStore store, string providerName)
     {
         Assert.NotEmpty(providerName);
-        var parent = TestDocketEntry.CreateDefault(status: ReviewStatus.Expired);
-        await store.FileDocketEntryAsync(parent, CancellationToken.None);
+        var parent = await TestDocketEntry.FileDecidedAsync(store, ReviewStatus.Expired);
 
         var childId = Guid.NewGuid();
         var consumed = await store.ConsumeForResubmitAsync(parent.EntryId, childId, CancellationToken.None);
@@ -365,7 +366,7 @@ public sealed class SharedDocketStoreTests
 
     [Theory]
     [ClassData(typeof(DocketStoreConcurrencyProviderFactory))]
-    public async Task UpdateReviewStatusAsync_GenuinelyConcurrentCallsOnPendingEntry_ExactlyOneWins(
+    public async Task TransitionAsync_GenuinelyConcurrentCallsOnPendingEntry_ExactlyOneWins(
         IDocketStore storeA, IDocketStore storeB, string providerName)
     {
         Assert.NotEmpty(providerName);
@@ -373,21 +374,38 @@ public sealed class SharedDocketStoreTests
         await storeA.FileDocketEntryAsync(entry, CancellationToken.None);
 
         // Same shape as Case 6's resubmit race: two independent store instances (not one shared
-        // DbContext, not a sequential simulation) racing the store's own
-        // WHERE Status = 'Pending' CAS guard.
-        var firstTask = Task.Run(() =>
-            storeA.UpdateReviewStatusAsync(entry.EntryId, ReviewStatus.Approved, CancellationToken.None));
-        var secondTask = Task.Run(() =>
-            storeB.UpdateReviewStatusAsync(entry.EntryId, ReviewStatus.Rejected, CancellationToken.None));
+        // DbContext, not a sequential simulation) racing the store's own compare-and-set out of
+        // pending.
+        var scope = new DocketScope(entry.TenantId);
+        var firstTask = Task.Run(() => storeA.TransitionAsync(
+            entry.EntryId, scope, ReviewStatus.Pending,
+            Decided(ReviewStatus.Approved, entry.EntryId), CancellationToken.None));
+        var secondTask = Task.Run(() => storeB.TransitionAsync(
+            entry.EntryId, scope, ReviewStatus.Pending,
+            Decided(ReviewStatus.Rejected, entry.EntryId), CancellationToken.None));
 
         var results = await Task.WhenAll(firstTask, secondTask);
 
-        Assert.Equal(1, results.Sum());
+        Assert.Single(results.OfType<DocketTransitionResult.Transitioned>());
 
         var updated = await storeA.GetDocketEntryAsync(entry.EntryId, CancellationToken.None);
         Assert.NotNull(updated);
-        var expectedStatus = results[0] == 1 ? ReviewStatus.Approved : ReviewStatus.Rejected;
+        var expectedStatus = results[0] is DocketTransitionResult.Transitioned
+            ? ReviewStatus.Approved
+            : ReviewStatus.Rejected;
         Assert.Equal(expectedStatus, updated.Status);
+    }
+
+    /// <summary>A decision patch that names who agreed and what they chose (AZ-1).</summary>
+    private static DocketTransitionPatch Decided(ReviewStatus status, Guid entryId)
+    {
+        var at = DateTimeOffset.UtcNow;
+        return new DocketTransitionPatch(
+            status,
+            Decision: new DecisionRecord(
+                status == ReviewStatus.Approved ? DecisionKind.Approve : DecisionKind.Reject, null, at),
+            Attestation: new Attestation(Attestor.Member.FromStorage("member-1"), at, entryId),
+            DecidedAt: at);
     }
 
     [Theory]

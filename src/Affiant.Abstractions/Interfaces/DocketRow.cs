@@ -81,6 +81,52 @@ public static class DocketRow
         }
     }
 
+    /// <summary>
+    /// Refuses a row filed in any state but <see cref="ReviewStatus.Pending"/> (AZ-1, DK-1).
+    /// </summary>
+    /// <remarks>
+    /// A Docket row is filed pending and leaves that state only through
+    /// <see cref="IDocketStore.TransitionAsync"/>, which is where the attestation is checked. A
+    /// store that accepted a row already approved would let a caller file the decided state
+    /// directly, with nobody on it, and the guard on the transition would never be consulted — the
+    /// row would simply appear, and be returned by the approved-unexecuted listing a host's
+    /// executor drains.
+    /// </remarks>
+    /// <param name="entry">The row being filed.</param>
+    /// <param name="paramName">The parameter to name in the exception.</param>
+    /// <exception cref="ArgumentException"><paramref name="entry"/> is not pending.</exception>
+    public static void ValidateFiling(DocketEntry entry, string paramName)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+
+        if (entry.Status == ReviewStatus.Pending) return;
+
+        throw new ArgumentException(
+            $"AZ-1: a Docket entry is filed pending and leaves that state only through a guarded " +
+            $"transition, which is where who agreed is checked. This one arrives {entry.Status}. " +
+            "Filing a decided row directly would put a state nobody agreed to in front of the "
+            + "host's executor.",
+            paramName);
+    }
+
+    /// <summary>
+    /// Refuses an execution report against a row that carries no attestation (AZ-5).
+    /// </summary>
+    /// <remarks>
+    /// The gate refuses it first, and says why. This is the same refusal one layer down, so a
+    /// caller holding an <see cref="IDocketStore"/> cannot drive an unattributed row to
+    /// <see cref="ExecutionOutcome.Executed"/> either: an executor is reachable only through a
+    /// Docket entry that carries an attestation, and that is a property of the row rather than of
+    /// the path that reached it.
+    /// </remarks>
+    /// <param name="entry">The row the outcome is being reported against.</param>
+    /// <returns><see langword="true"/> when the row may be executed against.</returns>
+    public static bool MayRecordExecution(DocketEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        return entry.Attestation is not null;
+    }
+
     /// <summary>Refuses a transition patch that contradicts itself.</summary>
     /// <param name="patch">The patch.</param>
     /// <param name="expected">The state the caller says the row is in.</param>
@@ -128,11 +174,14 @@ public static class DocketRow
         // AZ-1: a row that leaves pending approved or rejected names who agreed, or it is not
         // written at all.
         //
-        // This is the second of two defences and the one that makes the state UNWRITABLE: the gate's
-        // decision core makes an unattested approval unreachable, and this makes it impossible to
-        // store even for a caller holding an IDocketStore directly. A decided row that cannot name
-        // who agreed is not a record, and an executor reached through one would be a write nobody
-        // authorised (AZ-5). Expiry is unaffected — nobody decided it, so it carries neither.
+        // This is one of the store's three attestation guards, and together they make the state
+        // unwritable: a row may only be FILED pending, it may only LEAVE pending through this
+        // transition, and an execution outcome may only be recorded against a row that carries an
+        // attestation. The gate's decision core makes an unattested approval unreachable; these
+        // three make it unstorable, including for a caller holding an IDocketStore directly. A
+        // decided row that cannot name who agreed is not a record, and an executor reached through
+        // one would be a write nobody authorised (AZ-5). Expiry is unaffected — nobody decided it,
+        // so it carries neither.
         if (patch.Status is not (ReviewStatus.Approved or ReviewStatus.Rejected))
             return;
 

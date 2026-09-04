@@ -729,9 +729,10 @@ public sealed class DocketStoreContractTests
         await store.RecordExecutionAsync(
             executed.EntryId, scope, ExecutionOutcome.Executed, null,
             ExecutionOutcome.Unexecuted, CancellationToken.None);
-        var rejected = TestDocketEntry.CreateDefault(
-            tenantId: tenantId, status: ReviewStatus.Rejected, createdAt: longAgo, decidedAt: longAgo);
-        await store.FileDocketEntryAsync(rejected, CancellationToken.None);
+        var rejected = await TestDocketEntry.FileDecidedAsync(
+            store, ReviewStatus.Rejected,
+            TestDocketEntry.CreateDefault(tenantId: tenantId, createdAt: longAgo),
+            decidedAt: longAgo);
 
         var result = await store.ApplyRetentionAsync(
             new DocketRetentionPolicy(DateTimeOffset.UtcNow.AddYears(-1)), scope, 50, CancellationToken.None);
@@ -761,11 +762,10 @@ public sealed class DocketStoreContractTests
         await store.FileDocketEntryAsync(pending, CancellationToken.None);
         for (var i = 0; i < 3; i++)
         {
-            await store.FileDocketEntryAsync(
-                TestDocketEntry.CreateDefault(
-                    tenantId: tenantId, status: ReviewStatus.Rejected,
-                    createdAt: longAgo.AddMinutes(i), decidedAt: longAgo.AddMinutes(i)),
-                CancellationToken.None);
+            await TestDocketEntry.FileDecidedAsync(
+                store, ReviewStatus.Rejected,
+                TestDocketEntry.CreateDefault(tenantId: tenantId, createdAt: longAgo.AddMinutes(i)),
+                decidedAt: longAgo.AddMinutes(i));
         }
 
         var policy = new DocketRetentionPolicy(DateTimeOffset.UtcNow.AddYears(-1));
