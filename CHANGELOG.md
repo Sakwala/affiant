@@ -46,8 +46,11 @@ Both are closed here, in the framework, so every host gets the same answer.
 - **`Principal` and `DecisionContext` (in `Affiant.Abstractions`).** `Principal.Member` is a
   human-verified session; `Principal.Service` is a machine caller that may name the person it speaks
   for and the relay assertion that carried them. `DecisionContext` carries the principal, the tenant,
-  the conversation, the channel, the reviewer's reason and the act's instant — passed at the call
-  site, never resolved from ambient state, and with no unattributed variant to fall back on.
+  the conversation, the channel and the reviewer's reason — passed at the call site, never resolved
+  from ambient state, and with no unattributed variant to fall back on. It deliberately does **not**
+  carry the act's instant: the moment an attestation and a decision record are dated to is the one
+  the gate observed on its own `TimeProvider`, so a caller cannot date its own agreement, and a row
+  cannot be back-dated inside its deadline by the caller whose lateness the deadline is about.
 - **The attestation on the row (`DocketEntry.Attestation`), written by the decision.** A `Member`
   principal attests `member`. A `Service` principal carrying both an asserted member and a relay
   assertion attests `member-via-relay`, naming the person *and* the relay — the record must not read
@@ -604,11 +607,15 @@ write through when it could not do them at all.
 Pre-1.0 breaking changes are permitted by this repository's own stability policy and are declared
 here. Nothing below changes what a conforming host already does; each is a change to a contract.
 
-1. **`IDocketStore` gains eleven members** — `TransitionAsync`, `PreserveAmendmentsAsync`,
+1. **`IDocketStore` gains twelve members** — `TransitionAsync`, `PreserveAmendmentsAsync`,
    `RecordExecutionAsync`, `RecordSupersessionAsync`, `MarkBlockedAsync`, `ListPendingAsync`,
-   `ListApprovedUnexecutedAsync`, `ExpireDueAsync`, `ApplyRetentionAsync`, `PurgeTenantAsync`,
-   `ExportAsync` — and loses two: `ListExpiredAsync` and `MarkExpiredAsync`, both superseded by
-   `ExpireDueAsync`, which finds the due rows and commits their transitions under one guard.
+   `ListApprovedUnexecutedAsync`, `CountPendingAsync`, `ExpireDueAsync`, `ApplyRetentionAsync`,
+   `PurgeTenantAsync`, `ExportAsync` — and loses four: `ListExpiredAsync` and `MarkExpiredAsync`,
+   both superseded by `ExpireDueAsync`, which finds the due rows and commits their transitions under
+   one guard; and `UpdateReviewStatusAsync` and `UpdateAmendmentsAsync`, superseded by
+   `TransitionAsync`. Those two took an entry id and nothing else: no tenant scope, no expected
+   status, no attestation — so anything holding the store could write any status onto any row in any
+   tenant, which is the whole of what the decision path checks, bypassed by one call.
    **A host with a custom `IDocketStore` will not compile until it implements them.** That is
    deliberate: the guarded compare-and-set, the once-only execution report and the bounded listings
    are the properties the rules are about, and a default implementation that quietly did the wrong
@@ -644,6 +651,23 @@ here. Nothing below changes what a conforming host already does; each is a chang
    corrections as an approval's.
 8. **`ReviewGate.HandleDecisionAsync`'s optional parameters are now explicit overloads.** Existing
    call sites keep compiling; a call that relied on named arguments past `amendments` does not.
+9. **The store refuses what the gate refuses, on all three backends.** `FileDocketEntryAsync` takes
+   a row that is `Pending` and nothing else: a decided row filed directly would put a state nobody
+   agreed to in front of the host's executor without ever passing the guarded transition that checks
+   who agreed. `RecordExecutionAsync` refuses a row carrying no attestation: an execution report is
+   evidence that an approved write ran, and a row nobody attested was never approved. Both throw
+   `ArgumentException`. A host that seeded fixtures by filing approved rows files them pending and
+   transitions them, which is what its production path already does.
+10. **`DocketEntry.Requirement`** — the review level the policy chain resolved, written when the row
+    is filed and persisted with it (`ReviewerConfirmation` by default, so existing constructions
+    compile). It was previously nowhere on the record, and a reader had to infer the requirement
+    from what happened afterwards — which cannot distinguish a row that required one reviewer from a
+    row that required two and got one. A host with a custom `IDocketStore` persists and returns it;
+    the EF stores add the column through the same migration and drift heal as the other row facts.
+11. **`CountPendingAsync(ct)`** — how many entries are awaiting review, as a number. The docket-depth
+    gauge asked for the rows instead, every fifteen seconds, unpaged and across every tenant. A host
+    with a custom `IDocketStore` implements it as a `COUNT` over the pending rows that a read would
+    report pending. `ListAllPendingAsync` keeps its deprecation and has no caller left in `src/`.
 
 #### Migrations
 
@@ -695,8 +719,12 @@ discriminator, together, because they are one subject seen from four angles.
   long as no vector stated a turn on the record, and different the moment one did: a reviewer's
   correction belongs to the conversation the proposal was made in, and the displaced tag's own turn
   says when the machine produced the value it replaced. Dating a person's act to the machine's turn
-  is the wrong answer whether or not a vector catches it, and `AffidavitAmendments.Apply` — the typed
-  path, which reads `Affidavit.ConversationTurn` — was already right.
+  is the wrong answer whether or not a vector catches it, and the canonical path
+  (`ApplyAmendmentsForCanonical`) now reads the turn off the record, as the rule states it.
+  The typed path (`AffidavitAmendments.Apply`) still mints the tag with the amended field's own
+  turn, because the `Affidavit` record has nowhere to state one: no `conversationTurn`, no protocol
+  version and no created-at instant. That gap is the one the parity manifest's canonical rows name,
+  and closing it makes the two paths agree by construction rather than by inspection.
 - **`Money`** (`Amount` decimal string, `Currency` ISO 4217 shape) and its converter, which writes the
   two strings and **refuses a JSON number** where money was expected, naming the rule and saying why:
   no binary float represents `0.10`, so a card showing "£4,000.10" and a store holding
