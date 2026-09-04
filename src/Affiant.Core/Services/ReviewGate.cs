@@ -535,9 +535,18 @@ public sealed class ReviewGate(
                     "will be accepted.");
             }
 
-            var sworn = notes.Count == context.Affidavit.Warnings.Length
-                ? context.Affidavit
-                : context.Affidavit with { Warnings = [.. notes] };
+            // The record is stamped with the gate's own clock as it is filed. A record that cannot
+            // say when it was built cannot be told from one built at another moment, and a
+            // reviewer's accepted amendment is dated against it (SR-3, PV-2). One instant for the
+            // whole filing, the same one the deadline is measured from. A record that arrives
+            // already stamped — a host's own projection, or a replay — keeps what it says.
+            var stamped = context.Affidavit.CreatedAt is null
+                ? context.Affidavit with { CreatedAt = now }
+                : context.Affidavit;
+
+            var sworn = notes.Count == stamped.Warnings.Length
+                ? stamped
+                : stamped with { Warnings = [.. notes] };
 
             // 4. File (DK-1).
             //    Same shape as DocketEntry.Amendments since the Area-8 amendments unification —

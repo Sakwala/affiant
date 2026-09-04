@@ -111,12 +111,17 @@ public static class AffidavitAmendments
             if (cleared && !field.IsMandatory)
                 continue;
 
+            // The turn is the AFFIDAVIT's, never the amended field's: a reviewer's correction
+            // belongs to the conversation the proposal was made in, and the displaced tag's own turn
+            // says when the machine produced the value being replaced. The rulebook's amended vector
+            // pins it — the record states turn 3, the displaced tag states none, and the minted tag
+            // carries 3.
             var tag = AmendmentTag(
                 cleared,
                 entryId,
                 decisionAt,
                 reviewerId,
-                field.Provenance.Current.ConversationTurn);
+                affidavit.ConversationTurn);
 
             fields.Add(field with
             {
@@ -157,8 +162,9 @@ public static class AffidavitAmendments
     /// </param>
     /// <param name="reviewerId">Who made the decision, as the host identifies them.</param>
     /// <param name="conversationTurn">
-    /// The turn the field's superseded tag named, carried forward so the amended tag still points at
-    /// the turn the value was first proposed on.
+    /// The turn the AFFIDAVIT was made on. A reviewer's correction belongs to the conversation the
+    /// proposal belongs to; the displaced tag's own turn says when the machine produced the value
+    /// being replaced, and reusing it would date a person's act to the machine's turn.
     /// </param>
     public static ProvenanceTag AmendmentTag(
         bool cleared,

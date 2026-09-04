@@ -273,36 +273,31 @@ public class WireSchemaTests
     /// both.</b> The vectors are normative bytes an implementation must reproduce; the schema is a
     /// normative shape it must validate against; and they disagree in four places:
     /// <list type="bullet">
-    /// <item><c>/affidavit :: required</c> — the schema requires <c>protocolVersion</c>,
-    /// <c>conversationTurn</c> and <c>createdAt</c> on the record. No vector carries any of the
-    /// three.</item>
     /// <item><c>/affidavit/warnings</c> and <c>/affidavit/requiresConfirmation ::
     /// not-admitted</c> — the schema puts both on the card envelope and forbids them on the record.
-    /// Four of the seven vectors carry both <i>on the record</i>, and their expected bytes are
-    /// computed with them. This release carries them in <b>both</b> places, so a consumer written
-    /// against either shape finds them and the vectors still reproduce.</item>
+    /// The card carries them in both places, so a consumer written against either shape finds
+    /// them.</item>
     /// <item><c>/affidavit/fields/N/allowedValues</c> and <c>.../pattern :: not-admitted</c> — the
     /// same split for the two per-field rendering hints, which the schema moves to the envelope's
-    /// <c>presentation</c> array. Again both vectors and this release carry them on the field, and
-    /// again the card now carries them in both places.</item>
+    /// <c>presentation</c> array. The card carries those in both places too.</item>
     /// <item><c>/affidavit/operationType :: const|enum|oneOf</c> — the schema's operation vocabulary
     /// is two-valued and shape-shaped, <c>"create"</c> and <c>"update"</c>, with the host's own verb
-    /// travelling beside it. Every vector spells it <c>"WriteCreate"</c> / <c>"WriteUpdate"</c>, which
-    /// is this framework's four-valued vocabulary. The card's <c>hostOperation</c> is the beside-it
-    /// half and is carried now; the record's own spelling cannot move to <c>"create"</c> /
-    /// <c>"update"</c> while the vectors that pin its bytes say otherwise.</item>
+    /// travelling beside it. This framework's record spells it <c>"WriteCreate"</c> /
+    /// <c>"WriteUpdate"</c>, its own four-valued vocabulary; the card's <c>hostOperation</c> is the
+    /// beside-it half and is carried now.</item>
     /// </list>
     /// </para>
     ///
     /// <para>
-    /// Moving the record to the schema's shape would break every canonical vector, and leaving it
-    /// breaks the schema; the reconciliation belongs in the rulebook, not in an implementation
-    /// picking a side. Recorded here so the choice is visible rather than silently made.
+    /// The record's three required properties are no longer on this list: <c>protocolVersion</c>,
+    /// <c>conversationTurn</c> and <c>createdAt</c> are properties of the record, which is what the
+    /// rulebook's v0.1.1 vectors and its Affidavit schema both describe. What is left is one
+    /// finding: this framework's record still carries four things the schema keeps on the envelope,
+    /// and spells the operation in its own vocabulary.
     /// </para>
     /// </summary>
     private static readonly string[] ExpectedResidue =
     [
-        "/affidavit :: required",
         "/affidavit/fields/0/allowedValues :: not-admitted",
         "/affidavit/fields/0/pattern :: not-admitted",
         "/affidavit/fields/0/provenance/current/at :: type",
@@ -338,7 +333,9 @@ public class WireSchemaTests
                     IsMandatory: false,
                     Kind: AffidavitFieldKind.Text),
             ],
-            warnings: ["The total changed by more than 10x."]);
+            warnings: ["The total changed by more than 10x."],
+            conversationTurn: 1,
+            createdAt: RequiredBy.AddMinutes(-30));
 
     private static ProvenanceTag Tag(float confidence) =>
         new(ProvenanceSource.Conversation, confidence, "Extracted from the turn", 1);

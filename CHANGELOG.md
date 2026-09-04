@@ -210,6 +210,30 @@ update at all.
 
 #### Added
 
+- **`Affidavit.ProtocolVersion`, `Affidavit.ConversationTurn` and `Affidavit.CreatedAt`** — the three
+  properties the protocol's own record carries and this one did not. A record is an envelope and says
+  which version it speaks (SR-3); a proposal names the conversation turn it was made on, or `null`
+  when it did not come from one; and it says when it was built. **The gate stamps `CreatedAt` with
+  its own clock as it files**, the same instant the deadline is measured from, so a record that
+  arrives unstamped is stamped once and a record that arrives stamped keeps what it says. Nothing
+  reads a wall clock: `Affidavit` never touches a clock, and the caller passes the instant in so a
+  fixture can pin it.
+
+  This is what makes an accepted amendment datable. A reviewer's correction belongs to the
+  conversation **the proposal** was made in, so the tag an amendment mints carries the *record's*
+  turn; before this the typed path had nowhere to read one and carried the amended field's own turn
+  instead — the turn on the tag being replaced, which says when the machine produced the value the
+  person is correcting. The two mint sites (`AffidavitAmendments.Apply` and the canonical document
+  path) now agree by construction, and a test pins them against a record that states a turn, so a
+  drift fails a test instead of producing a Docket row and an execution grant that disagree about
+  the same decision.
+
+  **Breaking:** the positional constructor and `Deconstruct` of `Affidavit` gain three parameters at
+  the end, all defaulted — `new Affidavit(...)` with the nine original arguments still compiles, and
+  a positional pattern match with nine `out` parameters does not. `Affidavit.Create` gains
+  `conversationTurn` and `createdAt` as optional trailing arguments. A host with its own
+  `IAffidavitProjection` should pass both; a host that passes neither gets a record the gate stamps
+  and a `null` turn.
 - **`Affidavit.PopulatedConfidence` (`float?`) and `Affidavit.EmptyFieldCount` (`int`).** A safety
   number that reads `0` tells a reviewer nothing about how much of the record is blank or how good
   the populated part is. `PopulatedConfidence` is the minimum over the fields that *are* populated —

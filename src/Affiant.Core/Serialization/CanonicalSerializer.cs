@@ -238,7 +238,9 @@ public static class CanonicalSerializer
         // A reviewer's correction belongs to the conversation the proposal was made in; the
         // displaced tag's own turn says when the machine produced the value it replaced, and
         // reusing it would date the person's act to the machine's turn. The typed path reads
-        // Affidavit.ConversationTurn for the same reason, and the two must not drift.
+        // Affidavit.ConversationTurn for the same reason, and AmendmentTurnTests pins the two
+        // against a record that STATES a turn, so a drift between them fails a test rather than
+        // producing a row and a hash that disagree about the same decision.
         var turn = TurnOf(affidavit);
 
         foreach (var element in fields)

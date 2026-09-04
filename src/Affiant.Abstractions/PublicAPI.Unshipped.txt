@@ -233,12 +233,18 @@ Affiant.Abstractions.Interfaces.RetentionResult.More.init -> void
 Affiant.Abstractions.Interfaces.RetentionResult.Removed.get -> int
 Affiant.Abstractions.Interfaces.RetentionResult.Removed.init -> void
 Affiant.Abstractions.Interfaces.RetentionResult.RetentionResult(int Removed, bool More) -> void
-Affiant.Abstractions.Models.Affidavit.Affidavit(string! OperationType, string! EntityType, string? EntityId, Affiant.Abstractions.Models.AffidavitField![]! Fields, float AggregateConfidence, float? PopulatedConfidence, int EmptyFieldCount, string![]! Warnings, bool RequiresConfirmation) -> void
-Affiant.Abstractions.Models.Affidavit.Deconstruct(out string! OperationType, out string! EntityType, out string? EntityId, out Affiant.Abstractions.Models.AffidavitField![]! Fields, out float AggregateConfidence, out float? PopulatedConfidence, out int EmptyFieldCount, out string![]! Warnings, out bool RequiresConfirmation) -> void
+Affiant.Abstractions.Models.Affidavit.Affidavit(string! OperationType, string! EntityType, string? EntityId, Affiant.Abstractions.Models.AffidavitField![]! Fields, float AggregateConfidence, float? PopulatedConfidence, int EmptyFieldCount, string![]! Warnings, bool RequiresConfirmation, int? ConversationTurn = null, System.DateTimeOffset? CreatedAt = null, string! ProtocolVersion = "0.1.0") -> void
+Affiant.Abstractions.Models.Affidavit.ConversationTurn.get -> int?
+Affiant.Abstractions.Models.Affidavit.ConversationTurn.init -> void
+Affiant.Abstractions.Models.Affidavit.CreatedAt.get -> System.DateTimeOffset?
+Affiant.Abstractions.Models.Affidavit.CreatedAt.init -> void
+Affiant.Abstractions.Models.Affidavit.Deconstruct(out string! OperationType, out string! EntityType, out string? EntityId, out Affiant.Abstractions.Models.AffidavitField![]! Fields, out float AggregateConfidence, out float? PopulatedConfidence, out int EmptyFieldCount, out string![]! Warnings, out bool RequiresConfirmation, out int? ConversationTurn, out System.DateTimeOffset? CreatedAt, out string! ProtocolVersion) -> void
 Affiant.Abstractions.Models.Affidavit.EmptyFieldCount.get -> int
 Affiant.Abstractions.Models.Affidavit.EmptyFieldCount.init -> void
 Affiant.Abstractions.Models.Affidavit.PopulatedConfidence.get -> float?
 Affiant.Abstractions.Models.Affidavit.PopulatedConfidence.init -> void
+Affiant.Abstractions.Models.Affidavit.ProtocolVersion.get -> string!
+Affiant.Abstractions.Models.Affidavit.ProtocolVersion.init -> void
 Affiant.Abstractions.Models.Affidavit.WithFields(Affiant.Abstractions.Models.AffidavitField![]! fields) -> Affiant.Abstractions.Models.Affidavit!
 Affiant.Abstractions.Models.AffidavitAmendments
 Affiant.Abstractions.Models.AffidavitConfidence
@@ -1169,7 +1175,7 @@ static Affiant.Abstractions.Interfaces.RecordSupersessionResult.operator !=(Affi
 static Affiant.Abstractions.Interfaces.RecordSupersessionResult.operator ==(Affiant.Abstractions.Interfaces.RecordSupersessionResult? left, Affiant.Abstractions.Interfaces.RecordSupersessionResult? right) -> bool
 static Affiant.Abstractions.Interfaces.RetentionResult.operator !=(Affiant.Abstractions.Interfaces.RetentionResult? left, Affiant.Abstractions.Interfaces.RetentionResult? right) -> bool
 static Affiant.Abstractions.Interfaces.RetentionResult.operator ==(Affiant.Abstractions.Interfaces.RetentionResult? left, Affiant.Abstractions.Interfaces.RetentionResult? right) -> bool
-static Affiant.Abstractions.Models.Affidavit.Create(string! operationType, string! entityType, string? entityId, Affiant.Abstractions.Models.AffidavitField![]! fields, string![]! warnings, bool requiresConfirmation = true) -> Affiant.Abstractions.Models.Affidavit!
+static Affiant.Abstractions.Models.Affidavit.Create(string! operationType, string! entityType, string? entityId, Affiant.Abstractions.Models.AffidavitField![]! fields, string![]! warnings, bool requiresConfirmation = true, int? conversationTurn = null, System.DateTimeOffset? createdAt = null) -> Affiant.Abstractions.Models.Affidavit!
 static Affiant.Abstractions.Models.AffidavitAmendments.AmendmentTag(bool cleared, System.Guid entryId, System.DateTimeOffset decisionAt, string! reviewerId, int? conversationTurn) -> Affiant.Abstractions.Models.ProvenanceTag!
 static Affiant.Abstractions.Models.AffidavitAmendments.Apply(Affiant.Abstractions.Models.Affidavit! affidavit, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? amendments, System.Guid entryId, System.DateTimeOffset decisionAt, string! reviewerId) -> Affiant.Abstractions.Models.Affidavit!
 static Affiant.Abstractions.Models.AffidavitConfidence.Compute(System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.AffidavitField!>! fields) -> Affiant.Abstractions.Models.AffidavitConfidence

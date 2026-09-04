@@ -161,6 +161,20 @@ public readonly record struct AffidavitConfidence(
 /// null when there are none.
 /// </param>
 /// <param name="EmptyFieldCount">How many proposed fields carry an <c>Empty</c> current tag.</param>
+/// <param name="ConversationTurn">
+/// The conversation turn the proposal was made on, or <see langword="null"/> when it did not come
+/// from a turn. It is the record's own turn, and it is what a reviewer's accepted amendment is
+/// dated to: a correction belongs to the conversation the proposal was made in, never to the turn
+/// on the tag it displaces, which says when the machine produced the value being replaced.
+/// </param>
+/// <param name="CreatedAt">
+/// When this Affidavit was built. Passed in by whoever built it — the gate stamps its own clock —
+/// and never read from a clock inside the model, so a fixture can pin it.
+/// </param>
+/// <param name="ProtocolVersion">
+/// The protocol version this record conforms to (SR-3). Every envelope that crosses the wire says
+/// which version it speaks, and a record is an envelope.
+/// </param>
 public sealed record Affidavit(
     string OperationType,
     string EntityType,
@@ -170,7 +184,10 @@ public sealed record Affidavit(
     float? PopulatedConfidence,
     int EmptyFieldCount,
     string[] Warnings,
-    bool RequiresConfirmation)
+    bool RequiresConfirmation,
+    int? ConversationTurn = null,
+    DateTimeOffset? CreatedAt = null,
+    string ProtocolVersion = AffiantProtocol.Version)
 {
     /// <summary>
     /// Build an Affidavit with all three confidence numbers computed from
@@ -183,7 +200,9 @@ public sealed record Affidavit(
         string? entityId,
         AffidavitField[] fields,
         string[] warnings,
-        bool requiresConfirmation = true)
+        bool requiresConfirmation = true,
+        int? conversationTurn = null,
+        DateTimeOffset? createdAt = null)
     {
         ArgumentNullException.ThrowIfNull(fields);
         ArgumentNullException.ThrowIfNull(warnings);
@@ -198,7 +217,9 @@ public sealed record Affidavit(
             confidence.PopulatedConfidence,
             confidence.EmptyFieldCount,
             warnings,
-            requiresConfirmation);
+            requiresConfirmation,
+            conversationTurn,
+            createdAt);
     }
 
     /// <summary>

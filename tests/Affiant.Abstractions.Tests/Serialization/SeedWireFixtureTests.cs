@@ -124,12 +124,19 @@ public class SeedWireFixtureTests
     }
 
     [Fact]
-    public void TheRecordInsideACardGainsTheTwoCompanionNumbersAndLosesNone() =>
+    public void TheRecordInsideACardGainsTheCompanionNumbersAndTheThreeTheRuleRequires() =>
         AssertDelta(
             "evidence-card-request",
             V01SchemaValidation.Wire(Card()),
             at: "affidavit",
-            added: ["populatedConfidence", "emptyFieldCount"],
+            added:
+            [
+                "populatedConfidence",  // AF-2
+                "emptyFieldCount",      // AF-2
+                "protocolVersion",      // SR-3 — a record is an envelope and says which version it speaks
+                "conversationTurn",     // the turn the proposal was made on; what an amendment is dated to
+                "createdAt",            // when the record was built, stamped by the gate's own clock
+            ],
             removed: []);
 
     /// <summary>

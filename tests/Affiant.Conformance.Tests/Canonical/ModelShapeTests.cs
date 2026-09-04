@@ -56,6 +56,9 @@ public class ModelShapeTests
     [Theory]
     [InlineData("populatedConfidence")]
     [InlineData("emptyFieldCount")]
+    [InlineData("protocolVersion")]
+    [InlineData("conversationTurn")]
+    [InlineData("createdAt")]
     public void APropertyTheAffidavitRecordCarries_IsNotReportedAbsent(string property)
     {
         var input = AffidavitShaped(new JsonObject { [property] = 1 }, []);
@@ -80,10 +83,10 @@ public class ModelShapeTests
     [Fact]
     public void APropertyNoRecordCarries_IsStillReportedAbsent()
     {
-        var input = AffidavitShaped(new JsonObject { ["protocolVersion"] = "0.1" }, []);
+        var input = AffidavitShaped(new JsonObject { ["settledAt"] = "2026-09-04T09:00:00.000Z" }, []);
 
         var (_, diff, _) = CanonicalVectorRunner.Run(VectorOver(input));
 
-        Assert.Contains(diff, d => d.At == "model.protocolVersion");
+        Assert.Contains(diff, d => d.At == "model.settledAt");
     }
 }
