@@ -127,3 +127,49 @@ jobs:
             samples/quickstart-host/test-results/
             samples/quickstart-host/host.log
           retention-days: 7
+
+  # The conformance driver's own gate. It runs the rulebook's promoted fixture suite against the
+  # shipped packages and asserts that the set of fixtures that FAIL is exactly the set
+  # conformance/parity/dotnet-v0.1.json declares -- failing in either direction, because a check
+  # that caught only new failures would let a fix rot unrecorded and the published parity claim
+  # would become a document nobody trusts. See Sakwala/affiant-protocol conformance/DRIVER.md §5.
+  #
+  # It is a separate job from build-and-test on purpose: this one is about a published claim, and a
+  # reader of a red run should be able to see which claim broke without reading a test runner's
+  # output.
+  conformance:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      # An edited fixture is no longer the document the comparison is about. The vendored suite is
+      # checked against the checksums recorded when it was copied from the pinned protocol ref.
+      - name: Verify the vendored conformance suite against its checksums
+        run: ./conformance/sync.sh --verify
+
+      - name: Build the conformance driver
+        run: dotnet build tests/Affiant.Conformance.Tests/Affiant.Conformance.Tests.csproj -c Release
+
+      # Running the suite writes conformance/results/dotnet-1.0.0-beta.1.json: the evidence the
+      # parity manifest's claim rests on.
+      - name: Run the conformance suite against the shipped packages
+        run: dotnet test tests/Affiant.Conformance.Tests/Affiant.Conformance.Tests.csproj -c Release --no-build --logger "console;verbosity=normal"
+
+      - name: Assert the failing set equals the parity manifest, exactly
+        run: ./conformance/compare-parity.py
+
+      - name: Upload the run log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: conformance-results
+          path: |
+            conformance/results/dotnet-1.0.0-beta.1.json
+            conformance/results/ORACLE-RUN-1.0.0-beta.1.md
+          if-no-files-found: error
