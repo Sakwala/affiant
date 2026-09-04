@@ -3,7 +3,7 @@
   "implementation": "dotnet",
   "version": "1.0.0-beta.3",
   "protocolTag": "v0.1.1",
-  "producedAt": "2026-09-04T17:56:45.149Z",
+  "producedAt": "2026-09-04T18:04:01.812Z",
   "runLog": "conformance/results/dotnet-1.0.0-beta.3.json (Sakwala/affiant)",
   "failing": [
     {
