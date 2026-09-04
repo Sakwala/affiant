@@ -233,9 +233,6 @@ public class AffiantDelegatingAIFunctionTranslationTests
         public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct) =>
             throw new InvalidOperationException("docket store is down");
 
-        public Task UpdateAmendmentsAsync(
-            Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct) =>
-            throw new InvalidOperationException("docket store is down");
 
         public Task<int> ConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct) =>
             throw new InvalidOperationException("docket store is down");
@@ -277,7 +274,7 @@ public class AffiantDelegatingAIFunctionTranslationTests
             Guid entryId, DocketScope scope, Guid supersededBy, CancellationToken ct)
             => throw new NotSupportedException();
 
-        Task<int> IDocketStore.MarkBlockedAsync(Guid entryId, BlockedMarker marker, CancellationToken ct)
+        Task<int> IDocketStore.MarkBlockedAsync(Guid entryId, DocketScope scope, BlockedMarker marker, CancellationToken ct)
             => Task.FromResult(0);
 
         Task<DocketPageResult<DocketEntry>> IDocketStore.ListPendingAsync(

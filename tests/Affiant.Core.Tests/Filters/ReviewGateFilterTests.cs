@@ -408,9 +408,6 @@ public class ReviewGateFilterTests
         public Task<DocketEntry?> GetResubmissionParentAsync(Guid entryId, CancellationToken ct)
             => Task.FromResult<DocketEntry?>(null);
 
-        public Task UpdateAmendmentsAsync(
-            Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct)
-            => Task.CompletedTask;
 
         public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct)
             => Task.FromResult<IReadOnlyList<DocketEntry>>([]);
@@ -440,7 +437,7 @@ public class ReviewGateFilterTests
             Guid entryId, DocketScope scope, Guid supersededBy, CancellationToken ct)
             => throw new NotSupportedException();
 
-        Task<int> IDocketStore.MarkBlockedAsync(Guid entryId, BlockedMarker marker, CancellationToken ct)
+        Task<int> IDocketStore.MarkBlockedAsync(Guid entryId, DocketScope scope, BlockedMarker marker, CancellationToken ct)
             => Task.FromResult(0);
 
         Task<DocketPageResult<DocketEntry>> IDocketStore.ListPendingAsync(
@@ -490,9 +487,6 @@ public class ReviewGateFilterTests
         public Task<DocketEntry?> GetResubmissionParentAsync(Guid entryId, CancellationToken ct)
             => Task.FromResult<DocketEntry?>(null);
 
-        public Task UpdateAmendmentsAsync(
-            Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct)
-            => Task.CompletedTask;
 
         public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct)
             => Task.FromResult<IReadOnlyList<DocketEntry>>([]);
@@ -522,7 +516,7 @@ public class ReviewGateFilterTests
             Guid entryId, DocketScope scope, Guid supersededBy, CancellationToken ct)
             => throw new NotSupportedException();
 
-        Task<int> IDocketStore.MarkBlockedAsync(Guid entryId, BlockedMarker marker, CancellationToken ct)
+        Task<int> IDocketStore.MarkBlockedAsync(Guid entryId, DocketScope scope, BlockedMarker marker, CancellationToken ct)
             => Task.FromResult(0);
 
         Task<DocketPageResult<DocketEntry>> IDocketStore.ListPendingAsync(
@@ -649,7 +643,7 @@ public class ReviewGateFilterTests
             Guid entryId, DocketScope scope, Guid supersededBy, CancellationToken ct)
             => throw new NotSupportedException();
 
-        Task<int> IDocketStore.MarkBlockedAsync(Guid entryId, BlockedMarker marker, CancellationToken ct)
+        Task<int> IDocketStore.MarkBlockedAsync(Guid entryId, DocketScope scope, BlockedMarker marker, CancellationToken ct)
             => Task.FromResult(0);
 
         Task<DocketPageResult<DocketEntry>> IDocketStore.ListPendingAsync(

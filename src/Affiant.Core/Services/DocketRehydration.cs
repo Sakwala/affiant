@@ -22,8 +22,10 @@ using Affiant.Abstractions.Models;
 /// <para>
 /// One cursor carries the whole sequence, including which of the two groups it is resuming, so a page
 /// boundary that falls between them resumes at the start of the second rather than restarting the
-/// first. The cursor is opaque; a caller passes back what the previous page returned and stops when it
-/// is <c>null</c>.
+/// first. A page whose limit is not spent by the pending group <b>fills from the second group in the
+/// same page</b>: a page that stopped at the boundary would report more with a limit it had not
+/// spent. The cursor is opaque; a caller passes back what the previous page returned and stops when
+/// it is <c>null</c>.
 /// </para>
 /// </remarks>
 public static class DocketRehydration
@@ -60,13 +62,28 @@ public static class DocketRehydration
                 };
             }
 
-            // The pending group is drained. Hand this page back with a cursor that opens the second
-            // group — but only if there is one, so a caller is never given a cursor that yields an
-            // empty page.
-            var probe = await store.ListApprovedUnexecutedAsync(scope, new DocketPage(1), ct);
-            return probe.Items.Count == 0
-                ? new DocketPageResult<DocketEntry>(pending.Items, null, false)
-                : new DocketPageResult<DocketEntry>(pending.Items, ApprovedGroupStart, true);
+            // The pending group is drained and the page still has room, so it fills from the second
+            // group in the same page (DK-5). A page that stopped at the group boundary would report
+            // `more` with a limit it had not spent, and a caller asking for ten rows over a Docket
+            // holding two would be told there were more.
+            var remaining = page.Limit - pending.Items.Count;
+            if (remaining <= 0)
+            {
+                var probe = await store.ListApprovedUnexecutedAsync(scope, new DocketPage(1), ct);
+                return probe.Items.Count == 0
+                    ? new DocketPageResult<DocketEntry>(pending.Items, null, false)
+                    : new DocketPageResult<DocketEntry>(pending.Items, ApprovedGroupStart, true);
+            }
+
+            var spill = await store.ListApprovedUnexecutedAsync(scope, new DocketPage(remaining), ct);
+            var filled = pending.Items.Count == 0
+                ? spill.Items
+                : [.. pending.Items, .. spill.Items];
+
+            return spill.More && spill.Cursor is not null
+                ? new DocketPageResult<DocketEntry>(
+                    filled, Retag(spill.Cursor, DocketCursor.RehydrationApprovedUnexecutedListing), true)
+                : new DocketPageResult<DocketEntry>(filled, null, false);
         }
 
         var approved = await store.ListApprovedUnexecutedAsync(

@@ -85,7 +85,7 @@ internal static class AffiantTestHost
         // This host admits everyone: these tests are about the seam, not about authorization.
         services.AddSingleton<IDecisionAuthorizationPolicy, AdmitEveryone>();
         services.AddSingleton<IReviewContextProvider>(new DelegatingReviewContextProvider(
-            _ => BuildReviewContext()));
+            BuildReviewContext));
 
         configure?.Invoke(services);
 
@@ -93,12 +93,60 @@ internal static class AffiantTestHost
     }
 
     /// <summary>
-    /// The neutral <c>ReviewGateFilter</c> deserializes <c>WriteProposal.Envelope</c> as a plain
-    /// object via System.Text.Json, which yields a <c>JsonElement</c> rather than the original CLR
-    /// <see cref="Affidavit"/> — so, matching the SK and MAF fixtures, this provider supplies a
-    /// constant <see cref="ReviewContext"/> instead of attempting to cast the round-tripped envelope.
+    /// The review context a proposal is filed under.
     /// </summary>
-    public static ReviewContext BuildReviewContext() => new(
+    /// <remarks>
+    /// The turn's own identity is constant — these fixtures run one session in one tenant — but the
+    /// <b>Affidavit is the proposal's own</b>. An entry id is derived from the tool and the canonical
+    /// form of what it swore (GT-4), so a provider that handed every proposal the same record would
+    /// make every filing in a conversation a replay of the first, which is a property of the fixture
+    /// and not of the framework.
+    /// </remarks>
+    /// <param name="proposal">The proposal being filed, or <c>null</c> for the constant record.</param>
+    public static ReviewContext BuildReviewContext(WriteProposal? proposal = null)
+    {
+        var context = ConstantReviewContext();
+        return SwornBy(proposal) is { } sworn ? context with { Affidavit = sworn } : context;
+    }
+
+    /// <summary>
+    /// The Affidavit a proposal swore, read back off the round-tripped envelope.
+    /// </summary>
+    /// <remarks>
+    /// The neutral <c>ReviewGateFilter</c> deserializes <c>WriteProposal.Envelope</c> as a plain
+    /// <c>object</c>, so what arrives is a <c>JsonElement</c> and not the original CLR record. A
+    /// host re-reads it, which is what this does; a host that could not would build the record from
+    /// its own state instead. Either way the record has to be the proposal's own: an entry id is
+    /// derived from the tool and the canonical form of what it swore (GT-4), so a provider handing
+    /// every proposal the same record would make every filing in a conversation a replay of the
+    /// first.
+    /// </remarks>
+    private static Affidavit? SwornBy(WriteProposal? proposal)
+    {
+        if (proposal?.Envelope is not { } envelope)
+            return null;
+
+        if (envelope is Affidavit already)
+            return already;
+
+        try
+        {
+            var options = Affiant.Abstractions.Serialization.AffiantJson.SerializerOptions;
+            var read = System.Text.Json.JsonSerializer.Deserialize<Affidavit>(
+                System.Text.Json.JsonSerializer.Serialize(envelope, options), options);
+
+            // Only a record that actually swears to something: a half-read envelope would be filed
+            // as a proposal that swears to nothing, which the gate refuses (GT-3), and the fixture
+            // would be measuring the round trip rather than its own subject.
+            return read is { Fields.Length: > 0 } ? read : null;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static ReviewContext ConstantReviewContext() => new(
         SessionId: "session-test",
         TenantId: "tenant-test",
         UserId: "user-test",
@@ -320,7 +368,7 @@ internal sealed class FakeDocketStore : IDocketStore
             Guid entryId, DocketScope scope, Guid supersededBy, CancellationToken ct)
             => throw new NotSupportedException();
 
-        Task<int> IDocketStore.MarkBlockedAsync(Guid entryId, BlockedMarker marker, CancellationToken ct)
+        Task<int> IDocketStore.MarkBlockedAsync(Guid entryId, DocketScope scope, BlockedMarker marker, CancellationToken ct)
             => Task.FromResult(0);
 
         Task<DocketPageResult<DocketEntry>> IDocketStore.ListPendingAsync(

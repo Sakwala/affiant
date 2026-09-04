@@ -272,7 +272,7 @@ public class WithAffiantIntegrationTests
             Guid entryId, DocketScope scope, Guid supersededBy, CancellationToken ct)
             => throw new NotSupportedException();
 
-        Task<int> IDocketStore.MarkBlockedAsync(Guid entryId, BlockedMarker marker, CancellationToken ct)
+        Task<int> IDocketStore.MarkBlockedAsync(Guid entryId, DocketScope scope, BlockedMarker marker, CancellationToken ct)
             => Task.FromResult(0);
 
         Task<DocketPageResult<DocketEntry>> IDocketStore.ListPendingAsync(

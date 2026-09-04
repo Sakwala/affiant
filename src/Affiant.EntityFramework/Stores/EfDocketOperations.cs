@@ -170,17 +170,6 @@ internal sealed class EfDocketOperations(AffiantDbContext db, ILogger logger, Ti
         return entity is null ? null : DocketRow.Project(ToDomain(entity), time.GetUtcNow());
     }
 
-    public async Task UpdateAmendmentsAsync(
-        Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct)
-    {
-        ct.ThrowIfCancellationRequested();
-
-        var json = DocketRowSerialization.WriteAmendments(amendments);
-        await db.Docket
-            .Where(d => d.EntryId == entryId)
-            .ExecuteUpdateAsync(s => s.SetProperty(d => d.AmendmentsJson, json), ct);
-    }
-
     public async Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
@@ -395,13 +384,15 @@ internal sealed class EfDocketOperations(AffiantDbContext db, ILogger logger, Ti
             : new RecordSupersessionResult.NotTerminal();
     }
 
-    public async Task<int> MarkBlockedAsync(Guid entryId, BlockedMarker marker, CancellationToken ct)
+    public async Task<int> MarkBlockedAsync(
+        Guid entryId, DocketScope scope, BlockedMarker marker, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(marker);
+        DocketRow.RequireTenant(scope, nameof(scope));
 
         var json = DocketRowSerialization.WriteBlocked(marker);
-        return await db.Docket
+        return await Scoped(scope)
             .Where(d => d.EntryId == entryId && d.Status == s_pending && d.BlockedJson == null)
             .ExecuteUpdateAsync(s => s.SetProperty(d => d.BlockedJson, json), ct);
     }
@@ -660,6 +651,7 @@ internal sealed class EfDocketOperations(AffiantDbContext db, ILogger logger, Ti
 #pragma warning restore AFFIANT0001
         OperationType = entry.OperationType,
         ToolName = entry.ToolName,
+        Channel = entry.Channel,
         AffidavitJson = JsonSerializer.Serialize(entry.Envelope, s_jsonOptions),
         ProvenanceChainsJson = SerializeProvenanceChains(entry.Envelope.Fields),
         AmendmentsJson = DocketRowSerialization.WriteAmendments(entry.Amendments),
@@ -722,7 +714,8 @@ internal sealed class EfDocketOperations(AffiantDbContext db, ILogger logger, Ti
         {
             // Null on a row filed before the column existed, where OperationType carries the same
             // fact; the row's ToolName property falls back to it, so this stays correct either way.
-            ToolName = entity.ToolName ?? entity.OperationType
+            ToolName = entity.ToolName ?? entity.OperationType,
+            Channel = entity.Channel
         };
     }
 

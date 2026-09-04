@@ -64,9 +64,6 @@ public sealed class SessionRehydratorTests
         public Task<DocketEntry?> GetResubmissionParentAsync(Guid entryId, CancellationToken ct)
             => Task.FromResult(Entries.FirstOrDefault(e => e.ResubmittedTo == entryId));
 
-        public Task UpdateAmendmentsAsync(
-            Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct)
-            => throw new InvalidOperationException("not used by this test");
 
         public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct)
         {
@@ -107,7 +104,7 @@ public sealed class SessionRehydratorTests
             Guid entryId, DocketScope scope, Guid supersededBy, CancellationToken ct)
             => throw new NotSupportedException();
 
-        Task<int> IDocketStore.MarkBlockedAsync(Guid entryId, BlockedMarker marker, CancellationToken ct)
+        Task<int> IDocketStore.MarkBlockedAsync(Guid entryId, DocketScope scope, BlockedMarker marker, CancellationToken ct)
             => Task.FromResult(0);
 
         /// <summary>Pending entries in filing order, unpaged — this double holds a handful of rows.</summary>

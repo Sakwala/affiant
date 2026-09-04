@@ -244,6 +244,7 @@ public sealed class DocketStoreContractTests
         await store.FileDocketEntryAsync(entry, CancellationToken.None);
         Assert.Equal(1, await store.MarkBlockedAsync(
             entry.EntryId,
+            new DocketScope(entry.TenantId),
             new BlockedMarker.RequirementNotImplemented(ReviewRequirement.MultiParty),
             CancellationToken.None));
 
@@ -277,6 +278,7 @@ public sealed class DocketStoreContractTests
 
         Assert.Equal(1, await store.MarkBlockedAsync(
             entry.EntryId,
+            new DocketScope(entry.TenantId),
             new BlockedMarker.RequirementNotImplemented(ReviewRequirement.MultiParty),
             CancellationToken.None));
 
@@ -284,11 +286,45 @@ public sealed class DocketStoreContractTests
         // cleared is a row that became decidable without anyone deciding it should be.
         Assert.Equal(0, await store.MarkBlockedAsync(
             entry.EntryId,
+            new DocketScope(entry.TenantId),
             new BlockedMarker.CoverageRefused(CoverageCategory.NoExecute, "tool"),
             CancellationToken.None));
 
         var stored = await store.GetDocketEntryAsync(entry.EntryId, CancellationToken.None);
         Assert.IsType<BlockedMarker.RequirementNotImplemented>(stored!.Blocked);
+    }
+
+    /// <summary>
+    /// Every member that moves a row is scoped: a blocked marker written by entry id alone would let
+    /// any caller holding an id make another tenant's row permanently undecidable, because the guard
+    /// that stops a marker being overwritten also stops it being cleared.
+    /// </summary>
+    [Theory]
+    [ClassData(typeof(DocketStoreProviderFactory))]
+    public async Task MarkBlocked_FromAnotherTenant_IsNotFound_AndTheRowStaysDecidable(
+        IDocketStore store, string providerName)
+    {
+        Assert.NotEmpty(providerName);
+        var tenantId = NewTenant();
+        var entry = TestDocketEntry.CreateDefault(tenantId: tenantId);
+        await store.FileDocketEntryAsync(entry, CancellationToken.None);
+
+        Assert.Equal(0, await store.MarkBlockedAsync(
+            entry.EntryId,
+            new DocketScope(NewTenant()),
+            new BlockedMarker.CoverageRefused(CoverageCategory.NoExecute, "attacker-tool"),
+            CancellationToken.None));
+
+        var stored = await store.GetDocketEntryAsync(entry.EntryId, CancellationToken.None);
+        Assert.Null(stored!.Blocked);
+
+        // And the row is still decidable, which is what a foreign marker would have taken away.
+        Assert.IsType<DocketTransitionResult.Transitioned>(await store.TransitionAsync(
+            entry.EntryId,
+            new DocketScope(tenantId),
+            ReviewStatus.Pending,
+            Decided(ReviewStatus.Approved, entry.EntryId),
+            CancellationToken.None));
     }
 
     [Theory]
@@ -302,6 +338,7 @@ public sealed class DocketStoreContractTests
 
         await store.MarkBlockedAsync(
             entry.EntryId,
+            new DocketScope(entry.TenantId),
             new BlockedMarker.CoverageRefused(CoverageCategory.ProviderExecuted, "provider.write"),
             CancellationToken.None);
 

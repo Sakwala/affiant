@@ -28,11 +28,15 @@ namespace Affiant.Docket.Services;
 /// tests.
 /// </para>
 /// <para>
-/// <b>A tick is bounded twice.</b> Each call to the store takes at most
-/// <see cref="AffiantDocketOptions.ExpirySweepBatchSize"/> rows, and a tick makes at most
-/// <see cref="AffiantDocketOptions.ExpirySweepBatchesPerTick"/> such calls. A backlog larger than the
-/// product drains across ticks rather than turning one tick into an unbounded pass — and nothing is
-/// lost in the meantime, because of the paragraph above.
+/// <b>A tick is bounded, and the bound covers the whole tick.</b> Each call to the store takes at
+/// most <see cref="AffiantDocketOptions.ExpirySweepBatchSize"/> rows, and a tick spends at most
+/// <see cref="AffiantDocketOptions.ExpirySweepBatchSize"/> ×
+/// <see cref="AffiantDocketOptions.ExpirySweepBatchesPerTick"/> rows across <em>all three phases
+/// together</em> — the due queue, the expiry warnings and the Evidence Card re-broadcast. A backlog
+/// larger than the product drains across ticks rather than turning one tick into an unbounded pass,
+/// and each phase resumes from the cursor it stopped at rather than re-walking the same first rows,
+/// so a row past the budget is reached on a later tick instead of never. Nothing is lost in the
+/// meantime, because of the paragraph above.
 /// </para>
 /// <para>
 /// <paramref name="transport"/> is optional — the Affiant.Docket package must not hard-require a
@@ -71,6 +75,12 @@ public sealed class DocketExpiryService(
 
     private readonly AffiantDocketOptions _docketOptions = docketOptions ?? new AffiantDocketOptions();
     private readonly TimeProvider _time = timeProvider ?? TimeProvider.System;
+
+    /// <summary>Where the warning phase stopped last tick, so the next one carries on from there.</summary>
+    private string? _warningCursor;
+
+    /// <summary>Where the re-broadcast phase stopped last tick.</summary>
+    private string? _rebroadcastCursor;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -132,6 +142,12 @@ public sealed class DocketExpiryService(
         var batchSize = _docketOptions.ExpirySweepBatchSize;
         var sweepScope = _docketOptions.SweepScope;
 
+        // One budget for the whole tick (DK-3). Every row any phase touches spends from it, so
+        // "a tick touches at most ExpirySweepBatchSize x ExpirySweepBatchesPerTick rows" is true of
+        // the tick and not only of its first phase. What a phase does not reach this tick it reaches
+        // on the next, from the cursor it stopped at.
+        var budget = batchSize * _docketOptions.ExpirySweepBatchesPerTick;
+
         // Phase 1: drain the due queue in bounded batches.
         var expiredCount = 0;
         for (var batch = 0; batch < _docketOptions.ExpirySweepBatchesPerTick; batch++)
@@ -141,6 +157,7 @@ public sealed class DocketExpiryService(
             foreach (var entry in result.Expired)
             {
                 expiredCount++;
+                budget--;
 
                 // TL-1 `docket.expired` (DK-3). Emitted only by the sweep whose own compare-and-set
                 // won the transition — a concurrent decision that claimed the same entry reports its
@@ -166,25 +183,27 @@ public sealed class DocketExpiryService(
         if (transport is not null && options.DocketExpiryWarningWindow > TimeSpan.Zero)
         {
             var warningThreshold = now.Add(options.DocketExpiryWarningWindow);
-            await ForEachPendingAsync(store, sweepScope, batchSize, ct, async entry =>
-            {
-                if (entry.ExpiresAt > warningThreshold) return;
-                await transport.BroadcastToGroupAsync(
-                    entry.SessionId, TransportEvent.DocketExpiring,
-                    new DocketExpiringNotification(entry.EntryId, entry.ExpiresAt), ct);
-            });
+            (_warningCursor, budget) = await WalkPendingAsync(
+                store, sweepScope, batchSize, _warningCursor, budget, ct, async entry =>
+                {
+                    if (entry.ExpiresAt > warningThreshold) return;
+                    await transport.BroadcastToGroupAsync(
+                        entry.SessionId, TransportEvent.DocketExpiring,
+                        new DocketExpiringNotification(entry.EntryId, entry.ExpiresAt), ct);
+                });
         }
 
         // Phase 3: re-broadcast the Evidence Card for every entry still pending after phase 1.
         if (transport is not null)
         {
-            await ForEachPendingAsync(store, sweepScope, batchSize, ct, async entry =>
-            {
-                var request = await EvidenceCardRequestFactory.CreateAsync(
-                    store, entry.EntryId, entry.Envelope, entry.ExpiresAt, ct);
-                await transport.BroadcastToGroupAsync(
-                    entry.SessionId, TransportEvent.EvidenceCardRequest, request, ct);
-            });
+            (_rebroadcastCursor, budget) = await WalkPendingAsync(
+                store, sweepScope, batchSize, _rebroadcastCursor, budget, ct, async entry =>
+                {
+                    var request = await EvidenceCardRequestFactory.CreateAsync(
+                        store, entry.EntryId, entry.Envelope, entry.ExpiresAt, ct);
+                    await transport.BroadcastToGroupAsync(
+                        entry.SessionId, TransportEvent.EvidenceCardRequest, request, ct);
+                });
         }
     }
 
@@ -197,16 +216,41 @@ public sealed class DocketExpiryService(
     /// pages, because "every pending entry in the deployment" is precisely the read that is fine in
     /// development and fatal in production.
     /// </remarks>
-    private static async Task ForEachPendingAsync(
-        IDocketStore store, DocketScope scope, int pageSize, CancellationToken ct, Func<DocketEntry, Task> act)
+    /// <summary>
+    /// Walks the pending rows from where this phase left off, spending from the tick's shared
+    /// budget, and returns the cursor to resume from next tick (DK-3).
+    /// </summary>
+    /// <remarks>
+    /// The cursor is what makes a bounded phase a <em>fair</em> one: without it every tick would
+    /// re-walk the same first N rows and a row past position N would never be reached. A run that
+    /// reaches the end of the listing returns <c>null</c>, which starts the next tick at the
+    /// beginning — the listing has moved on by then, so that is the correct place to resume.
+    /// </remarks>
+    private static async Task<(string? Cursor, int Budget)> WalkPendingAsync(
+        IDocketStore store,
+        DocketScope scope,
+        int pageSize,
+        string? resumeFrom,
+        int budget,
+        CancellationToken ct,
+        Func<DocketEntry, Task> act)
     {
-        string? cursor = null;
-        do
+        var cursor = resumeFrom;
+        while (budget > 0)
         {
-            var page = await store.ListPendingAsync(scope, new DocketPage(pageSize, cursor), ct);
-            foreach (var entry in page.Items) await act(entry);
+            var take = Math.Min(pageSize, budget);
+            var page = await store.ListPendingAsync(scope, new DocketPage(take, cursor), ct);
+
+            foreach (var entry in page.Items)
+            {
+                await act(entry);
+                budget--;
+            }
+
             cursor = page.Cursor;
+            if (cursor is null) return (null, budget);
         }
-        while (cursor is not null);
+
+        return (cursor, budget);
     }
 }

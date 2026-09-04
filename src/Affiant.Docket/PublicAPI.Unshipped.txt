@@ -3,6 +3,7 @@
 *REMOVED*Affiant.Docket.Stores.InMemoryDocketStore.InMemoryDocketStore() -> void
 *REMOVED*Affiant.Docket.Stores.InMemoryDocketStore.ListExpiredAsync(System.DateTimeOffset expiresBeforeUtc, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.DocketEntry!>!>!
 *REMOVED*Affiant.Docket.Stores.InMemoryDocketStore.MarkExpiredAsync(System.Collections.Generic.IEnumerable<System.Guid>! entryIds, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
+*REMOVED*Affiant.Docket.Stores.InMemoryDocketStore.UpdateAmendmentsAsync(System.Guid entryId, System.Collections.Generic.IReadOnlyDictionary<string!, object?>! amendments, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
 Affiant.Docket.Options.AffiantDocketOptions
 Affiant.Docket.Options.AffiantDocketOptions.AffiantDocketOptions() -> void
 Affiant.Docket.Options.AffiantDocketOptions.ExpirySweepBatchSize.get -> int
@@ -20,7 +21,7 @@ Affiant.Docket.Stores.InMemoryDocketStore.ExportAsync(Affiant.Abstractions.Inter
 Affiant.Docket.Stores.InMemoryDocketStore.InMemoryDocketStore(System.TimeProvider? timeProvider = null) -> void
 Affiant.Docket.Stores.InMemoryDocketStore.ListApprovedUnexecutedAsync(Affiant.Abstractions.Interfaces.DocketScope! scope, Affiant.Abstractions.Interfaces.DocketPage! page, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.DocketPageResult<Affiant.Abstractions.Models.DocketEntry!>!>!
 Affiant.Docket.Stores.InMemoryDocketStore.ListPendingAsync(Affiant.Abstractions.Interfaces.DocketScope! scope, Affiant.Abstractions.Interfaces.DocketPage! page, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.DocketPageResult<Affiant.Abstractions.Models.DocketEntry!>!>!
-Affiant.Docket.Stores.InMemoryDocketStore.MarkBlockedAsync(System.Guid entryId, Affiant.Abstractions.Models.BlockedMarker! marker, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<int>!
+Affiant.Docket.Stores.InMemoryDocketStore.MarkBlockedAsync(System.Guid entryId, Affiant.Abstractions.Interfaces.DocketScope! scope, Affiant.Abstractions.Models.BlockedMarker! marker, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<int>!
 Affiant.Docket.Stores.InMemoryDocketStore.PreserveAmendmentsAsync(System.Guid entryId, Affiant.Abstractions.Interfaces.DocketScope! scope, System.Collections.Generic.IReadOnlyDictionary<string!, object?>! amendments, Affiant.Abstractions.Interfaces.PreservedAct! act, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.PreserveAmendmentsResult!>!
 Affiant.Docket.Stores.InMemoryDocketStore.PurgeTenantAsync(string! tenantId, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<int>!
 Affiant.Docket.Stores.InMemoryDocketStore.RecordExecutionAsync(System.Guid entryId, Affiant.Abstractions.Interfaces.DocketScope! scope, Affiant.Abstractions.Models.ExecutionOutcome outcome, string? detail, Affiant.Abstractions.Models.ExecutionOutcome expected, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.RecordExecutionResult!>!

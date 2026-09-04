@@ -579,9 +579,6 @@ public class DecisionAuthorizationTests
         public Task<DocketEntry?> GetResubmissionParentAsync(Guid entryId, CancellationToken ct)
             => inner.GetResubmissionParentAsync(entryId, ct);
 
-        public Task UpdateAmendmentsAsync(
-            Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct)
-            => inner.UpdateAmendmentsAsync(entryId, amendments, ct);
 
 #pragma warning disable AFFIANT0001 // the unscoped listings, still on the interface for one release
         public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct)
@@ -609,8 +606,8 @@ public class DecisionAuthorizationTests
             Guid entryId, DocketScope scope, Guid supersededBy, CancellationToken ct)
             => inner.RecordSupersessionAsync(entryId, scope, supersededBy, ct);
 
-        public Task<int> MarkBlockedAsync(Guid entryId, BlockedMarker marker, CancellationToken ct)
-            => inner.MarkBlockedAsync(entryId, marker, ct);
+        public Task<int> MarkBlockedAsync(Guid entryId, DocketScope scope, BlockedMarker marker, CancellationToken ct)
+            => inner.MarkBlockedAsync(entryId, scope, marker, ct);
 
         public Task<DocketPageResult<DocketEntry>> ListPendingAsync(
             DocketScope scope, DocketPage page, CancellationToken ct)
@@ -662,9 +659,6 @@ public class DecisionAuthorizationTests
         public Task<DocketEntry?> GetResubmissionParentAsync(Guid entryId, CancellationToken ct)
             => inner.GetResubmissionParentAsync(entryId, ct);
 
-        public Task UpdateAmendmentsAsync(
-            Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct)
-            => inner.UpdateAmendmentsAsync(entryId, amendments, ct);
 
 #pragma warning disable AFFIANT0001
         public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct)
@@ -693,8 +687,8 @@ public class DecisionAuthorizationTests
             Guid entryId, DocketScope scope, Guid supersededBy, CancellationToken ct)
             => inner.RecordSupersessionAsync(entryId, new DocketScope(TenantId), supersededBy, ct);
 
-        public Task<int> MarkBlockedAsync(Guid entryId, BlockedMarker marker, CancellationToken ct)
-            => inner.MarkBlockedAsync(entryId, marker, ct);
+        public Task<int> MarkBlockedAsync(Guid entryId, DocketScope scope, BlockedMarker marker, CancellationToken ct)
+            => inner.MarkBlockedAsync(entryId, scope, marker, ct);
 
         public Task<DocketPageResult<DocketEntry>> ListPendingAsync(
             DocketScope scope, DocketPage page, CancellationToken ct)

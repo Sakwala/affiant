@@ -4,10 +4,12 @@
 *REMOVED*Affiant.EntityFramework.Stores.PostgresDocketStore.ListExpiredAsync(System.DateTimeOffset expiresBeforeUtc, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.DocketEntry!>!>!
 *REMOVED*Affiant.EntityFramework.Stores.PostgresDocketStore.MarkExpiredAsync(System.Collections.Generic.IEnumerable<System.Guid>! entryIds, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
 *REMOVED*Affiant.EntityFramework.Stores.PostgresDocketStore.PostgresDocketStore(Affiant.EntityFramework.AffiantDbContext! db, Microsoft.Extensions.Logging.ILogger<Affiant.EntityFramework.Stores.PostgresDocketStore!>! logger) -> void
+*REMOVED*Affiant.EntityFramework.Stores.PostgresDocketStore.UpdateAmendmentsAsync(System.Guid entryId, System.Collections.Generic.IReadOnlyDictionary<string!, object?>! amendments, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
 *REMOVED*Affiant.EntityFramework.Stores.SqliteChatSessionStore.SqliteChatSessionStore(Affiant.EntityFramework.AffiantDbContext! db) -> void
 *REMOVED*Affiant.EntityFramework.Stores.SqliteDocketStore.ListExpiredAsync(System.DateTimeOffset expiresBeforeUtc, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.DocketEntry!>!>!
 *REMOVED*Affiant.EntityFramework.Stores.SqliteDocketStore.MarkExpiredAsync(System.Collections.Generic.IEnumerable<System.Guid>! entryIds, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
 *REMOVED*Affiant.EntityFramework.Stores.SqliteDocketStore.SqliteDocketStore(Affiant.EntityFramework.AffiantDbContext! db, Microsoft.Extensions.Logging.ILogger<Affiant.EntityFramework.Stores.SqliteDocketStore!>! logger) -> void
+*REMOVED*Affiant.EntityFramework.Stores.SqliteDocketStore.UpdateAmendmentsAsync(System.Guid entryId, System.Collections.Generic.IReadOnlyDictionary<string!, object?>! amendments, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
 Affiant.EntityFramework.Migrations.AddDocketRowFacts
 Affiant.EntityFramework.Migrations.AddDocketRowFacts.AddDocketRowFacts() -> void
 Affiant.EntityFramework.Models.DocketEntryEntity.AmendedAffidavitJson.get -> string?
@@ -18,6 +20,8 @@ Affiant.EntityFramework.Models.DocketEntryEntity.AttestationJson.get -> string?
 Affiant.EntityFramework.Models.DocketEntryEntity.AttestationJson.set -> void
 Affiant.EntityFramework.Models.DocketEntryEntity.BlockedJson.get -> string?
 Affiant.EntityFramework.Models.DocketEntryEntity.BlockedJson.set -> void
+Affiant.EntityFramework.Models.DocketEntryEntity.Channel.get -> string?
+Affiant.EntityFramework.Models.DocketEntryEntity.Channel.set -> void
 Affiant.EntityFramework.Models.DocketEntryEntity.CompositeRef.get -> string?
 Affiant.EntityFramework.Models.DocketEntryEntity.CompositeRef.set -> void
 Affiant.EntityFramework.Models.DocketEntryEntity.CreatedAtTicks.get -> long
@@ -49,7 +53,7 @@ Affiant.EntityFramework.Stores.PostgresDocketStore.ExpireDueAsync(System.DateTim
 Affiant.EntityFramework.Stores.PostgresDocketStore.ExportAsync(Affiant.Abstractions.Interfaces.DocketScope! scope, System.Threading.CancellationToken ct) -> System.Collections.Generic.IAsyncEnumerable<Affiant.Abstractions.Models.DocketEntry!>!
 Affiant.EntityFramework.Stores.PostgresDocketStore.ListApprovedUnexecutedAsync(Affiant.Abstractions.Interfaces.DocketScope! scope, Affiant.Abstractions.Interfaces.DocketPage! page, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.DocketPageResult<Affiant.Abstractions.Models.DocketEntry!>!>!
 Affiant.EntityFramework.Stores.PostgresDocketStore.ListPendingAsync(Affiant.Abstractions.Interfaces.DocketScope! scope, Affiant.Abstractions.Interfaces.DocketPage! page, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.DocketPageResult<Affiant.Abstractions.Models.DocketEntry!>!>!
-Affiant.EntityFramework.Stores.PostgresDocketStore.MarkBlockedAsync(System.Guid entryId, Affiant.Abstractions.Models.BlockedMarker! marker, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<int>!
+Affiant.EntityFramework.Stores.PostgresDocketStore.MarkBlockedAsync(System.Guid entryId, Affiant.Abstractions.Interfaces.DocketScope! scope, Affiant.Abstractions.Models.BlockedMarker! marker, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<int>!
 Affiant.EntityFramework.Stores.PostgresDocketStore.PostgresDocketStore(Affiant.EntityFramework.AffiantDbContext! db, Microsoft.Extensions.Logging.ILogger<Affiant.EntityFramework.Stores.PostgresDocketStore!>! logger, System.TimeProvider? timeProvider = null) -> void
 Affiant.EntityFramework.Stores.PostgresDocketStore.PreserveAmendmentsAsync(System.Guid entryId, Affiant.Abstractions.Interfaces.DocketScope! scope, System.Collections.Generic.IReadOnlyDictionary<string!, object?>! amendments, Affiant.Abstractions.Interfaces.PreservedAct! act, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.PreserveAmendmentsResult!>!
 Affiant.EntityFramework.Stores.PostgresDocketStore.PurgeTenantAsync(string! tenantId, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<int>!
@@ -62,7 +66,7 @@ Affiant.EntityFramework.Stores.SqliteDocketStore.ExpireDueAsync(System.DateTimeO
 Affiant.EntityFramework.Stores.SqliteDocketStore.ExportAsync(Affiant.Abstractions.Interfaces.DocketScope! scope, System.Threading.CancellationToken ct) -> System.Collections.Generic.IAsyncEnumerable<Affiant.Abstractions.Models.DocketEntry!>!
 Affiant.EntityFramework.Stores.SqliteDocketStore.ListApprovedUnexecutedAsync(Affiant.Abstractions.Interfaces.DocketScope! scope, Affiant.Abstractions.Interfaces.DocketPage! page, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.DocketPageResult<Affiant.Abstractions.Models.DocketEntry!>!>!
 Affiant.EntityFramework.Stores.SqliteDocketStore.ListPendingAsync(Affiant.Abstractions.Interfaces.DocketScope! scope, Affiant.Abstractions.Interfaces.DocketPage! page, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.DocketPageResult<Affiant.Abstractions.Models.DocketEntry!>!>!
-Affiant.EntityFramework.Stores.SqliteDocketStore.MarkBlockedAsync(System.Guid entryId, Affiant.Abstractions.Models.BlockedMarker! marker, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<int>!
+Affiant.EntityFramework.Stores.SqliteDocketStore.MarkBlockedAsync(System.Guid entryId, Affiant.Abstractions.Interfaces.DocketScope! scope, Affiant.Abstractions.Models.BlockedMarker! marker, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<int>!
 Affiant.EntityFramework.Stores.SqliteDocketStore.PreserveAmendmentsAsync(System.Guid entryId, Affiant.Abstractions.Interfaces.DocketScope! scope, System.Collections.Generic.IReadOnlyDictionary<string!, object?>! amendments, Affiant.Abstractions.Interfaces.PreservedAct! act, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.PreserveAmendmentsResult!>!
 Affiant.EntityFramework.Stores.SqliteDocketStore.PurgeTenantAsync(string! tenantId, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<int>!
 Affiant.EntityFramework.Stores.SqliteDocketStore.RecordExecutionAsync(System.Guid entryId, Affiant.Abstractions.Interfaces.DocketScope! scope, Affiant.Abstractions.Models.ExecutionOutcome outcome, string? detail, Affiant.Abstractions.Models.ExecutionOutcome expected, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.RecordExecutionResult!>!

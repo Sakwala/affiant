@@ -137,35 +137,6 @@ public interface IDocketStore
     /// </remarks>
     Task<DocketEntry?> GetResubmissionParentAsync(Guid entryId, CancellationToken ct);
 
-    /// <summary>
-    /// Persist the reviewer's amendments onto a <see cref="DocketEntry"/> — the field values a
-    /// human reviewer changed while acting on an Evidence Card (issue #6, the amendment
-    /// round-trip). Overwrites any amendments previously recorded on the entry (e.g. from
-    /// <see cref="ReviewContext.Amendments"/> at filing time).
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Framework responsibility ends at persistence. Appending
-    /// <see cref="ProvenanceTag"/> UserStated tags to each amended field's
-    /// <see cref="ProvenanceChain"/> before the write reaches the domain store is the host's
-    /// <see cref="IWriteExecutor"/> overlay's job — <c>IWriteExecutor.ExecuteAsync</c> already
-    /// accepts the amendments dictionary for exactly that purpose.
-    /// </para>
-    /// <para><strong>No status guard — deliberate, do not add one.</strong></para>
-    /// <para>
-    /// Unlike <see cref="UpdateReviewStatusAsync"/>, this write carries no
-    /// <c>WHERE Status = 'Pending'</c> (or any other status) condition on any of the three
-    /// backends. That is intentional, not an oversight: <c>ReviewGate.HandleDecisionAsync</c>'s
-    /// restart path persists a reviewer's edits onto entries that are already
-    /// <see cref="ReviewStatus.Expired"/> — or otherwise no longer <c>Pending</c> — by the time a
-    /// late decision replays (late-amendment preservation, issue #8). A status-guarded write would
-    /// silently discard exactly the edits this method exists to preserve. Amendments are
-    /// non-terminal, append-only reviewer data, not a status transition, so last-write-wins
-    /// against any entry state is the framework's accepted conservatism here.
-    /// </para>
-    /// </remarks>
-    Task UpdateAmendmentsAsync(
-        Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct);
 
     /// <summary>
     /// Returns every <see cref="ReviewStatus.Pending"/> entry for <paramref name="sessionId"/>,
@@ -366,6 +337,7 @@ public interface IDocketStore
     /// Record on a pending entry that it cannot be decided, and why.
     /// </summary>
     /// <param name="entryId">The entry.</param>
+    /// <param name="scope">What the caller may see. A row outside it is not found, never blocked.</param>
     /// <param name="marker">Why it cannot be decided.</param>
     /// <param name="ct">Caller cancellation.</param>
     /// <returns>1 when this call wrote the marker, 0 when the row was not pending or already carries one.</returns>
@@ -382,7 +354,13 @@ public interface IDocketStore
     /// that became decidable without anyone deciding it should be.
     /// </para>
     /// </remarks>
-    Task<int> MarkBlockedAsync(Guid entryId, BlockedMarker marker, CancellationToken ct);
+    /// <para>
+    /// Scoped, like every other member that moves a row: a marker written by entry id alone would
+    /// let any caller holding an id make another tenant's row permanently undecidable, since the
+    /// guard that stops a marker being overwritten also stops it being cleared.
+    /// </para>
+    Task<int> MarkBlockedAsync(
+        Guid entryId, DocketScope scope, BlockedMarker marker, CancellationToken ct);
 
     /// <summary>Entries that read <see cref="ReviewStatus.Pending"/> right now, in filing order, paged.</summary>
     /// <param name="scope">What the caller may see.</param>

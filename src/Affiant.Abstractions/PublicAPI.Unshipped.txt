@@ -6,6 +6,7 @@
 *REMOVED*Affiant.Abstractions.Interfaces.IApprovalPolicyEvaluator.EvaluateAsync(Affiant.Abstractions.Models.Affidavit! affidavit, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Affiant.Abstractions.Models.ReviewRequirement>!
 *REMOVED*Affiant.Abstractions.Interfaces.IDocketStore.ListExpiredAsync(System.DateTimeOffset expiresBeforeUtc, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.DocketEntry!>!>!
 *REMOVED*Affiant.Abstractions.Interfaces.IDocketStore.MarkExpiredAsync(System.Collections.Generic.IEnumerable<System.Guid>! entryIds, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
+*REMOVED*Affiant.Abstractions.Interfaces.IDocketStore.UpdateAmendmentsAsync(System.Guid entryId, System.Collections.Generic.IReadOnlyDictionary<string!, object?>! amendments, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
 *REMOVED*Affiant.Abstractions.Interfaces.IStreamingTransport.AwaitEvidenceCardResponseAsync(string! sessionGroupId, System.Guid docketId, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Affiant.Abstractions.Transport.EvidenceCardResponse!>!
 *REMOVED*Affiant.Abstractions.Interfaces.IStreamingTransport.TryDeliverResponse(System.Guid docketId, Affiant.Abstractions.Transport.EvidenceCardResponse! response) -> bool
 *REMOVED*Affiant.Abstractions.Models.Affidavit.Affidavit(string! OperationType, string! EntityType, string? EntityId, Affiant.Abstractions.Models.AffidavitField![]! Fields, float AggregateConfidence, string![]! Warnings, bool RequiresConfirmation) -> void
@@ -156,7 +157,7 @@ Affiant.Abstractions.Interfaces.IDocketStore.ExpireDueAsync(System.DateTimeOffse
 Affiant.Abstractions.Interfaces.IDocketStore.ExportAsync(Affiant.Abstractions.Interfaces.DocketScope! scope, System.Threading.CancellationToken ct) -> System.Collections.Generic.IAsyncEnumerable<Affiant.Abstractions.Models.DocketEntry!>!
 Affiant.Abstractions.Interfaces.IDocketStore.ListApprovedUnexecutedAsync(Affiant.Abstractions.Interfaces.DocketScope! scope, Affiant.Abstractions.Interfaces.DocketPage! page, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.DocketPageResult<Affiant.Abstractions.Models.DocketEntry!>!>!
 Affiant.Abstractions.Interfaces.IDocketStore.ListPendingAsync(Affiant.Abstractions.Interfaces.DocketScope! scope, Affiant.Abstractions.Interfaces.DocketPage! page, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.DocketPageResult<Affiant.Abstractions.Models.DocketEntry!>!>!
-Affiant.Abstractions.Interfaces.IDocketStore.MarkBlockedAsync(System.Guid entryId, Affiant.Abstractions.Models.BlockedMarker! marker, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<int>!
+Affiant.Abstractions.Interfaces.IDocketStore.MarkBlockedAsync(System.Guid entryId, Affiant.Abstractions.Interfaces.DocketScope! scope, Affiant.Abstractions.Models.BlockedMarker! marker, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<int>!
 Affiant.Abstractions.Interfaces.IDocketStore.PreserveAmendmentsAsync(System.Guid entryId, Affiant.Abstractions.Interfaces.DocketScope! scope, System.Collections.Generic.IReadOnlyDictionary<string!, object?>! amendments, Affiant.Abstractions.Interfaces.PreservedAct! act, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.PreserveAmendmentsResult!>!
 Affiant.Abstractions.Interfaces.IDocketStore.PurgeTenantAsync(string! tenantId, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<int>!
 Affiant.Abstractions.Interfaces.IDocketStore.RecordExecutionAsync(System.Guid entryId, Affiant.Abstractions.Interfaces.DocketScope! scope, Affiant.Abstractions.Models.ExecutionOutcome outcome, string? detail, Affiant.Abstractions.Models.ExecutionOutcome expected, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.RecordExecutionResult!>!
@@ -404,6 +405,8 @@ Affiant.Abstractions.Models.DocketEntry.Attestation.get -> Affiant.Abstractions.
 Affiant.Abstractions.Models.DocketEntry.Attestation.init -> void
 Affiant.Abstractions.Models.DocketEntry.Blocked.get -> Affiant.Abstractions.Models.BlockedMarker?
 Affiant.Abstractions.Models.DocketEntry.Blocked.init -> void
+Affiant.Abstractions.Models.DocketEntry.Channel.get -> string?
+Affiant.Abstractions.Models.DocketEntry.Channel.init -> void
 Affiant.Abstractions.Models.DocketEntry.CompositeRef.get -> string?
 Affiant.Abstractions.Models.DocketEntry.CompositeRef.init -> void
 Affiant.Abstractions.Models.DocketEntry.DecidedAt.get -> System.DateTimeOffset?

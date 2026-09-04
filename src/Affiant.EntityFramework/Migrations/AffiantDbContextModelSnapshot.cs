@@ -158,6 +158,9 @@ namespace Affiant.EntityFramework.Migrations
                     b.Property<string>("BlockedJson")
                         .HasColumnType("text");
 
+                    b.Property<string>("Channel")
+                        .HasColumnType("text");
+
                     b.Property<string>("CompositeRef")
                         .HasColumnType("text");
 

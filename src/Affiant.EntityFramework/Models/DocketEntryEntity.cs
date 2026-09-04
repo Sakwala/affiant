@@ -45,6 +45,12 @@ public class DocketEntryEntity
     /// <summary>The tool that proposed the write. Null on rows filed before the column existed, where <see cref="OperationType"/> carries it.</summary>
     public string? ToolName { get; set; }
 
+    /// <summary>
+    /// The channel the proposal arrived on, as the host named it, or <c>null</c> when it named
+    /// none (DK-1).
+    /// </summary>
+    public string? Channel { get; set; }
+
     /// <summary>What became of an approved write: <c>Unexecuted</c>, <c>Executed</c> or <c>Failed</c>. Null unless the row is approved.</summary>
     public string? Execution { get; set; }
 

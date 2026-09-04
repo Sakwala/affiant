@@ -424,7 +424,10 @@ public sealed class ReviewGate(
         // store is touched, so the refusal cannot be confused with a filing failure.
         RefuseProposalWithoutSubstance(proposal, context);
 
-        var entryId = context.EntryId ?? Guid.NewGuid();
+        // GT-4: an entry id is derived from the proposal, not invented. The same proposal in the
+        // same conversation replays to the same row, and two tenants cannot collide by accident —
+        // which is what makes the scoped replay lookup below safe to treat a miss as a fresh filing.
+        var entryId = context.EntryId ?? DeriveEntryId(context, proposal);
 
         // One instant for the whole filing: CreatedAt and ExpiresAt must name the same "now", or a
         // test that pins the clock sees a TTL that is off by however long the filing took.
@@ -438,6 +441,22 @@ public sealed class ReviewGate(
             //    Never a fresh one: a reviewer shown a deadline the record does not hold is being
             //    shown a lie, and the retry would silently extend a window the first filing set.
             var existing = await docketStore.GetDocketEntryAsync(entryId, cancellationToken);
+
+            // GT-2: the lookup is scoped. A row in another tenant is not this caller's replay and
+            // must not be read, re-broadcast or reported: broadcasting it would put another
+            // tenant's Affidavit on this caller's session group, and reporting its status would be
+            // an existence oracle for any id in the deployment. A scoped miss is a fresh filing,
+            // and the store refuses the duplicate id if one really is taken.
+            if (existing is not null
+                && !string.Equals(existing.TenantId, context.TenantId, StringComparison.Ordinal))
+            {
+                logger.LogWarning(
+                    "DocketEntry {EntryId} is outside the filing tenant; the filing proceeds as a new " +
+                    "entry rather than replaying a row this caller may not see",
+                    entryId);
+                existing = null;
+            }
+
             if (existing is not null)
             {
                 // TL-1 `affidavit.filed` with created=false: a host that retries a proposal wants to
@@ -504,7 +523,8 @@ public sealed class ReviewGate(
                 Supersedes: context.Supersedes,
                 ProtocolVersion: AffiantProtocol.Version)
             {
-                ToolName = proposal.ToolName
+                ToolName = proposal.ToolName,
+                Channel = context.Channel,
             };
             await docketStore.FileDocketEntryAsync(entry, cancellationToken);
             logger.LogInformation(
@@ -574,7 +594,8 @@ public sealed class ReviewGate(
             if (requirement is ReviewRequirement.ReferralRequired or ReviewRequirement.MultiParty)
             {
                 var blocked = new BlockedMarker.RequirementNotImplemented(requirement);
-                await docketStore.MarkBlockedAsync(entryId, blocked, cancellationToken);
+                await docketStore.MarkBlockedAsync(
+                    entryId, new DocketScope(context.TenantId), blocked, cancellationToken);
                 logger.LogWarning(
                     "DocketEntry {EntryId} is blocked: requirement {Requirement} is recorded but not " +
                     "implemented in this version, so no decision on it can be accepted",
@@ -1272,6 +1293,36 @@ public sealed class ReviewGate(
     /// </remarks>
     private static ReviewOutcome.Refused Unauthorized(Guid entryId, string rule) =>
         new(entryId, DocketRefusalCodes.DecisionUnauthorized, rule);
+
+    /// <summary>
+    /// The entry id a proposal derives to: a name-based UUID over the tenant, the conversation, the
+    /// tool and the canonical form of the Affidavit (GT-4).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Derived rather than invented so that the same proposal, re-filed in the same conversation
+    /// after a retry or a reconnect, replays to the row it already has instead of filing a second
+    /// one — and so that two tenants cannot land on the same id by accident, which is what lets the
+    /// replay lookup treat a row outside the caller's tenant as a miss.
+    /// </para>
+    /// <para>
+    /// It is over the <b>canonical form</b> (SR-1) and not over the record's object identity: two
+    /// proposals that swear to the same values are the same proposal, whichever run produced them.
+    /// A host that wants its own id still passes <see cref="ReviewContext.EntryId"/>.
+    /// </para>
+    /// </remarks>
+    private static Guid DeriveEntryId(ReviewContext context, WriteProposal proposal)
+    {
+        var seed = string.Join(
+            '\u001f',
+            context.TenantId,
+            context.SessionId,
+            proposal.ToolName,
+            Serialization.CanonicalSerializer.CanonicalHash(context.Affidavit));
+
+        return new Guid(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(seed)).AsSpan(0, 16));
+    }
 
     /// <summary>The rule that refuses an unresolved principal, a wrong tenant or a declining host port.</summary>
     private const string AuthorizationRule = "AZ-2";

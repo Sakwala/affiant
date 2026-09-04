@@ -248,9 +248,6 @@ public class ReviewGateTests
         public Task<DocketEntry?> GetResubmissionParentAsync(Guid entryId, CancellationToken ct)
             => inner.GetResubmissionParentAsync(entryId, ct);
 
-        public Task UpdateAmendmentsAsync(
-            Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct)
-            => inner.UpdateAmendmentsAsync(entryId, amendments, ct);
 
         public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct)
             => inner.ListPendingBySessionAsync(sessionId, ct);
@@ -273,8 +270,8 @@ public class ReviewGateTests
             ExecutionOutcome expected, CancellationToken ct)
             => inner.RecordExecutionAsync(entryId, scope, outcome, detail, expected, ct);
 
-        public Task<int> MarkBlockedAsync(Guid entryId, BlockedMarker marker, CancellationToken ct)
-            => inner.MarkBlockedAsync(entryId, marker, ct);
+        public Task<int> MarkBlockedAsync(Guid entryId, DocketScope scope, BlockedMarker marker, CancellationToken ct)
+            => inner.MarkBlockedAsync(entryId, scope, marker, ct);
 
         public Task<DocketPageResult<DocketEntry>> ListPendingAsync(
             DocketScope scope, DocketPage page, CancellationToken ct)

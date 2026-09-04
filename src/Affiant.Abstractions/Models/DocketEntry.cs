@@ -35,8 +35,8 @@ public record ReviewStep(
 /// <see cref="Amendments"/> records any fields the reviewer changed during approval — a
 /// <c>null</c> value means the reviewer explicitly cleared that field, distinct from the
 /// field being absent from the dictionary (unamended). Set at filing time from
-/// <see cref="ReviewContext.Amendments"/> and, for the reviewer's actual edits captured on
-/// the Evidence Card response, updated via <see cref="Interfaces.IDocketStore.UpdateAmendmentsAsync"/>.
+/// <see cref="ReviewContext.Amendments"/> and, for the reviewer's actual edits, written by the
+/// guarded transition an approval performs — a recorded fact, never edited in place (DK-4).
 ///
 /// <para>
 /// <b>Residual risk (P1a, affiant#22 / FV-9):</b> this record has no field marking whether the
@@ -172,6 +172,19 @@ public sealed record DocketEntry(
         get => _toolName ?? OperationType;
         init => _toolName = value;
     }
+
+    /// <summary>
+    /// The channel the proposal arrived on — the host's own name for the surface a person was
+    /// speaking through, as <c>ConversationIdentity.Channel</c> carried it. <c>null</c> when the
+    /// host named none.
+    /// </summary>
+    /// <remarks>
+    /// On the row because it is a fact about the act, and the act is what the row records: a review
+    /// that arrived over a chat widget, a relay and an operations console are three different
+    /// situations to audit, and the Affidavit cannot say which. It is not read by any rule — it is
+    /// evidence, not a control.
+    /// </remarks>
+    public string? Channel { get; init; }
 
     /// <summary>
     /// What this entry replaces and what replaced it — <see cref="Supersedes"/> paired with

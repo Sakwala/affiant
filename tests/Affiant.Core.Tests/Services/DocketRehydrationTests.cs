@@ -45,6 +45,30 @@ public sealed class DocketRehydrationTests
             sequence.Select(e => e.EntryId));
     }
 
+    /// <summary>
+    /// DK-5: a page whose limit the pending group does not spend fills from the approved-unexecuted
+    /// group in the same page. A page that stopped at the group boundary reported <c>more</c> with a
+    /// limit it had not spent, so a caller asking for ten rows over a Docket holding two was told
+    /// there were more.
+    /// </summary>
+    [Fact]
+    public async Task Rehydration_FillsAcrossTheGroupBoundary_WhenThePageHasRoom()
+    {
+        var clock = new FakeTimeProvider(Origin);
+        var store = new InMemoryDocketStore(clock);
+
+        var pending = await FileAsync(store, clock, Origin, approve: false);
+        var approved = await FileAsync(store, clock, Origin.AddMinutes(1), approve: true);
+
+        clock.SetUtcNow(Origin.AddMinutes(5));
+        var page = await DocketRehydration.PageAsync(
+            store, new DocketScope(TenantId, SessionId), new DocketPage(10), CancellationToken.None);
+
+        Assert.Equal([pending, approved], page.Items.Select(e => e.EntryId));
+        Assert.False(page.More);
+        Assert.Null(page.Cursor);
+    }
+
     [Fact]
     public async Task Rehydration_PagesAcrossTheGroupBoundary_WithoutRestartingTheFirstGroup()
     {

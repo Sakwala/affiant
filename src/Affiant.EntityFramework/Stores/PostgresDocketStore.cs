@@ -53,10 +53,6 @@ public sealed class PostgresDocketStore(
     public Task<DocketEntry?> GetResubmissionParentAsync(Guid entryId, CancellationToken ct)
         => _docket.GetResubmissionParentAsync(entryId, ct);
 
-    public Task UpdateAmendmentsAsync(
-        Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct)
-        => _docket.UpdateAmendmentsAsync(entryId, amendments, ct);
-
     public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct)
         => _docket.ListPendingBySessionAsync(sessionId, ct);
 
@@ -88,8 +84,9 @@ public sealed class PostgresDocketStore(
         Guid entryId, DocketScope scope, Guid supersededBy, CancellationToken ct)
         => _docket.RecordSupersessionAsync(entryId, scope, supersededBy, ct);
 
-    public Task<int> MarkBlockedAsync(Guid entryId, BlockedMarker marker, CancellationToken ct)
-        => _docket.MarkBlockedAsync(entryId, marker, ct);
+    public Task<int> MarkBlockedAsync(
+        Guid entryId, DocketScope scope, BlockedMarker marker, CancellationToken ct)
+        => _docket.MarkBlockedAsync(entryId, scope, marker, ct);
 
     public Task<DocketPageResult<DocketEntry>> ListPendingAsync(
         DocketScope scope, DocketPage page, CancellationToken ct)

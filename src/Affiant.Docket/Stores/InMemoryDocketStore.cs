@@ -97,19 +97,6 @@ public sealed class InMemoryDocketStore(TimeProvider? timeProvider = null) : IDo
         return Task.FromResult(parent is null ? null : Project(parent));
     }
 
-    public Task UpdateAmendmentsAsync(
-        Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct)
-    {
-        ct.ThrowIfCancellationRequested();
-
-        lock (_statusLock)
-        {
-            if (_entries.TryGetValue(entryId, out var existing))
-                _entries[entryId] = existing with { Amendments = amendments };
-        }
-        return Task.CompletedTask;
-    }
-
     public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
@@ -265,14 +252,17 @@ public sealed class InMemoryDocketStore(TimeProvider? timeProvider = null) : IDo
         }
     }
 
-    public Task<int> MarkBlockedAsync(Guid entryId, BlockedMarker marker, CancellationToken ct)
+    public Task<int> MarkBlockedAsync(
+        Guid entryId, DocketScope scope, BlockedMarker marker, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(marker);
+        DocketRow.RequireTenant(scope, nameof(scope));
 
         lock (_statusLock)
         {
             if (!_entries.TryGetValue(entryId, out var existing)
+                || !DocketRow.InScope(existing, scope)
                 || existing.Status != ReviewStatus.Pending
                 || existing.Blocked is not null)
             {
