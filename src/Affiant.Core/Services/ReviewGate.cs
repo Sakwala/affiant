@@ -22,8 +22,16 @@ public sealed class ReviewGate(
     AffiantCoreOptions options,
     ILogger<ReviewGate> logger,
     TimeProvider? timeProvider = null,
-    IDecisionAuthorizationPolicy? decisionAuthorization = null)
+    IDecisionAuthorizationPolicy? decisionAuthorization = null,
+    ToolCoverage? coverage = null)
 {
+    /// <summary>
+    /// The tools the host has declared the gate cannot stand in front of (CV-4), or
+    /// <see langword="null"/> when it declared none. An entry filed for one of them is blocked with
+    /// the category, so no decision on it is ever accepted and the card says why.
+    /// </summary>
+    private readonly ToolCoverage? _coverage = coverage;
+
     /// <summary>
     /// The gate's only clock. Every instant it stamps (<c>DocketEntry.CreatedAt</c>,
     /// <c>ExpiresAt</c>, a resubmission's <c>WriteProposal</c>) and every deadline comparison it
@@ -554,6 +562,19 @@ public sealed class ReviewGate(
             if (verdict.DegradedFrom is not null && verdict.Reason is { Length: > 0 } held)
                 notes.Add(held);
 
+            // CV-4: a tool the host declared it cannot cover says so on the row and on the card, in
+            // words as well as in the marker. A surface that rendered markers and not warnings would
+            // otherwise show a card with no decision available and no explanation.
+            var coverageMarker = _coverage?.MarkerFor(proposal.ToolName);
+            if (coverageMarker is not null)
+            {
+                notes.Add(
+                    $"The tool '{proposal.ToolName}' is declared uncovered " +
+                    $"({ToolCoverage.Spell(coverageMarker.Category)}): the gate cannot stand in " +
+                    "front of the write it makes, so this entry is blocked and no decision on it " +
+                    "will be accepted.");
+            }
+
             if (requirement is ReviewRequirement.ReferralRequired or ReviewRequirement.MultiParty)
             {
                 notes.Add(
@@ -622,7 +643,7 @@ public sealed class ReviewGate(
             // there is no decision record and no person to name: what the row records is the policy
             // that fired and the version of it that fired, which is the honest answer to "who
             // approved this" for a write approved with no person present.
-            if (requirement == ReviewRequirement.StandingOrder)
+            if (requirement == ReviewRequirement.StandingOrder && coverageMarker is null)
             {
                 var attestation = new Attestation(
                     Attestor.StandingOrder.Of(
@@ -676,6 +697,33 @@ public sealed class ReviewGate(
                     context.SessionId, entryId, proposal.ToolName, approvedCard, cancellationToken);
 
                 return new ReviewFilingResult.Decided(new ReviewOutcome.Approved(entryId));
+            }
+
+            // 5a-bis. A tool the host declared uncovered (CV-4). The entry is filed — the proposal
+            // happened and the record of it is the point — and it is blocked with the category, so
+            // no decision on it is ever accepted and it can never reach an executor. It is NOT
+            // auto-approved, whatever the policy said: a Standing Order approves a write the gate
+            // stands in front of, and this is a write the gate has been told it cannot.
+            if (coverageMarker is not null)
+            {
+                await docketStore.MarkBlockedAsync(
+                    entryId, new DocketScope(context.TenantId), coverageMarker, cancellationToken);
+
+                AffiantTelemetry.RecordCoverageRefused(
+                    proposal.ToolName, ToolCoverage.Spell(coverageMarker.Category), "filing");
+
+                logger.LogWarning(
+                    "DocketEntry {EntryId} is blocked: tool {ToolName} is declared uncovered " +
+                    "({Category}), so no decision on it can be accepted",
+                    entryId, proposal.ToolName, coverageMarker.Category);
+
+                var uncoveredCard = await EvidenceCardRequestFactory.CreateAsync(
+                    docketStore, entryId, sworn, expiresAt, cancellationToken,
+                    blocked: coverageMarker);
+                await BroadcastEvidenceCardWithRetryAsync(
+                    context.SessionId, entryId, proposal.ToolName, uncoveredCard, cancellationToken);
+
+                return new ReviewFilingResult.Decided(RefuseBlocked(entryId, coverageMarker));
             }
 
             // 5b. A requirement level this version records but does not run — ReferralRequired and

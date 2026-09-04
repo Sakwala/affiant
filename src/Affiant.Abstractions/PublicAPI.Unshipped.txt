@@ -46,6 +46,8 @@
 *REMOVED*static Affiant.Abstractions.Models.ProvenanceTag.FromInference(string! fieldName, float confidence = 0.6) -> Affiant.Abstractions.Models.ProvenanceTag!
 *REMOVED*static Affiant.Abstractions.Models.ProvenanceTag.FromUser(string! fieldName) -> Affiant.Abstractions.Models.ProvenanceTag!
 Affiant.Abstractions.AffiantProtocol
+Affiant.Abstractions.Exceptions.AffiantCoverageException
+Affiant.Abstractions.Exceptions.AffiantCoverageException.AffiantCoverageException(string! message) -> void
 Affiant.Abstractions.Exceptions.AffiantPolicyException
 Affiant.Abstractions.Exceptions.AffiantPolicyException.AffiantPolicyException(string! message) -> void
 Affiant.Abstractions.Exceptions.AffiantPolicyException.AffiantPolicyException(string! message, System.Exception! inner) -> void
@@ -761,6 +763,7 @@ abstract Affiant.Abstractions.Models.ProvenanceBinding.Kind.get -> string!
 abstract Affiant.Abstractions.Transport.DocketNotification.<Clone>$() -> Affiant.Abstractions.Transport.DocketNotification!
 abstract Affiant.Abstractions.Transport.DocketNotification.Kind.get -> string!
 const Affiant.Abstractions.AffiantProtocol.Version = "0.1.0" -> string!
+const Affiant.Abstractions.Exceptions.AffiantRefusalException.CoverageRefusedCode = "coverage-refused" -> string!
 const Affiant.Abstractions.Exceptions.AffiantRefusalException.SubstanceRefusedCode = "substance-refused" -> string!
 const Affiant.Abstractions.Exceptions.AffiantRefusalException.WireUpInvalidCode = "wireup-invalid" -> string!
 const Affiant.Abstractions.Interfaces.DocketCursor.ApprovedUnexecutedListing = "approved-unexecuted" -> string!
@@ -1259,7 +1262,7 @@ static Affiant.Abstractions.Models.ProvenanceBinding.UtteranceSpan.operator ==(A
 static Affiant.Abstractions.Models.ProvenanceBinding.operator !=(Affiant.Abstractions.Models.ProvenanceBinding? left, Affiant.Abstractions.Models.ProvenanceBinding? right) -> bool
 static Affiant.Abstractions.Models.ProvenanceBinding.operator ==(Affiant.Abstractions.Models.ProvenanceBinding? left, Affiant.Abstractions.Models.ProvenanceBinding? right) -> bool
 static Affiant.Abstractions.Models.ProvenanceBindingKind.All.get -> System.Collections.Generic.IReadOnlyList<string!>!
-static Affiant.Abstractions.Models.ProvenanceTag.FromInference(Affiant.Abstractions.Models.InferenceSource source, string! fieldName, float confidence = 0.6, Affiant.Abstractions.Models.ProvenanceBinding? binding = null) -> Affiant.Abstractions.Models.ProvenanceTag!
+static Affiant.Abstractions.Models.ProvenanceTag.FromInference(Affiant.Abstractions.Models.InferenceSource source, string! fieldName, float confidence = 0.6, Affiant.Abstractions.Models.ProvenanceBinding? binding = null, System.DateTimeOffset? at = null) -> Affiant.Abstractions.Models.ProvenanceTag!
 static Affiant.Abstractions.Models.ProvenanceTag.FromUser(string! fieldName, Affiant.Abstractions.Models.ProvenanceBinding? binding) -> Affiant.Abstractions.Models.ProvenanceTag!
 static Affiant.Abstractions.Models.ProvenanceTag.RequiresBinding(Affiant.Abstractions.Models.ProvenanceSource source) -> bool
 static Affiant.Abstractions.Models.RelayAssertion.operator !=(Affiant.Abstractions.Models.RelayAssertion? left, Affiant.Abstractions.Models.RelayAssertion? right) -> bool

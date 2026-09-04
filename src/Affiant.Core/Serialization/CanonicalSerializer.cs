@@ -162,8 +162,8 @@ public static class CanonicalSerializer
     }
 
     /// <summary>
-    /// <paramref name="affidavit"/> as the JSON document its canonical form is taken over: the wire
-    /// shape, written under <see cref="AffiantJson"/> and re-parsed.
+    /// <paramref name="affidavit"/> as the JSON document its canonical form is taken over: the
+    /// protocol's record, written under <see cref="AffiantJson"/> and re-parsed.
     ///
     /// <para>
     /// The round trip through text is not waste. A confidence is a <see cref="float"/> in the CLR,
@@ -172,11 +172,47 @@ public static class CanonicalSerializer
     /// <c>0.9</c>, and no second implementation could ever match it. The canonical form is defined
     /// over the document, so the document is what it reads.
     /// </para>
+    ///
+    /// <para>
+    /// <b>The protocol's record, not this framework's.</b> SR-1 is a rule about a document two
+    /// implementations must produce identically, and the rulebook's own byte vectors pin exactly ten
+    /// properties on it. This framework's <see cref="Affidavit"/> carries four more — the warnings
+    /// and the confirmation verdict, which the protocol keeps on the card envelope, and a field's
+    /// closed set and pattern, which it keeps in the card's presentation hints — and spells the
+    /// operation in its own four-valued vocabulary where the protocol's is two-valued and
+    /// shape-shaped. Those four are dropped here and the operation is mapped, so a hash minted from
+    /// a .NET record and a hash minted from a TypeScript one bind the same execution grant. Nothing
+    /// is lost: what is dropped travels on the card, which carries all four.
+    /// </para>
     /// </summary>
     public static JsonNode ToDocument(Affidavit affidavit)
     {
         ArgumentNullException.ThrowIfNull(affidavit);
-        return JsonNode.Parse(JsonSerializer.Serialize(affidavit, AffiantJson.SerializerOptions))!;
+
+        var document = JsonNode.Parse(JsonSerializer.Serialize(affidavit, AffiantJson.SerializerOptions))!.AsObject();
+
+        document.Remove("warnings");
+        document.Remove("requiresConfirmation");
+
+        // And the protocol version, which is the one property the rulebook's own two artifacts
+        // disagree about. Its Affidavit schema REQUIRES `protocolVersion` on the record and its byte
+        // vectors carry it; every conformance fixture that pins a content hash was produced by a
+        // record that does not, so a form carrying it can never match one of those hashes. A hash is
+        // what an execution grant binds to, so the canonical form follows the hashes. The record
+        // still carries the version, and the wire still puts it on every envelope (SR-3).
+        document.Remove("protocolVersion");
+        document["operationType"] = Operation.IsUpdateShaped(affidavit.OperationType) ? "update" : "create";
+
+        if (document["fields"] is JsonArray fields)
+        {
+            foreach (var field in fields.OfType<JsonObject>())
+            {
+                field.Remove("allowedValues");
+                field.Remove("pattern");
+            }
+        }
+
+        return document;
     }
 
     // ── Amendments, folded into a document rather than a record ──────────────

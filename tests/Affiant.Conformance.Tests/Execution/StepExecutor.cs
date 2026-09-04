@@ -112,6 +112,17 @@ internal sealed class StepExecutor(GateHarness harness, GivenSpec given)
 
         var isWrap = step.Kind == "wrap-execute";
         var toolName = isWrap ? step.Tool!.Name : step.ToolName!;
+
+        // CV-4/CV-1, at the moment a host wires a tool up: a write-capable tool the gate cannot
+        // stand in front of is refused before anything is proposed. The rule is the framework's —
+        // ToolCoverage.Audit — and the facts are the tool's, exactly as an adapter's own audit
+        // hands them over.
+        if (isWrap)
+        {
+            Affiant.Core.Services.ToolCoverage.Audit(
+                toolName, step.Tool!.WriteCapable, CoverageOf(step.Tool!));
+        }
+
         var strategy = isWrap ? FixtureStrategy.ForTool(step.Tool!) : FixtureStrategy.ForFile(step);
         var operationType = (isWrap ? step.Tool!.EntityId : step.Operation!.EntityId) is null ? "WriteCreate" : "WriteUpdate";
 
@@ -160,13 +171,18 @@ internal sealed class StepExecutor(GateHarness harness, GivenSpec given)
         {
             foreach (var field in step.PreparedFields ?? [])
             {
+                // A prepared tag carries the instant it was minted at — the step's own clock. A
+                // fixture states a source, a confidence and sometimes a binding; when the tag was
+                // minted is not a fixture's to state, it is the moment the host prepared it, and the
+                // v0.1 tag requires one.
                 var tag = field.Provenance is { } p
                     ? new ProvenanceTag(
                         Enum.Parse<ProvenanceSource>(p.Source),
                         (float)p.Confidence,
                         p.Note,
                         ConversationTurn: null,
-                        Binding: Bindings.ToFramework(p.Binding))
+                        Binding: Bindings.ToFramework(p.Binding),
+                        At: harness.Clock)
                     : ProvenanceTag.Empty;
                 fabric.SetFieldChain(field.Name, ProvenanceChain.From(tag));
                 if (Values.ToClr(field.Value) is { } clr)
@@ -453,6 +469,20 @@ internal sealed class StepExecutor(GateHarness harness, GivenSpec given)
     /// the three apart, and leaves AF-3 to be reported where it belongs rather than compounded into
     /// an id collision.
     /// </remarks>
+    /// <summary>
+    /// Why the gate cannot cover <paramref name="tool"/>, or <see langword="null"/> when it can
+    /// (CV-4). A tool the provider runs, a hosted MCP write, and a write-capable tool with no
+    /// execute step for the gate to replace are the three the rule names.
+    /// </summary>
+    private static Affiant.Abstractions.Models.CoverageCategory? CoverageOf(ToolSpec tool) =>
+        string.Equals(tool.ExecutedBy, "provider", StringComparison.Ordinal)
+            ? Affiant.Abstractions.Models.CoverageCategory.ProviderExecuted
+            : tool.HostedMcp
+                ? Affiant.Abstractions.Models.CoverageCategory.HostedMcp
+                : tool.OmitExecute
+                    ? Affiant.Abstractions.Models.CoverageCategory.NoExecute
+                    : null;
+
     private static Guid DerivedEntryId(string tenantId, string conversationId, string toolName, StepSpec step)
     {
         var seed = new StringBuilder()

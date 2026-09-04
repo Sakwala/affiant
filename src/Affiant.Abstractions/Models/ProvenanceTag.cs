@@ -270,17 +270,23 @@ public sealed record ProvenanceTag(
         InferenceSource source,
         string fieldName,
         float confidence = 0.6f,
-        ProvenanceBinding? binding = null) =>
+        ProvenanceBinding? binding = null,
+        DateTimeOffset? at = null) =>
         new(
             source == InferenceSource.Conversation
                 ? ProvenanceSource.Conversation
                 : ProvenanceSource.Inferred,
             confidence,
+            // The two sentences are the protocol's, not this framework's phrasing: a tag's note is
+            // part of the record the canonical form is taken over, so two implementations that
+            // worded it differently could never produce the same hash for the same facts and no
+            // execution grant minted by one would validate against the other (SR-1).
             source == InferenceSource.Conversation
-                ? $"Read from the turn: {fieldName}"
-                : $"LLM inferred: {fieldName}",
+                ? $"Literally present in the turn: {fieldName}"
+                : $"Inferred from the turn: {fieldName}",
             null,
-            binding);
+            binding,
+            at);
 
     /// <summary>
     /// Tag a value applied by a deterministic fallback rule. Default confidence 0.3.

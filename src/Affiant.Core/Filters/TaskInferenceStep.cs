@@ -31,13 +31,23 @@ public sealed class TaskInferenceStep
 {
     private readonly ContextFabric _contextFabric;
     private readonly ILogger<TaskInferenceStep> _logger;
+    private readonly TimeProvider _time;
 
+    /// <param name="contextFabric">The conversation's own field state.</param>
+    /// <param name="logger">Merge diagnostics.</param>
+    /// <param name="timeProvider">
+    /// The clock every tag this step mints is stamped with. A tag says when the claim it carries was
+    /// made — the v0.1 tag requires it — and there is one clock in this framework, injected, so a
+    /// fixture that pins an instant sees the instant it pinned.
+    /// </param>
     public TaskInferenceStep(
         ContextFabric contextFabric,
-        ILogger<TaskInferenceStep> logger)
+        ILogger<TaskInferenceStep> logger,
+        TimeProvider? timeProvider = null)
     {
         _contextFabric = contextFabric ?? throw new ArgumentNullException(nameof(contextFabric));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _time = timeProvider ?? TimeProvider.System;
     }
 
     /// <summary>
@@ -114,7 +124,7 @@ public sealed class TaskInferenceStep
                     : InferenceSource.Inferred;
 
             var candidateTag = ProvenanceTag.FromInference(
-                presence, field.Name, newConfidence, UtteranceSpanOf(fieldEl, newText));
+                presence, field.Name, newConfidence, UtteranceSpanOf(fieldEl, newText), _time.GetUtcNow());
             var currentChain = _contextFabric.GetFieldChain(field.Name);
 
             bool wins;
@@ -208,11 +218,13 @@ public sealed class TaskInferenceStep
             : span.TryGetProperty("length", out var lengthEl) && lengthEl.TryGetInt32(out var stated) ? stated
             : value.Length;
 
+        // The digest is the canonical form's own — SHA-256 as 64 lowercase hexadecimal characters,
+        // and nothing else — because a second implementation checking this span has to produce the
+        // same string from the same bytes (SR-1, PV-2).
         var digest = Convert.ToHexStringLower(
             System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(value)));
 
-        return new ProvenanceBinding.UtteranceSpan(
-            new UtteranceSpanRef(start, length, $"sha256:{digest}"));
+        return new ProvenanceBinding.UtteranceSpan(new UtteranceSpanRef(start, length, digest));
     }
 
     /// <summary>

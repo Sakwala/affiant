@@ -19,6 +19,11 @@ public class AffiantRefusalException : Exception
     /// <summary>The protocol refusal code for a wiring the gate cannot run (CV-1).</summary>
     public const string WireUpInvalidCode = "wireup-invalid";
 
+    /// <summary>
+    /// The protocol refusal code for a write-capable tool the gate cannot stand in front of (CV-4).
+    /// </summary>
+    public const string CoverageRefusedCode = "coverage-refused";
+
     /// <summary>Creates a refusal carrying <paramref name="code"/>.</summary>
     public AffiantRefusalException(string code, string message) : base(message) => Code = code;
 
@@ -37,6 +42,14 @@ public class AffiantRefusalException : Exception
 /// </summary>
 public sealed class AffiantSubstanceException(string message)
     : AffiantRefusalException(SubstanceRefusedCode, message);
+
+/// <summary>
+/// A write-capable tool the gate cannot stand in front of, refused where the host wires it up
+/// (protocol rule CV-4): a tool the provider executes on its own side, a hosted MCP write, or a
+/// write-capable tool with no execute step for the gate to replace. Nothing was filed.
+/// </summary>
+public sealed class AffiantCoverageException(string message)
+    : AffiantRefusalException(CoverageRefusedCode, message);
 
 /// <summary>
 /// An approval policy broke its own contract in a way no wire-up check could see, refused at

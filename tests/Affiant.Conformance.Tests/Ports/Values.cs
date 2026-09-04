@@ -22,6 +22,16 @@ internal static class Values
         _ => node!.ToJsonString(),
     };
 
+    /// <summary>A coverage category, as a fixture spells it (CV-4).</summary>
+    public static Affiant.Abstractions.Models.CoverageCategory Category(string category) => category switch
+    {
+        "no-execute" => Affiant.Abstractions.Models.CoverageCategory.NoExecute,
+        "provider-executed" => Affiant.Abstractions.Models.CoverageCategory.ProviderExecuted,
+        "hosted-mcp" => Affiant.Abstractions.Models.CoverageCategory.HostedMcp,
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(category), category, "CV-4 fixes the set of coverage categories at three."),
+    };
+
     /// <summary>A framework value as the fixture would state it.</summary>
     public static JsonNode? ToJson(object? value) => value switch
     {

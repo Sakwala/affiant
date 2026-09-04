@@ -142,6 +142,17 @@ internal sealed class GateHarness : IDisposable
             }
         }
 
+        // CV-4: the tools the fixture says the host cannot cover. Declared on the shipped
+        // ToolCoverage, which is what the gate reads — the driver states the fact and the framework
+        // decides what it means.
+        var coverage = new Affiant.Core.Services.ToolCoverage();
+        foreach (var uncovered in gate.Uncovered)
+        {
+            coverage.DeclareUncovered(uncovered.Tool, Ports.Values.Category(uncovered.Category));
+        }
+
+        services.AddSingleton(coverage);
+
         services.AddScoped<ContextFabric>();
         services.AddScoped<IContextFabric>(sp => sp.GetRequiredService<ContextFabric>());
         services.AddScoped<Affiant.Core.Filters.TaskInferenceStep>();
