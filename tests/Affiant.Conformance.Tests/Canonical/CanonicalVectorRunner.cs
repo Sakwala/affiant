@@ -1,4 +1,8 @@
+using System.Reflection;
+using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
+using Affiant.Abstractions.Models;
 using Affiant.Conformance.Tests.Matching;
 using Affiant.Conformance.Tests.Model;
 
@@ -10,43 +14,42 @@ namespace Affiant.Conformance.Tests.Canonical;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>What a vector row in this run does and does not say.</b> <c>1.0.0-beta.1</c> exports no
-/// canonical-hash helper, so no vector here is a statement that the framework passes SR-1; every
-/// one of them is measured against the driver's own canonicaliser, which is the "second
-/// canonicaliser written out from the rule" that <c>RUNNER.md</c> §9 names as one of the three
-/// paths that have to agree. What a vector <b>does</b> say is two things a reader of the parity
-/// report needs:
+/// <b>What a vector row in this run does and does not say.</b> A vector is measured against the
+/// driver's own canonicaliser, which is the "second canonicaliser written out from the rule" that
+/// <c>RUNNER.md</c> §9 names as one of the three paths that have to agree — never against the
+/// framework's own <c>CanonicalSerializer</c>, which would be the implementation grading its own
+/// homework. What a vector <b>does</b> say is two things a reader of the parity report needs:
 /// </para>
 /// <list type="number">
 /// <item>whether the rule's text, implemented independently, reproduces the pinned bytes and
 /// digest — a disagreement there is a finding about the rule or the vector, not about .NET;</item>
-/// <item>whether the .NET <c>Affidavit</c> model can <b>hold</b> the shape the vector pins at all.
-/// It cannot: the record has no <c>protocolVersion</c>, no <c>populatedConfidence</c>, no
-/// <c>emptyFieldCount</c>, no <c>conversationTurn</c> and no <c>createdAt</c>, and a provenance tag
-/// has no <c>note</c>, no <c>at</c> and no <c>binding</c> (a tag is source, confidence, evidence and
-/// conversation turn, and nothing else). A vector whose form needs any of those fails, and the diff
-/// names the property.</item>
+/// <item>whether the shipped <c>Affidavit</c> model can <b>hold</b> the shape the vector pins at
+/// all. The properties it is measured against are read off the shipped records themselves, so a
+/// row that says "the record has no such property" is a statement about the tree that produced the
+/// run and not about whatever release a list in this file was last edited for.</item>
 /// </list>
 /// </remarks>
 internal static class CanonicalVectorRunner
 {
-    /// <summary>The properties an <c>Affidavit</c> can hold in this release.</summary>
-    private static readonly HashSet<string> AffidavitProperties = new(StringComparer.Ordinal)
-    {
-        "operationType", "entityType", "entityId", "fields", "aggregateConfidence", "warnings", "requiresConfirmation",
-    };
+    /// <summary>The properties an <c>Affidavit</c> can hold, read off the shipped record.</summary>
+    private static readonly HashSet<string> AffidavitProperties = PropertiesOf(typeof(Affidavit));
 
-    /// <summary>The properties an <c>AffidavitField</c> can hold in this release.</summary>
-    private static readonly HashSet<string> FieldProperties = new(StringComparer.Ordinal)
-    {
-        "name", "value", "previousValue", "provenance", "isMandatory", "kind", "allowedValues", "pattern",
-    };
+    /// <summary>The properties an <c>AffidavitField</c> can hold, read off the shipped record.</summary>
+    private static readonly HashSet<string> FieldProperties = PropertiesOf(typeof(AffidavitField));
 
-    /// <summary>The properties a <c>ProvenanceTag</c> can hold in this release.</summary>
-    private static readonly HashSet<string> TagProperties = new(StringComparer.Ordinal)
-    {
-        "source", "confidence", "evidence", "conversationTurn",
-    };
+    /// <summary>The properties a <c>ProvenanceTag</c> can hold, read off the shipped record.</summary>
+    private static readonly HashSet<string> TagProperties = PropertiesOf(typeof(ProvenanceTag));
+
+    /// <summary>
+    /// The JSON property names a shipped record carries, under the naming the canonical form uses:
+    /// a <c>[JsonPropertyName]</c> where one is declared, camel case otherwise.
+    /// </summary>
+    private static HashSet<string> PropertiesOf(Type record) => new(
+        record.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Select(property =>
+                property.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name
+                ?? JsonNamingPolicy.CamelCase.ConvertName(property.Name)),
+        StringComparer.Ordinal);
 
     /// <summary>Reproduces one vector, reporting every disagreement it found.</summary>
     public static (string Verdict, IReadOnlyList<Mismatch> Diff, string? Reason) Run(CanonicalVector vector)
@@ -61,8 +64,8 @@ internal static class CanonicalVectorRunner
             // act: it has no binding and no timestamp, so the sworn form cannot be built at all.
             reason = "not-implemented: amendment folding. The sworn form an execution grant binds to is the " +
                      "Affidavit combined with its accepted amendments, and an amended field's tag must name the " +
-                     "reviewer act that amended it (PV-2, SR-1). A ProvenanceTag in 1.0.0-beta.1 carries a source, " +
-                     "a confidence, an evidence string and a conversation turn, and nothing that can name an act.";
+                     "reviewer act that amended it (PV-2, SR-1). This driver builds the vector's input as JSON " +
+                     "and has no accepted-amendment path to fold through, so the sworn form is not built here.";
             diff.Add(Mismatch.Said("amendments", "the sworn form, amendments folded in", "the model cannot express an amendment's tag"));
         }
 

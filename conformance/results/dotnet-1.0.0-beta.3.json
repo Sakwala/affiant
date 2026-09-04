@@ -7,20 +7,20 @@
     "runtime": "net10.0"
   },
   "protocolTag": "v0.1.1",
-  "producedAt": "2026-09-04T12:31:00.927Z",
+  "producedAt": "2026-09-04T16:03:13.692Z",
   "summary": {
     "total": 63,
     "passed": 44,
     "failed": 17,
     "errored": 2,
     "skipped": 0,
-    "durationMs": 1271.179
+    "durationMs": 615.343
   },
   "results": [
     {
       "id": "gate/substance-hollow-refused",
       "outcome": "error",
-      "durationMs": 304.584,
+      "durationMs": 142.401,
       "diff": [
         {
           "at": "driver",
@@ -33,7 +33,7 @@
     {
       "id": "gate/substance-zero-field-refused",
       "outcome": "error",
-      "durationMs": 16.01,
+      "durationMs": 3.289,
       "diff": [
         {
           "at": "driver",
@@ -46,57 +46,57 @@
     {
       "id": "gate/ttl-from-verdict",
       "outcome": "pass",
-      "durationMs": 75.821
+      "durationMs": 37.618
     },
     {
       "id": "gate/ttl-from-policy-default",
       "outcome": "pass",
-      "durationMs": 5.804
+      "durationMs": 2.353
     },
     {
       "id": "gate/ttl-from-gate-default",
       "outcome": "pass",
-      "durationMs": 5.092
+      "durationMs": 1.637
     },
     {
       "id": "gate/standing-order-by-the-book",
       "outcome": "pass",
-      "durationMs": 16.138
+      "durationMs": 6.904
     },
     {
       "id": "gate/standing-order-threshold-under",
       "outcome": "pass",
-      "durationMs": 5.53
+      "durationMs": 2.772
     },
     {
       "id": "gate/standing-order-threshold-over",
       "outcome": "pass",
-      "durationMs": 6.696
+      "durationMs": 3.68
     },
     {
       "id": "gate/standing-order-unbound-input",
       "outcome": "pass",
-      "durationMs": 9.732
+      "durationMs": 4.8
     },
     {
       "id": "gate/standing-order-bound-input",
       "outcome": "pass",
-      "durationMs": 28.788
+      "durationMs": 16.531
     },
     {
       "id": "gate/multiparty-blocked",
       "outcome": "pass",
-      "durationMs": 7.63
+      "durationMs": 3.894
     },
     {
       "id": "gate/referral-blocked",
       "outcome": "pass",
-      "durationMs": 4.372
+      "durationMs": 2.122
     },
     {
       "id": "gate/coverage-refused-declared",
       "outcome": "fail",
-      "durationMs": 3.647,
+      "durationMs": 2.387,
       "diff": [
         {
           "at": "entry.status",
@@ -136,42 +136,42 @@
     {
       "id": "gate/update-previous-values",
       "outcome": "pass",
-      "durationMs": 6.864
+      "durationMs": 11.171
     },
     {
       "id": "gate/create-null-previous-values",
       "outcome": "pass",
-      "durationMs": 3.857
+      "durationMs": 1.761
     },
     {
       "id": "gate/inference-conversation-and-inferred",
       "outcome": "pass",
-      "durationMs": 72.743
+      "durationMs": 23.005
     },
     {
       "id": "gate/threshold-without-scorer",
       "outcome": "pass",
-      "durationMs": 8.138
+      "durationMs": 3.227
     },
     {
       "id": "decide/approve",
       "outcome": "pass",
-      "durationMs": 30.671
+      "durationMs": 19.765
     },
     {
       "id": "decide/reject",
       "outcome": "pass",
-      "durationMs": 5.728
+      "durationMs": 6.14
     },
     {
       "id": "decide/second-decision-refused",
       "outcome": "pass",
-      "durationMs": 12.809
+      "durationMs": 7.284
     },
     {
       "id": "decide/expired-amendments-preserved",
       "outcome": "fail",
-      "durationMs": 24.466,
+      "durationMs": 9.757,
       "diff": [
         {
           "at": "entry.preservedAmendments.amendments",
@@ -196,12 +196,12 @@
     {
       "id": "decide/blocked-refused",
       "outcome": "pass",
-      "durationMs": 10.682
+      "durationMs": 3.848
     },
     {
       "id": "decide/amend-recompute",
       "outcome": "fail",
-      "durationMs": 197.495,
+      "durationMs": 103.001,
       "diff": [
         {
           "at": "canonicalHash",
@@ -213,47 +213,47 @@
     {
       "id": "decide/unresolved-identity",
       "outcome": "pass",
-      "durationMs": 9.77
+      "durationMs": 6.074
     },
     {
       "id": "decide/wrong-tenant",
       "outcome": "pass",
-      "durationMs": 9.577
+      "durationMs": 6.081
     },
     {
       "id": "decide/authorization-declined",
       "outcome": "pass",
-      "durationMs": 6.985
+      "durationMs": 6.196
     },
     {
       "id": "decide/relay-member-via-relay",
       "outcome": "pass",
-      "durationMs": 12.98
+      "durationMs": 7.358
     },
     {
       "id": "decide/relay-without-assertion-refused",
       "outcome": "pass",
-      "durationMs": 24.777
+      "durationMs": 4.985
     },
     {
       "id": "decide/execution-executed",
       "outcome": "pass",
-      "durationMs": 27.804
+      "durationMs": 8.446
     },
     {
       "id": "decide/execution-failed",
       "outcome": "pass",
-      "durationMs": 9.186
+      "durationMs": 5.306
     },
     {
       "id": "decide/execution-on-pending-refused",
       "outcome": "pass",
-      "durationMs": 24.145
+      "durationMs": 9.116
     },
     {
       "id": "decide/resubmit-prefills",
       "outcome": "fail",
-      "durationMs": 36.62,
+      "durationMs": 9.952,
       "diff": [
         {
           "at": "entry.affidavit.fields[1].value",
@@ -336,27 +336,27 @@
     {
       "id": "decide/executed-only-through-a-report",
       "outcome": "pass",
-      "durationMs": 13.674
+      "durationMs": 5.707
     },
     {
       "id": "decide/authorization-throws",
       "outcome": "pass",
-      "durationMs": 10.973
+      "durationMs": 4.732
     },
     {
       "id": "decide/execution-recorded-once",
       "outcome": "pass",
-      "durationMs": 15.242
+      "durationMs": 8.483
     },
     {
       "id": "decide/execution-second-report-refused",
       "outcome": "pass",
-      "durationMs": 14.751
+      "durationMs": 8.74
     },
     {
       "id": "sequence-a/approve-round-trip",
       "outcome": "fail",
-      "durationMs": 25.034,
+      "durationMs": 18.073,
       "diff": [
         {
           "at": "canonicalHash",
@@ -368,12 +368,12 @@
     {
       "id": "sequence-a/reject-round-trip",
       "outcome": "pass",
-      "durationMs": 7.392
+      "durationMs": 4.279
     },
     {
       "id": "sequence-a/typed-inputs-on-the-card",
       "outcome": "fail",
-      "durationMs": 5.45,
+      "durationMs": 3.216,
       "diff": [
         {
           "at": "entry.affidavit.fields[0].value",
@@ -405,7 +405,7 @@
     {
       "id": "sequence-a/picker-external-binding",
       "outcome": "fail",
-      "durationMs": 5.917,
+      "durationMs": 3.999,
       "diff": [
         {
           "at": "entry.affidavit.fields[0].value",
@@ -417,22 +417,22 @@
     {
       "id": "sequence-a/mandatory-field-left-empty",
       "outcome": "pass",
-      "durationMs": 3.494
+      "durationMs": 2.21
     },
     {
       "id": "sequence-a/mandatory-field-reviewer-approves",
       "outcome": "pass",
-      "durationMs": 4.857
+      "durationMs": 2.837
     },
     {
       "id": "sequence-a/expiry-then-resubmit",
       "outcome": "pass",
-      "durationMs": 4.275
+      "durationMs": 2.704
     },
     {
       "id": "sequence-a/late-amendments-preserved",
       "outcome": "fail",
-      "durationMs": 9.176,
+      "durationMs": 3.96,
       "diff": [
         {
           "at": "entry.affidavit.fields[0].value",
@@ -483,17 +483,17 @@
     {
       "id": "sequence-a/interleaved-conversations",
       "outcome": "pass",
-      "durationMs": 6.243
+      "durationMs": 3.349
     },
     {
       "id": "sequence-a/replay-keeps-the-deadline",
       "outcome": "pass",
-      "durationMs": 3.878
+      "durationMs": 3.188
     },
     {
       "id": "sequence-a/sweep-pages",
       "outcome": "fail",
-      "durationMs": 23.123,
+      "durationMs": 16.037,
       "diff": [
         {
           "at": "telemetry[docket.expired]",
@@ -505,12 +505,12 @@
     {
       "id": "sequence-a/rehydration-order",
       "outcome": "pass",
-      "durationMs": 23.084
+      "durationMs": 12.574
     },
     {
       "id": "sequence-a/coverage-refused-at-wire-up",
       "outcome": "fail",
-      "durationMs": 2.941,
+      "durationMs": 2.142,
       "diff": [
         {
           "at": "error",
@@ -532,55 +532,45 @@
     {
       "id": "sequence-a/mandatory-field-empty-blocks-standing-order",
       "outcome": "pass",
-      "durationMs": 3.999
+      "durationMs": 2.647
     },
     {
       "id": "sequence-a/optional-field-empty-standing-order-fires",
       "outcome": "pass",
-      "durationMs": 5.464
+      "durationMs": 2.29
     },
     {
       "id": "sequence-c/relay-auto-approve-bound-external",
       "outcome": "pass",
-      "durationMs": 6.032
+      "durationMs": 2.268
     },
     {
       "id": "sequence-c/relayed-decision-member-via-relay",
       "outcome": "pass",
-      "durationMs": 8.345
+      "durationMs": 3.43
     },
     {
       "id": "sequence-c/unbound-external-asks-a-person",
       "outcome": "pass",
-      "durationMs": 5.572
+      "durationMs": 2.376
     },
     {
       "id": "sequence-c/relay-may-not-attest-member",
       "outcome": "pass",
-      "durationMs": 8.154
+      "durationMs": 4.57
     },
     {
       "id": "sequence-c/relay-decision-other-tenant-not-found",
       "outcome": "pass",
-      "durationMs": 7.997
+      "durationMs": 4.493
     },
     {
       "id": "canonical/create-shaped",
       "outcome": "fail",
-      "durationMs": 10.771,
+      "durationMs": 0.559,
       "diff": [
         {
           "at": "model.protocolVersion",
-          "expected": "a property of the Affidavit record",
-          "actual": "(absent) - the record has no such property"
-        },
-        {
-          "at": "model.populatedConfidence",
-          "expected": "a property of the Affidavit record",
-          "actual": "(absent) - the record has no such property"
-        },
-        {
-          "at": "model.emptyFieldCount",
           "expected": "a property of the Affidavit record",
           "actual": "(absent) - the record has no such property"
         },
@@ -593,56 +583,16 @@
           "at": "model.createdAt",
           "expected": "a property of the Affidavit record",
           "actual": "(absent) - the record has no such property"
-        },
-        {
-          "at": "model.fields[0].provenance.current.note",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[0].provenance.current.at",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[0].provenance.current.binding",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[1].provenance.current.note",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[1].provenance.current.at",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[1].provenance.current.binding",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
         }
       ]
     },
     {
       "id": "canonical/update-shaped",
       "outcome": "fail",
-      "durationMs": 0.572,
+      "durationMs": 0.194,
       "diff": [
         {
           "at": "model.protocolVersion",
-          "expected": "a property of the Affidavit record",
-          "actual": "(absent) - the record has no such property"
-        },
-        {
-          "at": "model.populatedConfidence",
-          "expected": "a property of the Affidavit record",
-          "actual": "(absent) - the record has no such property"
-        },
-        {
-          "at": "model.emptyFieldCount",
           "expected": "a property of the Affidavit record",
           "actual": "(absent) - the record has no such property"
         },
@@ -655,86 +605,16 @@
           "at": "model.createdAt",
           "expected": "a property of the Affidavit record",
           "actual": "(absent) - the record has no such property"
-        },
-        {
-          "at": "model.fields[0].provenance.current.note",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[0].provenance.current.at",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[0].provenance.current.binding",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[0].provenance.prior[0].note",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[0].provenance.prior[0].at",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[0].provenance.prior[0].binding",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[1].provenance.current.note",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[1].provenance.current.at",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[1].provenance.current.binding",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[2].provenance.current.note",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[2].provenance.current.at",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[2].provenance.current.binding",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
         }
       ]
     },
     {
       "id": "canonical/wire-evidence-card-request",
       "outcome": "fail",
-      "durationMs": 0.392,
+      "durationMs": 0.12,
       "diff": [
         {
           "at": "model.protocolVersion",
-          "expected": "a property of the Affidavit record",
-          "actual": "(absent) - the record has no such property"
-        },
-        {
-          "at": "model.populatedConfidence",
-          "expected": "a property of the Affidavit record",
-          "actual": "(absent) - the record has no such property"
-        },
-        {
-          "at": "model.emptyFieldCount",
           "expected": "a property of the Affidavit record",
           "actual": "(absent) - the record has no such property"
         },
@@ -747,43 +627,13 @@
           "at": "model.createdAt",
           "expected": "a property of the Affidavit record",
           "actual": "(absent) - the record has no such property"
-        },
-        {
-          "at": "model.fields[0].provenance.current.note",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[0].provenance.current.at",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[0].provenance.current.binding",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[1].provenance.current.note",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[1].provenance.current.at",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[1].provenance.current.binding",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
         }
       ]
     },
     {
       "id": "canonical/wire-evidence-card-request-amended",
       "outcome": "fail",
-      "durationMs": 0.793,
+      "durationMs": 0.129,
       "diff": [
         {
           "at": "amendments",
@@ -806,16 +656,6 @@
           "actual": "(absent) - the record has no such property"
         },
         {
-          "at": "model.populatedConfidence",
-          "expected": "a property of the Affidavit record",
-          "actual": "(absent) - the record has no such property"
-        },
-        {
-          "at": "model.emptyFieldCount",
-          "expected": "a property of the Affidavit record",
-          "actual": "(absent) - the record has no such property"
-        },
-        {
           "at": "model.conversationTurn",
           "expected": "a property of the Affidavit record",
           "actual": "(absent) - the record has no such property"
@@ -824,44 +664,14 @@
           "at": "model.createdAt",
           "expected": "a property of the Affidavit record",
           "actual": "(absent) - the record has no such property"
-        },
-        {
-          "at": "model.fields[0].provenance.current.note",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[0].provenance.current.at",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[0].provenance.current.binding",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[1].provenance.current.note",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[1].provenance.current.at",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[1].provenance.current.binding",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
         }
       ],
-      "reason": "not-implemented: amendment folding. The sworn form an execution grant binds to is the Affidavit combined with its accepted amendments, and an amended field\u0027s tag must name the reviewer act that amended it (PV-2, SR-1). A ProvenanceTag in 1.0.0-beta.1 carries a source, a confidence, an evidence string and a conversation turn, and nothing that can name an act."
+      "reason": "not-implemented: amendment folding. The sworn form an execution grant binds to is the Affidavit combined with its accepted amendments, and an amended field\u0027s tag must name the reviewer act that amended it (PV-2, SR-1). This driver builds the vector\u0027s input as JSON and has no accepted-amendment path to fold through, so the sworn form is not built here."
     },
     {
       "id": "canonical/key-order-stress",
       "outcome": "fail",
-      "durationMs": 0.371,
+      "durationMs": 0.127,
       "diff": [
         {
           "at": "model.protocolVersion",
@@ -869,16 +679,6 @@
           "actual": "(absent) - the record has no such property"
         },
         {
-          "at": "model.populatedConfidence",
-          "expected": "a property of the Affidavit record",
-          "actual": "(absent) - the record has no such property"
-        },
-        {
-          "at": "model.emptyFieldCount",
-          "expected": "a property of the Affidavit record",
-          "actual": "(absent) - the record has no such property"
-        },
-        {
           "at": "model.conversationTurn",
           "expected": "a property of the Affidavit record",
           "actual": "(absent) - the record has no such property"
@@ -887,41 +687,16 @@
           "at": "model.createdAt",
           "expected": "a property of the Affidavit record",
           "actual": "(absent) - the record has no such property"
-        },
-        {
-          "at": "model.fields[0].provenance.current.note",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[0].provenance.current.at",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[0].provenance.current.binding",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
         }
       ]
     },
     {
       "id": "canonical/number-forms",
       "outcome": "fail",
-      "durationMs": 0.564,
+      "durationMs": 0.292,
       "diff": [
         {
           "at": "model.protocolVersion",
-          "expected": "a property of the Affidavit record",
-          "actual": "(absent) - the record has no such property"
-        },
-        {
-          "at": "model.populatedConfidence",
-          "expected": "a property of the Affidavit record",
-          "actual": "(absent) - the record has no such property"
-        },
-        {
-          "at": "model.emptyFieldCount",
           "expected": "a property of the Affidavit record",
           "actual": "(absent) - the record has no such property"
         },
@@ -934,41 +709,16 @@
           "at": "model.createdAt",
           "expected": "a property of the Affidavit record",
           "actual": "(absent) - the record has no such property"
-        },
-        {
-          "at": "model.fields[0].provenance.current.note",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[0].provenance.current.at",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[0].provenance.current.binding",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
         }
       ]
     },
     {
       "id": "canonical/money-and-escapes",
       "outcome": "fail",
-      "durationMs": 0.581,
+      "durationMs": 0.271,
       "diff": [
         {
           "at": "model.protocolVersion",
-          "expected": "a property of the Affidavit record",
-          "actual": "(absent) - the record has no such property"
-        },
-        {
-          "at": "model.populatedConfidence",
-          "expected": "a property of the Affidavit record",
-          "actual": "(absent) - the record has no such property"
-        },
-        {
-          "at": "model.emptyFieldCount",
           "expected": "a property of the Affidavit record",
           "actual": "(absent) - the record has no such property"
         },
@@ -981,66 +731,6 @@
           "at": "model.createdAt",
           "expected": "a property of the Affidavit record",
           "actual": "(absent) - the record has no such property"
-        },
-        {
-          "at": "model.fields[0].provenance.current.note",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[0].provenance.current.at",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[0].provenance.current.binding",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[1].provenance.current.note",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[1].provenance.current.at",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[1].provenance.current.binding",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[2].provenance.current.note",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[2].provenance.current.at",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[2].provenance.current.binding",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[3].provenance.current.note",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[3].provenance.current.at",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
-        },
-        {
-          "at": "model.fields[3].provenance.current.binding",
-          "expected": "a property of the ProvenanceTag record",
-          "actual": "(absent)"
         }
       ]
     }
