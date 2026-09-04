@@ -69,19 +69,64 @@ public sealed class ToolCoverage
     /// </remarks>
     /// <param name="toolName">The tool as the host names it.</param>
     /// <param name="category">Why the gate cannot stand in front of it.</param>
+    /// <param name="guidance">
+    /// What this host can do about it, in its own words — an adapter knows what its wiring looks
+    /// like and the framework does not. Appended to the refusal's own sentence.
+    /// </param>
     /// <exception cref="AffiantCoverageException">Always.</exception>
-    public static void Refuse(string toolName, CoverageCategory category)
+    public static void Refuse(string toolName, CoverageCategory category, string? guidance)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(toolName);
+        Refuse([toolName], category, guidance);
+    }
+
+    /// <summary>Refuse one tool at wire-up, with nothing further to say about the host's wiring.</summary>
+    /// <param name="toolName">The tool as the host names it.</param>
+    /// <param name="category">Why the gate cannot stand in front of it.</param>
+    /// <exception cref="AffiantCoverageException">Always.</exception>
+    public static void Refuse(string toolName, CoverageCategory category) =>
+        Refuse(toolName, category, guidance: null);
+
+    /// <summary>
+    /// Refuse a whole tool list at wire-up (CV-1, CV-4), naming every tool the gate cannot stand in
+    /// front of.
+    /// </summary>
+    /// <remarks>
+    /// One <c>coverage.refused</c> event per tool, emitted before the throw: a host reading the
+    /// exception sees the list once, but a collector needs one event per tool to count which tools
+    /// an adopter keeps trying to wire up uncovered.
+    /// </remarks>
+    /// <param name="toolNames">The tools, as the host names them.</param>
+    /// <param name="category">Why the gate cannot stand in front of them.</param>
+    /// <param name="guidance">What this host can do about it, in its own words.</param>
+    /// <exception cref="AffiantCoverageException">Always.</exception>
+    public static void Refuse(
+        IReadOnlyCollection<string> toolNames,
+        CoverageCategory category,
+        string? guidance)
+    {
+        ArgumentNullException.ThrowIfNull(toolNames);
+        if (toolNames.Count == 0)
+        {
+            throw new ArgumentException(
+                "A coverage refusal names the tools it refuses.", nameof(toolNames));
+        }
 
         var spelled = Spell(category);
-        AffiantTelemetry.RecordCoverageRefused(toolName, spelled, "wire-up");
+        foreach (var name in toolNames)
+        {
+            AffiantTelemetry.RecordCoverageRefused(name, spelled, "wire-up");
+        }
+
+        var subject = toolNames.Count == 1
+            ? $"the write-capable tool '{toolNames.First()}' is {spelled} — the gate cannot stand in " +
+              "front of it, so a write made through it"
+            : $"these write-capable tools are {spelled}: {string.Join(", ", toolNames)} — the gate " +
+              "cannot stand in front of them, so a write made through one";
 
         throw new AffiantCoverageException(
-            $"CV-4: the write-capable tool '{toolName}' is {spelled} — the gate cannot stand in " +
-            "front of it, so a write made through it would reach a system of record with no " +
-            "Affidavit, no reviewer and no Docket row. Make the tool coverable, or declare it " +
-            "uncovered so every entry it files is blocked and says why.");
+            $"CV-4: {subject} would reach a system of record with no Affidavit, no reviewer and no " +
+            "Docket row." + (guidance is { Length: > 0 } ? " " + guidance : string.Empty));
     }
 
     /// <summary>

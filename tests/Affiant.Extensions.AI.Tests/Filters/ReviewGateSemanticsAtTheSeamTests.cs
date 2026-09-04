@@ -230,7 +230,7 @@ public class ReviewGateSemanticsAtTheSeamTests
         var catalog = AffiantToolCatalog.FromType<WidgetTools>();
         var options = new ChatOptions { Tools = [new HostedCodeInterpreterTool(), .. catalog.Functions] };
 
-        var ex = Assert.Throws<InvalidOperationException>(() => options.WithAffiant(sp, catalog));
+        var ex = Assert.Throws<Affiant.Abstractions.Exceptions.AffiantCoverageException>(() => options.WithAffiant(sp, catalog));
 
         Assert.Contains("code_interpreter", ex.Message, StringComparison.Ordinal);
         // The caller's own options are untouched: nothing was wrapped, so nothing about this object

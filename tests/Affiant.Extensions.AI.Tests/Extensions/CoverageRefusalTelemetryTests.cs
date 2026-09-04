@@ -24,12 +24,15 @@ public class CoverageRefusalTelemetryTests
         var provider = BuildServices().BuildServiceProvider();
         var options = new ChatOptions { Tools = [new HostedCodeInterpreterTool()] };
 
-        Assert.Throws<InvalidOperationException>(
+        Assert.Throws<Affiant.Abstractions.Exceptions.AffiantCoverageException>(
             () => options.WithAffiant(provider, AffiantToolCatalog.FromType<NoTools>()));
 
         var attributes = probe.Attributes(TelemetryKeys.CoverageRefused);
         Assert.Equal("code_interpreter", attributes[TelemetryKeys.Attributes.GenAiToolName]);
-        Assert.Equal("hosted", attributes[TelemetryKeys.Attributes.CoverageCategory]);
+        // One of CV-4's own three categories, not an adapter's word for the same thing: a collector
+        // counting coverage refusals across two adapters and the core has to be counting the same
+        // set. A hosted/provider-side tool is `provider-executed`.
+        Assert.Equal("provider-executed", attributes[TelemetryKeys.Attributes.CoverageCategory]);
         Assert.Equal("wire-up", attributes[TelemetryKeys.Attributes.Phase]);
     }
 

@@ -82,6 +82,8 @@ static Affiant.Core.Services.EvidenceCardRequestFactory.CreateAsync(Affiant.Abst
 static Affiant.Core.Services.StandingOrderGuardrails.Apply(Affiant.Abstractions.Models.ApprovalVerdict! verdict, Affiant.Abstractions.Models.Affidavit! affidavit, System.Collections.Generic.IReadOnlyCollection<Affiant.Abstractions.Models.ProvenanceSource>! declaredInputs, string! policyId, string? policyVersion = null) -> Affiant.Abstractions.Models.ApprovalVerdict!
 static Affiant.Core.Services.StandingOrderGuardrails.ApplyRiskCeiling(Affiant.Abstractions.Models.ApprovalVerdict! verdict, int riskScore, int threshold, string! policyId, string? policyVersion = null) -> Affiant.Abstractions.Models.ApprovalVerdict!
 static Affiant.Core.Services.ToolCoverage.Audit(string! toolName, bool writeCapable, Affiant.Abstractions.Models.CoverageCategory? category) -> void
+static Affiant.Core.Services.ToolCoverage.Refuse(System.Collections.Generic.IReadOnlyCollection<string!>! toolNames, Affiant.Abstractions.Models.CoverageCategory category, string? guidance) -> void
 static Affiant.Core.Services.ToolCoverage.Refuse(string! toolName, Affiant.Abstractions.Models.CoverageCategory category) -> void
+static Affiant.Core.Services.ToolCoverage.Refuse(string! toolName, Affiant.Abstractions.Models.CoverageCategory category, string? guidance) -> void
 static Affiant.Core.Services.ToolCoverage.Spell(Affiant.Abstractions.Models.CoverageCategory category) -> string!
 static readonly Affiant.Core.Observability.DocketDepthInstrument.MinimumSampleInterval -> System.TimeSpan

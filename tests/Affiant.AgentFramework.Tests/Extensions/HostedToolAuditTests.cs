@@ -20,18 +20,25 @@ using Xunit;
 /// </summary>
 public class HostedToolAuditTests
 {
+    /// <summary>
+    /// The refusal carries the protocol's own code (CV-4). A coverage gap is the same finding
+    /// whichever adapter noticed it, so a host catches one exception for the whole class and reads
+    /// `coverage-refused` off it rather than matching on an adapter's prose.
+    /// </summary>
     [Fact]
-    public void UnacknowledgedHostedTool_CausesWithAffiantToThrow()
+    public void UnacknowledgedHostedTool_IsRefusedWithTheProtocolsCoverageCode()
     {
         var services = BuildServices();
         var sp = services.BuildServiceProvider();
 
         var agent = BuildAgentWithHostedTool();
 
-        var ex = Assert.Throws<InvalidOperationException>(
+        var ex = Assert.Throws<Affiant.Abstractions.Exceptions.AffiantCoverageException>(
             () => agent.WithAffiant(sp, AffiantToolCatalog.FromType<NoToolsMarker>()));
 
+        Assert.Equal("coverage-refused", ex.Code);
         Assert.Contains("code_interpreter", ex.Message);
+        Assert.Contains("AgentFrameworkOptions.AcknowledgeUncoveredTools", ex.Message);
     }
 
     [Fact]
@@ -77,7 +84,7 @@ public class HostedToolAuditTests
 
         var agent = BuildAgentWithHostedTool();
 
-        Assert.Throws<InvalidOperationException>(() => agent.WithAffiant(sp, catalog));
+        Assert.Throws<Affiant.Abstractions.Exceptions.AffiantCoverageException>(() => agent.WithAffiant(sp, catalog));
 
         // The audit refuses before any registry mutation, so nothing from the catalog leaked in.
         Assert.Empty(registry.All);
@@ -93,7 +100,7 @@ public class HostedToolAuditTests
         var catalog = AffiantToolCatalog.FromType<SampleTools>();
 
         var refusedAgent = BuildAgentWithHostedTool();
-        Assert.Throws<InvalidOperationException>(() => refusedAgent.WithAffiant(sp, catalog));
+        Assert.Throws<Affiant.Abstractions.Exceptions.AffiantCoverageException>(() => refusedAgent.WithAffiant(sp, catalog));
 
         // Corrected retry on the same singleton registry: an agent with no uncovered hosted tool.
         // If the refused wrap had registered the catalog's descriptors, this would die with
@@ -107,17 +114,23 @@ public class HostedToolAuditTests
         Assert.Equal(catalog.Descriptors.Count, registry.All.Count);
     }
 
+    /// <summary>
+    /// An agent whose tool set cannot be enumerated is refused with the same protocol code as a
+    /// named uncovered tool: what cannot be covered here is the agent itself, and a host acting on
+    /// the refusal should not have to tell the two apart by exception type (CV-4).
+    /// </summary>
     [Fact]
-    public void UnauditableAgentShape_CausesWithAffiantToThrow_ByDefault()
+    public void UnauditableAgentShape_IsRefusedWithTheProtocolsCoverageCode_ByDefault()
     {
         var services = BuildServices();
         var sp = services.BuildServiceProvider();
 
         var agent = new UnauditableAgent();
 
-        var ex = Assert.Throws<InvalidOperationException>(
+        var ex = Assert.Throws<Affiant.Abstractions.Exceptions.AffiantCoverageException>(
             () => agent.WithAffiant(sp, AffiantToolCatalog.FromType<NoToolsMarker>()));
 
+        Assert.Equal("coverage-refused", ex.Code);
         Assert.Contains("ChatOptions", ex.Message);
         Assert.Contains(nameof(AgentFrameworkOptions.AllowUnauditableAgent), ex.Message);
     }

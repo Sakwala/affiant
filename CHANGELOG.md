@@ -1026,7 +1026,11 @@ delivered its own `EvidenceCardResponse` unblocked the waiter and the row was wr
   and the Evidence Card carries the marker and says why in words. A Standing Order approves a write
   the gate stands in front of; a declared-uncovered tool is one the gate has been told it cannot.
   Register it with `services.AddSingleton<ToolCoverage>()` and declare at start-up; a host that
-  declares nothing sees no change.
+  declares nothing sees no change. **Both adapters' hosted-tool audits refuse through it**, so a
+  coverage gap raises `AffiantCoverageException` carrying `coverage-refused` whichever wiring
+  noticed it, and one `coverage.refused` event per tool names one of CV-4's own three categories.
+  **Breaking** for a host catching `InvalidOperationException` around `WithAffiant`: catch
+  `AffiantCoverageException` (or `AffiantRefusalException`, its base) instead.
 - **`tests/Affiant.Conformance.Tests` — the conformance driver.** Runs the
   [`Sakwala/affiant-protocol`](https://github.com/Sakwala/affiant-protocol) rulebook's promoted
   fixture suite (56 declarative fixtures and 7 canonical byte vectors) against the packages this
