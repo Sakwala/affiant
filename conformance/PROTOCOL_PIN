@@ -1,9 +1,11 @@
 # The affiant-protocol ref this repository's conformance driver is pinned to.
 #
 # Versions of the rulebook (https://github.com/Sakwala/affiant-protocol) are git tags.
-# The v0.1.0 tag has not been cut yet, so the pin is the COMMIT that carries the v0.1
-# conformance suite. When v0.1.0 is tagged on that commit, `tag` below becomes v0.1.0
-# and `commit` stays as the thing it points at — the pin does not otherwise move.
+# The pin is the v0.1.0 tag, and `commit` records what that tag points at, so a reader
+# can check one against the other with no network. While a version's text is on the
+# rulebook's default branch and its tag has not been cut, `tag` is empty and the COMMIT
+# is the pin: a commit is as immutable as a tag and, unlike a tag, cannot be moved
+# under a running build.
 #
 # Changing this file is a reviewable diff in this repository's own history: a format
 # change arrives as a pull request, never as a silent upstream shift under a build.
@@ -13,7 +15,7 @@
 # which is what CI runs, so a local edit to a vendored fixture cannot pass unnoticed.
 
 repository=https://github.com/Sakwala/affiant-protocol
-commit=19c574726445c312d6f295f8c9e8851910f05836
-tag=
-tag_note=v0.1.0 is not cut yet; this pin becomes that tag when it is.
+commit=e426ef58a00bb76327677b67225262c1d6738e91
+tag=v0.1.0
+tag_note=v0.1.0 was cut on the commit above on 2026-09-04: INVARIANTS.md v0.1, the 0.1.0 schemas, the conformance suite, and a parity manifest and published run for each implementation.
 vendored=tests/Affiant.Conformance.Tests/protocol

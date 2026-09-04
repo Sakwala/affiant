@@ -1,8 +1,8 @@
-a5c8f56dfb2e1c0bd5f63958e76ce3f3e1183b4949f6ddaab073c6643e9fd888  ./README.md
+5d0d15dc8e52a060c8a9ff0f689c9a3517a7d15cbdd5612520be20d7059a6675  ./README.md
 fa60abf67184b10bd794009f81eec5b6000bf475c36e00a49f252c40cb81e138  ./canonical-vector.schema.json
-bd2985e9962133acc0779f1cf3dec237d9877addacd2288befe70baa82338be6  ./fixture.schema.json
-80c332e58c6633b42038d98436a697a6738aa5761a287f284bc48586840f1934  ./fixtures/MANIFEST.json
-949a7bd66908e41c36f63d0cca2a4a1fa1ef6c115c0dde995ae5414205b29c37  ./fixtures/PROMOTED_FROM
+2cdbc829c841ae931bc3aa5606c8029471574ba694641a08cf3bdfedfa50ff70  ./fixture.schema.json
+9e856403cfbc89f8bd658a477dc2f207f890e5f379871160633dc5f3832da1b8  ./fixtures/MANIFEST.json
+5923623b044e97728c7fdf058657c8f3e19919608b1831f745caa747f689aeee  ./fixtures/PROMOTED_FROM
 96a518587c83c9d89654f66a0f69877e3c2fe10216e5914f8f5d69df2398f607  ./fixtures/canonical/01-create-shaped.json
 7080c894938943bc85e7d3455fd3973df52d299f8ef85088ad7fedfc14d8644a  ./fixtures/canonical/02-update-shaped.json
 63f73b99177ae0635692f3443367a15eaa9208d986c87c0967c1645258b1779d  ./fixtures/canonical/03-wire-evidence-card-request.json
@@ -49,7 +49,7 @@ f146ff72f56aa34fb89d14accf40f0ec12341b46f3cdf7d3a0fd363e6584376e  ./fixtures/gat
 270b1d5d1818d1827b698a866351c131bef19fc01aaf4aec241c4c832edb7c94  ./fixtures/gate/17-threshold-without-scorer.json
 16eb74631e56b9ca55226bab0b311c1590c3f7a76d6653996c764c134863f807  ./fixtures/sequence-a/01-approve-round-trip.json
 4746364993b6a09bb1f76127df5c1254412a124ceab104ffdf503eac6c0f8ef6  ./fixtures/sequence-a/02-reject-round-trip.json
-7fc41b2214ee3d60ef6da197a060afceace8c03a182c976d7de503a90227e9a5  ./fixtures/sequence-a/03-typed-inputs-on-the-card.json
+399cb28aae86d45ac559eac282b7493814a0abc4c5c3f1543fd5607dafb99078  ./fixtures/sequence-a/03-typed-inputs-on-the-card.json
 279323ca258b0d6bfdfe9d7d88db8dd947563e63b2d1491473aa07143a441335  ./fixtures/sequence-a/04-picker-external-binding.json
 c475e35784ddd0df9b948b45e4a128e20961eca5f955aa187f3037e19bada7b2  ./fixtures/sequence-a/05-mandatory-field-left-empty.json
 433ec43980b7f708c6d96c2c71fc35cc5909f3391b4868b2f2874a7b359522f2  ./fixtures/sequence-a/06-mandatory-field-reviewer-approves.json
@@ -106,6 +106,7 @@ b8bce299e7c853d82f85e052cd9b329d045e7072e12147e4cafc25df12d60861  ./fixtures/v0.
 5506ae698a6fc2c218c79b83e5fed9f05e5deff8b5705932432c372adfbc3e1b  ./fixtures/v0.1/evidence-card-request/03-resubmission.json
 800f3b24431e6e9fecff5a424d779e285f6e87e9ad713df90b1e894ddf289bd9  ./fixtures/v0.1/evidence-card-request/04-presentation-hints.json
 593ad2e8b13288815fc33316fa37910cae1a7df901d3471d1d764a6c1c5af02e  ./fixtures/v0.1/evidence-card-request/05-blocked-with-warnings.json
+923f515931724bd297a8d92b4764d802b7877575aeb5a14f9fe766e1f791d2f5  ./fixtures/v0.1/evidence-card-request/06-host-operation.json
 56c90e676f3460e2db69b289c795effc78e71e45d2af320525d4df0652437988  ./fixtures/v0.1/evidence-card-request/90-missing-protocol-version.json
 ea422396d1bec8168ee2c33115a33290befc7cd394001d08a0e365113141bd63  ./fixtures/v0.1/evidence-card-request/91-presentation-unknown-key.json
 e9b3649dca4f072ed56630cb204fbaeec41c79f7fdec4065838bc1aad7c52d91  ./fixtures/v0.1/evidence-card-request/92-warnings-not-an-array.json

@@ -152,33 +152,37 @@
           "name": "status",
           "kind": "enum",
           "value": "Active",
-          "allowedValues": ["Draft", "Active", "Retired"],
-          "pattern": null,
           "isMandatory": true
         },
         {
           "name": "amount",
           "kind": "number",
           "value": 40,
-          "allowedValues": null,
-          "pattern": "^\\d+(\\.\\d{1,2})?$",
           "isMandatory": true
         },
         {
           "name": "dueOn",
           "kind": "date",
           "value": "2026-10-01",
-          "allowedValues": null,
-          "pattern": null,
           "isMandatory": false
         },
         {
           "name": "note",
           "kind": "text",
           "value": "raised in chat",
-          "allowedValues": null,
-          "pattern": null,
           "isMandatory": false
+        }
+      ],
+      "presentation": [
+        {
+          "name": "status",
+          "kind": "enum",
+          "allowedValues": ["Draft", "Active", "Retired"]
+        },
+        {
+          "name": "amount",
+          "kind": "number",
+          "pattern": "^\\d+(\\.\\d{1,2})?$"
         }
       ]
     }

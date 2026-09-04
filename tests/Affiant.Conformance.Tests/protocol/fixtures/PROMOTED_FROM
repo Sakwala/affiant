@@ -3,11 +3,23 @@ seven canonical byte vectors under canonical/ were promoted — copied unchanged
 file name and content — from the TypeScript reference implementation.
 
   repository  Sakwala/affiant-ts   https://github.com/Sakwala/affiant-ts
-  commit      c4591eaf332483e2a5a47e161410feaed718aa29
+  commit      aed3bfb045e21c65b978ed1b5d661fee7905ecad
   package     @affiant/core 0.1.0-alpha.0
   path        packages/core/test/fixtures/{gate,decide,sequence-a,sequence-c,canonical}
   runner      packages/core/src/testing.ts, published as @affiant/core/testing
   promoted    2026-09-04
+
+One document was re-promoted after the first promotion, from `c4591ea` to the commit above:
+`sequence-a/typed-inputs-on-the-card`. Its `expect.card.fields[]` stated `allowedValues` and
+`pattern`, which is where the reference implementation carried them before it was aligned to
+this version's wire; v0.1 puts both on the card envelope, in `presentation`, so the fixture
+named keys a v0.1 card does not have and every driver had to map them. It now states
+`expect.card.presentation[]`, and `conformance/RUNNER.md` §4.2 and
+`conformance/fixture.schema.json` were changed with it. That was possible only because no
+version tag existed yet: a parity manifest cites a fixture by id, so one produced against one
+set of bytes says nothing about another. Every run published under conformance/results/ names
+on its own record the ref it was produced against, which is how a reader tells which set of
+bytes a given claim is about.
 
 Byte-identical, and deliberately so. A parity manifest cites a fixture by its id, so a
 rename silently changes what a published document refers to; and a fixture edited on

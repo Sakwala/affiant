@@ -427,6 +427,14 @@
         "notes": "The same card as 02-blocked with the warning that run emitted, verbatim. The sentence and the blocked marker say the same thing twice on purpose: the marker is what a surface switches on, the sentence is what a person reads. presentation is absent — that host declared no field schema, so there were no constraints to carry — which shows the two properties are independent."
       },
       {
+        "id": "v0.1/evidence-card-request/06-host-operation",
+        "file": "v0.1/evidence-card-request/06-host-operation.json",
+        "schema": "schemas/0.1.0/evidence-card-request.schema.json",
+        "kind": "positive",
+        "derivedFrom": "@affiant/core fixture sequence-a/typed-inputs-on-the-card (Sakwala/affiant-ts, packages/core/test/fixtures), with hostOperation authored: that fixture wires its tool up without an operation label, so no run of it emits one",
+        "notes": "The same card as 04-presentation-hints, carrying the host's own verb for the operation. The value is the one the shipped .NET wire puts in affidavit.operationType at 0.0.1-seed, \"WriteUpdate\", because that is the migration this property exists for: v0.1 makes operationType the protocol's two-valued SHAPE, so a rule about shape stays a predicate a policy can test without knowing any host's vocabulary, and the host's own word travels beside it on the envelope instead of being dropped. 04-presentation-hints carries no hostOperation, which is the other half of the check: the property is optional and a card without it is valid."
+      },
+      {
         "id": "v0.1/evidence-card-request/90-missing-protocol-version",
         "file": "v0.1/evidence-card-request/90-missing-protocol-version.json",
         "schema": "schemas/0.1.0/evidence-card-request.schema.json",

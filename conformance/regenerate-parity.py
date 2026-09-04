@@ -14,7 +14,9 @@ among its diffs. The cause carries the disposition and the sentence a reader dec
 adopt this framework needs -- what it does instead, and why that matters. The dispositions are the
 rulebook's four: `fixed` (a SHIPPED release corrects it, named in `fixedIn`), `planned` (scheduled
 for a named release, in `plannedFor`), `fenced` (a host-side workaround contains it now, and the fix
-is still scheduled) and `ignored` (nothing is being done). Nothing here is `ignored`.
+is still scheduled) and `ignored` (nothing is being done). Nothing here is `ignored`, and nothing is
+`fixed` either: every correction is on a branch or on a schedule, and no release carrying one has
+shipped.
 """
 import json
 import pathlib
@@ -211,20 +213,23 @@ CAUSES = {
     ),
 }
 
-# The one row a SHIPPED release already corrects. `fixedIn` names a release that exists; a release
-# still to come is `plannedFor` on a "planned" or "fenced" row instead.
-FIXED = {
+# Rows scheduled for a release other than PLANNED_FOR. `fixedIn` is for a release that has SHIPPED
+# -- a version a reader can install -- and nothing here qualifies yet, so these are `planned` and
+# name their own release in `plannedFor`.
+SCHEDULED = {
     "gate/standing-order-by-the-book": (
         "1.0.0-beta.1.1",
         "The shipped default risk scorer never returns the grade the default Standing Order "
-        "threshold demands, so a by-the-book Standing Order can never fire. The risk-floor change "
-        "in 1.0.0-beta.1.1 (Sakwala/affiant#53) closes that. The row still fails at 1.0.0-beta.1 "
-        "for what that release does not carry either way: the row a Standing Order approves has no "
-        "attestation record and no execution state, and both are planned for 1.0.0-beta.3. No "
-        "declarative fixture reaches the risk floor itself -- a fixture's declared policy binds to "
-        "IApprovalPolicy, and the floor is in StandingOrderBase with the default scorer -- so what "
-        "refutes it is the framework's own RiskConfigurationTests, which arrive with that change "
-        "(Affiant.Policies.Tests, Sakwala/affiant#53).",
+        "threshold demands, so a by-the-book Standing Order can never fire. The fix is written and "
+        "green on branch build/risk-floor (Sakwala/affiant#53) and ships as 1.0.0-beta.1.1, which "
+        "is NOT RELEASED: this row is planned rather than fixed, because \"fixed\" names a version a "
+        "reader can install and this one cannot be installed yet. The row still fails at "
+        "1.0.0-beta.1 for what that release does not carry either way: the row a Standing Order "
+        "approves has no attestation record and no execution state, and both are planned for "
+        "1.0.0-beta.3. No declarative fixture reaches the risk floor itself -- a fixture's declared "
+        "policy binds to IApprovalPolicy, and the floor is in StandingOrderBase with the default "
+        "scorer -- so what refutes it is the framework's own RiskConfigurationTests, which arrive "
+        "with that change (Affiant.Policies.Tests, Sakwala/affiant#53).",
     ),
 }
 
@@ -297,11 +302,11 @@ def main():
             "rules": fixture["rules"],
         }
 
-        if result["id"] in FIXED:
-            fixed_in, detail = FIXED[result["id"]]
-            row["disposition"] = "fixed"
+        if result["id"] in SCHEDULED:
+            planned_for, detail = SCHEDULED[result["id"]]
+            row["disposition"] = "planned"
             row["detail"] = detail
-            row["fixedIn"] = fixed_in
+            row["plannedFor"] = planned_for
         else:
             disposition, detail, extra = CAUSES[cause_of(result)]
             row["disposition"] = disposition
@@ -362,9 +367,11 @@ NOTES = (
     "First run of the .NET conformance driver, against the shipped packages at 1.0.0-beta.1. "
     "Four things a reader of this document alone should know. "
     "(1) Most rows carry disposition \"planned\" with plannedFor 1.0.0-beta.3: the gap is measured, "
-    "written down and scheduled for that release. The ten fenced rows name a host-side workaround "
-    "that contains the gap today AND the same release, because a fence is the honest disposition "
-    "now, not the end of the work. "
+    "written down and scheduled for that release. One further row is planned for 1.0.0-beta.1.1, "
+    "whose fix is written and green on a branch but unreleased; no row is \"fixed\", because that "
+    "value names a release a reader can install. The ten fenced rows name a host-side workaround "
+    "that contains the gap today AND the 1.0.0-beta.3 release, because a fence is the honest "
+    "disposition now, not the end of the work. "
     "(2) There is no injectable clock in this release: ReviewGate reads DateTimeOffset.UtcNow at "
     "four sites and the expiry sweep at a fifth, none of them injectable, and there is no "
     "TimeProvider seam anywhere in the packages. Four fixtures -- decide/expired-amendments-preserved, "
