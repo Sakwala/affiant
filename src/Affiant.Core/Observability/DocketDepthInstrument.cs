@@ -29,13 +29,14 @@ using Microsoft.Extensions.Logging;
 /// sample is older than <see cref="MinimumSampleInterval"/>, starts one background refresh. A
 /// metrics scrape therefore costs a dictionary read, never a store round trip, and a scrape storm
 /// cannot multiply into store load — at most one refresh is in flight at a time.</item>
-/// <item><b>At most one listing per interval.</b> The refresh calls
-/// <see cref="IDocketStore.ListAllPendingAsync"/> once, which is the same listing
-/// <c>DocketExpiryService</c>'s sweep already performs every 30 seconds. At the 15-second default
-/// this roughly doubles that one query's frequency and adds nothing else.</item>
-/// <item><b>Bounded cardinality.</b> At most <see cref="MaxTenantSeries"/> tenant series are
-/// reported; the remaining tenants are summed into a single <c>__other__</c> series, so a host with
-/// ten thousand tenants cannot turn one gauge into ten thousand time series in the collector.</item>
+/// <item><b>A count, never the rows.</b> The refresh calls
+/// <see cref="IDocketStore.CountPendingAsync"/> once — <c>COUNT(*)</c> on a SQL store. It used to
+/// call the unpaged <c>ListAllPendingAsync</c>, materialising every pending row in the deployment
+/// across every tenant, which is the same unbounded whole-store read the expiry sweep was bounded to
+/// stop doing (DK-3).</item>
+/// <item><b>One series.</b> The gauge reports the depth and nothing else. It used to break the count
+/// down by tenant, which is a reading only a whole-store listing could produce; a host that wants
+/// per-tenant depth reads its own store with its own scoped, paged query.</item>
 /// <item><b>Stale by design.</b> The value can be up to <see cref="MinimumSampleInterval"/> plus one
 /// refresh old, and the very first scrape after startup reports nothing at all if the first refresh
 /// has not landed. A depth gauge is a trend signal; anyone treating it as a transactional count of
@@ -60,23 +61,27 @@ public sealed class DocketDepthInstrument : IHostedService, IDisposable
     /// <summary>The gauge's instrument name.</summary>
     public const string InstrumentName = "affiant.docket.pending";
 
-    /// <summary>The tag carrying the tenant a series counts entries for.</summary>
+    /// <summary>
+    /// The tag a per-tenant series used to carry.
+    /// </summary>
+    /// <remarks>
+    /// No longer emitted: breaking the depth down by tenant needed the whole Docket in memory, and a
+    /// store never loads it (DK-3). The constant stays for one release so a host's own dashboards
+    /// and alerts can be moved off it deliberately rather than by a name silently disappearing.
+    /// </remarks>
     public const string TenantTag = "tenant.id";
 
-    /// <summary>
-    /// The series every tenant past <see cref="MaxTenantSeries"/> is summed into, so cardinality is
-    /// bounded by the framework rather than by how many tenants a host has.
-    /// </summary>
+    /// <summary>The series the tenant tail used to be summed into. No longer emitted; see <see cref="TenantTag"/>.</summary>
     public const string OverflowTenantId = "__other__";
 
     /// <summary>
     /// How stale a sample may be before an observation starts a refresh. Chosen against
-    /// <c>DocketExpiryService</c>'s 30-second sweep: one extra listing per sweep interval is a cost
-    /// an operator can reason about.
+    /// <c>DocketExpiryService</c>'s 30-second sweep: one extra count per sweep interval is a cost an
+    /// operator can reason about.
     /// </summary>
     public static readonly TimeSpan MinimumSampleInterval = TimeSpan.FromSeconds(15);
 
-    /// <summary>The most tenant series the gauge will report before folding the rest into one.</summary>
+    /// <summary>The old per-tenant series cap. No longer applied; see <see cref="TenantTag"/>.</summary>
     public const int MaxTenantSeries = 100;
 
     private readonly IServiceScopeFactory _scopeFactory;
@@ -182,8 +187,12 @@ public sealed class DocketDepthInstrument : IHostedService, IDisposable
                 return;
             }
 
-            var pending = await store.ListAllPendingAsync(_stopping.Token).ConfigureAwait(false);
-            Volatile.Write(ref _snapshot, Summarise(pending));
+            // A count, never the rows (DK-3). This used to call the unpaged ListAllPendingAsync —
+            // every pending row in the deployment, across every tenant, in one list, at most every
+            // fifteen seconds — which is the same unbounded whole-store read the expiry sweep was
+            // bounded to stop doing.
+            var depth = await store.CountPendingAsync(_stopping.Token).ConfigureAwait(false);
+            Volatile.Write(ref _snapshot, depth == 0 ? [] : [new Measurement<long>(depth)]);
         }
         catch (OperationCanceledException) when (_stopping.IsCancellationRequested)
         {
@@ -205,42 +214,4 @@ public sealed class DocketDepthInstrument : IHostedService, IDisposable
         }
     }
 
-    private static Measurement<long>[] Summarise(IReadOnlyList<Abstractions.Models.DocketEntry> pending)
-    {
-        if (pending.Count == 0) return [];
-
-        var byTenant = new Dictionary<string, long>(StringComparer.Ordinal);
-        foreach (var entry in pending)
-        {
-            var tenant = string.IsNullOrEmpty(entry.TenantId) ? "unknown" : entry.TenantId;
-            byTenant[tenant] = byTenant.GetValueOrDefault(tenant) + 1;
-        }
-
-        if (byTenant.Count <= MaxTenantSeries)
-        {
-            return [.. byTenant.Select(kv => new Measurement<long>(kv.Value, new KeyValuePair<string, object?>(TenantTag, kv.Key)))];
-        }
-
-        // Deepest queues first: the tenants an operator would act on keep their own series, and the
-        // long tail becomes one. Ties break on the tenant id so the reported set is stable between
-        // samples rather than shuffling with dictionary order.
-        var ranked = byTenant
-            .OrderByDescending(kv => kv.Value)
-            .ThenBy(kv => kv.Key, StringComparer.Ordinal)
-            .ToArray();
-
-        var measurements = new List<Measurement<long>>(MaxTenantSeries + 1);
-        for (var i = 0; i < MaxTenantSeries; i++)
-        {
-            measurements.Add(new Measurement<long>(
-                ranked[i].Value, new KeyValuePair<string, object?>(TenantTag, ranked[i].Key)));
-        }
-
-        long overflow = 0;
-        for (var i = MaxTenantSeries; i < ranked.Length; i++) overflow += ranked[i].Value;
-        measurements.Add(new Measurement<long>(
-            overflow, new KeyValuePair<string, object?>(TenantTag, OverflowTenantId)));
-
-        return [.. measurements];
-    }
 }

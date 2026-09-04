@@ -153,6 +153,8 @@ public sealed class PreviousValueSourceWireUpTests
         public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct)
             => throw new NotSupportedException();
 
+        public Task<long> CountPendingAsync(CancellationToken ct) => Task.FromResult(0L);
+
         public Task<IReadOnlyList<DocketEntry>> ListAllPendingAsync(CancellationToken ct)
             => throw new NotSupportedException();
 

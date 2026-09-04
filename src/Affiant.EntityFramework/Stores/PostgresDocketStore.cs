@@ -85,6 +85,8 @@ public sealed class PostgresDocketStore(
         Guid entryId, DocketScope scope, BlockedMarker marker, CancellationToken ct)
         => _docket.MarkBlockedAsync(entryId, scope, marker, ct);
 
+    public Task<long> CountPendingAsync(CancellationToken ct) => _docket.CountPendingAsync(ct);
+
     public Task<DocketPageResult<DocketEntry>> ListPendingAsync(
         DocketScope scope, DocketPage page, CancellationToken ct)
         => _docket.ListPendingAsync(scope, page, ct);

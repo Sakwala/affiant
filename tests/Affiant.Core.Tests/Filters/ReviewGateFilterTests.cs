@@ -410,6 +410,8 @@ public class ReviewGateFilterTests
         public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct)
             => Task.FromResult<IReadOnlyList<DocketEntry>>([]);
 
+        public Task<long> CountPendingAsync(CancellationToken ct) => Task.FromResult(0L);
+
         public Task<IReadOnlyList<DocketEntry>> ListAllPendingAsync(CancellationToken ct)
             => Task.FromResult<IReadOnlyList<DocketEntry>>([]);
 
@@ -464,6 +466,8 @@ public class ReviewGateFilterTests
     /// <summary>FileDocketEntryAsync throws OperationCanceledException — must propagate, never rewritten.</summary>
     private sealed class CancellingDocketStore : IDocketStore
     {
+        public Task<long> CountPendingAsync(CancellationToken ct) => Task.FromResult(0L);
+
         public Task SaveContextAsync(string sessionId, ConversationContext context, CancellationToken ct)
             => Task.CompletedTask;
 
@@ -540,6 +544,8 @@ public class ReviewGateFilterTests
 
     private sealed class FakeDocketStore : IDocketStore
     {
+        public Task<long> CountPendingAsync(CancellationToken ct) => Task.FromResult(0L);
+
         public readonly List<DocketEntry> Filed = [];
 
         public Task FileDocketEntryAsync(DocketEntry entry, CancellationToken ct)

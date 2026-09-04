@@ -28,15 +28,19 @@ namespace Affiant.Docket.Services;
 /// tests.
 /// </para>
 /// <para>
-/// <b>A tick is bounded, and the bound covers the whole tick.</b> Each call to the store takes at
-/// most <see cref="AffiantDocketOptions.ExpirySweepBatchSize"/> rows, and a tick spends at most
+/// <b>A tick is bounded, phase by phase.</b> Each call to the store takes at most
+/// <see cref="AffiantDocketOptions.ExpirySweepBatchSize"/> rows, and each of the three phases — the
+/// due queue, the expiry warnings and the Evidence Card re-broadcast — spends at most
 /// <see cref="AffiantDocketOptions.ExpirySweepBatchSize"/> ×
-/// <see cref="AffiantDocketOptions.ExpirySweepBatchesPerTick"/> rows across <em>all three phases
-/// together</em> — the due queue, the expiry warnings and the Evidence Card re-broadcast. A backlog
-/// larger than the product drains across ticks rather than turning one tick into an unbounded pass,
-/// and each phase resumes from the cursor it stopped at rather than re-walking the same first rows,
-/// so a row past the budget is reached on a later tick instead of never. Nothing is lost in the
-/// meantime, because of the paragraph above.
+/// <see cref="AffiantDocketOptions.ExpirySweepBatchesPerTick"/> rows of its own, so a tick touches
+/// at most three times that many. Each phase has its own budget rather than a share of one because
+/// a shared budget is spent in phase order: the warning phase spends for every pending row it walks,
+/// whether or not it warns about anything, so a pending set larger than the budget left the
+/// re-broadcast phase with nothing on every tick for ever. A backlog larger than a phase's budget
+/// drains across ticks rather than turning one tick into an unbounded pass, and each phase resumes
+/// from the cursor it stopped at rather than re-walking the same first rows, so a row past the
+/// budget is reached on a later tick instead of never. Nothing is lost in the meantime, because of
+/// the paragraph above.
 /// </para>
 /// <para>
 /// <paramref name="transport"/> is optional — the Affiant.Docket package must not hard-require a
@@ -142,10 +146,12 @@ public sealed class DocketExpiryService(
         var batchSize = _docketOptions.ExpirySweepBatchSize;
         var sweepScope = _docketOptions.SweepScope;
 
-        // One budget for the whole tick (DK-3). Every row any phase touches spends from it, so
-        // "a tick touches at most ExpirySweepBatchSize x ExpirySweepBatchesPerTick rows" is true of
-        // the tick and not only of its first phase. What a phase does not reach this tick it reaches
-        // on the next, from the cursor it stopped at.
+        // A budget PER PHASE (DK-3). One shared budget spent in phase order starved the phases
+        // behind it: the warning phase decrements for every pending row it WALKS, whether or not it
+        // warns about anything, so with a pending set larger than the budget the Evidence Card
+        // re-broadcast got nothing on every tick for ever and its cursor never advanced. Each phase
+        // now has its own budget and its own cursor, so a tick touches at most three times
+        // ExpirySweepBatchSize x ExpirySweepBatchesPerTick rows and no phase can starve another.
         var budget = batchSize * _docketOptions.ExpirySweepBatchesPerTick;
 
         // Phase 1: drain the due queue in bounded batches.
@@ -183,7 +189,7 @@ public sealed class DocketExpiryService(
         if (transport is not null && options.DocketExpiryWarningWindow > TimeSpan.Zero)
         {
             var warningThreshold = now.Add(options.DocketExpiryWarningWindow);
-            (_warningCursor, budget) = await WalkPendingAsync(
+            (_warningCursor, _) = await WalkPendingAsync(
                 store, sweepScope, batchSize, _warningCursor, budget, ct, async entry =>
                 {
                     if (entry.ExpiresAt > warningThreshold) return;
@@ -196,7 +202,7 @@ public sealed class DocketExpiryService(
         // Phase 3: re-broadcast the Evidence Card for every entry still pending after phase 1.
         if (transport is not null)
         {
-            (_rebroadcastCursor, budget) = await WalkPendingAsync(
+            (_rebroadcastCursor, _) = await WalkPendingAsync(
                 store, sweepScope, batchSize, _rebroadcastCursor, budget, ct, async entry =>
                 {
                     // The card reports the ROW: the state an approval accepted where there is one,
@@ -220,8 +226,8 @@ public sealed class DocketExpiryService(
     /// development and fatal in production.
     /// </remarks>
     /// <summary>
-    /// Walks the pending rows from where this phase left off, spending from the tick's shared
-    /// budget, and returns the cursor to resume from next tick (DK-3).
+    /// Walks the pending rows from where this phase left off, spending this phase's own budget, and
+    /// returns the cursor to resume from next tick (DK-3).
     /// </summary>
     /// <remarks>
     /// The cursor is what makes a bounded phase a <em>fair</em> one: without it every tick would

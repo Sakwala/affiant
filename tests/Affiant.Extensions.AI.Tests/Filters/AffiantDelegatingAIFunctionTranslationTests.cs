@@ -247,6 +247,8 @@ public class AffiantDelegatingAIFunctionTranslationTests
         public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct) =>
             Task.FromResult<IReadOnlyList<DocketEntry>>([]);
 
+        public Task<long> CountPendingAsync(CancellationToken ct) => Task.FromResult(0L);
+
         public Task<IReadOnlyList<DocketEntry>> ListAllPendingAsync(CancellationToken ct) =>
             Task.FromResult<IReadOnlyList<DocketEntry>>([]);
 

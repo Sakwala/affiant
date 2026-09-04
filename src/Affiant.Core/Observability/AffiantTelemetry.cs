@@ -146,10 +146,10 @@ public static class AffiantTelemetry
     /// <param name="fieldCount">How many fields the Affidavit swears to — a count, never the fields.</param>
     /// <param name="created"><see langword="true"/> when this call filed the entry, <see langword="false"/> on an idempotent replay.</param>
     /// <param name="requirement">
-    /// The requirement level the policy chain returned, or <see langword="null"/> where it is not yet
-    /// known. In this release the .NET gate files before it evaluates the policy chain, so filing
-    /// time never knows the requirement and the attribute is absent; it arrives when the pipeline is
-    /// reordered to the rulebook's GT-1 order.
+    /// The requirement level the policy chain returned. Present on a filing: the chain runs before
+    /// the row is filed (GT-1), so the event says what the row was filed as rather than guessing.
+    /// <see langword="null"/> only where a caller genuinely has no requirement to report — a replay,
+    /// where the row already has one.
     /// </param>
     public static void RecordAffidavitFiled(
         string toolName,
@@ -213,12 +213,14 @@ public static class AffiantTelemetry
     /// <param name="amended">Whether the transition carried reviewer amendments.</param>
     /// <param name="execution">
     /// The execution outcome on an approved row, or <see langword="null"/> where the row carries
-    /// none. This release has no execution-outcome state, so it is always absent.
+    /// none. Present on an approval and on an execution report; absent on a rejection or an expiry,
+    /// which have no write to have an outcome for.
     /// </param>
     /// <param name="decisionKind">The kind of decision, where the seam knows it.</param>
     /// <param name="attestationKind">
-    /// The kind of attestation written on the row, or <see langword="null"/>. This release writes no
-    /// attestation record, so it is always absent.
+    /// The kind of attestation written on the row — <c>member</c>, <c>member-via-relay</c> or
+    /// <c>standing-order</c> — or <see langword="null"/> for a transition nobody decided, such as an
+    /// expiry.
     /// </param>
     public static void RecordDocketTransition(
         Guid entryId,
@@ -261,8 +263,8 @@ public static class AffiantTelemetry
     /// </param>
     /// <param name="path">Which path refused: <c>decide</c>, <c>mark-executed</c> or <c>resubmit</c>.</param>
     /// <param name="principalKind">
-    /// The kind of principal that acted — the kind, never the identifier. This release's decision
-    /// surface takes no principal, so it is absent until the gate checks identity.
+    /// The kind of principal that acted — the kind, never the identifier. <see langword="null"/>
+    /// only where identity did not resolve, which is itself one of the refusals this event reports.
     /// </param>
     public static void RecordDecisionUnauthorized(
         Guid entryId,

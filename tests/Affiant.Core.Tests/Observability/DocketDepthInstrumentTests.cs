@@ -9,13 +9,14 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 /// <summary>
-/// The docket-depth gauge (repo issue #66): <c>affiant.docket.pending</c> reports how many entries
-/// are awaiting review, per tenant, without a metrics scrape ever touching the store.
+/// The docket-depth gauge: <c>affiant.docket.pending</c> reports how many entries are awaiting
+/// review, without a metrics scrape ever touching the store — and without the refresh loading the
+/// Docket to find out (DK-3). It asks the store for a count.
 /// </summary>
 public class DocketDepthInstrumentTests
 {
     [Fact]
-    public async Task ReportsPendingEntries_PerTenant()
+    public async Task ReportsHowManyAreAwaitingReview()
     {
         var store = new StubDocketStore();
         store.AddPending("tenant-a", 3);
@@ -25,10 +26,27 @@ public class DocketDepthInstrumentTests
             Scopes(store), NullLogger<DocketDepthInstrument>.Instance);
         await instrument.StartAsync(CancellationToken.None);
 
-        var measurements = await CollectWhenSampledAsync(instrument);
+        Assert.Equal(4, await CollectWhenSampledAsync(instrument));
+    }
 
-        Assert.Equal(3, measurements["tenant-a"]);
-        Assert.Equal(1, measurements["tenant-b"]);
+    /// <summary>
+    /// DK-3: the refresh asks for a count and never for the rows. The store this gauge is pointed
+    /// at refuses the unpaged listing outright, so a gauge that went back to loading the Docket
+    /// fails here rather than quietly costing a host every pending row every fifteen seconds.
+    /// </summary>
+    [Fact]
+    public async Task TheRefreshAsksForACount_NeverForTheRows()
+    {
+        var store = new StubDocketStore();
+        store.AddPending("tenant-a", 25);
+
+        using var instrument = new DocketDepthInstrument(
+            Scopes(store), NullLogger<DocketDepthInstrument>.Instance);
+        await instrument.StartAsync(CancellationToken.None);
+
+        Assert.Equal(25, await CollectWhenSampledAsync(instrument));
+        Assert.Equal(1, store.Counts);
+        Assert.Equal(0, store.UnpagedListings);
     }
 
     [Fact]
@@ -43,37 +61,7 @@ public class DocketDepthInstrumentTests
             Scopes(store), NullLogger<DocketDepthInstrument>.Instance);
         await instrument.StartAsync(CancellationToken.None);
 
-        var measurements = await CollectWhenSampledAsync(instrument);
-
-        Assert.Equal(2, measurements["tenant-a"]);
-    }
-
-    /// <summary>
-    /// The cardinality bound is the whole reason this gauge is safe to ship: a host with more
-    /// tenants than <see cref="DocketDepthInstrument.MaxTenantSeries"/> gets the deepest queues as
-    /// their own series and the rest summed into one, so a collector's series count cannot track a
-    /// host's tenant count.
-    /// </summary>
-    [Fact]
-    public async Task TenantSeries_AreBounded_AndTheTailIsSummed()
-    {
-        var store = new StubDocketStore();
-        var overflowTenants = 25;
-        for (var i = 0; i < DocketDepthInstrument.MaxTenantSeries + overflowTenants; i++)
-        {
-            // The first MaxTenantSeries tenants each get two entries so they outrank the tail,
-            // which gets one each and folds into the overflow series.
-            store.AddPending($"tenant-{i:D4}", i < DocketDepthInstrument.MaxTenantSeries ? 2 : 1);
-        }
-
-        using var instrument = new DocketDepthInstrument(
-            Scopes(store), NullLogger<DocketDepthInstrument>.Instance);
-        await instrument.StartAsync(CancellationToken.None);
-
-        var measurements = await CollectWhenSampledAsync(instrument);
-
-        Assert.Equal(DocketDepthInstrument.MaxTenantSeries + 1, measurements.Count);
-        Assert.Equal(overflowTenants, measurements[DocketDepthInstrument.OverflowTenantId]);
+        Assert.Equal(2, await CollectWhenSampledAsync(instrument));
     }
 
     [Fact]
@@ -87,7 +75,7 @@ public class DocketDepthInstrumentTests
         // No store means no sample will ever land, so this waits for the refresh to complete rather
         // than for a measurement — the assertion is that collection stays empty and quiet.
         await Task.Delay(200);
-        Assert.Empty(Collect(instrument));
+        Assert.Null(Collect(instrument));
     }
 
     [Fact]
@@ -99,15 +87,14 @@ public class DocketDepthInstrumentTests
         using var instrument = new DocketDepthInstrument(
             Scopes(store), NullLogger<DocketDepthInstrument>.Instance);
         await instrument.StartAsync(CancellationToken.None);
-        var first = await CollectWhenSampledAsync(instrument);
-        Assert.Equal(4, first["tenant-a"]);
+        Assert.Equal(4, await CollectWhenSampledAsync(instrument));
 
         store.FailNextListing = true;
         await Task.Delay(50);
 
         // The gauge keeps reporting what it last knew rather than dropping to zero, which would read
         // on a dashboard as "the backlog cleared" when what actually happened is "the store is down".
-        Assert.Equal(4, Collect(instrument)["tenant-a"]);
+        Assert.Equal(4, Collect(instrument));
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────────────────────
@@ -124,21 +111,20 @@ public class DocketDepthInstrumentTests
     /// Sampling is deliberately asynchronous — a scrape never blocks on the store — so a test that
     /// read the gauge once would be racing the very design it is checking.
     /// </summary>
-    private static async Task<Dictionary<string, long>> CollectWhenSampledAsync(DocketDepthInstrument instrument)
+    private static async Task<long?> CollectWhenSampledAsync(DocketDepthInstrument instrument)
     {
         for (var attempt = 0; attempt < 100; attempt++)
         {
-            var measurements = Collect(instrument);
-            if (measurements.Count > 0) return measurements;
+            if (Collect(instrument) is { } depth) return depth;
             await Task.Delay(20);
         }
 
         return Collect(instrument);
     }
 
-    private static Dictionary<string, long> Collect(DocketDepthInstrument instrument)
+    private static long? Collect(DocketDepthInstrument instrument)
     {
-        var collected = new Dictionary<string, long>(StringComparer.Ordinal);
+        long? collected = null;
 
         using var listener = new MeterListener
         {
@@ -151,14 +137,7 @@ public class DocketDepthInstrumentTests
             },
         };
 
-        listener.SetMeasurementEventCallback<long>((_, measurement, tags, _) =>
-        {
-            foreach (var tag in tags)
-            {
-                if (tag.Key == DocketDepthInstrument.TenantTag)
-                    collected[(string)tag.Value!] = measurement;
-            }
-        });
+        listener.SetMeasurementEventCallback<long>((_, measurement, _, _) => collected = measurement);
 
         listener.Start();
         listener.RecordObservableInstruments();
@@ -189,8 +168,22 @@ public class DocketDepthInstrumentTests
             ExpiresAt: DateTimeOffset.UtcNow.AddMinutes(30),
             Amendments: null));
 
+        /// <summary>How many times the gauge asked for a count.</summary>
+        public int Counts { get; private set; }
+
+        /// <summary>How many times anything asked this store for every pending row.</summary>
+        public int UnpagedListings { get; private set; }
+
+        public Task<long> CountPendingAsync(CancellationToken ct)
+        {
+            Counts++;
+            if (FailNextListing) throw new InvalidOperationException("the store is unavailable");
+            return Task.FromResult(_entries.LongCount(e => e.Status == ReviewStatus.Pending));
+        }
+
         public Task<IReadOnlyList<DocketEntry>> ListAllPendingAsync(CancellationToken ct)
         {
+            UnpagedListings++;
             if (FailNextListing) throw new InvalidOperationException("the store is unavailable");
             return Task.FromResult<IReadOnlyList<DocketEntry>>(
                 [.. _entries.Where(e => e.Status == ReviewStatus.Pending)]);

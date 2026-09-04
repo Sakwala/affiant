@@ -72,6 +72,8 @@ public sealed class SessionRehydratorTests
             return Task.FromResult(pending);
         }
 
+        public Task<long> CountPendingAsync(CancellationToken ct) => Task.FromResult(0L);
+
         public Task<IReadOnlyList<DocketEntry>> ListAllPendingAsync(CancellationToken ct)
         {
             IReadOnlyList<DocketEntry> pending = Entries

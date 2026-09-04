@@ -51,8 +51,9 @@ A host that would rather schedule the sweep itself — a serverless deployment w
 How long an approval record must be kept is a legal question with a different answer in every jurisdiction the gate runs in, so the store exposes the operations and the host drives them:
 
 ```csharp
-// Age out terminal rows, in bounded steps, until nothing is left to remove.
-var policy = new DocketRetentionPolicy(DateTimeOffset.UtcNow.AddYears(-7));
+// Age out terminal rows, in bounded steps, until nothing is left to remove. The instant comes from
+// the injected TimeProvider, like every other instant the framework reads.
+var policy = new DocketRetentionPolicy(timeProvider.GetUtcNow().AddYears(-7));
 RetentionResult result;
 do
 {

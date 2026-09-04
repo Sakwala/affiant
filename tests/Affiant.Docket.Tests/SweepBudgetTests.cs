@@ -81,15 +81,55 @@ public sealed class SweepBudgetTests
         Assert.Empty(first.Intersect(second, StringComparer.Ordinal));
     }
 
+    /// <summary>
+    /// DK-3: the Evidence Card re-broadcast is never starved by the warning phase in front of it.
+    /// </summary>
+    /// <remarks>
+    /// One budget spent in phase order made this impossible to satisfy. The warning phase spends for
+    /// every pending row it <em>walks</em>, whether or not it warns about anything, so with a
+    /// pending set larger than the budget and the default two-minute warning window, phase three got
+    /// nothing on every tick for ever and its cursor never advanced. The shipped budget test hid it
+    /// by turning the warning phase off.
+    /// </remarks>
+    [Fact]
+    public async Task Phase3_IsNotStarved_UnderTheDefaultWarningWindow()
+    {
+        var clock = new FakeTimeProvider(DateTimeOffset.Parse("2026-09-04T09:00:00Z"));
+        var store = new InMemoryDocketStore(clock);
+
+        // Six pending rows, none inside the warning window: the warning phase walks them and warns
+        // about none of them.
+        for (var i = 0; i < 6; i++)
+        {
+            await store.FileDocketEntryAsync(
+                TestDocketEntry.CreateDefault(
+                    tenantId: "tenant-a",
+                    sessionId: $"session-{i}",
+                    createdAt: clock.GetUtcNow().AddSeconds(i),
+                    expiresAt: clock.GetUtcNow().AddHours(1)),
+                CancellationToken.None);
+        }
+
+        var transport = new CountingTransport();
+        var sweep = Build(
+            store, transport, clock, batchSize: 2, batchesPerTick: 1,
+            warningWindow: TimeSpan.FromMinutes(2));
+
+        await sweep.ExpireOverdueAsync(CancellationToken.None);
+
+        Assert.Equal(0, transport.Warnings);
+        Assert.Equal(2, transport.Cards);
+    }
+
     private static DocketExpiryService Build(
         InMemoryDocketStore store, IStreamingTransport transport, TimeProvider clock,
-        int batchSize, int batchesPerTick)
+        int batchSize, int batchesPerTick, TimeSpan? warningWindow = null)
     {
         var services = new ServiceCollection();
         services.AddSingleton<IDocketStore>(store);
         return new DocketExpiryService(
             services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(),
-            new AffiantCoreOptions { DocketExpiryWarningWindow = TimeSpan.Zero },
+            new AffiantCoreOptions { DocketExpiryWarningWindow = warningWindow ?? TimeSpan.Zero },
             NullLogger<DocketExpiryService>.Instance,
             transport,
             new AffiantDocketOptions
@@ -104,6 +144,8 @@ public sealed class SweepBudgetTests
     {
         public int Cards { get; private set; }
 
+        public int Warnings { get; private set; }
+
         public List<string> Sessions { get; } = [];
 
         public Task SendAsync(string connectionId, TransportEvent eventType, object payload, CancellationToken ct)
@@ -115,6 +157,10 @@ public sealed class SweepBudgetTests
             {
                 Cards++;
                 Sessions.Add(groupId);
+            }
+            else if (eventType == TransportEvent.DocketExpiring)
+            {
+                Warnings++;
             }
 
             return Task.CompletedTask;

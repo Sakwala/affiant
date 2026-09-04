@@ -348,6 +348,26 @@ public interface IDocketStore
     Task<int> MarkBlockedAsync(
         Guid entryId, DocketScope scope, BlockedMarker marker, CancellationToken ct);
 
+    /// <summary>
+    /// How many entries read <see cref="ReviewStatus.Pending"/> right now, across the whole store.
+    /// </summary>
+    /// <param name="ct">Caller cancellation.</param>
+    /// <returns>The count. Never the rows.</returns>
+    /// <remarks>
+    /// <para>
+    /// For a depth gauge and nothing else: an operator wants to know how much work is waiting, and
+    /// a number is the whole answer. DK-3 says a store never loads the whole Docket into memory, so
+    /// the one caller that wanted a depth reading must be able to ask for a depth rather than for
+    /// every row and a <c>.Count</c> — which is what it used to do, unpaged and across every tenant,
+    /// every fifteen seconds.
+    /// </para>
+    /// <para>
+    /// A SQL store answers with <c>COUNT(*)</c>; the in-memory store counts what it holds. Both
+    /// apply the deadline, so a row past its expiry is not pending and is not counted, swept or not.
+    /// </para>
+    /// </remarks>
+    Task<long> CountPendingAsync(CancellationToken ct);
+
     /// <summary>Entries that read <see cref="ReviewStatus.Pending"/> right now, in filing order, paged.</summary>
     /// <param name="scope">What the caller may see.</param>
     /// <param name="page">Where to continue and how much to take.</param>

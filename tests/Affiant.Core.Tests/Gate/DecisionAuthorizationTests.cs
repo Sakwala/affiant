@@ -582,6 +582,8 @@ public class DecisionAuthorizationTests
         public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct)
             => inner.ListPendingBySessionAsync(sessionId, ct);
 
+        public Task<long> CountPendingAsync(CancellationToken ct) => Task.FromResult(0L);
+
         public Task<IReadOnlyList<DocketEntry>> ListAllPendingAsync(CancellationToken ct)
             => inner.ListAllPendingAsync(ct);
 #pragma warning restore AFFIANT0001
@@ -636,6 +638,8 @@ public class DecisionAuthorizationTests
     /// </summary>
     private sealed class ScopeBlindDocketStore(RecordingReadsDocketStore inner) : IDocketStore
     {
+        public Task<long> CountPendingAsync(CancellationToken ct) => Task.FromResult(0L);
+
         public Task<DocketEntry?> GetDocketEntryAsync(Guid entryId, CancellationToken ct)
             => inner.GetDocketEntryAsync(entryId, ct);
 

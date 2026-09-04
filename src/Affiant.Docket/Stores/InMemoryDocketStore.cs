@@ -264,6 +264,14 @@ public sealed class InMemoryDocketStore(TimeProvider? timeProvider = null) : IDo
         }
     }
 
+    public Task<long> CountPendingAsync(CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var now = _time.GetUtcNow();
+        return Task.FromResult(
+            _entries.Values.LongCount(e => DocketRow.ReadStatus(e, now) == ReviewStatus.Pending));
+    }
+
     public Task<DocketPageResult<DocketEntry>> ListPendingAsync(
         DocketScope scope, DocketPage page, CancellationToken ct)
     {

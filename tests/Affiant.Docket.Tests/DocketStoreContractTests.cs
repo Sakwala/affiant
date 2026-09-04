@@ -833,6 +833,42 @@ public sealed class DocketStoreContractTests
 
     /// <summary>A filed entry taken through the guarded transition to approved-and-unexecuted.</summary>
     /// <summary>
+    /// DK-3: a depth reading is a count, not every row. It applies the deadline, so a row past its
+    /// expiry is not pending and is not counted, swept or not.
+    /// </summary>
+    [Theory]
+    [ClassData(typeof(DocketStoreProviderFactory))]
+    public async Task CountPending_CountsWhatReadsPending_AndNothingElse(
+        IDocketStore store, string providerName)
+    {
+        Assert.NotEmpty(providerName);
+        var tenantId = NewTenant();
+        var before = await store.CountPendingAsync(CancellationToken.None);
+
+        await store.FileDocketEntryAsync(
+            TestDocketEntry.CreateDefault(
+                tenantId: tenantId, expiresAt: DateTimeOffset.UtcNow.AddHours(1)),
+            CancellationToken.None);
+        await store.FileDocketEntryAsync(
+            TestDocketEntry.CreateDefault(
+                tenantId: tenantId, expiresAt: DateTimeOffset.UtcNow.AddHours(1)),
+            CancellationToken.None);
+
+        Assert.Equal(before + 2, await store.CountPendingAsync(CancellationToken.None));
+
+        // A decided row is not pending.
+        await TestDocketEntry.FileDecidedAsync(
+            store, ReviewStatus.Approved,
+            TestDocketEntry.CreateDefault(tenantId: tenantId, expiresAt: DateTimeOffset.UtcNow.AddHours(1)));
+        Assert.Equal(before + 2, await store.CountPendingAsync(CancellationToken.None));
+
+        // Nor is one past its deadline, swept or not.
+        await store.FileDocketEntryAsync(
+            TestDocketEntry.Expired(tenantId: tenantId), CancellationToken.None);
+        Assert.Equal(before + 2, await store.CountPendingAsync(CancellationToken.None));
+    }
+
+    /// <summary>
     /// A decision patch that names who agreed and what they chose — the least a store will accept
     /// for a row leaving pending (AZ-1).
     /// </summary>

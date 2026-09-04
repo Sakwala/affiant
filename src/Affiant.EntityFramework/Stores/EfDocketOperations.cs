@@ -391,6 +391,15 @@ internal sealed class EfDocketOperations(AffiantDbContext db, ILogger logger, Ti
 
     // ── The bounded reads ───────────────────────────────────────────────────
 
+    public async Task<long> CountPendingAsync(CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var nowTicks = time.GetUtcNow().UtcTicks;
+        return await db.Docket.AsNoTracking()
+            .Where(d => d.Status == s_pending && d.ExpiresAtTicks > nowTicks)
+            .LongCountAsync(ct);
+    }
+
     public async Task<DocketPageResult<DocketEntry>> ListPendingAsync(
         DocketScope scope, DocketPage page, CancellationToken ct)
     {
