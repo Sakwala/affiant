@@ -28,9 +28,60 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
   `TimeProvider.System`, so a host that changes nothing sees no change in behaviour.
 - **`AffiantDocketOptions`**, with `ExpirySweepBatchSize` (default `100`), settable through
   `AddAffiantDocket(d => d.ExpirySweepBatchSize = …)`.
+- **The Docket row records what happened to a write, not only that it was proposed.** `DocketEntry`
+  gains `Execution` (`Unexecuted | Executed | Failed`, non-null exactly when the row is `Approved`),
+  `ExecutionDetail`, `Decision` (`{ Kind, Reason, At }`), `Attestation` (`{ By, At, EntryId }` with
+  the three attestor kinds — `Member`, `MemberViaRelay`, `StandingOrder`), `Blocked` (a
+  `RequirementNotImplemented` or `CoverageRefused` marker), `CompositeRef`, `AmendedAffidavit`,
+  `PreservedAmendments` (`{ Amendments, At, By }`), `Supersedes` (paired with `ResubmittedTo` as
+  `Lineage`), `DecidedAt`, `ToolName` and `ProtocolVersion`. Every one of them is a *later fact*
+  appended beside what the row already held: the Affidavit as proposed is never edited, and an
+  accepted amendment is written as `AmendedAffidavit` next to it.
+- **The Docket store contract, as the rules define it.** `IDocketStore` gains
+  `TransitionAsync(entryId, scope, expected, patch, ct)` — a guarded compare-and-set answering
+  `Transitioned | AlreadyDecided | Expired | NotFound`;
+  `PreserveAmendmentsAsync(entryId, scope, amendments, act, ct)` — the amendments a refused late
+  decision carried, appended with that decision's own instant and principal;
+  `RecordExecutionAsync(entryId, scope, outcome, detail, expected, ct)` — the host's execution
+  report, accepted **once**, out of `Unexecuted`; `RecordSupersessionAsync`; `MarkBlockedAsync`;
+  `ExpireDueAsync(now, scope, limit, ct)` — a bounded sweep that reports whether more remain;
+  `ListPendingAsync` and `ListApprovedUnexecutedAsync` — cursor-paged in filing order;
+  `ApplyRetentionAsync`, `PurgeTenantAsync` and `ExportAsync`. `DocketScope` names the tenant and
+  optionally the conversation; `DocketScope.EntireStore` is the host's own maintenance scope and is
+  refused by every member that moves a row.
+- **`DocketRow`** — the row semantics all three backends share: the read-time deadline projection,
+  scope matching, patch validation and application, the retention age-from instant, and the
+  approved-unexecuted predicate. **`DocketCursor`** — the opaque page cursor the shipped stores hand
+  out and a custom store may reuse.
+- **`DocketRehydration`** — the fixed order a reconnecting client is given its Docket back: pending
+  entries first, then approved entries whose write has not been reported, each in filing order and
+  paged behind one cursor. `SessionRehydrator` reads it, and `RehydrationResult` gains
+  `ApprovedUnexecutedEntries`.
+- **`ReviewOutcome.Refused(DocketId, Code, Detail)`** and **`DocketRefusalCodes`** — the gate now
+  says *why* it refused an act rather than reporting four different things as an expiry.
+- **`DecisionAct`** — who decided, in which tenant, when and why, passed to
+  `HandleDecisionAsync`. A late decision's amendments are preserved only when the act names who
+  made them.
+- **`AffiantDocketOptions.ExpirySweepBatchesPerTick`** (default `10`) and
+  **`AffiantDocketOptions.SweepScope`** (default the whole store) — the second bound on a sweep
+  tick, and the scope a partitioned deployment narrows it to.
 
 ### Changed
 
+- **`ReviewGate` follows the rules the row now carries.** Filing writes the tool name and the
+  protocol tag. An idempotent re-file returns the existing entry and re-broadcasts its card with the
+  entry's **existing** deadline — a replay no longer refreshes it, which is what let a retrying agent
+  hold a card open indefinitely. A `MultiParty` or `ReferralRequired` verdict files the entry
+  `Pending` with a `RequirementNotImplemented` marker and refuses the write, instead of routing
+  `MultiParty` to the single-reviewer branch (a joint approval requirement satisfied by one click)
+  or writing a `Deferred` status for a transition no implementation has run. Every decision on a
+  blocked entry is refused. A decision on a non-pending entry, one that lost a race, and one that
+  arrived after the deadline are three distinct refusals. `ResubmitAsync` prefills the new proposal
+  from the superseded row's preserved amendments and writes the lineage on both rows.
+- **`DocketExpiryService` is a thin host-side scheduler.** It calls `ExpireDueAsync` in batches until
+  the store says no more remain or the per-tick cap is reached, notifies only for the rows its own
+  write transitioned, and pages its warning and re-broadcast phases. Every decision about what
+  expires is the store's.
 - **`IDocketStore.ListExpiredAsync` takes a `limit`** — `ListExpiredAsync(expiresBeforeUtc, limit,
   ct)` — and returns at most that many due entries, oldest deadline first, so one expiry sweep tick
   transitions at most `AffiantDocketOptions.ExpirySweepBatchSize` entries and a backlog drains
@@ -56,6 +107,70 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
   read no longer reports an entry as awaiting a reviewer when its window has closed, and a
   reconnecting session no longer replays a card that has run out of time. **Breaking** for a host
   with its own `IDocketStore`: apply the same projection at your read boundary.
+
+### Breaking changes and how to upgrade
+
+Pre-1.0 breaking changes are permitted by this repository's own stability policy and are declared
+here. Nothing below changes what a conforming host already does; each is a change to a contract.
+
+1. **`IDocketStore` gains eleven members** — `TransitionAsync`, `PreserveAmendmentsAsync`,
+   `RecordExecutionAsync`, `RecordSupersessionAsync`, `MarkBlockedAsync`, `ListPendingAsync`,
+   `ListApprovedUnexecutedAsync`, `ExpireDueAsync`, `ApplyRetentionAsync`, `PurgeTenantAsync`,
+   `ExportAsync` — and loses two: `ListExpiredAsync` and `MarkExpiredAsync`, both superseded by
+   `ExpireDueAsync`, which finds the due rows and commits their transitions under one guard.
+   **A host with a custom `IDocketStore` will not compile until it implements them.** That is
+   deliberate: the guarded compare-and-set, the once-only execution report and the bounded listings
+   are the properties the rules are about, and a default implementation that quietly did the wrong
+   thing would ship a store that looks conforming and is not. `Affiant.Docket`'s in-memory store is
+   the reference implementation to read; the shared row semantics are public in `DocketRow` and the
+   page cursor in `DocketCursor`, so an implementer writes queries, not rules.
+2. **`ListPendingBySessionAsync` and `ListAllPendingAsync` are deprecated** (`AFFIANT0001`): neither
+   is paged and neither is tenant-scoped. Replace with
+   `ListPendingAsync(DocketScope.Conversation(tenantId, sessionId), page, ct)` and
+   `ListPendingAsync(DocketScope.EntireStore, page, ct)`. They are removed in the release after
+   this one.
+3. **`DocketEntry.ReviewerUserId` is deprecated** (`AFFIANT0001`) in favour of
+   `DocketEntry.Attestation`, which can say *how* the claim was made — a person, a person through a
+   relay, or a Standing Order — where `ReviewerUserId` can only name one id. Removed in the release
+   after this one.
+4. **`ReviewGate.HandleDecisionAsync` returns `ReviewOutcome.Refused` where it used to return
+   `ReviewOutcome.Expired`** for a decision on a missing entry, a decision on an already-decided
+   entry, a decision that lost a race, and a decision on a blocked entry. A host that branched on
+   `Expired` for any of those adds a `Refused` arm and reads `Code`; `ReviewOutcome.Expired.
+   AmendmentsPreserved` is replaced by `Refused.Detail == "amendments-preserved"`.
+5. **A `MultiParty` or `ReferralRequired` verdict returns `ReviewOutcome.Refused`**, not
+   `ReviewOutcome.Approved` (via a single reviewer) or `ReviewOutcome.Referral`. No entry is written
+   `ReviewStatus.Deferred` any more. A host that treated `Referral` as an escalation hand-off should
+   read the `Blocked` marker on the row instead; multi-party approval is composed *above* the gate
+   until the protocol defines it.
+6. **`ReviewGate.RebroadcastPendingCardsAsync` takes a tenant id** —
+   `RebroadcastPendingCardsAsync(sessionId, tenantId, ct)` — because the listing it reads is
+   tenant-scoped.
+7. **A late decision's amendments are preserved only when the caller names who decided.** Pass a
+   `DecisionAct` with `DecidedBy` set. They are also written to `PreservedAmendments` rather than to
+   `Amendments`: what an approval *accepted* and what a refused caller *typed* are different facts,
+   and a resubmission that presented the second as the first would show a refused caller's
+   corrections as an approval's.
+8. **`ReviewGate.HandleDecisionAsync`'s optional parameters are now explicit overloads.** Existing
+   call sites keep compiling; a call that relied on named arguments past `amendments` does not.
+
+### Migrations
+
+One migration per provider, both idempotent and both safe to run against a beta.1 database.
+
+- **PostgreSQL** — `20260904040752_AddDocketRowFacts` adds the sixteen new `affiant."Docket"`
+  columns, four indexes, and **backfills** `CreatedAtTicks` / `ExpiresAtTicks` from the instants they
+  mirror. Applied by `MigrateAffiantSchemaAsync` (or `dotnet ef database update`).
+- **SQLite** — `AffiantMigrator`'s drift heal adds any of those columns the existing `Docket` table
+  lacks, creates the indexes, and backfills the tick columns row by row. SQLite has no
+  migration history here (the checked-in migrations were generated under the Npgsql provider and map
+  columns Npgsql's way); the heal is the mechanism, and it runs on every
+  `MigrateAffiantSchemaAsync`.
+- The tick columns exist because SQLite's EF provider can translate neither an inequality nor an
+  `ORDER BY` over a `DateTimeOffset` into SQL, so a paged listing or a bounded sweep would otherwise
+  have to load every candidate row and filter in memory. Both backends now read the integer, and the
+  backfill is what stops a pre-existing row from reading as filed and due at the beginning of
+  time.
 
 ## [1.0.0-beta.1] — 2026-08-23
 

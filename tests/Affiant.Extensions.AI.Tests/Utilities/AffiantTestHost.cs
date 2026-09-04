@@ -257,9 +257,76 @@ internal sealed class FakeDocketStore : IDocketStore
     public Task<IReadOnlyList<DocketEntry>> ListAllPendingAsync(CancellationToken ct)
         => Task.FromResult<IReadOnlyList<DocketEntry>>([]);
 
-    public Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(DateTimeOffset expiresBeforeUtc, int limit, CancellationToken ct)
-        => Task.FromResult<IReadOnlyList<DocketEntry>>([]);
+        // ── The scoped, guarded, paged surface ──────────────────────────────
+        // Explicit implementations that refuse: this double exists for a test that never reaches
+        // the Docket's decision surface, and a stub that quietly answered would let such a test
+        // pass against behaviour nobody wrote.
+        /// <summary>
+        /// The guarded compare-and-set, over this double's own list — the seam test decides a real
+        /// entry, so this is the one member here that has to behave rather than refuse.
+        /// </summary>
+        Task<DocketTransitionResult> IDocketStore.TransitionAsync(
+            Guid entryId, DocketScope scope, ReviewStatus expected, DocketTransitionPatch patch, CancellationToken ct)
+        {
+            var idx = Filed.FindIndex(e => e.EntryId == entryId && DocketRow.InScope(e, scope));
+            if (idx < 0)
+                return Task.FromResult<DocketTransitionResult>(new DocketTransitionResult.NotFound());
 
-    public Task MarkExpiredAsync(IEnumerable<Guid> entryIds, CancellationToken ct)
-        => Task.CompletedTask;
+            var now = DateTimeOffset.UtcNow;
+            var current = Filed[idx];
+            if (DocketRow.ReadStatus(current, now) == ReviewStatus.Expired && patch.Status != ReviewStatus.Expired)
+                return Task.FromResult<DocketTransitionResult>(new DocketTransitionResult.Expired());
+            if (current.Status != ReviewStatus.Pending)
+                return Task.FromResult<DocketTransitionResult>(new DocketTransitionResult.AlreadyDecided());
+
+            var updated = DocketRow.Apply(current, patch, now);
+            Filed[idx] = updated;
+            return Task.FromResult<DocketTransitionResult>(new DocketTransitionResult.Transitioned(updated));
+        }
+
+        Task<PreserveAmendmentsResult> IDocketStore.PreserveAmendmentsAsync(
+            Guid entryId, DocketScope scope, IReadOnlyDictionary<string, object?> amendments,
+            PreservedAct act, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        Task<RecordExecutionResult> IDocketStore.RecordExecutionAsync(
+            Guid entryId, DocketScope scope, ExecutionOutcome outcome, string? detail,
+            ExecutionOutcome expected, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        Task<RecordSupersessionResult> IDocketStore.RecordSupersessionAsync(
+            Guid entryId, DocketScope scope, Guid supersededBy, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        Task<int> IDocketStore.MarkBlockedAsync(Guid entryId, BlockedMarker marker, CancellationToken ct)
+            => Task.FromResult(0);
+
+        Task<DocketPageResult<DocketEntry>> IDocketStore.ListPendingAsync(
+            DocketScope scope, DocketPage page, CancellationToken ct)
+        {
+            var now = DateTimeOffset.UtcNow;
+            IReadOnlyList<DocketEntry> items = Filed
+                .Where(e => DocketRow.InScope(e, scope) && DocketRow.ReadStatus(e, now) == ReviewStatus.Pending)
+                .OrderBy(e => e.CreatedAt)
+                .ToList();
+            return Task.FromResult(new DocketPageResult<DocketEntry>(items, null, false));
+        }
+
+        Task<DocketPageResult<DocketEntry>> IDocketStore.ListApprovedUnexecutedAsync(
+            DocketScope scope, DocketPage page, CancellationToken ct)
+            => Task.FromResult(new DocketPageResult<DocketEntry>([], null, false));
+
+        Task<ExpireDueResult> IDocketStore.ExpireDueAsync(
+            DateTimeOffset now, DocketScope scope, int limit, CancellationToken ct)
+            => Task.FromResult(new ExpireDueResult([], false));
+
+        Task<RetentionResult> IDocketStore.ApplyRetentionAsync(
+            DocketRetentionPolicy policy, DocketScope scope, int limit, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        Task<int> IDocketStore.PurgeTenantAsync(string tenantId, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        IAsyncEnumerable<DocketEntry> IDocketStore.ExportAsync(DocketScope scope, CancellationToken ct)
+            => throw new NotSupportedException();
 }

@@ -25,6 +25,8 @@ Affiant.EntityFramework.Extensions.EntityFrameworkOptions.UseSqlite(string! conn
 Affiant.EntityFramework.Extensions.ServiceCollectionExtensions
 Affiant.EntityFramework.Migrations.AddDocketEntries
 Affiant.EntityFramework.Migrations.AddDocketEntries.AddDocketEntries() -> void
+Affiant.EntityFramework.Migrations.AddDocketRowFacts
+Affiant.EntityFramework.Migrations.AddDocketRowFacts.AddDocketRowFacts() -> void
 Affiant.EntityFramework.Migrations.AddResubmissionLineage
 Affiant.EntityFramework.Migrations.AddResubmissionLineage.AddResubmissionLineage() -> void
 Affiant.EntityFramework.Migrations.AffiantMigrator
@@ -83,17 +85,45 @@ Affiant.EntityFramework.Models.ConversationContextEntity.SessionId.set -> void
 Affiant.EntityFramework.Models.DocketEntryEntity
 Affiant.EntityFramework.Models.DocketEntryEntity.AffidavitJson.get -> string!
 Affiant.EntityFramework.Models.DocketEntryEntity.AffidavitJson.set -> void
+Affiant.EntityFramework.Models.DocketEntryEntity.AmendedAffidavitJson.get -> string?
+Affiant.EntityFramework.Models.DocketEntryEntity.AmendedAffidavitJson.set -> void
+Affiant.EntityFramework.Models.DocketEntryEntity.AmendedProvenanceChainsJson.get -> string?
+Affiant.EntityFramework.Models.DocketEntryEntity.AmendedProvenanceChainsJson.set -> void
 Affiant.EntityFramework.Models.DocketEntryEntity.AmendmentsJson.get -> string?
 Affiant.EntityFramework.Models.DocketEntryEntity.AmendmentsJson.set -> void
+Affiant.EntityFramework.Models.DocketEntryEntity.AttestationJson.get -> string?
+Affiant.EntityFramework.Models.DocketEntryEntity.AttestationJson.set -> void
+Affiant.EntityFramework.Models.DocketEntryEntity.BlockedJson.get -> string?
+Affiant.EntityFramework.Models.DocketEntryEntity.BlockedJson.set -> void
+Affiant.EntityFramework.Models.DocketEntryEntity.CompositeRef.get -> string?
+Affiant.EntityFramework.Models.DocketEntryEntity.CompositeRef.set -> void
 Affiant.EntityFramework.Models.DocketEntryEntity.CreatedAt.get -> System.DateTimeOffset
 Affiant.EntityFramework.Models.DocketEntryEntity.CreatedAt.set -> void
+Affiant.EntityFramework.Models.DocketEntryEntity.CreatedAtTicks.get -> long
+Affiant.EntityFramework.Models.DocketEntryEntity.CreatedAtTicks.set -> void
+Affiant.EntityFramework.Models.DocketEntryEntity.DecidedAt.get -> System.DateTimeOffset?
+Affiant.EntityFramework.Models.DocketEntryEntity.DecidedAt.set -> void
+Affiant.EntityFramework.Models.DocketEntryEntity.DecidedAtTicks.get -> long?
+Affiant.EntityFramework.Models.DocketEntryEntity.DecidedAtTicks.set -> void
+Affiant.EntityFramework.Models.DocketEntryEntity.DecisionJson.get -> string?
+Affiant.EntityFramework.Models.DocketEntryEntity.DecisionJson.set -> void
 Affiant.EntityFramework.Models.DocketEntryEntity.DocketEntryEntity() -> void
 Affiant.EntityFramework.Models.DocketEntryEntity.EntryId.get -> System.Guid
 Affiant.EntityFramework.Models.DocketEntryEntity.EntryId.set -> void
+Affiant.EntityFramework.Models.DocketEntryEntity.Execution.get -> string?
+Affiant.EntityFramework.Models.DocketEntryEntity.Execution.set -> void
+Affiant.EntityFramework.Models.DocketEntryEntity.ExecutionDetail.get -> string?
+Affiant.EntityFramework.Models.DocketEntryEntity.ExecutionDetail.set -> void
 Affiant.EntityFramework.Models.DocketEntryEntity.ExpiresAt.get -> System.DateTimeOffset
 Affiant.EntityFramework.Models.DocketEntryEntity.ExpiresAt.set -> void
+Affiant.EntityFramework.Models.DocketEntryEntity.ExpiresAtTicks.get -> long
+Affiant.EntityFramework.Models.DocketEntryEntity.ExpiresAtTicks.set -> void
 Affiant.EntityFramework.Models.DocketEntryEntity.OperationType.get -> string!
 Affiant.EntityFramework.Models.DocketEntryEntity.OperationType.set -> void
+Affiant.EntityFramework.Models.DocketEntryEntity.PreservedAmendmentsJson.get -> string?
+Affiant.EntityFramework.Models.DocketEntryEntity.PreservedAmendmentsJson.set -> void
+Affiant.EntityFramework.Models.DocketEntryEntity.ProtocolVersion.get -> string!
+Affiant.EntityFramework.Models.DocketEntryEntity.ProtocolVersion.set -> void
 Affiant.EntityFramework.Models.DocketEntryEntity.ProvenanceChainsJson.get -> string!
 Affiant.EntityFramework.Models.DocketEntryEntity.ProvenanceChainsJson.set -> void
 Affiant.EntityFramework.Models.DocketEntryEntity.ResubmittedTo.get -> System.Guid?
@@ -104,8 +134,12 @@ Affiant.EntityFramework.Models.DocketEntryEntity.SessionId.get -> string!
 Affiant.EntityFramework.Models.DocketEntryEntity.SessionId.set -> void
 Affiant.EntityFramework.Models.DocketEntryEntity.Status.get -> string!
 Affiant.EntityFramework.Models.DocketEntryEntity.Status.set -> void
+Affiant.EntityFramework.Models.DocketEntryEntity.Supersedes.get -> System.Guid?
+Affiant.EntityFramework.Models.DocketEntryEntity.Supersedes.set -> void
 Affiant.EntityFramework.Models.DocketEntryEntity.TenantId.get -> string!
 Affiant.EntityFramework.Models.DocketEntryEntity.TenantId.set -> void
+Affiant.EntityFramework.Models.DocketEntryEntity.ToolName.get -> string?
+Affiant.EntityFramework.Models.DocketEntryEntity.ToolName.set -> void
 Affiant.EntityFramework.Models.DocketEntryEntity.UserId.get -> string!
 Affiant.EntityFramework.Models.DocketEntryEntity.UserId.set -> void
 Affiant.EntityFramework.Stores.InMemoryChatSessionStore
@@ -125,17 +159,26 @@ Affiant.EntityFramework.Stores.PostgresChatSessionStore.LoadMessagesAsync(string
 Affiant.EntityFramework.Stores.PostgresChatSessionStore.PostgresChatSessionStore(Affiant.EntityFramework.AffiantDbContext! db, System.TimeProvider? timeProvider = null) -> void
 Affiant.EntityFramework.Stores.PostgresChatSessionStore.SaveMessagesAsync(string! sessionId, System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.AffiantChatMessage!>! messages, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
 Affiant.EntityFramework.Stores.PostgresDocketStore
+Affiant.EntityFramework.Stores.PostgresDocketStore.ApplyRetentionAsync(Affiant.Abstractions.Interfaces.DocketRetentionPolicy! policy, Affiant.Abstractions.Interfaces.DocketScope! scope, int limit, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.RetentionResult!>!
 Affiant.EntityFramework.Stores.PostgresDocketStore.ConsumeForResubmitAsync(System.Guid entryId, System.Guid newEntryId, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<int>!
+Affiant.EntityFramework.Stores.PostgresDocketStore.ExpireDueAsync(System.DateTimeOffset now, Affiant.Abstractions.Interfaces.DocketScope! scope, int limit, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.ExpireDueResult!>!
+Affiant.EntityFramework.Stores.PostgresDocketStore.ExportAsync(Affiant.Abstractions.Interfaces.DocketScope! scope, System.Threading.CancellationToken ct) -> System.Collections.Generic.IAsyncEnumerable<Affiant.Abstractions.Models.DocketEntry!>!
 Affiant.EntityFramework.Stores.PostgresDocketStore.FileDocketEntryAsync(Affiant.Abstractions.Models.DocketEntry! entry, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
 Affiant.EntityFramework.Stores.PostgresDocketStore.GetDocketEntryAsync(System.Guid entryId, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Models.DocketEntry?>!
 Affiant.EntityFramework.Stores.PostgresDocketStore.GetResubmissionParentAsync(System.Guid entryId, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Models.DocketEntry?>!
 Affiant.EntityFramework.Stores.PostgresDocketStore.ListAllPendingAsync(System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.DocketEntry!>!>!
-Affiant.EntityFramework.Stores.PostgresDocketStore.ListExpiredAsync(System.DateTimeOffset expiresBeforeUtc, int limit, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.DocketEntry!>!>!
+Affiant.EntityFramework.Stores.PostgresDocketStore.ListApprovedUnexecutedAsync(Affiant.Abstractions.Interfaces.DocketScope! scope, Affiant.Abstractions.Interfaces.DocketPage! page, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.DocketPageResult<Affiant.Abstractions.Models.DocketEntry!>!>!
+Affiant.EntityFramework.Stores.PostgresDocketStore.ListPendingAsync(Affiant.Abstractions.Interfaces.DocketScope! scope, Affiant.Abstractions.Interfaces.DocketPage! page, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.DocketPageResult<Affiant.Abstractions.Models.DocketEntry!>!>!
 Affiant.EntityFramework.Stores.PostgresDocketStore.ListPendingBySessionAsync(string! sessionId, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.DocketEntry!>!>!
 Affiant.EntityFramework.Stores.PostgresDocketStore.LoadContextAsync(string! sessionId, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Models.ConversationContext?>!
-Affiant.EntityFramework.Stores.PostgresDocketStore.MarkExpiredAsync(System.Collections.Generic.IEnumerable<System.Guid>! entryIds, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
+Affiant.EntityFramework.Stores.PostgresDocketStore.MarkBlockedAsync(System.Guid entryId, Affiant.Abstractions.Models.BlockedMarker! marker, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<int>!
 Affiant.EntityFramework.Stores.PostgresDocketStore.PostgresDocketStore(Affiant.EntityFramework.AffiantDbContext! db, Microsoft.Extensions.Logging.ILogger<Affiant.EntityFramework.Stores.PostgresDocketStore!>! logger, System.TimeProvider? timeProvider = null) -> void
+Affiant.EntityFramework.Stores.PostgresDocketStore.PreserveAmendmentsAsync(System.Guid entryId, Affiant.Abstractions.Interfaces.DocketScope! scope, System.Collections.Generic.IReadOnlyDictionary<string!, object?>! amendments, Affiant.Abstractions.Interfaces.PreservedAct! act, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.PreserveAmendmentsResult!>!
+Affiant.EntityFramework.Stores.PostgresDocketStore.PurgeTenantAsync(string! tenantId, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<int>!
+Affiant.EntityFramework.Stores.PostgresDocketStore.RecordExecutionAsync(System.Guid entryId, Affiant.Abstractions.Interfaces.DocketScope! scope, Affiant.Abstractions.Models.ExecutionOutcome outcome, string? detail, Affiant.Abstractions.Models.ExecutionOutcome expected, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.RecordExecutionResult!>!
+Affiant.EntityFramework.Stores.PostgresDocketStore.RecordSupersessionAsync(System.Guid entryId, Affiant.Abstractions.Interfaces.DocketScope! scope, System.Guid supersededBy, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.RecordSupersessionResult!>!
 Affiant.EntityFramework.Stores.PostgresDocketStore.SaveContextAsync(string! sessionId, Affiant.Abstractions.Models.ConversationContext! context, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
+Affiant.EntityFramework.Stores.PostgresDocketStore.TransitionAsync(System.Guid entryId, Affiant.Abstractions.Interfaces.DocketScope! scope, Affiant.Abstractions.Models.ReviewStatus expected, Affiant.Abstractions.Interfaces.DocketTransitionPatch! patch, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.DocketTransitionResult!>!
 Affiant.EntityFramework.Stores.PostgresDocketStore.UpdateAmendmentsAsync(System.Guid entryId, System.Collections.Generic.IReadOnlyDictionary<string!, object?>! amendments, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
 Affiant.EntityFramework.Stores.PostgresDocketStore.UpdateReviewStatusAsync(System.Guid entryId, Affiant.Abstractions.Models.ReviewStatus status, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<int>!
 Affiant.EntityFramework.Stores.SqliteChatSessionStore
@@ -147,30 +190,42 @@ Affiant.EntityFramework.Stores.SqliteChatSessionStore.LoadMessagesAsync(string! 
 Affiant.EntityFramework.Stores.SqliteChatSessionStore.SaveMessagesAsync(string! sessionId, System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.AffiantChatMessage!>! messages, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
 Affiant.EntityFramework.Stores.SqliteChatSessionStore.SqliteChatSessionStore(Affiant.EntityFramework.AffiantDbContext! db, System.TimeProvider? timeProvider = null) -> void
 Affiant.EntityFramework.Stores.SqliteDocketStore
+Affiant.EntityFramework.Stores.SqliteDocketStore.ApplyRetentionAsync(Affiant.Abstractions.Interfaces.DocketRetentionPolicy! policy, Affiant.Abstractions.Interfaces.DocketScope! scope, int limit, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.RetentionResult!>!
 Affiant.EntityFramework.Stores.SqliteDocketStore.ConsumeForResubmitAsync(System.Guid entryId, System.Guid newEntryId, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<int>!
+Affiant.EntityFramework.Stores.SqliteDocketStore.ExpireDueAsync(System.DateTimeOffset now, Affiant.Abstractions.Interfaces.DocketScope! scope, int limit, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.ExpireDueResult!>!
+Affiant.EntityFramework.Stores.SqliteDocketStore.ExportAsync(Affiant.Abstractions.Interfaces.DocketScope! scope, System.Threading.CancellationToken ct) -> System.Collections.Generic.IAsyncEnumerable<Affiant.Abstractions.Models.DocketEntry!>!
 Affiant.EntityFramework.Stores.SqliteDocketStore.FileDocketEntryAsync(Affiant.Abstractions.Models.DocketEntry! entry, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
 Affiant.EntityFramework.Stores.SqliteDocketStore.GetDocketEntryAsync(System.Guid entryId, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Models.DocketEntry?>!
 Affiant.EntityFramework.Stores.SqliteDocketStore.GetResubmissionParentAsync(System.Guid entryId, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Models.DocketEntry?>!
 Affiant.EntityFramework.Stores.SqliteDocketStore.ListAllPendingAsync(System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.DocketEntry!>!>!
-Affiant.EntityFramework.Stores.SqliteDocketStore.ListExpiredAsync(System.DateTimeOffset expiresBeforeUtc, int limit, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.DocketEntry!>!>!
+Affiant.EntityFramework.Stores.SqliteDocketStore.ListApprovedUnexecutedAsync(Affiant.Abstractions.Interfaces.DocketScope! scope, Affiant.Abstractions.Interfaces.DocketPage! page, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.DocketPageResult<Affiant.Abstractions.Models.DocketEntry!>!>!
+Affiant.EntityFramework.Stores.SqliteDocketStore.ListPendingAsync(Affiant.Abstractions.Interfaces.DocketScope! scope, Affiant.Abstractions.Interfaces.DocketPage! page, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.DocketPageResult<Affiant.Abstractions.Models.DocketEntry!>!>!
 Affiant.EntityFramework.Stores.SqliteDocketStore.ListPendingBySessionAsync(string! sessionId, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.DocketEntry!>!>!
 Affiant.EntityFramework.Stores.SqliteDocketStore.LoadContextAsync(string! sessionId, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Models.ConversationContext?>!
-Affiant.EntityFramework.Stores.SqliteDocketStore.MarkExpiredAsync(System.Collections.Generic.IEnumerable<System.Guid>! entryIds, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
+Affiant.EntityFramework.Stores.SqliteDocketStore.MarkBlockedAsync(System.Guid entryId, Affiant.Abstractions.Models.BlockedMarker! marker, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<int>!
+Affiant.EntityFramework.Stores.SqliteDocketStore.PreserveAmendmentsAsync(System.Guid entryId, Affiant.Abstractions.Interfaces.DocketScope! scope, System.Collections.Generic.IReadOnlyDictionary<string!, object?>! amendments, Affiant.Abstractions.Interfaces.PreservedAct! act, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.PreserveAmendmentsResult!>!
+Affiant.EntityFramework.Stores.SqliteDocketStore.PurgeTenantAsync(string! tenantId, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<int>!
+Affiant.EntityFramework.Stores.SqliteDocketStore.RecordExecutionAsync(System.Guid entryId, Affiant.Abstractions.Interfaces.DocketScope! scope, Affiant.Abstractions.Models.ExecutionOutcome outcome, string? detail, Affiant.Abstractions.Models.ExecutionOutcome expected, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.RecordExecutionResult!>!
+Affiant.EntityFramework.Stores.SqliteDocketStore.RecordSupersessionAsync(System.Guid entryId, Affiant.Abstractions.Interfaces.DocketScope! scope, System.Guid supersededBy, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.RecordSupersessionResult!>!
 Affiant.EntityFramework.Stores.SqliteDocketStore.SaveContextAsync(string! sessionId, Affiant.Abstractions.Models.ConversationContext! context, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
 Affiant.EntityFramework.Stores.SqliteDocketStore.SqliteDocketStore(Affiant.EntityFramework.AffiantDbContext! db, Microsoft.Extensions.Logging.ILogger<Affiant.EntityFramework.Stores.SqliteDocketStore!>! logger, System.TimeProvider? timeProvider = null) -> void
+Affiant.EntityFramework.Stores.SqliteDocketStore.TransitionAsync(System.Guid entryId, Affiant.Abstractions.Interfaces.DocketScope! scope, Affiant.Abstractions.Models.ReviewStatus expected, Affiant.Abstractions.Interfaces.DocketTransitionPatch! patch, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.DocketTransitionResult!>!
 Affiant.EntityFramework.Stores.SqliteDocketStore.UpdateAmendmentsAsync(System.Guid entryId, System.Collections.Generic.IReadOnlyDictionary<string!, object?>! amendments, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
 Affiant.EntityFramework.Stores.SqliteDocketStore.UpdateReviewStatusAsync(System.Guid entryId, Affiant.Abstractions.Models.ReviewStatus status, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<int>!
 const Affiant.EntityFramework.AffiantDbContext.DefaultSchema = "affiant" -> string!
-override Affiant.EntityFramework.AffiantDbContext.OnModelCreating(Microsoft.EntityFrameworkCore.ModelBuilder! modelBuilder) -> void
-static Affiant.EntityFramework.Extensions.ServiceCollectionExtensions.AddAffiantEntityFramework(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Affiant.EntityFramework.Extensions.EntityFrameworkOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Affiant.EntityFramework.Migrations.AffiantMigrator.GetPendingMigrationsAsync(this Affiant.EntityFramework.AffiantDbContext! context) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<string!>!>!
-static Affiant.EntityFramework.Migrations.AffiantMigrator.MigrateAffiantSchemaAsync(this Affiant.EntityFramework.AffiantDbContext! context, Microsoft.Extensions.Logging.ILogger? logger = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 ~override Affiant.EntityFramework.Migrations.AddDocketEntries.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder modelBuilder) -> void
 ~override Affiant.EntityFramework.Migrations.AddDocketEntries.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder migrationBuilder) -> void
 ~override Affiant.EntityFramework.Migrations.AddDocketEntries.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder migrationBuilder) -> void
+~override Affiant.EntityFramework.Migrations.AddDocketRowFacts.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder modelBuilder) -> void
+~override Affiant.EntityFramework.Migrations.AddDocketRowFacts.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder migrationBuilder) -> void
+~override Affiant.EntityFramework.Migrations.AddDocketRowFacts.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder migrationBuilder) -> void
 ~override Affiant.EntityFramework.Migrations.AddResubmissionLineage.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder modelBuilder) -> void
 ~override Affiant.EntityFramework.Migrations.AddResubmissionLineage.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder migrationBuilder) -> void
 ~override Affiant.EntityFramework.Migrations.AddResubmissionLineage.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder migrationBuilder) -> void
 ~override Affiant.EntityFramework.Migrations.InitialAffiantSchema.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder modelBuilder) -> void
 ~override Affiant.EntityFramework.Migrations.InitialAffiantSchema.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder migrationBuilder) -> void
 ~override Affiant.EntityFramework.Migrations.InitialAffiantSchema.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder migrationBuilder) -> void
+static Affiant.EntityFramework.Extensions.ServiceCollectionExtensions.AddAffiantEntityFramework(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Affiant.EntityFramework.Extensions.EntityFrameworkOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Affiant.EntityFramework.Migrations.AffiantMigrator.GetPendingMigrationsAsync(this Affiant.EntityFramework.AffiantDbContext! context) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<string!>!>!
+static Affiant.EntityFramework.Migrations.AffiantMigrator.MigrateAffiantSchemaAsync(this Affiant.EntityFramework.AffiantDbContext! context, Microsoft.Extensions.Logging.ILogger? logger = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+override Affiant.EntityFramework.AffiantDbContext.OnModelCreating(Microsoft.EntityFrameworkCore.ModelBuilder! modelBuilder) -> void

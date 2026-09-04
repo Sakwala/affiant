@@ -114,27 +114,29 @@ public sealed class SharedDocketStoreTests
 
     [Theory]
     [ClassData(typeof(DocketStoreProviderFactory))]
-    public async Task MarkExpired_CalledTwiceOnSameEntries_IsIdempotent(
+    public async Task ExpireDue_CalledTwiceForTheSameEntry_ExpiresItOnceAndReportsItOnce(
         IDocketStore store, string providerName)
     {
         Assert.NotEmpty(providerName);
-        var entry = TestDocketEntry.Expired();
+        var tenantId = Guid.NewGuid().ToString();
+        var entry = TestDocketEntry.Expired(tenantId: tenantId);
         await store.FileDocketEntryAsync(entry, CancellationToken.None);
+        var scope = new DocketScope(tenantId);
 
-        // First tick: identify and mark the expired entry
-        var now = DateTimeOffset.UtcNow;
-        var expired = await store.ListExpiredAsync(now, limit: 100, CancellationToken.None);
-        var ours = expired.Where(e => e.EntryId == entry.EntryId).Select(e => e.EntryId).ToList();
-        Assert.Contains(entry.EntryId, ours);
-
-        await store.MarkExpiredAsync(ours, CancellationToken.None);
+        // First tick: this call's own guarded write is the one that transitioned the row, so the row
+        // comes back in its result — which is what gives the caller the right to notify on it.
+        var first = await store.ExpireDueAsync(
+            DateTimeOffset.UtcNow, scope, limit: 100, CancellationToken.None);
+        Assert.Contains(first.Expired, e => e.EntryId == entry.EntryId);
 
         var afterFirst = await store.GetDocketEntryAsync(entry.EntryId, CancellationToken.None);
         Assert.Equal(ReviewStatus.Expired, afterFirst!.Status);
 
-        // Second tick with the same IDs: the WHERE Status = 'Pending' guard means
-        // already-Expired entries are silently skipped — no corruption, no exception
-        await store.MarkExpiredAsync(ours, CancellationToken.None);
+        // Second tick: the row is no longer pending, so the guard finds nothing to write and the
+        // sweep does not claim it again. A caller that broadcast on a repeat would double-notify.
+        var second = await store.ExpireDueAsync(
+            DateTimeOffset.UtcNow, scope, limit: 100, CancellationToken.None);
+        Assert.DoesNotContain(second.Expired, e => e.EntryId == entry.EntryId);
 
         var afterSecond = await store.GetDocketEntryAsync(entry.EntryId, CancellationToken.None);
         Assert.Equal(ReviewStatus.Expired, afterSecond!.Status);

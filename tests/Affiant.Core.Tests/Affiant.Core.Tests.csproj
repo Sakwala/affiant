@@ -9,6 +9,10 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Affiant.Abstractions\Affiant.Abstractions.csproj" />
     <ProjectReference Include="..\..\src\Affiant.Core\Affiant.Core.csproj" />
+    <!-- The shipped in-memory Docket store: the gate is exercised against the real reference
+         implementation of the store contract rather than a fake that would agree with the gate and
+         with nothing else. -->
+    <ProjectReference Include="..\..\src\Affiant.Docket\Affiant.Docket.csproj" />
     <ProjectReference Include="..\..\src\Affiant.SemanticKernel\Affiant.SemanticKernel.csproj" />
     <ProjectReference Include="..\..\src\Affiant.Testing.ComplianceHarness\Affiant.Testing.ComplianceHarness.csproj" />
   </ItemGroup>

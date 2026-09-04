@@ -16,7 +16,12 @@ public static class TestDocketEntry
         Guid? entryId = null,
         string? sessionId = null,
         ReviewStatus status = ReviewStatus.Pending,
-        DateTimeOffset? expiresAt = null)
+        DateTimeOffset? expiresAt = null,
+        string? tenantId = null,
+        DateTimeOffset? createdAt = null,
+        ExecutionOutcome? execution = null,
+        BlockedMarker? blocked = null,
+        DateTimeOffset? decidedAt = null)
     {
         var userField = new AffidavitField(
             Name: "primaryField",
@@ -40,21 +45,32 @@ public static class TestDocketEntry
             Warnings: [],
             RequiresConfirmation: false);
 
+        // An approved row carries an execution outcome and every terminal row records when it left
+        // pending — the two correlations the row's shape cannot state but every store enforces.
+        var resolvedExecution = status == ReviewStatus.Approved
+            ? execution ?? ExecutionOutcome.Unexecuted
+            : (ExecutionOutcome?)null;
+        var created = createdAt ?? DateTimeOffset.UtcNow;
+
         return new DocketEntry(
             EntryId: entryId ?? Guid.NewGuid(),
             SessionId: sessionId ?? Guid.NewGuid().ToString(),
-            TenantId: "tenant-001",
+            TenantId: tenantId ?? "tenant-001",
             UserId: "user-001",
             ReviewerUserId: "reviewer-001",
             OperationType: "test-op",
             Envelope: affidavit,
             Status: status,
-            CreatedAt: DateTimeOffset.UtcNow,
+            CreatedAt: created,
             ExpiresAt: expiresAt ?? DateTimeOffset.UtcNow.AddMinutes(10),
-            Amendments: null);
+            Amendments: null,
+            Execution: resolvedExecution,
+            Blocked: blocked,
+            DecidedAt: decidedAt ?? (status == ReviewStatus.Pending ? null : (DateTimeOffset?)created));
     }
 
     /// <summary>Returns a pending entry whose ExpiresAt is already in the past.</summary>
-    public static DocketEntry Expired(string? sessionId = null)
-        => CreateDefault(sessionId: sessionId, expiresAt: DateTimeOffset.UtcNow.AddSeconds(-5));
+    public static DocketEntry Expired(string? sessionId = null, string? tenantId = null)
+        => CreateDefault(
+            sessionId: sessionId, tenantId: tenantId, expiresAt: DateTimeOffset.UtcNow.AddSeconds(-5));
 }

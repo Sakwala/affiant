@@ -114,11 +114,12 @@ public sealed class ExpiryAsQueryableStateTests
 
     [Theory]
     [ClassData(typeof(FakeClockDocketStoreProviderFactory))]
-    public async Task ListExpiredAsync_HonoursItsLimit_AndReturnsTheOldestDeadlinesFirst(
+    public async Task ExpireDueAsync_HonoursItsLimit_AndTakesTheOldestDeadlinesFirst(
         IDocketStore store, FakeTimeProvider clock, string providerName)
     {
         Assert.NotEmpty(providerName);
         var sessionId = Guid.NewGuid().ToString();
+        var tenantId = Guid.NewGuid().ToString();
         var deadlines = new[]
         {
             Origin.AddMinutes(1),
@@ -130,32 +131,46 @@ public sealed class ExpiryAsQueryableStateTests
         foreach (var deadline in deadlines)
         {
             await store.FileDocketEntryAsync(
-                TestDocketEntry.CreateDefault(sessionId: sessionId, expiresAt: deadline),
+                TestDocketEntry.CreateDefault(sessionId: sessionId, tenantId: tenantId, expiresAt: deadline),
                 CancellationToken.None);
         }
 
         clock.SetUtcNow(Origin.AddMinutes(10));
+        var scope = new DocketScope(tenantId);
 
-        // Unpaged first, so the assertions below hold whatever else the shared Postgres container
-        // has due at this instant: our five come back in deadline order...
-        var all = await store.ListExpiredAsync(clock.GetUtcNow(), limit: 1000, CancellationToken.None);
-        var ours = all.Where(e => e.SessionId == sessionId).ToList();
-        Assert.Equal(5, ours.Count);
-        Assert.Equal(deadlines, ours.Select(e => e.ExpiresAt).ToArray());
+        // A page of two is exactly the two oldest deadlines, never an arbitrary pair — without the
+        // deadline order a store free to return any two rows could starve the oldest indefinitely.
+        var first = await store.ExpireDueAsync(clock.GetUtcNow(), scope, limit: 2, CancellationToken.None);
+        Assert.Equal(2, first.Expired.Count);
+        Assert.Equal(deadlines.Take(2), first.Expired.Select(e => e.ExpiresAt));
 
-        // ...and a page of two is exactly the first two of that order, never an arbitrary pair.
-        var page = await store.ListExpiredAsync(clock.GetUtcNow(), limit: 2, CancellationToken.None);
-        Assert.Equal(2, page.Count);
-        Assert.Equal(all.Take(2).Select(e => e.EntryId), page.Select(e => e.EntryId));
+        // ...and it says more remain, which is what lets a host drain a backlog in bounded steps
+        // instead of one unbounded pass.
+        Assert.True(first.More);
+
+        var second = await store.ExpireDueAsync(clock.GetUtcNow(), scope, limit: 2, CancellationToken.None);
+        Assert.Equal(deadlines.Skip(2).Take(2), second.Expired.Select(e => e.ExpiresAt));
+        Assert.True(second.More);
+
+        var third = await store.ExpireDueAsync(clock.GetUtcNow(), scope, limit: 2, CancellationToken.None);
+        Assert.Single(third.Expired);
+        Assert.Equal(deadlines[4], third.Expired[0].ExpiresAt);
+        Assert.False(third.More);
+
+        // Every one of them is durably expired now, and a fourth call finds nothing left.
+        var drained = await store.ExpireDueAsync(clock.GetUtcNow(), scope, limit: 2, CancellationToken.None);
+        Assert.Empty(drained.Expired);
+        Assert.False(drained.More);
     }
 
     [Theory]
     [ClassData(typeof(FakeClockDocketStoreProviderFactory))]
-    public async Task ListExpiredAsync_LimitBelowOne_IsRejected(
+    public async Task ExpireDueAsync_LimitBelowOne_IsRejected(
         IDocketStore store, FakeTimeProvider clock, string providerName)
     {
         Assert.NotEmpty(providerName);
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
-            () => store.ListExpiredAsync(clock.GetUtcNow(), limit: 0, CancellationToken.None));
+            () => store.ExpireDueAsync(
+                clock.GetUtcNow(), DocketScope.EntireStore, limit: 0, CancellationToken.None));
     }
 }

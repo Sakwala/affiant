@@ -37,7 +37,7 @@ public sealed class ReviewGate(
     /// must act — broadcasts the <see cref="EvidenceCardRequest"/>, all without registering a
     /// waiter or blocking on the reviewer's response. Use this when the caller cannot afford to
     /// await a review inline (e.g. a host request pipeline); route the eventual decision to
-    /// <see cref="HandleDecisionAsync"/> when it arrives.
+    /// <c>HandleDecisionAsync</c> when it arrives.
     /// </summary>
     /// <param name="proposal">The proposed write operation awaiting review.</param>
     /// <param name="context">Session, tenant, user, and affidavit context for routing the review.</param>
@@ -78,7 +78,7 @@ public sealed class ReviewGate(
     /// <see cref="Affiant.Core.Filters.ReviewGateFilter"/> calling the non-blocking
     /// <see cref="FileForReviewAsync"/> and ending the calling turn on
     /// <see cref="ReviewFilingResult.RequiresReview"/> (P5a) — the eventual decision arrives through
-    /// a separate hub RPC routed to <see cref="HandleDecisionAsync"/>, never through this method's
+    /// a separate hub RPC routed to <c>HandleDecisionAsync</c>, never through this method's
     /// own await. This method remains callable — kept because the underlying design (a synchronous
     /// wait-for-external-event, mirroring the Azure Durable Functions <c>WaitForExternalEvent</c>
     /// pattern; framework spec §4) is legitimate and has a real future use (a caller that must not
@@ -245,28 +245,33 @@ public sealed class ReviewGate(
                 $"ResubmitAsync: DocketEntry {expiredEntryId} is {entry.Status}, expected Expired.");
         }
 
-        // The read above reports Expired for an entry whose deadline has passed whether or not the
-        // sweep has committed that (DK-1, expiry as a queryable state). ConsumeForResubmitAsync's
-        // guard tests the PERSISTED status, so without this the first resubmission of a
-        // lapsed-but-unswept entry would fail its own guard and be reported as a lost race. Same
-        // guarded write HandleDecisionAsync's late-decision path already performs; 0 rows means the
-        // sweep (or that path) got there first, which is equally fine.
-        await docketStore.UpdateReviewStatusAsync(expiredEntryId, ReviewStatus.Expired, cancellationToken);
-
+        var scope = new DocketScope(entry.TenantId);
         var newEntryId = Guid.NewGuid();
 
-        // affiant#31: claim the source entry for newEntryId before filing anything else — the
-        // guard, not the filing, is what two concurrent ResubmitAsync calls for the same expired
-        // entry actually race on. See method remarks for the ordering trade-off this implies.
-        var consumed = await docketStore.ConsumeForResubmitAsync(
-            expiredEntryId, newEntryId, cancellationToken);
-        if (consumed == 0)
+        // Claim the source entry for newEntryId before filing anything else — the claim, not the
+        // filing, is what two concurrent ResubmitAsync calls for the same expired entry actually race
+        // on, and the same write records the lineage. The guard admits a row that READS expired,
+        // which is either a persisted Expired or one whose deadline passed before the sweep reached
+        // it, so a resubmission never has to wait for a sweep tick. See this method's remarks for the
+        // ordering trade-off the claim-first shape implies.
+        var supersession = await docketStore.RecordSupersessionAsync(
+            expiredEntryId, scope, newEntryId, cancellationToken);
+        if (supersession is not RecordSupersessionResult.Recorded)
         {
             throw new InvalidOperationException(
                 $"ResubmitAsync: DocketEntry {expiredEntryId} was already resubmitted by a concurrent caller.");
         }
 
-        var proposal = new WriteProposal(entry.OperationType, _time.GetUtcNow(), entry.Envelope);
+        // The new proposal is prefilled with what the reviewer had already corrected. Two facts can
+        // carry that, and they are not the same fact: PreservedAmendments is what a decision the gate
+        // REFUSED as late carried — nobody accepted it — while Amendments is what an approval
+        // accepted. A resubmission prefills from the first when it exists, because that is the
+        // reviewer's own uncommitted correction, and falls back to the second for a row whose
+        // corrections were recorded before the two were told apart.
+        var prefill = entry.PreservedAmendments?.Amendments ?? entry.Amendments;
+        var priorAmendments = prefill is { Count: > 0 } ? prefill : null;
+
+        var proposal = new WriteProposal(entry.ToolName, _time.GetUtcNow(), entry.Envelope);
         var context = new ReviewContext(
             SessionId: entry.SessionId,
             TenantId: entry.TenantId,
@@ -274,9 +279,16 @@ public sealed class ReviewGate(
             // DocketEntry.ReviewerUserId is null for self-reviewed entries (see DocketEntry
             // remarks); ReviewContext requires a non-null reviewer, so self-review falls back
             // to the original proposer.
+#pragma warning disable AFFIANT0001 // superseded by the attestation; still the routing hint until then
             ReviewerUserId: entry.ReviewerUserId ?? entry.UserId,
+#pragma warning restore AFFIANT0001
             Affidavit: entry.Envelope,
-            EntryId: newEntryId);
+            EntryId: newEntryId,
+            Amendments: priorAmendments,
+            // The other half of the lineage. The successor link was written on the superseded row
+            // above; this is what the new row records about where it came from, so the history reads
+            // forward from either end without a reverse lookup.
+            Supersedes: expiredEntryId);
 
         ReviewFilingResult filing;
         try
@@ -285,17 +297,15 @@ public sealed class ReviewGate(
         }
         catch (Exception ex)
         {
-            // See method remarks: the consume above already committed ResubmittedTo = newEntryId
-            // on the source entry. A filing failure here orphans that pointer — documented, not
-            // compensated. Deliberately catches OperationCanceledException too (not just other
-            // exceptions): a connection-tied token (a host's resubmit hub RPC threaded with its
-            // connection-aborted token per the d2 evidence pack) cancels FileForReviewCoreAsync
-            // exactly as readily as it throws, and the orphan is identical either way — the operator
-            // follow-up signal this log exists for must not go dark just because the cause was
-            // cancellation rather than a store outage.
+            // See method remarks: the claim above already committed the successor link on the source
+            // entry. A filing failure here orphans that pointer — documented, not compensated.
+            // Deliberately catches OperationCanceledException too (not just other exceptions): a
+            // connection-tied token cancels FileForReviewCoreAsync exactly as readily as it throws,
+            // and the orphan is identical either way, so the operator-follow-up signal this log
+            // exists for must not go dark just because the cause was cancellation.
             logger.LogError(ex,
                 "ResubmitAsync: DocketEntry {ExpiredEntryId} was claimed for resubmission as " +
-                "{NewEntryId}, but filing the new entry failed — ResubmittedTo now names an entry " +
+                "{NewEntryId}, but filing the new entry failed — the lineage now names an entry " +
                 "that was never filed",
                 expiredEntryId, newEntryId);
             throw;
@@ -325,17 +335,35 @@ public sealed class ReviewGate(
     /// ruling's explicit sign-off boundary: this closes "the client gets the card again on
     /// reconnect," not "a human has seen it" — see <see cref="EvidenceCardRequest"/>'s docs.
     /// </remarks>
-    public async Task RebroadcastPendingCardsAsync(string sessionId, CancellationToken cancellationToken)
+    public async Task RebroadcastPendingCardsAsync(
+        string sessionId, string tenantId, CancellationToken cancellationToken)
     {
-        var pending = await docketStore.ListPendingBySessionAsync(sessionId, cancellationToken);
-        foreach (var entry in pending)
+        var scope = new DocketScope(tenantId, sessionId);
+        string? cursor = null;
+
+        // Paged, not "every pending entry in one read": a session with a long stranded backlog is
+        // exactly the session a reconnect has to serve, and a rebroadcast that loaded the whole
+        // backlog into memory to do it would fail hardest where it matters most.
+        do
         {
-            var request = await EvidenceCardRequestFactory.CreateAsync(
-                docketStore, entry.EntryId, entry.Envelope, entry.ExpiresAt, cancellationToken);
-            await BroadcastEvidenceCardWithRetryAsync(
-                sessionId, entry.EntryId, entry.OperationType, request, cancellationToken);
+            var page = await docketStore.ListPendingAsync(
+                scope, new DocketPage(RebroadcastPageSize, cursor), cancellationToken);
+
+            foreach (var entry in page.Items)
+            {
+                var request = await EvidenceCardRequestFactory.CreateAsync(
+                    docketStore, entry.EntryId, entry.Envelope, entry.ExpiresAt, cancellationToken);
+                await BroadcastEvidenceCardWithRetryAsync(
+                    sessionId, entry.EntryId, entry.ToolName, request, cancellationToken);
+            }
+
+            cursor = page.Cursor;
         }
+        while (cursor is not null);
     }
+
+    /// <summary>How many stranded cards one reconnect rebroadcast reads at a time.</summary>
+    private const int RebroadcastPageSize = 50;
 
     /// <summary>
     /// Shared filing core for <see cref="FileForReviewAsync"/> and <see cref="ResubmitAsync"/>:
@@ -365,6 +393,9 @@ public sealed class ReviewGate(
             if (existing is not null && existing.Status != ReviewStatus.Pending)
                 return new ReviewFilingResult.Decided(existing.Status.ToReviewOutcome(entryId));
 
+            if (existing?.Blocked is not null)
+                return new ReviewFilingResult.Decided(RefuseBlocked(entryId, existing.Blocked));
+
             // 2. File a new entry if one does not already exist.
             if (existing is null)
             {
@@ -383,11 +414,22 @@ public sealed class ReviewGate(
                     Status: ReviewStatus.Pending,
                     CreatedAt: now,
                     ExpiresAt: expiresAt,
-                    Amendments: amendments);
+                    Amendments: amendments,
+                    Supersedes: context.Supersedes,
+                    ProtocolVersion: AffiantProtocol.Version)
+                {
+                    ToolName = proposal.ToolName
+                };
                 await docketStore.FileDocketEntryAsync(entry, cancellationToken);
                 logger.LogInformation(
                     "Filed DocketEntry {EntryId} for tool {ToolName}", entryId, proposal.ToolName);
             }
+
+            // The deadline a card carries is the ROW's, never this call's. A re-file is an
+            // idempotent replay that re-broadcasts the existing card with its existing deadline: a
+            // replay that refreshed the deadline would let a retrying agent hold a card open
+            // indefinitely, which is the one thing a time-to-live exists to prevent.
+            var cardExpiresAt = existing?.ExpiresAt ?? expiresAt;
 
             // 3. Evaluate the approval policy pipeline before involving the reviewer.
             var requirement = await evaluator.EvaluateAsync(context.Affidavit, cancellationToken);
@@ -400,23 +442,43 @@ public sealed class ReviewGate(
                 return new ReviewFilingResult.Decided(new ReviewOutcome.Approved(entryId));
             }
 
-            // 4b. ReferralRequired: escalate without client interaction.
-            if (requirement == ReviewRequirement.ReferralRequired)
+            // 4b. A requirement level this version records but does not run — ReferralRequired and
+            // MultiParty, whose semantics are reserved. The level is recorded VERBATIM, the entry
+            // stays pending carrying a blocked marker, every decision on it is refused, and it is
+            // never degraded to a weaker requirement.
+            //
+            // What this replaces is the failure the rule exists to prevent: MultiParty used to fall
+            // through to the single-card branch below, so a write that needed several parties' joint
+            // approval was silently satisfied by one person clicking approve; and ReferralRequired
+            // used to write a Deferred status naming a transition no implementation has ever run.
+            if (requirement is ReviewRequirement.ReferralRequired or ReviewRequirement.MultiParty)
             {
-                await docketStore.UpdateReviewStatusAsync(entryId, ReviewStatus.Deferred, cancellationToken);
-                logger.LogInformation("Referral required for DocketEntry {EntryId}", entryId);
-                return new ReviewFilingResult.Decided(new ReviewOutcome.Referral(entryId, "referral-required"));
+                var blocked = new BlockedMarker.RequirementNotImplemented(requirement);
+                await docketStore.MarkBlockedAsync(entryId, blocked, cancellationToken);
+                logger.LogWarning(
+                    "DocketEntry {EntryId} is blocked: requirement {Requirement} is recorded but not " +
+                    "implemented in this version, so no decision on it can be accepted",
+                    entryId, requirement);
+
+                // The card still goes out, and it says on its face that the entry is blocked — a
+                // blocked entry never claims a confirmation is being awaited.
+                var blockedRequest = await EvidenceCardRequestFactory.CreateAsync(
+                    docketStore, entryId, context.Affidavit, cardExpiresAt, cancellationToken);
+                await BroadcastEvidenceCardWithRetryAsync(
+                    context.SessionId, entryId, proposal.ToolName, blockedRequest, cancellationToken);
+
+                return new ReviewFilingResult.Decided(RefuseBlocked(entryId, blocked));
             }
 
-            // 4c. ReviewerConfirmation / MultiParty: send the Evidence Card. No waiter registered
-            // here — that is the caller's choice (FileReviewAsync awaits it; FileForReviewAsync
-            // callers route the eventual decision through HandleDecisionAsync instead). Built via
-            // the shared factory (Area-5 Decision 3, affiant#28) so this payload and the sweep's
-            // re-broadcast payload for the same entry cannot drift — including PriorAmendments,
-            // re-derived here via the same resubmission reverse-lookup rather than threaded through
-            // as a parameter, so ResubmitAsync's own filing call needs no special case.
+            // 4c. ReviewerConfirmation: send the Evidence Card. No waiter registered here — that is
+            // the caller's choice (FileReviewAsync awaits it; FileForReviewAsync callers route the
+            // eventual decision through HandleDecisionAsync instead). Built via the shared factory
+            // (Area-5 Decision 3, affiant#28) so this payload and the sweep's re-broadcast payload
+            // for the same entry cannot drift — including PriorAmendments, re-derived here via the
+            // same resubmission reverse-lookup rather than threaded through as a parameter, so
+            // ResubmitAsync's own filing call needs no special case.
             var request = await EvidenceCardRequestFactory.CreateAsync(
-                docketStore, entryId, context.Affidavit, expiresAt, cancellationToken);
+                docketStore, entryId, context.Affidavit, cardExpiresAt, cancellationToken);
             await BroadcastEvidenceCardWithRetryAsync(
                 context.SessionId, entryId, proposal.ToolName, request, cancellationToken);
 
@@ -544,138 +606,283 @@ public sealed class ReviewGate(
     }
 
     /// <summary>
-    /// Routes a human decision to the appropriate handling path.
-    /// If a <see cref="FileReviewAsync"/> (or <see cref="FileForReviewAsync"/>) task is currently
-    /// awaiting a response for <paramref name="entryId"/>, the decision is delivered directly and
-    /// this method returns <c>(null, null)</c> — the awaiting caller owns the outcome and
-    /// completion, including persisting <paramref name="amendments"/> (see
-    /// <see cref="FileReviewAsync"/>). If no waiter exists (e.g. the host was restarted, or the
-    /// review was filed via the non-blocking <see cref="FileForReviewAsync"/> and never awaited),
-    /// the decision is replayed through the docket store, <paramref name="amendments"/> are
-    /// persisted directly, and the outcome plus the entry's creation time are returned.
+    /// Routes a human decision that names nobody — the shape every release before the decision
+    /// record existed had.
     /// </summary>
+    /// <remarks>
+    /// Equivalent to passing <see cref="DecisionAct.Unattributed"/>: no tenant is compared, no reason
+    /// is recorded, and a late decision's amendments are not preserved because the row would have
+    /// nobody to attribute the correction to. Prefer the overload that takes a
+    /// <see cref="DecisionAct"/>; this one exists so hosts on the previous release keep compiling.
+    /// </remarks>
+    /// <param name="entryId">The entry being decided.</param>
+    /// <param name="decision">Approve or reject.</param>
+    /// <param name="amendments">Fields the reviewer changed. Ignored on rejection.</param>
+    /// <param name="cancellationToken">Caller cancellation.</param>
+    public Task<(ReviewOutcome? Outcome, DateTimeOffset? EntryCreatedAt)> HandleDecisionAsync(
+        Guid entryId,
+        ApprovalDecision decision,
+        IReadOnlyDictionary<string, object?>? amendments,
+        CancellationToken cancellationToken)
+        => HandleDecisionAsync(entryId, decision, DecisionAct.Unattributed, amendments, cancellationToken);
+
+    /// <inheritdoc cref="HandleDecisionAsync(Guid, ApprovalDecision, IReadOnlyDictionary{string, object?}?, CancellationToken)"/>
+    /// <param name="entryId">The entry being decided.</param>
+    /// <param name="decision">Approve or reject.</param>
+    /// <param name="amendments">Fields the reviewer changed. Ignored on rejection.</param>
+    public Task<(ReviewOutcome? Outcome, DateTimeOffset? EntryCreatedAt)> HandleDecisionAsync(
+        Guid entryId,
+        ApprovalDecision decision,
+        IReadOnlyDictionary<string, object?>? amendments)
+        => HandleDecisionAsync(entryId, decision, DecisionAct.Unattributed, amendments, CancellationToken.None);
+
+    /// <inheritdoc cref="HandleDecisionAsync(Guid, ApprovalDecision, IReadOnlyDictionary{string, object?}?, CancellationToken)"/>
+    /// <param name="entryId">The entry being decided.</param>
+    /// <param name="decision">Approve or reject.</param>
+    public Task<(ReviewOutcome? Outcome, DateTimeOffset? EntryCreatedAt)> HandleDecisionAsync(
+        Guid entryId,
+        ApprovalDecision decision)
+        => HandleDecisionAsync(entryId, decision, DecisionAct.Unattributed, null, CancellationToken.None);
+
+    /// <summary>
+    /// Routes a human decision to the appropriate handling path.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// If a <see cref="FileReviewAsync"/> (or <see cref="FileForReviewAsync"/>) task is currently
+    /// awaiting a response for <paramref name="entryId"/>, the decision is delivered directly and this
+    /// method returns <c>(null, null)</c> — the awaiting caller owns the outcome and completion. If no
+    /// waiter exists (the host restarted, or the review was filed through the non-blocking path and
+    /// never awaited), the decision is replayed through the Docket under a guarded compare-and-set.
+    /// </para>
+    /// <para>
+    /// <b>Four refusals, four answers.</b> A decision on an entry that is not pending, a decision that
+    /// lost a race to a concurrent one, a decision that arrived after the deadline and a decision on a
+    /// blocked entry are four different things, and each is reported as its own
+    /// <see cref="ReviewOutcome.Refused"/> code rather than all four as an expiry. A late decision
+    /// from a caller who identified themselves also has its amendments preserved on the row for a
+    /// resubmission — see <paramref name="act"/>.
+    /// </para>
+    /// </remarks>
+    /// <param name="entryId">The entry being decided.</param>
+    /// <param name="decision">Approve or reject.</param>
+    /// <param name="act">Who decided, in which tenant, and why.</param>
     /// <param name="amendments">
-    /// Fields the reviewer changed while acting on the Evidence Card — see
-    /// <see cref="EvidenceCardResponse.Amendments"/>. Ignored on rejection. When the entry is
-    /// already resolved (not Pending) by the time this arrives, non-empty amendments are still
-    /// persisted before returning <see cref="ReviewOutcome.Expired"/> — see
-    /// <see cref="ReviewOutcome.Expired.AmendmentsPreserved"/> (framework half of repo issue #8).
-    /// When the entry's deadline has passed but the sweep has not committed that yet, this call also
-    /// persists the <see cref="ReviewStatus.Expired"/> transition itself and broadcasts
-    /// <see cref="TransportEvent.DocketExpired"/> — see <see cref="DocketExpiryBroadcaster"/>
-    /// (affiant#14). The deadline is inclusive: a decision arriving at exactly
-    /// <see cref="DocketEntry.ExpiresAt"/> is late.
+    /// Fields the reviewer changed while acting on the Evidence Card. Ignored on rejection. Carried by
+    /// a refused late decision, they are preserved on the row as a separate fact from what an approval
+    /// accepted.
     /// </param>
+    /// <param name="cancellationToken">Caller cancellation.</param>
     public async Task<(ReviewOutcome? Outcome, DateTimeOffset? EntryCreatedAt)> HandleDecisionAsync(
         Guid entryId,
         ApprovalDecision decision,
-        IReadOnlyDictionary<string, object?>? amendments = null,
-        CancellationToken cancellationToken = default)
+        DecisionAct act,
+        IReadOnlyDictionary<string, object?>? amendments,
+        CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(act);
+
         // Live path: a FileReviewAsync call is awaiting — deliver and let it own the outcome.
         if (transport.TryDeliverResponse(entryId, new EvidenceCardResponse(entryId, decision, Amendments: amendments)))
             return (null, null);
 
-        // Restart path: no live waiter — replay through the docket store.
+        // Restart path: no live waiter — replay through the Docket.
         var entry = await docketStore.GetDocketEntryAsync(entryId, cancellationToken);
+        if (entry is null)
+            return (new ReviewOutcome.Refused(entryId, DocketRefusalCodes.EntryNotFound), null);
 
-        // Order matters: the expired case is tested BEFORE the general not-pending case, because a
-        // store reports an entry past its deadline as Expired on read whether or not the sweep has
-        // committed that (DK-1, expiry as a queryable state). Read the other way round, a
-        // lapsed-but-unswept entry would fall into the "already resolved" branch below and this
-        // call would report Expired without ever persisting it or telling the session group —
-        // exactly the affiant#14 defect the branch below was written to close.
-        //
-        // The boundary is inclusive: AT ExpiresAt the entry is already expired, so a decision that
-        // lands exactly on the deadline is late. The second clause is the gate's own, clock-injected
-        // deadline test, kept so a store that has not adopted the read-time projection still gets
-        // this behaviour; it is scoped to Pending so an entry that was decided before its deadline
-        // passed keeps reporting the decision it actually got.
-        if (entry is not null
-            && (entry.Status == ReviewStatus.Expired
-                || (entry.Status == ReviewStatus.Pending && entry.ExpiresAt <= _time.GetUtcNow())))
-        {
-            // affiant#14: the entry is still Pending in the store but its TTL has lapsed ahead of
-            // DocketExpiryService's 30s sweep. Persist Expired now (guarded) and broadcast —
-            // mirroring the sweep's own "guarded write, then verify before telling the group"
-            // idiom via the shared DocketExpiryBroadcaster — instead of reporting Expired without
-            // ever writing it, which left Pending-with-lapsed-TTL as the steady state for up to
-            // 30s and starved ResubmitAsync's Status == Expired guard for the whole window.
-            logger.LogWarning(
-                "HandleDecisionAsync: DocketEntry {EntryId} TTL lapsed before this decision arrived",
-                entryId);
-
-            var lateAmendmentsPreserved = false;
-            if (amendments is { Count: > 0 })
-            {
-                await docketStore.UpdateAmendmentsAsync(entryId, amendments, cancellationToken);
-                lateAmendmentsPreserved = true;
-                logger.LogInformation(
-                    "HandleDecisionAsync: persisted late amendments onto lapsed-TTL DocketEntry {EntryId}",
-                    entryId);
-            }
-
-            var expiryRowsAffected = await docketStore.UpdateReviewStatusAsync(
-                entryId, ReviewStatus.Expired, cancellationToken);
-
-            // Only the call whose own CAS affected a row may broadcast — see
-            // DocketExpiryBroadcaster's remarks. A repeat late decision on the same entry (double
-            // decision, retried hub invocation) affects 0 rows here and must not re-broadcast.
-            var lateFinalStatus = expiryRowsAffected > 0
-                ? await DocketExpiryBroadcaster.VerifyAndBroadcastIfExpiredAsync(
-                    docketStore, transport, entryId, cancellationToken)
-                : (await docketStore.GetDocketEntryAsync(entryId, cancellationToken))?.Status;
-
-            var lateOutcome = lateFinalStatus is ReviewStatus.Expired or null
-                ? new ReviewOutcome.Expired(entryId, lateAmendmentsPreserved)
-                : lateFinalStatus.Value.ToReviewOutcome(entryId);
-
-            return (lateOutcome, null);
-        }
-
-        if (entry is null || entry.Status != ReviewStatus.Pending)
+        // An entry outside the caller's tenant is NOT FOUND, never "forbidden": telling a caller that
+        // an id they may not touch exists is the leak the tenant check is for. Until the decision path
+        // takes a resolved principal, the tenant is what the caller states; a caller that states none
+        // is trusted with the row's own, which is the behaviour every release before this one had.
+        if (act.TenantId is { } statedTenant && !string.Equals(statedTenant, entry.TenantId, StringComparison.Ordinal))
         {
             logger.LogWarning(
-                "HandleDecisionAsync: DocketEntry {EntryId} not found or already resolved", entryId);
-
-            // The entry can no longer transition to Approved/Rejected, but a reviewer may still
-            // have made edits before this decision was delivered — preserve them rather than
-            // silently dropping the reviewer's work (issue #8).
-            var amendmentsPreserved = false;
-            if (entry is not null && amendments is { Count: > 0 })
-            {
-                await docketStore.UpdateAmendmentsAsync(entryId, amendments, cancellationToken);
-                amendmentsPreserved = true;
-                logger.LogInformation(
-                    "HandleDecisionAsync: persisted late amendments onto non-pending DocketEntry {EntryId}",
-                    entryId);
-            }
-
-            return (new ReviewOutcome.Expired(entryId, amendmentsPreserved), null);
+                "HandleDecisionAsync: DocketEntry {EntryId} is outside the caller's tenant", entryId);
+            return (new ReviewOutcome.Refused(entryId, DocketRefusalCodes.EntryNotFound), null);
         }
 
+        var scope = new DocketScope(entry.TenantId);
         var createdAt = entry.CreatedAt;
-        var newStatus = decision == ApprovalDecision.Approved ? ReviewStatus.Approved : ReviewStatus.Rejected;
-        var rowsAffected = await docketStore.UpdateReviewStatusAsync(entryId, newStatus, cancellationToken);
-        if (rowsAffected == 0)
-        {
-            var current = await docketStore.GetDocketEntryAsync(entryId, cancellationToken);
-            return current is null
-                ? (new ReviewOutcome.Expired(entryId), null)
-                : (current.Status.ToReviewOutcome(entryId), createdAt);
-        }
+        var now = _time.GetUtcNow();
 
-        // This call won the transition race — persist the reviewer's amendments (if any).
-        if (decision == ApprovalDecision.Approved && amendments is { Count: > 0 })
-        {
-            await docketStore.UpdateAmendmentsAsync(entryId, amendments, cancellationToken);
-        }
+        // A blocked entry refuses every decision, and says which code blocked it. Checked before the
+        // store so the refusal carries the marker's own context, which a bare transition result cannot.
+        if (entry.Blocked is not null)
+            return (RefuseBlocked(entryId, entry.Blocked), createdAt);
 
-        ReviewOutcome outcome = decision == ApprovalDecision.Approved
-            ? new ReviewOutcome.Approved(entryId)
-            : new ReviewOutcome.Rejected(entryId);
-        logger.LogInformation(
-            "HandleDecisionAsync: DocketEntry {EntryId} {Decision} (restart path)", entryId, decision);
-        return (outcome, createdAt);
+        var decidedAt = act.At ?? now;
+        var patch = new DocketTransitionPatch(
+            Status: decision == ApprovalDecision.Approved ? ReviewStatus.Approved : ReviewStatus.Rejected,
+            Decision: new DecisionRecord(
+                decision == ApprovalDecision.Approved ? DecisionKind.Approve : DecisionKind.Reject,
+                act.Reason,
+                decidedAt),
+            // What an approval ACCEPTS. A rejection accepts nothing, so it records nothing here —
+            // a refused or rejected caller's edits are a different fact from an approval's.
+            Amendments: decision == ApprovalDecision.Approved && amendments is { Count: > 0 }
+                ? amendments
+                : null,
+            // The accepted state those amendments produce — the Affidavit recomputed with the
+            // reviewer's values and their act on each amended field's provenance. The recompute
+            // itself belongs to the Affidavit change (`beta3/model`, pull request #78, which adds
+            // `AffidavitAmendments.Apply` and the three confidence numbers): this row and its
+            // AmendedAffidavit column are where its result is persisted, and the one line that
+            // fills it here lands when that change merges. Until then the row keeps the proposal
+            // and the accepted amendment map, and no half-recomputed state is written — an amended
+            // Affidavit whose confidence numbers were not recomputed would misstate the evidence
+            // a reader is reading the row for.
+            AmendedAffidavit: null,
+            DecidedAt: decidedAt);
+
+        var result = await docketStore.TransitionAsync(
+            entryId, scope, ReviewStatus.Pending, patch, cancellationToken);
+
+        switch (result)
+        {
+            case DocketTransitionResult.Transitioned transitioned:
+                logger.LogInformation(
+                    "HandleDecisionAsync: DocketEntry {EntryId} {Decision} (restart path)", entryId, decision);
+                return (transitioned.Entry.Status == ReviewStatus.Approved
+                    ? new ReviewOutcome.Approved(entryId)
+                    : new ReviewOutcome.Rejected(entryId, act.Reason ?? "No reason provided"),
+                    createdAt);
+
+            case DocketTransitionResult.NotFound:
+                return (new ReviewOutcome.Refused(entryId, DocketRefusalCodes.EntryNotFound), createdAt);
+
+            case DocketTransitionResult.Expired:
+                return (await HandleLateDecisionAsync(entryId, scope, act, amendments, decidedAt, cancellationToken),
+                    createdAt);
+
+            case DocketTransitionResult.AlreadyDecided:
+                // Which of the two "not pending" refusals this is depends on what the READ above saw.
+                // If the row already looked decided then, this caller was late to the entry; if it
+                // looked pending, this caller was late only to the race. Reporting both as one code
+                // would tell a host that a user double-clicked when what happened was two reviewers
+                // deciding at once, and those need different messages.
+                var code = entry.Status == ReviewStatus.Pending
+                    ? DocketRefusalCodes.DecisionLostRace
+                    : DocketRefusalCodes.DecisionNotPending;
+                logger.LogWarning(
+                    "HandleDecisionAsync: DocketEntry {EntryId} refused with {Code}", entryId, code);
+                return (new ReviewOutcome.Refused(entryId, code), createdAt);
+
+            default:
+                throw new InvalidOperationException(
+                    $"Unknown transition result {result.GetType().Name} for DocketEntry {entryId}.");
+        }
     }
+
+    /// <summary>
+    /// The decision arrived after the deadline. Persist the expiry the row had already earned, tell
+    /// the session group, and keep the reviewer's corrections for a resubmission.
+    /// </summary>
+    /// <remarks>
+    /// The deadline is inclusive — a decision landing exactly on it is late — and expiry is a state a
+    /// read already applies, so this path runs whether or not the sweep has reached the row. What the
+    /// sweep would have added is the durable transition and the broadcast, which is what this does:
+    /// leaving the row pending-with-a-lapsed-deadline for up to a sweep interval starved the
+    /// resubmission guard for that whole window.
+    /// <para>
+    /// The amendments are preserved with the decision's <b>own</b> instant and principal, not the
+    /// store's clock and not the row's deadline: a resubmission prefills them as that person's
+    /// correction, and dating them to the sweep would place the correction at a moment nobody typed
+    /// anything. A caller that identified nobody has nothing to attribute the correction to, so
+    /// nothing is preserved — the alternative is a record that cannot say whose correction it is.
+    /// </para>
+    /// </remarks>
+    private async Task<ReviewOutcome> HandleLateDecisionAsync(
+        Guid entryId,
+        DocketScope scope,
+        DecisionAct act,
+        IReadOnlyDictionary<string, object?>? amendments,
+        DateTimeOffset decidedAt,
+        CancellationToken cancellationToken)
+    {
+        logger.LogWarning(
+            "HandleDecisionAsync: DocketEntry {EntryId} TTL lapsed before this decision arrived", entryId);
+
+        var preserved = false;
+        if (amendments is { Count: > 0 } && act.DecidedBy is { Length: > 0 } principal)
+        {
+            var outcome = await docketStore.PreserveAmendmentsAsync(
+                entryId, scope, amendments, new PreservedAct(decidedAt, principal), cancellationToken);
+            preserved = outcome is PreserveAmendmentsResult.Preserved;
+            if (preserved)
+            {
+                logger.LogInformation(
+                    "HandleDecisionAsync: preserved late amendments onto expired DocketEntry {EntryId}", entryId);
+            }
+        }
+
+        // Persist the expiry the row already reads as, guarded, and broadcast only if this call's own
+        // write is the one that transitioned it — a repeat late decision affects no row and must not
+        // re-notify.
+        var expiry = await docketStore.TransitionAsync(
+            entryId,
+            scope,
+            ReviewStatus.Pending,
+            new DocketTransitionPatch(ReviewStatus.Expired),
+            cancellationToken);
+
+        if (expiry is DocketTransitionResult.Transitioned)
+        {
+            await DocketExpiryBroadcaster.VerifyAndBroadcastIfExpiredAsync(
+                docketStore, transport, entryId, cancellationToken);
+        }
+
+        return new ReviewOutcome.Refused(
+            entryId,
+            DocketRefusalCodes.DecisionExpired,
+            preserved ? "amendments-preserved" : null);
+    }
+
+    /// <summary>The refusal a blocked entry answers every act with, carrying the marker's own context.</summary>
+    private static ReviewOutcome.Refused RefuseBlocked(Guid entryId, BlockedMarker marker) => marker switch
+    {
+        BlockedMarker.RequirementNotImplemented r =>
+            new ReviewOutcome.Refused(entryId, DocketRefusalCodes.RequirementNotImplemented, r.Level.ToString()),
+        BlockedMarker.CoverageRefused c =>
+            new ReviewOutcome.Refused(entryId, DocketRefusalCodes.CoverageRefused, c.ToolName),
+        _ => new ReviewOutcome.Refused(entryId, marker.Code)
+    };
+}
+
+/// <summary>
+/// Who decided a Docket entry, in which tenant, when and why.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Bundled into one record rather than added as four parameters so the decision path can grow the
+/// facts it carries — a resolved principal, the relay that asserted it, the channel the decision
+/// arrived on — without a source break at every host call site each time. The authorization change
+/// that follows this one extends this record; it does not re-shape
+/// <see cref="ReviewGate.HandleDecisionAsync(Guid, ApprovalDecision, DecisionAct, IReadOnlyDictionary{string, object?}?, CancellationToken)"/>.
+/// </para>
+/// <para>
+/// Every member is optional and an empty act behaves exactly as every release before this one did:
+/// the tenant is not compared, the reason is not recorded, and a late decision's amendments are not
+/// preserved because there is nobody to attribute them to.
+/// </para>
+/// </remarks>
+/// <param name="DecidedBy">
+/// Who the host says decided. Required for a late decision's amendments to be preserved: the
+/// preserved record names whose correction it is, and a correction with no author is not one.
+/// </param>
+/// <param name="TenantId">
+/// The tenant the caller is acting in. When given, an entry in another tenant is <em>not found</em>
+/// rather than forbidden. When omitted, no comparison is made — the seam the authorization change
+/// closes by resolving the principal's tenant itself instead of taking the caller's word.
+/// </param>
+/// <param name="Reason">The reviewer's stated reason, recorded on the row.</param>
+/// <param name="At">When the decision was made. Defaults to the gate's clock.</param>
+public sealed record DecisionAct(
+    string? DecidedBy = null,
+    string? TenantId = null,
+    string? Reason = null,
+    DateTimeOffset? At = null)
+{
+    /// <summary>An act that states nothing — the behaviour of every release before the decision record existed.</summary>
+    public static DecisionAct Unattributed { get; } = new();
 }

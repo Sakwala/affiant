@@ -3,6 +3,7 @@ namespace Affiant.SemanticKernel.Services;
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
 using Affiant.Abstractions.Transport;
+using Affiant.Core.Services;
 using Affiant.SemanticKernel.Filters;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -28,7 +29,28 @@ public sealed class SessionRehydrator(
 {
     private const int DefaultMessageLimit = 50;
 
-    public async Task<RehydrationResult> RehydrateAsync(string sessionId, CancellationToken ct)
+    /// <summary>How many Docket entries one rehydration reads at a time.</summary>
+    private const int DocketPageSize = 50;
+
+    /// <summary>
+    /// Rebuilds a session without naming its tenant — every release before the Docket became
+    /// tenant-scoped had this shape, and a session id is unique across tenants, so it still resolves
+    /// the same rows.
+    /// </summary>
+    /// <param name="sessionId">The session to rebuild.</param>
+    /// <param name="ct">Caller cancellation.</param>
+    public Task<RehydrationResult> RehydrateAsync(string sessionId, CancellationToken ct)
+        => RehydrateAsync(sessionId, tenantId: null, ct);
+
+    /// <summary>
+    /// Rebuilds a session, reading its Docket in the fixed rehydration order: pending entries first,
+    /// then approved entries whose write has not been reported, each in filing order and paged.
+    /// </summary>
+    /// <param name="sessionId">The session to rebuild.</param>
+    /// <param name="tenantId">The tenant the session belongs to, when the caller knows it.</param>
+    /// <param name="ct">Caller cancellation.</param>
+    public async Task<RehydrationResult> RehydrateAsync(
+        string sessionId, string? tenantId, CancellationToken ct)
     {
         // 1. Load messages and build ChatHistory
         var messages = await chatStore.LoadMessagesAsync(sessionId, ct);
@@ -57,8 +79,18 @@ public sealed class SessionRehydrator(
         // 3. Load ConversationContext (null-safe for pre-migration sessions)
         var context = await docketStore.LoadContextAsync(sessionId, ct);
 
-        // 4. Load pending Docket entries
-        var pendingEntries = await docketStore.ListPendingBySessionAsync(sessionId, ct);
+        // 4. Load the Docket in the order a reconnecting client must see it: what still needs a
+        // decision before what still needs execution. The two groups answer different questions and
+        // a client that interleaved them would put already-agreed work in front of work that is
+        // still blocked on the reader.
+        var scope = new DocketScope(tenantId, sessionId);
+        var docketEntries = await DocketRehydration.AllAsync(docketStore, scope, DocketPageSize, ct);
+        var pendingEntries = docketEntries
+            .Where(e => e.Status == ReviewStatus.Pending)
+            .ToList();
+        var approvedUnexecuted = docketEntries
+            .Where(e => e.Status == ReviewStatus.Approved)
+            .ToList();
 
         // 5. Re-derive PriorAmendments for any pending entry produced by a resubmission (Area-5
         // Decision 2, affiant#31 D2 acceptance criterion 4). EvidenceCardRequest.PriorAmendments
@@ -73,12 +105,15 @@ public sealed class SessionRehydrator(
                 priorAmendments[pendingEntry.EntryId] = parent.Amendments;
         }
 
-        return new RehydrationResult(history, context, pendingEntries, priorAmendments);
+        return new RehydrationResult(history, context, pendingEntries, priorAmendments)
+        {
+            ApprovedUnexecutedEntries = approvedUnexecuted
+        };
     }
 }
 
 /// <summary>
-/// Result of <see cref="SessionRehydrator.RehydrateAsync"/> — carries everything
+/// Result of <c>SessionRehydrator.RehydrateAsync</c> — carries everything
 /// needed to resume a conversation: the (possibly truncated) chat history, the
 /// domain-agnostic conversation context (nullable for pre-migration sessions),
 /// and any pending Docket entries awaiting review.
@@ -95,4 +130,17 @@ public sealed record RehydrationResult(
     ChatHistory History,
     ConversationContext? Context,
     IReadOnlyList<DocketEntry> PendingEntries,
-    IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, object?>> PriorAmendmentsByEntryId);
+    IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, object?>> PriorAmendmentsByEntryId)
+{
+    /// <summary>
+    /// Entries this session had approved whose write the host's executor has not reported on, in
+    /// filing order — the second half of the rehydration sequence.
+    /// </summary>
+    /// <remarks>
+    /// An approved write nobody has reported on is work outstanding, and after a restart this is the
+    /// only record that the work exists. It is a separate list from
+    /// <see cref="PendingEntries"/> rather than appended to it because the two need different things
+    /// from the client: a decision, and an execution.
+    /// </remarks>
+    public IReadOnlyList<DocketEntry> ApprovedUnexecutedEntries { get; init; } = [];
+}

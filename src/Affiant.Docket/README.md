@@ -25,17 +25,48 @@ builder.Services.AddAffiantDocket();                                            
 
 ## Expiry
 
-An entry past its `ExpiresAt` reads as `Expired` — from `GetDocketEntryAsync`, and by its absence from `ListPendingBySessionAsync`/`ListAllPendingAsync` — whether or not the sweep has reached it, on an inclusive boundary (at `ExpiresAt` the entry is expired). The sweep still does the durable work: it commits the transition, broadcasts `DocketExpired`, and leaves the persisted state a resubmission can act on.
+An entry past its `ExpiresAt` reads as `Expired` — from `GetDocketEntryAsync`, and by its absence from `ListPendingAsync` — whether or not the sweep has reached it, on an inclusive boundary (at `ExpiresAt` the entry is expired). Expiry is a **state**, not an event: there is no background job to be down and no window in which a lapsed entry is still decidable because nobody swept it yet. The sweep does the durable work: it commits the transition, broadcasts `DocketExpired`, and leaves the persisted state a resubmission can act on.
 
-One sweep tick transitions at most `ExpirySweepBatchSize` entries, oldest deadline first, so a backlog drains across ticks instead of loading the whole Docket:
+`DocketExpiryService` owns a schedule; the **store** owns the sweep. Each tick calls `IDocketStore.ExpireDueAsync(now, scope, limit)` — which finds the due rows, commits their transitions under one guard, and reports whether more remain — until the store says no more remain or the tick's own cap is reached. So a tick is bounded twice, and a backlog larger than the product drains over the ticks that follow:
 
 ```csharp
 builder.Services.AddAffiantDocket(docket =>
 {
     docket.UseInMemory();
-    docket.ExpirySweepBatchSize = 500;   // default: 100
+    docket.ExpirySweepBatchSize = 500;        // rows per store call — default: 100
+    docket.ExpirySweepBatchesPerTick = 4;     // store calls per tick   — default: 10
 });
 ```
+
+A deployment that partitions its Docket — one process per tenant, one worker per region — narrows what its sweep reaches so two processes never contend for the same rows:
+
+```csharp
+builder.Services.AddAffiantDocket(docket => docket.SweepScope = DocketScope.Tenant(tenantId));
+```
+
+A host that would rather schedule the sweep itself — a serverless deployment with no long-lived process, a cron entry, a queue worker — does not register `AddAffiantDocket`'s hosted service at all and calls `ExpireDueAsync` on its own cadence. No framework package owns a timer that expiry depends on.
+
+## Retention, purge and export
+
+How long an approval record must be kept is a legal question with a different answer in every jurisdiction the gate runs in, so the store exposes the operations and the host drives them:
+
+```csharp
+// Age out terminal rows, in bounded steps, until nothing is left to remove.
+var policy = new DocketRetentionPolicy(DateTimeOffset.UtcNow.AddYears(-7));
+RetentionResult result;
+do
+{
+    result = await store.ApplyRetentionAsync(policy, DocketScope.Tenant(tenantId), limit: 500, ct);
+}
+while (result.More);
+
+await store.PurgeTenantAsync(tenantId, ct);            // a tenant's data, on demand, all of it
+
+await foreach (var entry in store.ExportAsync(DocketScope.Tenant(tenantId), ct))
+    await sink.WriteAsync(entry, ct);                  // streamed, never materialised
+```
+
+**Retention never ages out an `Approved` row whose write has not been reported**, however old. It is the only record that a write was authorised and has not happened, and no policy may remove it.
 
 Everything above reads the clock through the `TimeProvider` in DI. `AddAffiantCore` registers `TimeProvider.System`; register your own before it (a `FakeTimeProvider` in a test) and the stores, the gate and the sweep all move with it.
 

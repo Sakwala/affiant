@@ -82,16 +82,33 @@ Affiant.Core.Services.ContextFabric.MergeFrom(System.Collections.Generic.IEnumer
 Affiant.Core.Services.ContextFabric.SetFieldChain(string! fieldKey, Affiant.Abstractions.Models.ProvenanceChain! chain) -> void
 Affiant.Core.Services.ContextFabric.Snapshot() -> System.Collections.Generic.Dictionary<string!, Affiant.Abstractions.Models.EntityRef!>!
 Affiant.Core.Services.ContextFabric.Upsert(Affiant.Abstractions.Models.EntityRef! entityRef) -> void
+Affiant.Core.Services.DecisionAct
+Affiant.Core.Services.DecisionAct.<Clone>$() -> Affiant.Core.Services.DecisionAct!
+Affiant.Core.Services.DecisionAct.At.get -> System.DateTimeOffset?
+Affiant.Core.Services.DecisionAct.At.init -> void
+Affiant.Core.Services.DecisionAct.DecidedBy.get -> string?
+Affiant.Core.Services.DecisionAct.DecidedBy.init -> void
+Affiant.Core.Services.DecisionAct.DecisionAct(string? DecidedBy = null, string? TenantId = null, string? Reason = null, System.DateTimeOffset? At = null) -> void
+Affiant.Core.Services.DecisionAct.Deconstruct(out string? DecidedBy, out string? TenantId, out string? Reason, out System.DateTimeOffset? At) -> void
+Affiant.Core.Services.DecisionAct.Equals(Affiant.Core.Services.DecisionAct? other) -> bool
+Affiant.Core.Services.DecisionAct.Reason.get -> string?
+Affiant.Core.Services.DecisionAct.Reason.init -> void
+Affiant.Core.Services.DecisionAct.TenantId.get -> string?
+Affiant.Core.Services.DecisionAct.TenantId.init -> void
 Affiant.Core.Services.DeterministicShortCircuit
 Affiant.Core.Services.DeterministicShortCircuit.DeterministicShortCircuit(System.Collections.Generic.IEnumerable<Affiant.Abstractions.Interfaces.IIntentInterceptor!>! interceptors) -> void
 Affiant.Core.Services.DeterministicShortCircuit.OnToolInvocationAsync(Affiant.Abstractions.Models.ToolInvocationContext! context, System.Func<Affiant.Abstractions.Models.ToolInvocationContext!, System.Threading.Tasks.Task!>! next, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Affiant.Core.Services.DocketExpiryBroadcaster
+Affiant.Core.Services.DocketRehydration
 Affiant.Core.Services.EvidenceCardRequestFactory
 Affiant.Core.Services.ReviewGate
 Affiant.Core.Services.ReviewGate.FileForReviewAsync(Affiant.Abstractions.Models.WriteProposal! proposal, Affiant.Abstractions.Models.ReviewContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Affiant.Abstractions.Models.ReviewFilingResult!>!
 Affiant.Core.Services.ReviewGate.FileReviewAsync(Affiant.Abstractions.Models.WriteProposal! proposal, Affiant.Abstractions.Models.ReviewContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Affiant.Abstractions.Models.ReviewOutcome!>!
-Affiant.Core.Services.ReviewGate.HandleDecisionAsync(System.Guid entryId, Affiant.Abstractions.Transport.ApprovalDecision decision, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? amendments = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<(Affiant.Abstractions.Models.ReviewOutcome? Outcome, System.DateTimeOffset? EntryCreatedAt)>!
-Affiant.Core.Services.ReviewGate.RebroadcastPendingCardsAsync(string! sessionId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Affiant.Core.Services.ReviewGate.HandleDecisionAsync(System.Guid entryId, Affiant.Abstractions.Transport.ApprovalDecision decision) -> System.Threading.Tasks.Task<(Affiant.Abstractions.Models.ReviewOutcome? Outcome, System.DateTimeOffset? EntryCreatedAt)>!
+Affiant.Core.Services.ReviewGate.HandleDecisionAsync(System.Guid entryId, Affiant.Abstractions.Transport.ApprovalDecision decision, Affiant.Core.Services.DecisionAct! act, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? amendments, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<(Affiant.Abstractions.Models.ReviewOutcome? Outcome, System.DateTimeOffset? EntryCreatedAt)>!
+Affiant.Core.Services.ReviewGate.HandleDecisionAsync(System.Guid entryId, Affiant.Abstractions.Transport.ApprovalDecision decision, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? amendments) -> System.Threading.Tasks.Task<(Affiant.Abstractions.Models.ReviewOutcome? Outcome, System.DateTimeOffset? EntryCreatedAt)>!
+Affiant.Core.Services.ReviewGate.HandleDecisionAsync(System.Guid entryId, Affiant.Abstractions.Transport.ApprovalDecision decision, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? amendments, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<(Affiant.Abstractions.Models.ReviewOutcome? Outcome, System.DateTimeOffset? EntryCreatedAt)>!
+Affiant.Core.Services.ReviewGate.RebroadcastPendingCardsAsync(string! sessionId, string! tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Affiant.Core.Services.ReviewGate.ResubmitAsync(System.Guid expiredEntryId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Affiant.Abstractions.Models.ReviewFilingResult!>!
 Affiant.Core.Services.ReviewGate.ReviewGate(Affiant.Abstractions.Interfaces.IStreamingTransport! transport, Affiant.Abstractions.Interfaces.IDocketStore! docketStore, Affiant.Abstractions.Interfaces.IApprovalPolicyEvaluator! evaluator, Affiant.Core.Extensions.AffiantCoreOptions! options, Microsoft.Extensions.Logging.ILogger<Affiant.Core.Services.ReviewGate!>! logger, System.TimeProvider? timeProvider = null) -> void
 Affiant.Core.Services.SchemaDrivenAffidavitProjection
@@ -177,17 +194,16 @@ const Affiant.Core.Observability.L2TelemetryKeys.FunctionName = "affiant.functio
 const Affiant.Core.Observability.L2TelemetryKeys.PluginName = "affiant.plugin.name" -> string!
 const Affiant.Core.Observability.L2TelemetryKeys.SkipReason = "affiant.skip.reason" -> string!
 const Affiant.Core.Observability.L2TelemetryKeys.StrategyType = "affiant.strategy.type" -> string!
-override Affiant.Core.Filters.TaskInferenceMergeOutcome.Equals(object? obj) -> bool
-override Affiant.Core.Filters.TaskInferenceMergeOutcome.GetHashCode() -> int
-override Affiant.Core.Filters.TaskInferenceMergeOutcome.ToString() -> string!
-override Affiant.Core.Filters.TaskInferenceResult.Equals(object? obj) -> bool
-override Affiant.Core.Filters.TaskInferenceResult.GetHashCode() -> int
-override Affiant.Core.Filters.TaskInferenceResult.ToString() -> string!
-override Affiant.Core.Services.ToolInvocationRequest.Equals(object? obj) -> bool
-override Affiant.Core.Services.ToolInvocationRequest.GetHashCode() -> int
-override Affiant.Core.Services.ToolInvocationRequest.ToString() -> string!
 readonly Affiant.Core.Filters.ContextExtractor.ContextFabric -> Affiant.Core.Services.ContextFabric!
 readonly Affiant.Core.Filters.ContextExtractor.Logger -> Microsoft.Extensions.Logging.ILogger!
+virtual Affiant.Core.Filters.TaskInferenceMergeOutcome.<Clone>$() -> Affiant.Core.Filters.TaskInferenceMergeOutcome!
+virtual Affiant.Core.Filters.TaskInferenceMergeOutcome.EqualityContract.get -> System.Type!
+virtual Affiant.Core.Filters.TaskInferenceMergeOutcome.Equals(Affiant.Core.Filters.TaskInferenceMergeOutcome? other) -> bool
+virtual Affiant.Core.Filters.TaskInferenceMergeOutcome.PrintMembers(System.Text.StringBuilder! builder) -> bool
+virtual Affiant.Core.Filters.TaskInferenceResult.<Clone>$() -> Affiant.Core.Filters.TaskInferenceResult!
+virtual Affiant.Core.Filters.TaskInferenceResult.EqualityContract.get -> System.Type!
+virtual Affiant.Core.Filters.TaskInferenceResult.Equals(Affiant.Core.Filters.TaskInferenceResult? other) -> bool
+virtual Affiant.Core.Filters.TaskInferenceResult.PrintMembers(System.Text.StringBuilder! builder) -> bool
 static Affiant.Core.Extensions.ServiceCollectionExtensions.AddAffiantCompletionFilters(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Affiant.Core.Extensions.ServiceCollectionExtensions.AddAffiantCore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Affiant.Core.Extensions.AffiantCoreOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Affiant.Core.Extensions.ServiceCollectionExtensions.AddAffiantReadTool(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! functionName, string? entityType = null, string? pluginName = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
@@ -203,7 +219,12 @@ static Affiant.Core.Filters.TaskInferenceResult.operator ==(Affiant.Core.Filters
 static Affiant.Core.Filters.TaskInferenceStep.ResolveByConfidence(Affiant.Abstractions.Models.ProvenanceTag! a, Affiant.Abstractions.Models.ProvenanceTag! b) -> Affiant.Abstractions.Models.ProvenanceTag!
 static Affiant.Core.Observability.AffiantTelemetry.FindAffiantActivity() -> System.Diagnostics.Activity?
 static Affiant.Core.Observability.AffiantTelemetry.RecordExtractorFailedEvent(string! extractorType, string! toolName, System.Exception! ex) -> void
+static Affiant.Core.Services.DecisionAct.Unattributed.get -> Affiant.Core.Services.DecisionAct!
+static Affiant.Core.Services.DecisionAct.operator !=(Affiant.Core.Services.DecisionAct? left, Affiant.Core.Services.DecisionAct? right) -> bool
+static Affiant.Core.Services.DecisionAct.operator ==(Affiant.Core.Services.DecisionAct? left, Affiant.Core.Services.DecisionAct? right) -> bool
 static Affiant.Core.Services.DocketExpiryBroadcaster.VerifyAndBroadcastIfExpiredAsync(Affiant.Abstractions.Interfaces.IDocketStore! docketStore, Affiant.Abstractions.Interfaces.IStreamingTransport! transport, System.Guid entryId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Affiant.Abstractions.Models.ReviewStatus?>!
+static Affiant.Core.Services.DocketRehydration.AllAsync(Affiant.Abstractions.Interfaces.IDocketStore! store, Affiant.Abstractions.Interfaces.DocketScope! scope, int pageSize, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.DocketEntry!>!>!
+static Affiant.Core.Services.DocketRehydration.PageAsync(Affiant.Abstractions.Interfaces.IDocketStore! store, Affiant.Abstractions.Interfaces.DocketScope! scope, Affiant.Abstractions.Interfaces.DocketPage! page, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.DocketPageResult<Affiant.Abstractions.Models.DocketEntry!>!>!
 static Affiant.Core.Services.EvidenceCardRequestFactory.CreateAsync(Affiant.Abstractions.Interfaces.IDocketStore! docketStore, System.Guid entryId, Affiant.Abstractions.Models.Affidavit! affidavit, System.DateTimeOffset expiresAt, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Transport.EvidenceCardRequest!>!
 static Affiant.Core.Services.ToolInvocationRequest.operator !=(Affiant.Core.Services.ToolInvocationRequest? left, Affiant.Core.Services.ToolInvocationRequest? right) -> bool
 static Affiant.Core.Services.ToolInvocationRequest.operator ==(Affiant.Core.Services.ToolInvocationRequest? left, Affiant.Core.Services.ToolInvocationRequest? right) -> bool
@@ -215,11 +236,15 @@ static readonly Affiant.Core.Observability.AffiantTelemetry.ReviewOutcome -> Sys
 static readonly Affiant.Core.Observability.AffiantTelemetry.ReviewWaitDuration -> System.Diagnostics.Metrics.Histogram<double>!
 static readonly Affiant.Core.Observability.AffiantTelemetry.TokenUsage -> System.Diagnostics.Metrics.Counter<long>!
 static readonly Affiant.Core.Observability.AffiantTelemetry.TurnDuration -> System.Diagnostics.Metrics.Histogram<double>!
-virtual Affiant.Core.Filters.TaskInferenceMergeOutcome.<Clone>$() -> Affiant.Core.Filters.TaskInferenceMergeOutcome!
-virtual Affiant.Core.Filters.TaskInferenceMergeOutcome.EqualityContract.get -> System.Type!
-virtual Affiant.Core.Filters.TaskInferenceMergeOutcome.Equals(Affiant.Core.Filters.TaskInferenceMergeOutcome? other) -> bool
-virtual Affiant.Core.Filters.TaskInferenceMergeOutcome.PrintMembers(System.Text.StringBuilder! builder) -> bool
-virtual Affiant.Core.Filters.TaskInferenceResult.<Clone>$() -> Affiant.Core.Filters.TaskInferenceResult!
-virtual Affiant.Core.Filters.TaskInferenceResult.EqualityContract.get -> System.Type!
-virtual Affiant.Core.Filters.TaskInferenceResult.Equals(Affiant.Core.Filters.TaskInferenceResult? other) -> bool
-virtual Affiant.Core.Filters.TaskInferenceResult.PrintMembers(System.Text.StringBuilder! builder) -> bool
+override Affiant.Core.Filters.TaskInferenceMergeOutcome.Equals(object? obj) -> bool
+override Affiant.Core.Filters.TaskInferenceMergeOutcome.GetHashCode() -> int
+override Affiant.Core.Filters.TaskInferenceMergeOutcome.ToString() -> string!
+override Affiant.Core.Filters.TaskInferenceResult.Equals(object? obj) -> bool
+override Affiant.Core.Filters.TaskInferenceResult.GetHashCode() -> int
+override Affiant.Core.Filters.TaskInferenceResult.ToString() -> string!
+override Affiant.Core.Services.DecisionAct.Equals(object? obj) -> bool
+override Affiant.Core.Services.DecisionAct.GetHashCode() -> int
+override Affiant.Core.Services.DecisionAct.ToString() -> string!
+override Affiant.Core.Services.ToolInvocationRequest.Equals(object? obj) -> bool
+override Affiant.Core.Services.ToolInvocationRequest.GetHashCode() -> int
+override Affiant.Core.Services.ToolInvocationRequest.ToString() -> string!

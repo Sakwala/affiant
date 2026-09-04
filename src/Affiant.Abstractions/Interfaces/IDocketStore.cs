@@ -180,6 +180,13 @@ public interface IDocketStore
     /// and MUST NOT appear here, swept or not. That is also what keeps a lapsed entry from being
     /// rehydrated as pending on reconnect.
     /// </remarks>
+    [Obsolete(
+        "Every listing a store exposes is paged with an opaque cursor and scoped to a tenant; this " +
+        "one is neither, so a session with more stranded reviews than fit in memory has no bounded " +
+        "read. Use ListPendingAsync(DocketScope.Conversation(tenantId, sessionId), page, ct). Kept " +
+        "for one release.",
+        error: false,
+        DiagnosticId = "AFFIANT0001")]
     Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct);
 
     /// <summary>
@@ -197,46 +204,270 @@ public interface IDocketStore
     /// and MUST NOT appear here, swept or not — so the sweep's own re-broadcast phase never
     /// re-broadcasts a card for an entry that has already run out of time.
     /// </remarks>
+    [Obsolete(
+        "Every listing a store exposes is paged with an opaque cursor; this one loads every pending " +
+        "row in the store. Use ListPendingAsync(DocketScope.EntireStore, page, ct). Kept for one " +
+        "release.",
+        error: false,
+        DiagnosticId = "AFFIANT0001")]
     Task<IReadOnlyList<DocketEntry>> ListAllPendingAsync(CancellationToken ct);
 
+    // ── The scoped, guarded, paged surface ──────────────────────────────────
+    // Everything below is the Docket's real contract. The members above it are the framework's
+    // earlier, unscoped shapes, kept for one release where they still have a caller. Three
+    // properties are worth reading this half of the interface for.
+    //
+    // EVERY DECISION-CARRYING OPERATION IS SCOPED. There is no member here that moves a row by id
+    // alone. An entry id is unique WITHIN a tenant, and a lookup with the wrong tenant is not an
+    // error — it is a miss, indistinguishable from an id that does not exist.
+    //
+    // EVERY READ APPLIES EXPIRY. A pending entry past its deadline reads Expired whether or not the
+    // host's sweep has run, and is absent from the pending listings. A store therefore needs to know
+    // the time, which is why it is built with a TimeProvider rather than handed an instant per call:
+    // a store that took `now` as a parameter would let a caller answer the deadline question for it.
+    //
+    // EVERY LIST IS BOUNDED. No member returns "all of them". Listings are paged with an opaque
+    // cursor; the sweep and retention take a limit and report whether more remain; export streams.
+
     /// <summary>
-    /// Returns at most <paramref name="limit"/> entries whose persisted status is still
-    /// <see cref="ReviewStatus.Pending"/> and whose <see cref="DocketEntry.ExpiresAt"/> is on or
-    /// before <paramref name="expiresBeforeUtc"/>, oldest deadline first. Used by
-    /// <c>DocketExpiryService</c> to identify the rows one tick expires.
+    /// Move an entry out of <see cref="ReviewStatus.Pending"/>, if it is still pending — a guarded
+    /// compare-and-set.
     /// </summary>
-    /// <param name="expiresBeforeUtc">The instant to compare deadlines against — inclusive.</param>
-    /// <param name="limit">
-    /// The maximum number of entries to return. Must be greater than zero. This is the page size
-    /// one sweep tick works through, so a backlog is drained across ticks instead of loaded whole.
+    /// <param name="entryId">The entry to transition.</param>
+    /// <param name="scope">The tenant (and optionally the conversation) the caller may see. The store-wide scope is refused.</param>
+    /// <param name="expected">
+    /// <see cref="ReviewStatus.Pending"/> and only pending — nothing else in the state machine has a
+    /// transition out of it. Present so the guard is visible at the call site rather than implied.
+    /// </param>
+    /// <param name="patch">The later facts the transition writes.</param>
+    /// <param name="ct">Caller cancellation.</param>
+    /// <remarks>
+    /// <para>
+    /// The read of the current state and the write of the new one happen with no interleaving point
+    /// between them — a real conditional <c>UPDATE</c> on a SQL store, a synchronous block in memory
+    /// — so of two decisions that race, exactly one is applied and the other is refused. A second
+    /// decision, a decision that lost a race and a decision on a row past its deadline are three
+    /// distinct answers (<see cref="DocketTransitionResult.AlreadyDecided"/> and
+    /// <see cref="DocketTransitionResult.Expired"/>), never silently applied and never overwritten.
+    /// </para>
+    /// <para>
+    /// A row carrying a <see cref="DocketEntry.Blocked"/> marker refuses every transition with
+    /// <see cref="DocketTransitionResult.AlreadyDecided"/>: it sits in pending and is never decided,
+    /// never executed and never degraded to a weaker requirement.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="scope"/> is the store-wide scope, or <paramref name="expected"/> is not
+    /// <see cref="ReviewStatus.Pending"/>.
+    /// </exception>
+    Task<DocketTransitionResult> TransitionAsync(
+        Guid entryId,
+        DocketScope scope,
+        ReviewStatus expected,
+        DocketTransitionPatch patch,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Record the amendments a decision carried after the entry had already expired, so a
+    /// resubmission can prefill them.
+    /// </summary>
+    /// <param name="entryId">The expired entry.</param>
+    /// <param name="scope">The tenant the caller may see. The store-wide scope is refused.</param>
+    /// <param name="amendments">The map the refused decision carried.</param>
+    /// <param name="act">The refused decision's own instant and principal.</param>
+    /// <param name="ct">Caller cancellation.</param>
+    /// <remarks>
+    /// <para>
+    /// This is the one write that applies to a row the transition guard refused, and it is a separate
+    /// member for that reason: folding it into <see cref="TransitionAsync"/> would make a refused
+    /// compare-and-set write to the row, and "applied once or not at all" is exactly the property the
+    /// guard exists to have. It is an appended later fact on a terminal row, not an edit of a
+    /// recorded decision — it touches <see cref="DocketEntry.PreservedAmendments"/> and nothing else,
+    /// never the status, the decision or the attestation.
+    /// </para>
+    /// <para>
+    /// <paramref name="act"/> is the refused decision's <b>own</b> instant and principal, not the
+    /// store's clock and not the row's deadline: a resubmission prefills these values as a person's
+    /// correction and binds each prefilled field's tag to that act, so a record that dated them to
+    /// the sweep would place the correction at a moment nobody typed anything.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentException"><paramref name="scope"/> is the store-wide scope.</exception>
+    Task<PreserveAmendmentsResult> PreserveAmendmentsAsync(
+        Guid entryId,
+        DocketScope scope,
+        IReadOnlyDictionary<string, object?> amendments,
+        PreservedAct act,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Record what the host's executor reported for an approved entry, <b>once</b>.
+    /// </summary>
+    /// <param name="entryId">The approved entry.</param>
+    /// <param name="scope">The tenant the caller may see. The store-wide scope is refused.</param>
+    /// <param name="outcome"><see cref="ExecutionOutcome.Executed"/> or <see cref="ExecutionOutcome.Failed"/>.</param>
+    /// <param name="detail">What the executor reported, or <c>null</c>.</param>
+    /// <param name="expected">
+    /// <see cref="ExecutionOutcome.Unexecuted"/> and only that: the execution transition runs once,
+    /// out of the state a row is approved in.
     /// </param>
     /// <param name="ct">Caller cancellation.</param>
     /// <remarks>
     /// <para>
-    /// This is the one read that deliberately reports the <em>persisted</em> status rather than the
-    /// read-time projection <see cref="GetDocketEntryAsync"/> applies: its whole purpose is to find
-    /// rows whose <see cref="ReviewStatus.Expired"/> transition has not been committed yet.
+    /// The status stays <see cref="ReviewStatus.Approved"/>; only
+    /// <see cref="DocketEntry.Execution"/> and <see cref="DocketEntry.ExecutionDetail"/> move. The
+    /// framework never performs the write — it records what the host says happened, so an
+    /// approved-but-failed write is distinguishable from an approved-and-committed one on the row.
     /// </para>
     /// <para>
-    /// Ordering by <see cref="DocketEntry.ExpiresAt"/> ascending is what makes the paging fair —
-    /// without it, a store free to return any <paramref name="limit"/> rows could starve the oldest
-    /// entries indefinitely.
-    /// </para>
-    /// <para>
-    /// <strong>Not yet the full paging contract.</strong> The Affiant protocol's DK-3 asks for
-    /// <c>expireDue(now, scope, limit)</c> — scoped to a tenant or conversation and reporting
-    /// whether more entries remain — plus an opaque cursor on every list this interface exposes.
-    /// This release adds the bound only; the scope argument, the more-remain signal and the cursors
-    /// land with the docket change that reshapes <see cref="DocketEntry"/> itself.
+    /// A guarded compare-and-set, exactly like <see cref="TransitionAsync"/>. A second report is
+    /// refused with <see cref="RecordExecutionResult.ExecutionAlreadyRecorded"/> rather than written
+    /// on top: without the guard an executed row could be flipped to failed by a later caller, an
+    /// edit in place of a recorded fact. The consequence for a host is one sentence — <b>a host that
+    /// retries a write reports once, when it knows the outcome.</b> The retries are the host's
+    /// business; the outcome is the Docket's.
     /// </para>
     /// </remarks>
-    Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(
-        DateTimeOffset expiresBeforeUtc, int limit, CancellationToken ct);
+    /// <exception cref="ArgumentException">
+    /// <paramref name="scope"/> is the store-wide scope, <paramref name="outcome"/> is
+    /// <see cref="ExecutionOutcome.Unexecuted"/>, or <paramref name="expected"/> is not
+    /// <see cref="ExecutionOutcome.Unexecuted"/>.
+    /// </exception>
+    Task<RecordExecutionResult> RecordExecutionAsync(
+        Guid entryId,
+        DocketScope scope,
+        ExecutionOutcome outcome,
+        string? detail,
+        ExecutionOutcome expected,
+        CancellationToken ct);
 
     /// <summary>
-    /// Bulk-transitions the specified entries from <see cref="ReviewStatus.Pending"/> to
-    /// <see cref="ReviewStatus.Expired"/>. Idempotent — entries that are no longer Pending
-    /// are silently skipped (the <c>WHERE Status = 'Pending'</c> guard applies).
+    /// Record that a terminal entry has been resubmitted, naming its successor.
     /// </summary>
-    Task MarkExpiredAsync(IEnumerable<Guid> entryIds, CancellationToken ct);
+    /// <param name="entryId">The superseded entry.</param>
+    /// <param name="scope">The tenant the caller may see. The store-wide scope is refused.</param>
+    /// <param name="supersededBy">The new entry that replaces it.</param>
+    /// <param name="ct">Caller cancellation.</param>
+    /// <remarks>
+    /// The superseded entry keeps its terminal state; only the successor link is added. A
+    /// resubmission is a new entry, never a reopened one, which is what lets the history read
+    /// forward. The link is written once — a row that already names a successor answers
+    /// <see cref="RecordSupersessionResult.NotTerminal"/>, which is also the answer for a row that
+    /// still reads pending.
+    /// </remarks>
+    /// <exception cref="ArgumentException"><paramref name="scope"/> is the store-wide scope.</exception>
+    Task<RecordSupersessionResult> RecordSupersessionAsync(
+        Guid entryId,
+        DocketScope scope,
+        Guid supersededBy,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Record on a pending entry that it cannot be decided, and why.
+    /// </summary>
+    /// <param name="entryId">The entry.</param>
+    /// <param name="marker">Why it cannot be decided.</param>
+    /// <param name="ct">Caller cancellation.</param>
+    /// <returns>1 when this call wrote the marker, 0 when the row was not pending or already carries one.</returns>
+    /// <remarks>
+    /// <para>
+    /// A blocked entry stays in <see cref="ReviewStatus.Pending"/>: it is recorded, its card says on
+    /// its face that it is blocked, and every decision on it is refused. It is never executed and
+    /// never degraded to a weaker requirement — a joint requirement quietly satisfied by one
+    /// approval is the failure the marker exists to prevent.
+    /// </para>
+    /// <para>
+    /// Written once, under the same kind of guard every other transition uses: a marker that could
+    /// be overwritten could be cleared, and an entry whose blocked marker was cleared is an entry
+    /// that became decidable without anyone deciding it should be.
+    /// </para>
+    /// </remarks>
+    Task<int> MarkBlockedAsync(Guid entryId, BlockedMarker marker, CancellationToken ct);
+
+    /// <summary>Entries that read <see cref="ReviewStatus.Pending"/> right now, in filing order, paged.</summary>
+    /// <param name="scope">What the caller may see.</param>
+    /// <param name="page">Where to continue and how much to take.</param>
+    /// <param name="ct">Caller cancellation.</param>
+    /// <remarks>An entry past its deadline is not pending and does not appear here, swept or not.</remarks>
+    Task<DocketPageResult<DocketEntry>> ListPendingAsync(
+        DocketScope scope, DocketPage page, CancellationToken ct);
+
+    /// <summary>
+    /// Entries that are <see cref="ReviewStatus.Approved"/> and still
+    /// <see cref="ExecutionOutcome.Unexecuted"/>, in filing order, paged.
+    /// </summary>
+    /// <param name="scope">What the caller may see.</param>
+    /// <param name="page">Where to continue and how much to take.</param>
+    /// <param name="ct">Caller cancellation.</param>
+    /// <remarks>
+    /// The host's executor reads this: an approved write nobody has reported on is work outstanding,
+    /// and after a restart it is the only record that the work exists.
+    /// </remarks>
+    Task<DocketPageResult<DocketEntry>> ListApprovedUnexecutedAsync(
+        DocketScope scope, DocketPage page, CancellationToken ct);
+
+    /// <summary>
+    /// Transition at most <paramref name="limit"/> entries due at <paramref name="now"/> to
+    /// <see cref="ReviewStatus.Expired"/>, oldest deadline first, and report whether more remain.
+    /// </summary>
+    /// <param name="now">The instant to compare deadlines against — inclusive: at the deadline the entry is expired.</param>
+    /// <param name="scope">What the sweep may see. <see cref="DocketScope.EntireStore"/> is legal here.</param>
+    /// <param name="limit">The page size. Must be greater than zero.</param>
+    /// <param name="ct">Caller cancellation.</param>
+    /// <remarks>
+    /// <para>
+    /// The host schedules this; no framework package owns a timer. The sweep makes the state durable
+    /// and gives the host a list to notify on — it does not <em>cause</em> expiry, which every read
+    /// already applies. <see cref="ExpireDueResult.More"/> says whether another call would find more,
+    /// so a host drains the queue in bounded steps rather than in one unbounded pass, and the store
+    /// never loads the whole Docket into memory.
+    /// </para>
+    /// <para>
+    /// Only the rows <em>this call's own</em> guarded write transitioned are returned: an entry a
+    /// concurrent decision claimed a beat earlier belongs to that caller, and a caller that broadcast
+    /// on it here would double-notify.
+    /// </para>
+    /// </remarks>
+    Task<ExpireDueResult> ExpireDueAsync(
+        DateTimeOffset now, DocketScope scope, int limit, CancellationToken ct);
+
+    /// <summary>
+    /// Remove at most <paramref name="limit"/> terminal entries older than
+    /// <see cref="DocketRetentionPolicy.OlderThan"/>, and report whether more remain.
+    /// </summary>
+    /// <param name="policy">What the host's retention job is allowed to remove.</param>
+    /// <param name="scope">What the job may see.</param>
+    /// <param name="limit">The page size. Must be greater than zero.</param>
+    /// <param name="ct">Caller cancellation.</param>
+    /// <remarks>
+    /// <b>Retention never ages out an approved row whose write has not been reported</b>, however
+    /// old: it is the only record that a write was authorised and has not happened. Every other
+    /// terminal row — rejected, expired, approved-and-executed, approved-and-failed — is the host's
+    /// to age out. Each call shrinks the eligible set, so a host drains retention by calling until
+    /// <see cref="RetentionResult.More"/> is <c>false</c>.
+    /// </remarks>
+    Task<RetentionResult> ApplyRetentionAsync(
+        DocketRetentionPolicy policy, DocketScope scope, int limit, CancellationToken ct);
+
+    /// <summary>Remove everything belonging to <paramref name="tenantId"/>.</summary>
+    /// <param name="tenantId">The tenant whose data is being deleted.</param>
+    /// <param name="ct">Caller cancellation.</param>
+    /// <returns>How many rows were removed.</returns>
+    /// <remarks>
+    /// Unbounded by design and by necessity: a tenant asking for their data to be deleted is asking
+    /// for all of it, and a partial purge is not a purge. It is the one operation that is not paged,
+    /// and the only one that takes a tenant id rather than a <see cref="DocketScope"/> — there is no
+    /// such thing as purging half a tenant.
+    /// </remarks>
+    Task<int> PurgeTenantAsync(string tenantId, CancellationToken ct);
+
+    /// <summary>Every entry in <paramref name="scope"/>, in filing order, streamed.</summary>
+    /// <param name="scope">What to export.</param>
+    /// <param name="ct">Caller cancellation.</param>
+    /// <remarks>
+    /// An <see cref="IAsyncEnumerable{T}"/> rather than a list so a large Docket never has to fit in
+    /// memory. The portable document shape a host would export <em>to</em> is not fixed by this
+    /// release; this yields the rows.
+    /// </remarks>
+    IAsyncEnumerable<DocketEntry> ExportAsync(DocketScope scope, CancellationToken ct);
 }
