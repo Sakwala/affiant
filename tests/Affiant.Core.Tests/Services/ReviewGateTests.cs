@@ -4,6 +4,7 @@ namespace Affiant.Core.Tests.Services;
 // re-implements the guarded transition, the read-time deadline and the paged listings, and the one
 // thing a gate test must not do is prove the gate correct against a store that agrees with it and
 // with nothing else.
+using Affiant.Abstractions;
 using InMemoryDocketStore = Affiant.Docket.Stores.InMemoryDocketStore;
 
 using System.Diagnostics;

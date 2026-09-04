@@ -60,7 +60,7 @@ public class AffiantAutoFunctionInvocationBridgeReviewGateTests
 
         using var scope = sp.CreateScope();
         var writeProposalJson =
-            """{"$type":"write","toolName":"DoWrite","timestamp":"2026-01-01T00:00:00Z","envelope":null}""";
+            """{"kind":"write","toolName":"DoWrite","timestamp":"2026-01-01T00:00:00Z","envelope":null}""";
         var context = BuildAutoInvocationContext(scope.ServiceProvider, "DoWrite", writeProposalJson);
 
         // Simulates SK's own remaining auto-invocation chain — a no-op here since context.Result
@@ -71,8 +71,8 @@ public class AffiantAutoFunctionInvocationBridgeReviewGateTests
         var resultText = context.Result.GetValue<object>() as string;
         Assert.NotNull(resultText);
         Assert.Contains("REVIEW_FILING_FAILED", resultText);
-        Assert.Contains("\"$type\":\"error\"", resultText);
-        Assert.DoesNotContain("\"$type\":\"write\"", resultText); // not the raw, unfiled proposal
+        Assert.Contains("\"kind\":\"error\"", resultText);
+        Assert.DoesNotContain("\"kind\":\"write\"", resultText); // not the raw, unfiled proposal
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public class AffiantAutoFunctionInvocationBridgeReviewGateTests
 
         using var scope = sp.CreateScope();
         var writeProposalJson =
-            """{"$type":"write","toolName":"DoWrite","timestamp":"2026-01-01T00:00:00Z","envelope":null}""";
+            """{"kind":"write","toolName":"DoWrite","timestamp":"2026-01-01T00:00:00Z","envelope":null}""";
         var context = BuildAutoInvocationContext(scope.ServiceProvider, "DoWrite", writeProposalJson);
 
         await bridge.OnAutoFunctionInvocationAsync(context, _ => Task.CompletedTask);

@@ -1,3 +1,4 @@
+using Affiant.Abstractions;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Affiant.Abstractions.Interfaces;

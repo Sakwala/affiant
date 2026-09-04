@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
+using Affiant.Abstractions.Serialization;
 using Affiant.Core.Observability;
 
 namespace Affiant.Core.Filters;
@@ -29,7 +30,7 @@ namespace Affiant.Core.Filters;
 /// <c>ReviewGateFilter</c>'s own filing-failure rewrite). Without this check such a result looked
 /// identical to a successful tool call: <c>tool_status="ok"</c>, no <c>affiant.tool_error</c> event,
 /// invisible to operators. This filter now inspects the post-invocation result for the
-/// <see cref="ToolEnvelope"/> <c>$type: "error"</c> discriminator and, when found, tags
+/// <see cref="ToolEnvelope"/> <c>kind: "error"</c> discriminator (AF-5) and, when found, tags
 /// <c>tool_status="error"</c> and emits the same <c>affiant.tool_error</c> event shape
 /// <c>ToolErrorFilter</c> emits for thrown errors — one operator-visible vocabulary for both —
 /// distinguishing the two via <c>exception.type</c> (<see cref="ReturnedToolErrorExceptionType"/>
@@ -46,10 +47,7 @@ public sealed class ToolTracingFilter : IToolInvocationFilter
     /// </summary>
     public const string ReturnedToolErrorExceptionType = "ReturnedToolError";
 
-    private static readonly JsonSerializerOptions ToolEnvelopeJsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
+    private static readonly JsonSerializerOptions ToolEnvelopeJsonOptions = AffiantJson.SerializerOptions;
 
     public async Task OnToolInvocationAsync(
         ToolInvocationContext context,
@@ -100,7 +98,7 @@ public sealed class ToolTracingFilter : IToolInvocationFilter
     /// Attempts to parse <paramref name="resultText"/> as a <see cref="ToolEnvelope"/> and extract a
     /// <see cref="ToolError"/> variant. Returns <c>false</c> — not a <see cref="ToolError"/> — for
     /// null/empty text, non-JSON text (most tool results are plain markdown/summary strings, not
-    /// JSON), or JSON missing the polymorphic <c>$type</c> discriminator, mirroring the same
+    /// JSON), or JSON missing the polymorphic <c>kind</c> discriminator (AF-5; spelled <c>$type</c> through 1.0.0-beta.1), mirroring the same
     /// tolerant-parse pattern <c>ReviewGateFilter</c> uses to detect <see cref="WriteProposal"/>.
     /// </summary>
     private static bool TryParseToolError(string? resultText, out ToolError? toolError)

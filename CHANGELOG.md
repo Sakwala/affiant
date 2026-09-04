@@ -739,6 +739,134 @@ One migration per provider, both idempotent and both safe to run against a beta.
   backfill is what stops a pre-existing row from reading as filed and due at the beginning of
   time.
 
+### The wire as the rulebook defines it
+
+A record a person swears to has to mean the same thing on both sides of a network, and years later.
+This change gives the framework a canonical form to hash, one spelling for every value, and an
+envelope that says which protocol it speaks — the four serialization rules and the tool-result
+discriminator, together, because they are one subject seen from four angles.
+
+#### Added
+
+- **`Affiant.Core.Serialization.CanonicalSerializer`** — the canonical form of an Affidavit and its
+  accepted amendments, and the SHA-256 over it. `Canonicalize` returns UTF-8 bytes, `CanonicalString`
+  the same document one encoding step earlier, `CanonicalHash` 64 lowercase hexadecimal characters.
+  Object keys are sorted by Unicode **code point** at every level; there is no insignificant
+  whitespace; numbers are the shortest decimal that round-trips, written positionally (`1e21` in
+  full, never `1e+21`), with `-0` written `0` and a non-finite number refused; strings escape only
+  what JSON requires; `null` is written and an absent property omitted; money is its two strings.
+  The overloads that take an amendment map fold it through `AffidavitAmendments.Apply`, so the bytes
+  a decision produces and the amended record a Docket row keeps cannot disagree about that decision.
+  **The form is taken over the accepted state** — the amended record where there is one, the proposal
+  otherwise. A form over the proposal alone would let a host's execution grant, minted for the record
+  a reviewer *was shown*, still validate the record they *amended*.
+  All seven of the protocol's normative byte vectors reproduce, byte for byte and digest for digest,
+  at the rulebook's [`v0.1.1`](https://github.com/Sakwala/affiant-protocol/releases/tag/v0.1.1) tag,
+  where all seven describe the v0.1 record. The amended vector also states the accepted state it
+  canonicalises, and `ApplyAmendmentsForCanonical` reproduces that state property for property, not
+  only the bytes over it.
+
+  One correction fell out of the re-vendoring. The tag an accepted amendment mints carried the
+  **amended field's** conversation turn, not the **Affidavit's**. Those were the same number for as
+  long as no vector stated a turn on the record, and different the moment one did: a reviewer's
+  correction belongs to the conversation the proposal was made in, and the displaced tag's own turn
+  says when the machine produced the value it replaced. Dating a person's act to the machine's turn
+  is the wrong answer whether or not a vector catches it, and `AffidavitAmendments.Apply` — the typed
+  path, which reads `Affidavit.ConversationTurn` — was already right.
+- **`Money`** (`Amount` decimal string, `Currency` ISO 4217 shape) and its converter, which writes the
+  two strings and **refuses a JSON number** where money was expected, naming the rule and saying why:
+  no binary float represents `0.10`, so a card showing "£4,000.10" and a store holding
+  `4000.099999999999` disagree about what was approved with nothing on the record to say which the
+  reviewer saw. `Money.Parse` / `TryParse` / `IsMoney` read one out of an `AffidavitField`'s
+  `object?` value, and `ScaleFits(minorUnits)` checks a scale the host declares. No currency list is
+  embedded — ISO 4217 changes, and a table frozen into a serialization type would be wrong within a
+  year; the shape is checked here and membership is the host's check.
+- **`AffiantProtocol.Version`** — the protocol version string this build speaks, written once.
+  `EvidenceCardRequest`, the three Docket notifications and `DecisionResult` each carry it.
+- **`Affiant.Abstractions.Serialization.AffiantJson`** — the JSON conventions every envelope is
+  written under, in one place: camelCase names, enums as strings in the exact casing each schema
+  freezes, nulls written, one spelling for every instant, money as strings. `AffiantJson.Configure`
+  applies them to an options object of your own; the SignalR hub protocol now calls it instead of
+  restating them, and `ToolEnvelopeExtensions.ToJsonString` uses it. Three code paths each declared
+  their own spelling of the same record before — which is how an enum inside a tool result crossed as
+  an integer while the same enum inside an Evidence Card crossed as a string.
+- **`EvidenceCardRequest` gains seven properties** and a factory, `EvidenceCardRequest.For(...)`, that
+  fills them from the record rather than from a caller: `PopulatedConfidence` and `EmptyFieldCount`
+  (a card shows all three confidence numbers, and this is where the seed put the two companions);
+  `RequiresConfirmation` (the policy chain's verdict, not a property of the evidence, which is why it
+  belongs on the envelope); `Blocked` (why no decision will be accepted — see below); `Presentation`
+  (the per-field rendering hints the host's strategy declared, lifted onto the envelope);
+  `Warnings`; and `HostOperation` (the host's own verb — "Reprice", "Onboard" — carried *beside* the
+  protocol's two-valued shape vocabulary, never instead of it, so a card can be headed with the term
+  a person recognises while a policy still tests the shape). The last three are **omitted** when
+  empty rather than written null; the others are written null, because a required-and-nullable
+  property a reader can rely on finding is worth more than three saved bytes.
+- **`FieldPresentation`** — one field's rendering hints (`Name`, `Kind`, `AllowedValues`, `Pattern`),
+  sworn to by nobody: the gate carries a hint and validates nothing against it, and none of it is
+  part of the canonical form.
+- **`BlockedMarker`** (`RequirementNotImplemented`, `CoverageRefused`) — why an entry cannot be
+  decided even though it sits in `pending`. Declared now so the card envelope can carry it typed;
+  it is null on every card until the Docket row gains its own blocked column, which is a separate
+  change.
+- **`DocketTransitionNotification`** and **`ExecutionOutcome`** (`unexecuted` / `executed` /
+  `failed`) — the state-change notification and the execution axis of an approved row. Declared so
+  the wire has one spelling of them; not yet emitted by any framework path.
+- **`DecisionResult`** and **`DecisionOutcome`** (`approved` / `rejected` / `expired` /
+  `resubmitted`) — what became of a review, as a report and never as an authorization: the Docket row
+  is the sole record of approval authority and nothing replayed from this envelope stands in for it.
+  `DecisionResult.For(outcome)` maps the gate's own outcome union onto the protocol's vocabulary and
+  refuses a referral rather than reporting it as one of the four.
+- **`AffidavitAmendments.AmendmentTag(...)`** — the one definition of what a reviewer's correction is,
+  as provenance, extracted so the amendment path and the canonical serializer mint the same tag.
+- **`ProvenanceTag.At`** (`DateTimeOffset?`) — when the tag was minted. Null at every framework mint
+  site except a reviewer's accepted amendment, whose instant is passed in rather than read from a
+  clock; the rest stamp it once the injected clock lands.
+
+#### Changed
+
+- **The tool-result discriminator is `kind`, not `$type`.** It was inherited from Semantic Kernel's
+  `KernelContent` pattern rather than chosen, and `$`-prefixed names are reserved by JSON Schema — a
+  discriminator a schema cannot name is a discriminator nothing can validate.
+- **A provenance tag's `Evidence` is spelled `note` on the wire.** The CLR name is unchanged.
+- **An instant is written UTC with milliseconds and a trailing `Z`** — `2026-08-01T00:05:00.000Z` —
+  where .NET's round-trip default wrote `2026-08-01T00:05:00+00:00`. The same instant; one spelling,
+  because a canonical form is a byte sequence and two spellings of one instant are two hashes of one
+  record.
+- **A `ReviewStatus` crosses lowercase** — `"pending"` — which is the spelling the v0.1 schemas freeze
+  and the one the demo hosts' own status queries already return. A `ProvenanceSource` stays
+  PascalCase and a `ReviewRequirement` stays PascalCase, for the same reason: the schemas freeze each
+  set as it stands and no implementation case-folds one on the wire.
+- **`EvidenceCardRequestFactory.CreateAsync` takes an optional `hostOperation`** and builds the card
+  through `EvidenceCardRequest.For`, so the filing path, the reconnect rebroadcast and the expiry
+  sweep cannot produce three different cards for one entry.
+
+#### Upgrade notes (breaking changes; pre-1.0 breaks are permitted and declared)
+
+1. **A tool result's discriminator is now `kind`.** *Client migration:* a TypeScript client that
+    does `switch (result.$type)` reads `undefined` after the upgrade and falls through to its default
+    arm — silently, since nothing throws. Change it to `switch (result.kind)`. The three values —
+    `"read"`, `"write"`, `"error"` — are unchanged. A .NET consumer deserializing through
+    `ToolEnvelope` needs no change beyond re-serializing any payload it had stored as text.
+2. **A provenance tag's `evidence` is now `note` on the wire.** *Client migration:* a client
+    rendering `tag.evidence` renders nothing; read `tag.note`. A stored payload written before this
+    release deserializes with `Evidence` null.
+3. **A tag carries `at` and `binding`, and an Affidavit carries `populatedConfidence` and
+    `emptyFieldCount`.** Additive: a client that ignores unknown properties needs no change. A client
+    that rejects them does.
+4. **An instant is spelled `...T00:05:00.000Z`.** *Client migration:* none for anything that parses
+    the string — `new Date(s)` handles both forms. A client or test asserting the exact former string
+    needs updating. Sub-millisecond precision is not carried.
+5. **A `ReviewStatus` on the wire is lowercase.** *Client migration:* a client comparing against
+    `"Pending"` compares against `"pending"`.
+6. **`EvidenceCardRequest` gains seven optional constructor parameters** after `PriorAmendments`.
+    Existing construction compiles unchanged and produces a card with the companions unset; a
+    positional deconstruction of four elements does not compile. *Migration:* build cards with
+    `EvidenceCardRequest.For(...)`, which fills every repeated number from the record it is given —
+    passing them by hand is how a card ends up reporting a confidence that is about a different set
+    of values than the ones it shows.
+7. **`ProvenanceTag` gains a sixth positional parameter (`At`, defaulted `null`).** Existing
+    construction sites compile unchanged; a positional deconstruction of five elements does not.
+
 ## [1.0.0-beta.1] — 2026-08-23
 
 First public release. The framework is a deterministic evidence layer for .NET agents:

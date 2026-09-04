@@ -162,9 +162,9 @@ public sealed class ReviewGateFilter(
         catch (Exception ex) when (ex is JsonException or NotSupportedException)
         {
             // STJ throws JsonException for malformed JSON and NotSupportedException when a
-            // polymorphic type (ToolEnvelope) lacks the required $type discriminator. Both mean the
-            // result is not a WriteProposal — which is a refusal for a declared write tool and a
-            // pass-through for anything else.
+            // polymorphic type (ToolEnvelope) lacks the required `kind` discriminator (AF-5).
+            // Both mean the result is not a WriteProposal — which is a refusal for a declared
+            // write tool and a pass-through for anything else.
             proposal = null;
         }
 

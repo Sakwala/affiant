@@ -1,18 +1,6 @@
 namespace Affiant.Abstractions.Models;
 
-/// <summary>
-/// The protocol tag this build's wire shapes and Docket rows are pinned to.
-/// </summary>
-/// <remarks>
-/// Stamped onto every <see cref="DocketEntry"/> at filing so a row read years later can say which
-/// version of the shapes it was written under, rather than being interpreted under whatever the
-/// reader happens to be running.
-/// </remarks>
-public static class AffiantProtocol
-{
-    /// <summary>The protocol version tag — the <c>0.1.0</c> schema set.</summary>
-    public const string Version = "0.1.0";
-}
+using System.Text.Json.Serialization;
 
 /// <summary>
 /// What became of an approved write, once the host's executor reported.
@@ -30,16 +18,23 @@ public static class AffiantProtocol
 /// report through <see cref="Interfaces.IDocketStore.RecordExecutionAsync"/>, recorded once under a
 /// guard. An execution state that can be flipped after the fact is an audit record that lies.
 /// </para>
+/// <para>
+/// Serialized lowercase, the spelling <c>schemas/0.1.0/docket-entry.schema.json</c> freezes.
+/// </para>
 /// </remarks>
+[JsonConverter(typeof(JsonStringEnumConverter<ExecutionOutcome>))]
 public enum ExecutionOutcome
 {
     /// <summary>Approved, and the host's executor has not reported.</summary>
+    [JsonStringEnumMemberName("unexecuted")]
     Unexecuted,
 
     /// <summary>The host reported the write committed.</summary>
+    [JsonStringEnumMemberName("executed")]
     Executed,
 
     /// <summary>The host reported the write failed. The approval still happened.</summary>
+    [JsonStringEnumMemberName("failed")]
     Failed
 }
 
@@ -286,68 +281,6 @@ public abstract record Attestor
 /// <param name="At">When they agreed.</param>
 /// <param name="EntryId">The Docket entry this attests to.</param>
 public sealed record Attestation(Attestor By, DateTimeOffset At, Guid EntryId);
-
-/// <summary>The category of write-capable tool the gate cannot intercept.</summary>
-public enum CoverageCategory
-{
-    /// <summary>A write-capable tool with no execute step for the gate to replace.</summary>
-    NoExecute,
-
-    /// <summary>A tool the model provider executes on its own side.</summary>
-    ProviderExecuted,
-
-    /// <summary>A hosted MCP server-side write.</summary>
-    HostedMcp
-}
-
-/// <summary>
-/// Why an entry cannot be decided even though it sits in <see cref="ReviewStatus.Pending"/>.
-/// </summary>
-/// <remarks>
-/// <para>
-/// An implementation that receives a requirement level it does not run records that level verbatim,
-/// files the entry pending with this marker, refuses every decision on it, never executes it, and
-/// <b>never degrades it to a weaker requirement</b> — a joint requirement quietly satisfied by one
-/// approval is the failure this exists to prevent. A blocked entry's card says so on its face and
-/// never claims a confirmation is being awaited.
-/// </para>
-/// <para>
-/// Discriminated on <see cref="Code"/>, and each arm carries exactly the context that code makes
-/// meaningful: a coverage refusal has no requirement level to report.
-/// </para>
-/// </remarks>
-public abstract record BlockedMarker
-{
-    private protected BlockedMarker() { }
-
-    /// <summary>The refusal code this marker records.</summary>
-    public abstract string Code { get; }
-
-    /// <summary>
-    /// A requirement level this version recognises but does not run reached the pipeline —
-    /// <see cref="ReviewRequirement.ReferralRequired"/> or <see cref="ReviewRequirement.MultiParty"/>,
-    /// whose semantics are reserved.
-    /// </summary>
-    /// <param name="Level">The requirement level that is not implemented, recorded verbatim.</param>
-    public sealed record RequirementNotImplemented(ReviewRequirement Level) : BlockedMarker
-    {
-        /// <inheritdoc/>
-        public override string Code => "requirement-not-implemented";
-    }
-
-    /// <summary>
-    /// A proposal came from a write-capable tool the host declared the gate cannot intercept. Its
-    /// proposals are still recorded — blocked, never silently allowed to write — and the tool name is
-    /// on the row so coverage can be re-assessed on a resubmission.
-    /// </summary>
-    /// <param name="Category">The category the gate cannot cover.</param>
-    /// <param name="ToolName">The tool the uncovered proposal came from.</param>
-    public sealed record CoverageRefused(CoverageCategory Category, string ToolName) : BlockedMarker
-    {
-        /// <inheritdoc/>
-        public override string Code => "coverage-refused";
-    }
-}
 
 /// <summary>
 /// The amendments a decision carried after the entry had already expired, with the act that carried

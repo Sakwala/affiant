@@ -94,8 +94,6 @@ public static class AffidavitAmendments
                 nameof(amendments));
         }
 
-        var binding = new ProvenanceBinding.ReviewerAct(new ReviewerActRef(entryId, decisionAt));
-
         var fields = new List<AffidavitField>(affidavit.Fields.Length);
         foreach (var field in affidavit.Fields)
         {
@@ -113,19 +111,12 @@ public static class AffidavitAmendments
             if (cleared && !field.IsMandatory)
                 continue;
 
-            var tag = cleared
-                ? new ProvenanceTag(
-                    ProvenanceSource.Empty,
-                    0f,
-                    $"Cleared by {reviewerId} on Docket entry {entryId}",
-                    field.Provenance.Current.ConversationTurn,
-                    binding)
-                : new ProvenanceTag(
-                    ProvenanceSource.UserStated,
-                    1.0f,
-                    $"Amended by {reviewerId} on Docket entry {entryId}",
-                    field.Provenance.Current.ConversationTurn,
-                    binding);
+            var tag = AmendmentTag(
+                cleared,
+                entryId,
+                decisionAt,
+                reviewerId,
+                field.Provenance.Current.ConversationTurn);
 
             fields.Add(field with
             {
@@ -135,5 +126,63 @@ public static class AffidavitAmendments
         }
 
         return affidavit.WithFields([.. fields]);
+    }
+
+    /// <summary>
+    /// The tag an accepted amendment puts in force on the field it touched — the framework's one
+    /// definition of what a reviewer's correction is, as provenance.
+    ///
+    /// <para>
+    /// It is public and separate from <see cref="Apply"/> because two paths mint it and they must
+    /// not drift: <see cref="Apply"/>, which produces the amended record a Docket row keeps, and the
+    /// canonical serializer, which produces the bytes an execution grant binds to (SR-1). If those
+    /// two ever minted slightly different tags, the row and the hash would disagree about the same
+    /// decision — and the hash is what the grant is checked against, so the row would lose.
+    /// </para>
+    ///
+    /// <para>
+    /// A <b>set</b> is a <see cref="ProvenanceSource.UserStated"/> tag at confidence 1: a person
+    /// typed the value, which is the strongest grade there is. A <b>clear</b> is
+    /// <see cref="ProvenanceSource.Empty"/> at confidence 0, because a cleared field has no value
+    /// and so cannot have confidence in one — writing the reviewer's maximal tag over an emptied
+    /// field would make the three numbers <i>rise</i> as a reviewer wiped the record. Either way the
+    /// tag carries the same <see cref="ProvenanceBinding.ReviewerAct"/> binding, which names the
+    /// entry and the instant (PV-2), and <see cref="ProvenanceTag.At"/> is that instant.
+    /// </para>
+    /// </summary>
+    /// <param name="cleared">Whether the reviewer cleared the field rather than setting it.</param>
+    /// <param name="entryId">The Docket entry the decision was made on.</param>
+    /// <param name="decisionAt">
+    /// When the decision was made. Passed in rather than read from a clock, so a fixture can pin it.
+    /// </param>
+    /// <param name="reviewerId">Who made the decision, as the host identifies them.</param>
+    /// <param name="conversationTurn">
+    /// The turn the field's superseded tag named, carried forward so the amended tag still points at
+    /// the turn the value was first proposed on.
+    /// </param>
+    public static ProvenanceTag AmendmentTag(
+        bool cleared,
+        Guid entryId,
+        DateTimeOffset decisionAt,
+        string reviewerId,
+        int? conversationTurn)
+    {
+        var binding = new ProvenanceBinding.ReviewerAct(new ReviewerActRef(entryId, decisionAt));
+
+        return cleared
+            ? new ProvenanceTag(
+                ProvenanceSource.Empty,
+                0f,
+                $"Cleared by {reviewerId} on Docket entry {entryId}",
+                conversationTurn,
+                binding,
+                decisionAt)
+            : new ProvenanceTag(
+                ProvenanceSource.UserStated,
+                1.0f,
+                $"Amended by {reviewerId} on Docket entry {entryId}",
+                conversationTurn,
+                binding,
+                decisionAt);
     }
 }

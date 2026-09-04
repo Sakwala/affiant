@@ -40,7 +40,7 @@ internal sealed class DocketEntityConfiguration : IEntityTypeConfiguration<Docke
         builder.Property(e => e.DecidedAt).IsRequired(false);
         builder.Property(e => e.ProtocolVersion)
             .IsRequired()
-            .HasDefaultValue(Affiant.Abstractions.Models.AffiantProtocol.Version);
+            .HasDefaultValue(Affiant.Abstractions.AffiantProtocol.Version);
         builder.Property(e => e.CreatedAtTicks).IsRequired().HasDefaultValue(0L);
         builder.Property(e => e.ExpiresAtTicks).IsRequired().HasDefaultValue(0L);
         builder.Property(e => e.DecidedAtTicks).IsRequired(false);

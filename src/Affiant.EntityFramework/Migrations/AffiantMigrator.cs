@@ -111,7 +111,7 @@ public static class AffiantMigrator
             ("Supersedes", "TEXT NULL"),
             ("DecidedAt", "TEXT NULL"),
             ("DecidedAtTicks", "INTEGER NULL"),
-            ("ProtocolVersion", $"TEXT NOT NULL DEFAULT '{Abstractions.Models.AffiantProtocol.Version}'"),
+            ("ProtocolVersion", $"TEXT NOT NULL DEFAULT '{Abstractions.AffiantProtocol.Version}'"),
             ("CreatedAtTicks", "INTEGER NOT NULL DEFAULT 0"),
             ("ExpiresAtTicks", "INTEGER NOT NULL DEFAULT 0"),
         ];

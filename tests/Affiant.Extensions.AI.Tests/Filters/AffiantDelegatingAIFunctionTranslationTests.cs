@@ -131,7 +131,7 @@ public class AffiantDelegatingAIFunctionTranslationTests
     public async Task ReviewGateFiling_Throws_WrapperReturnsTypedToolError_NotTheRawProposal()
     {
         const string WriteProposalJson =
-            """{"$type":"write","toolName":"DoWrite","timestamp":"2026-01-01T00:00:00Z","envelope":null}""";
+            """{"kind":"write","toolName":"DoWrite","timestamp":"2026-01-01T00:00:00Z","envelope":null}""";
 
         var services = new ServiceCollection();
         services.AddLogging();
@@ -154,8 +154,8 @@ public class AffiantDelegatingAIFunctionTranslationTests
 
         var resultJson = Assert.IsType<string>(result);
         Assert.Contains("REVIEW_FILING_FAILED", resultJson);
-        Assert.Contains("\"$type\":\"error\"", resultJson);
-        Assert.DoesNotContain("\"$type\":\"write\"", resultJson); // not the raw, unfiled proposal
+        Assert.Contains("\"kind\":\"error\"", resultJson);
+        Assert.DoesNotContain("\"kind\":\"write\"", resultJson); // not the raw, unfiled proposal
     }
 
     // ── Test doubles ─────────────────────────────────────────────────────────

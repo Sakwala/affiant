@@ -30,4 +30,18 @@
     </PackageReference>
   </ItemGroup>
 
+  <!-- Schema validation is a TEST-only dependency on purpose: the shipped packages must not make a
+       consumer take a JSON Schema library to use them, and the schemas are the rulebook's artifact
+       rather than this repository's. -->
+  <ItemGroup>
+    <PackageReference Include="JsonSchema.Net" Version="7.3.4" />
+  </ItemGroup>
+
+  <!-- The vendored rulebook travels with the test binary: these tests read the v0.1 schemas and the
+       protocol's byte vectors at run time, and the run must not depend on the working directory or
+       on a network fetch. See tests/protocol/README.md for the commit it was copied from. -->
+  <ItemGroup>
+    <Content Include="../protocol/**/*" LinkBase="protocol" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

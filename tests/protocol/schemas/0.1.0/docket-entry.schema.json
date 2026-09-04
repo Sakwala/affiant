@@ -1,0 +1,226 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://affiant.dev/schemas/0.1.0/docket-entry.schema.json",
+  "title": "DocketEntry",
+  "description": "One filed proposal: the Affidavit, what it needs before it may execute, where it stands, and who agreed. The Docket is the SOLE record of approval authority — an executor is reachable only through an entry that carries an attestation, and nothing replayed from a client's history, a chat transcript or a framework checkpoint stands in for that (INVARIANTS.md AZ-5). A row reads FORWARD (DK-4): a recorded fact is never edited in place, and an accepted amendment, a preserved late amendment, an execution outcome and a supersession are each appended beside what was already there. Three correlations no JSON Schema can state, which an implementation enforces instead: execution is non-null exactly when status is \"approved\"; decidedAt is non-null on every terminal row and null while pending; and status is what the row SAYS — what it READS is status with the deadline applied, so a pending entry past expiresAt reads expired whether or not any sweep has run.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocolVersion",
+    "entryId",
+    "tenantId",
+    "conversationId",
+    "channel",
+    "toolName",
+    "affidavit",
+    "amendedAffidavit",
+    "requirement",
+    "status",
+    "execution",
+    "blocked",
+    "compositeRef",
+    "attestation",
+    "amendments",
+    "preservedAmendments",
+    "decision",
+    "lineage",
+    "filedAt",
+    "expiresAt",
+    "decidedAt",
+    "executionDetail"
+  ],
+  "properties": {
+    "protocolVersion": {
+      "description": "The protocol version this row's shapes conform to (SR-4).",
+      "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/protocolVersion"
+    },
+    "entryId": {
+      "description": "The entry's id, stable for its whole lifetime; a resubmission gets a new one. Derived deterministically from the tenant, the conversation, the tool and the canonical form of the operation and its arguments, so a retry replays the same entry and a genuinely new proposal files a new one (GT-4). Unique WITHIN a tenant, never across them.",
+      "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/uuid"
+    },
+    "tenantId": {
+      "description": "The tenant this entry is scoped to — the host's isolation boundary. The framework compares this with the caller's tenant ITSELF before any transition and treats a miss as not-found; it does not trust a store's scope (AZ-2).",
+      "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/identifier"
+    },
+    "conversationId": {
+      "description": "The conversation the proposal came from. Passed in explicitly at every gate entry point, never resolved from anything ambient (GT-2).",
+      "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/identifier"
+    },
+    "channel": {
+      "description": "Where the turn arrived from — \"chat\", \"mcp\", \"api\" or the host's own name for a surface. An open string: the transport is not the protocol (SR-5).",
+      "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/identifier"
+    },
+    "toolName": {
+      "description": "The tool or capture source the proposal came from. On the row because two later questions need it and neither can be answered from the Affidavit: a resubmission re-runs the coverage lookup against the original tool (CV-4), and an audit of a filed write has to be able to say which tool proposed it.",
+      "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/identifier"
+    },
+    "affidavit": {
+      "description": "The sworn evidence record AS THE AGENT PROPOSED IT. Never edited (DK-4). A row that overwrote its proposal could not show what the agent originally said, which is the fact an auditor is reading the row for.",
+      "$ref": "https://affiant.dev/schemas/0.1.0/affidavit.schema.json"
+    },
+    "amendedAffidavit": {
+      "description": "The state a reviewer's ACCEPTED amendments produced, or null while none has been accepted (AF-4, DK-4). The form a host's execution grant binds to is the canonical form of this if present, else of the proposal — a form over the proposal alone would let an amended proposal execute against a grant minted for the unamended one (SR-1).",
+      "oneOf": [
+        { "$ref": "https://affiant.dev/schemas/0.1.0/affidavit.schema.json" },
+        { "type": "null" }
+      ]
+    },
+    "requirement": {
+      "description": "What the policy chain decided this write needs before it may execute, recorded verbatim (AZ-4).",
+      "$ref": "#/$defs/requirementKind"
+    },
+    "status": {
+      "description": "What the row says.",
+      "$ref": "#/$defs/status"
+    },
+    "execution": {
+      "description": "What became of the write. Non-null exactly when status is \"approved\": an approved-but-failed write MUST stay distinguishable from an approved-and-committed one (DK-1). Recorded ONCE, under a guarded transition from \"unexecuted\"; a second report is refused and changes nothing, because an execution state that can be flipped after the fact is an audit record that lies.",
+      "oneOf": [{ "$ref": "#/$defs/execution" }, { "type": "null" }]
+    },
+    "blocked": {
+      "description": "Why this entry cannot be decided, or null when it can (AZ-4). A blocked entry sits in pending and refuses every decision.",
+      "oneOf": [
+        { "$ref": "https://affiant.dev/schemas/0.1.0/blocked.schema.json" },
+        { "type": "null" }
+      ]
+    },
+    "compositeRef": {
+      "description": "The composite approval this entry is one constituent of, or null. Until MultiParty semantics land at protocol v0.2, a host composes multi-party approval ABOVE the gate: one entry per approver, all naming the same composite, each card stating on its face that it is one of N, and no constituent's approval alone reaching the executor (AZ-4).",
+      "oneOf": [
+        { "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/identifier" },
+        { "type": "null" }
+      ]
+    },
+    "attestation": {
+      "description": "Who agreed, or null while nobody has (AZ-1). A Standing Order's attestation is written in the same operation as the filing.",
+      "oneOf": [
+        { "$ref": "https://affiant.dev/schemas/0.1.0/attestation.schema.json" },
+        { "type": "null" }
+      ]
+    },
+    "amendments": {
+      "description": "The amendments a reviewer's approval ACCEPTED, or null when the approval carried none (DK-2). A map a REFUSED late decision carried is a different fact and lives under preservedAmendments: nobody accepted it, and conflating the two would let a resubmission present a refused caller's corrections as an approval's.",
+      "oneOf": [
+        { "$ref": "https://affiant.dev/schemas/0.1.0/amendments.schema.json" },
+        { "type": "null" }
+      ]
+    },
+    "preservedAmendments": {
+      "description": "The amendments a decision carried AFTER the deadline had passed, with the act that carried them, or null (DK-1). A later fact appended to an expired row and read by a resubmission to prefill the new proposal.",
+      "oneOf": [{ "$ref": "#/$defs/preservedAmendments" }, { "type": "null" }]
+    },
+    "decision": {
+      "description": "What a reviewer chose, or null for a pending row or a Standing Order. Separate from the attestation because they answer different questions: the attestation says who may be held to this, the decision says what they chose and why. A Standing Order produces an attestation and no decision record — no person chose anything.",
+      "oneOf": [{ "$ref": "#/$defs/decisionRecord" }, { "type": "null" }]
+    },
+    "lineage": {
+      "description": "What this entry replaces and what replaced it (DK-1).",
+      "$ref": "#/$defs/lineage"
+    },
+    "filedAt": {
+      "description": "When the entry was filed. Fixes the filing order rehydration reads in (DK-5).",
+      "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/isoInstant"
+    },
+    "expiresAt": {
+      "description": "The deadline. Stamped from the policy verdict's time-to-live AFTER the policy chain has run, else the policy's declared default, else the gate's required default (GT-4) — a single global default applied before policy is non-conformant. NEVER refreshed by a re-file: a replay re-broadcasts the existing card with its existing deadline. The boundary is inclusive: at expiresAt the entry is expired.",
+      "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/isoInstant"
+    },
+    "decidedAt": {
+      "description": "When the row left pending, or null while it has not.",
+      "oneOf": [
+        { "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/isoInstant" },
+        { "type": "null" }
+      ]
+    },
+    "executionDetail": {
+      "description": "What the executor reported, or null when it has not reported or had nothing to say.",
+      "type": ["string", "null"]
+    }
+  },
+  "$defs": {
+    "status": {
+      "title": "DocketStatus",
+      "description": "Where an entry stands. pending is the only non-terminal state and it goes to exactly ONE of the other three; every transition out of pending is a guarded compare-and-set keyed on the entry id and the expected current state (DK-1). \"deferred\" and a referral outcome are RESERVED for protocol v0.2 and deliberately absent: no implementation has run those transitions, and naming them here would invite a host to depend on semantics nobody has fixed.",
+      "type": "string",
+      "enum": ["pending", "approved", "rejected", "expired"]
+    },
+    "execution": {
+      "title": "ExecutionOutcome",
+      "description": "What became of an approved write once the host's executor reported. A separate axis rather than two more statuses because an approved-but-failed write and an approved-and-committed one differ in what the HOST must do next, not in whether the approval happened; collapsing them into status loses the approval. The framework never performs the write — the only path to \"executed\" is the host's report (AZ-7).",
+      "type": "string",
+      "enum": ["unexecuted", "executed", "failed"]
+    },
+    "requirementKind": {
+      "title": "RequirementKind",
+      "description": "How much agreement a write needs before it may execute — the policy chain's verdict kind. StandingOrder approves with no person present; ReviewerConfirmation asks one person; ReferralRequired hands the entry to a different reviewer and MultiParty requires several, NEITHER of which v0.1 runs: an implementation records the level verbatim, files the entry pending with a blocked marker, and never degrades it to a weaker requirement (AZ-4).",
+      "type": "string",
+      "enum": ["StandingOrder", "ReviewerConfirmation", "ReferralRequired", "MultiParty"]
+    },
+    "decisionRecord": {
+      "title": "DecisionRecord",
+      "description": "What a reviewer decided, as it is recorded on the row. Amending is approving with an amendment map, not a third kind.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "reason", "at"],
+      "properties": {
+        "kind": {
+          "description": "Approve or reject.",
+          "type": "string",
+          "enum": ["approve", "reject"]
+        },
+        "reason": {
+          "description": "The reviewer's stated reason, or null when they gave none. Required on a rejection — a refusal nobody explained teaches the host nothing.",
+          "type": ["string", "null"]
+        },
+        "at": {
+          "description": "When the decision was made.",
+          "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/isoInstant"
+        }
+      }
+    },
+    "lineage": {
+      "title": "Lineage",
+      "description": "A resubmission is a NEW entry, never a reopened one: the superseded entry keeps its terminal state and records its successor, so the history reads forward and nothing once decided is quietly edited (DK-1, DK-4). An entry that is not expired cannot be resubmitted.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["supersedes", "supersededBy"],
+      "properties": {
+        "supersedes": {
+          "description": "The entry this one resubmits, or null for a first filing.",
+          "oneOf": [
+            { "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/uuid" },
+            { "type": "null" }
+          ]
+        },
+        "supersededBy": {
+          "description": "The entry that resubmitted this one, or null while none has.",
+          "oneOf": [
+            { "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/uuid" },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "preservedAmendments": {
+      "title": "PreservedAmendments",
+      "description": "The amendments a refused late decision carried, with the act that carried them. The instant and the principal are here, not merely implied, because a resubmission prefills these values as A PERSON'S OWN CORRECTION: each prefilled field is tagged UserStated with a reviewer-act binding, and that binding names the decision the correction was made on. Without the instant the binding would have to point at the row's deadline — the moment the gate refused, not the moment the person typed — and without the principal the record could not say whose correction it is.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["amendments", "at", "by"],
+      "properties": {
+        "amendments": {
+          "description": "The map the refused decision carried. DK-2 holds inside it.",
+          "$ref": "https://affiant.dev/schemas/0.1.0/amendments.schema.json"
+        },
+        "at": {
+          "description": "When the refused decision was made.",
+          "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/isoInstant"
+        },
+        "by": {
+          "description": "Who made it, as the host identifies them.",
+          "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/identifier"
+        }
+      }
+    }
+  }
+}

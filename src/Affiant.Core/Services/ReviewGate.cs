@@ -1,6 +1,7 @@
 namespace Affiant.Core.Services;
 
 using System.Diagnostics;
+using Affiant.Abstractions;
 using Affiant.Abstractions.Exceptions;
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;

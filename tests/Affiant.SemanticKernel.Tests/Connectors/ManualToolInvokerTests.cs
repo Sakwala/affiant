@@ -106,7 +106,7 @@ public class ManualToolInvokerTests
         var sp = BuildReviewStack(docketStore);
 
         const string writeProposalJson =
-            """{"$type":"write","toolName":"DoWrite","timestamp":"2026-01-01T00:00:00Z","envelope":null}""";
+            """{"kind":"write","toolName":"DoWrite","timestamp":"2026-01-01T00:00:00Z","envelope":null}""";
 
         // Resolve the kernel from a turn scope so kernel.Services (the ambient provider the invoker
         // hands the pipeline) carries the scoped completion filters, fabric, and ReviewGate — this is

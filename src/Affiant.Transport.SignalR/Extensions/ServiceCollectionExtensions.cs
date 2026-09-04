@@ -1,8 +1,7 @@
 namespace Affiant.Transport.SignalR.Extensions;
 
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using Affiant.Abstractions.Interfaces;
+using Affiant.Abstractions.Serialization;
 using Affiant.Transport.SignalR.Hubs;
 using Affiant.Transport.SignalR.Transport;
 using Microsoft.AspNetCore.Builder;
@@ -34,6 +33,26 @@ public static class ServiceCollectionExtensions
     /// <c>ProvenanceSource</c>'s treatment; see the CHANGELOG for this wire-visible change).
     /// <see cref="Abstractions.Models.AffidavitFieldKind"/> is unaffected — it was already a plain
     /// string constant, never a C# enum, by deliberate prior design (see its own doc comment).
+    ///
+    /// <para>
+    /// <b>The conventions now come from one place (SR-3).</b> This method no longer restates
+    /// camelCase and string enums; it calls <see cref="AffiantJson.Configure"/>, which is also what
+    /// the canonical serializer writes under. Before that, three code paths each declared their own
+    /// spelling of the same record — the hub protocol, <c>ToolEnvelopeExtensions</c> (camelCase but
+    /// no string enums, so an enum inside a tool result crossed as an integer while the same enum
+    /// inside an Evidence Card crossed as a string) and whatever a host configured for itself. Three
+    /// spellings of one record is what SR-3 names, and a canonical form computed under one of them
+    /// does not hash to a form computed under another.
+    /// </para>
+    ///
+    /// <para>
+    /// Two wire-visible changes come with it: an instant is written UTC with milliseconds and a
+    /// trailing <c>Z</c> (<c>2026-08-01T00:05:00.000Z</c>) rather than with a <c>+00:00</c> offset,
+    /// and a <see cref="Abstractions.Models.ReviewStatus"/> crosses lowercase (<c>"pending"</c>),
+    /// which is the spelling the v0.1 schemas freeze and the one the demo hosts' own status queries
+    /// already return. Both parse unchanged in every JavaScript client; a client asserting the exact
+    /// former strings needs the CHANGELOG's upgrade note.
+    /// </para>
     /// </remarks>
     public static IServiceCollection AddAffiantSignalR<THub>(
         this IServiceCollection services,
@@ -49,11 +68,7 @@ public static class ServiceCollectionExtensions
                 if (options.EnableDetailedErrors)
                     o.EnableDetailedErrors = true;
             })
-            .AddJsonProtocol(o =>
-            {
-                o.PayloadSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
-                o.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter());
-            });
+            .AddJsonProtocol(o => AffiantJson.Configure(o.PayloadSerializerOptions));
 
         services.AddSingleton<SignalRStreamingTransport<THub>>();
         services.AddSingleton<IStreamingTransport>(

@@ -1,0 +1,22 @@
+{
+  "navigateTo": "/work-orders/new",
+  "steps": [
+    {
+      "elementId": "aircraft-select",
+      "title": "Select the aircraft",
+      "description": "Choose the tail number this work order applies to.",
+      "prefillValue": "N12345",
+      "side": "bottom",
+      "highlightPadding": 8
+    },
+    {
+      "elementId": "title-input",
+      "title": "Confirm the title",
+      "description": "Review the auto-generated title before submitting.",
+      "prefillValue": null,
+      "side": "top",
+      "highlightPadding": null
+    }
+  ],
+  "context": "Pre-filled from the conversation: aircraft N12345, A-Check inspection."
+}

@@ -79,7 +79,7 @@ public class DocketEntryEntity
     public DateTimeOffset? DecidedAt { get; set; }
 
     /// <summary>The protocol tag this row's shapes conform to.</summary>
-    public string ProtocolVersion { get; set; } = Affiant.Abstractions.Models.AffiantProtocol.Version;
+    public string ProtocolVersion { get; set; } = Affiant.Abstractions.AffiantProtocol.Version;
 
     /// <summary><see cref="CreatedAt"/> as UTC ticks — the sortable scalar every filing-order page reads. See this type's remarks.</summary>
     public long CreatedAtTicks { get; set; }
