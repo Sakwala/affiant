@@ -3,3 +3,11 @@ Copyright 2026 Seevali Rathnayake
 
 This product includes software developed as part of the Affiant framework
 (https://github.com/Sakwala/affiant).
+
+--------------------------------------------------------------------------------
+Third-party software
+
+This product bundles @microsoft/signalr 10.0.11
+(samples/quickstart-host/wwwroot/lib/signalr.min.js), licensed under the MIT
+License, Copyright (c) .NET Foundation and Contributors. The full licence text is
+at samples/quickstart-host/wwwroot/lib/signalr.LICENSE.txt.

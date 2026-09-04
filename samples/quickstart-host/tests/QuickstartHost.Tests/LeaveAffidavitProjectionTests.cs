@@ -13,7 +13,8 @@ using Xunit;
 /// <summary>
 /// The behaviour this sample exists to show: an update-shaped write carries the entity's id and
 /// each field's current database value, and a create carries neither. Both come from the host's own
-/// projection — the framework's default hard-codes both to null.
+/// projection — the framework's default hard-codes both to null. The confidence a reviewer is shown
+/// is the minimum over every proposed field, which is the other reason this projection exists.
 /// </summary>
 public sealed class LeaveAffidavitProjectionTests : IDisposable
 {
@@ -107,9 +108,74 @@ public sealed class LeaveAffidavitProjectionTests : IDisposable
         Assert.Equal(AffidavitFieldKind.Date, startDate.Kind);
         Assert.Equal(@"^\d{4}-\d{2}-\d{2}$", startDate.Pattern);
 
-        // Rule 7: a field with nothing behind it is tagged Empty, never dropped.
+        // Rule 7 (nothing is omitted): a field with nothing behind it is tagged Empty, never
+        // dropped. The numbered rules are defined in docs/affiant-framework-specification.md §6.
         Assert.Equal(ProvenanceSource.Empty, Field(affidavit, "Reason").Provenance.Current.Source);
         Assert.Contains(affidavit.Warnings, w => w.Contains("Reason", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void One_unsourced_mandatory_field_takes_the_aggregate_confidence_to_zero()
+    {
+        var projection = _services.GetRequiredService<LeaveAffidavitProjection>();
+
+        // Everything the development seam's canned create states except the employee — the case it
+        // stages on purpose. Five fields are UserStated at 1.0 and one mandatory field has nothing
+        // behind it at all; a mean over only the sourced five reports 1.00 on the card.
+        var affidavit = projection.Project(
+            FabricWith(
+                entityId: null,
+                stated: new Dictionary<string, string>
+                {
+                    ["StartDate"] = "2026-11-02",
+                    ["EndDate"] = "2026-11-06",
+                    ["LeaveType"] = "Annual",
+                    ["Days"] = "5",
+                    ["Reason"] = "Family visit overseas.",
+                }),
+            LeaveProposalBuilder.CreateOperation,
+            []);
+
+        var employee = Field(affidavit, "Employee");
+        Assert.True(employee.IsMandatory);
+        Assert.Equal(ProvenanceSource.Empty, employee.Provenance.Current.Source);
+
+        Assert.Equal(0f, affidavit.AggregateConfidence);
+
+        // The minimum across the fields that do have a source, and how many have none, belong
+        // beside that number. The beta.1 Affidavit record has nowhere to carry them, so the
+        // projection states them where the Evidence Card renders them.
+        Assert.Contains(
+            affidavit.Warnings,
+            w => w.Contains("aggregate 0.00", StringComparison.Ordinal)
+                && w.Contains("populated 1.00", StringComparison.Ordinal)
+                && w.Contains("1 field(s) with no source", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Aggregate_confidence_is_only_zero_because_of_the_empty_field()
+    {
+        var projection = _services.GetRequiredService<LeaveAffidavitProjection>();
+
+        var affidavit = projection.Project(
+            FabricWith(
+                entityId: null,
+                stated: new Dictionary<string, string>
+                {
+                    ["Employee"] = "Amara Silva",
+                    ["StartDate"] = "2026-11-02",
+                    ["EndDate"] = "2026-11-06",
+                    ["LeaveType"] = "Annual",
+                    ["Days"] = "5",
+                    ["Reason"] = "Family visit overseas.",
+                }),
+            LeaveProposalBuilder.CreateOperation,
+            []);
+
+        Assert.Equal(1f, affidavit.AggregateConfidence);
+        Assert.Contains(
+            affidavit.Warnings,
+            w => w.Contains("0 field(s) with no source", StringComparison.Ordinal));
     }
 
     private int SeedLeaveRequest()

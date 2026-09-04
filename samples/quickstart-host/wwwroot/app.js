@@ -12,6 +12,14 @@ const HUB_URL = "/hubs/affiant";
 /** Every card currently on the page, by docket id. */
 const entries = new Map();
 
+/**
+ * How many repeated Evidence Cards the guard in `onEvidenceCard` has absorbed. Published on the
+ * cards container as `data-repeats` because absorbing a repeat is, by design, invisible: without a
+ * counter a test cannot tell "the repeat arrived and was ignored" from "no repeat ever arrived".
+ * The regression deck's "redelivery is not a redraw" spec reads it.
+ */
+let repeatsAbsorbed = 0;
+
 let connection;
 let sessionId = null;
 let employees = [];
@@ -65,7 +73,11 @@ async function join() {
  * that is already on screen, so there is nothing to redraw.
  */
 function onEvidenceCard(request) {
-  if (entries.has(request.docketId)) return;
+  if (entries.has(request.docketId)) {
+    repeatsAbsorbed += 1;
+    document.getElementById("cards").dataset.repeats = String(repeatsAbsorbed);
+    return;
+  }
 
   const entry = renderEntry(request);
   entries.set(request.docketId, entry);

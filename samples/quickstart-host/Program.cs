@@ -119,9 +119,11 @@ if (!string.IsNullOrWhiteSpace(openAiKey))
 builder.Services.AddScoped<ChatTurnContext>();
 builder.Services.AddScoped<IReviewContextProvider, HttpReviewContextProvider>();
 
-// Rule 6's host half: the framework's guidance bridge asks the UI layer which elements exist, by
-// semantic id. It is a singleton, and ASP.NET Core validates singletons at build time in
-// Development — so a host with no IRouteRegistry does not start there. See LeaveRouteRegistry.
+// Rule 6's host half — UI guidance is a registration, not a DOM inspection: the framework's
+// guidance bridge asks the UI layer which elements exist, by semantic id. It is a singleton, and
+// ASP.NET Core validates singletons at build time in Development — so a host with no
+// IRouteRegistry does not start there. See LeaveRouteRegistry. The numbered rules this sample's
+// comments cite are defined in docs/affiant-framework-specification.md §6.
 builder.Services.AddSingleton<IRouteRegistry, LeaveRouteRegistry>();
 
 // ─────────────────────────────────────────────────────────────────────────────
