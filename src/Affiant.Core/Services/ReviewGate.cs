@@ -504,6 +504,35 @@ public sealed class ReviewGate(
             //    instant CreatedAt is, so a pinned clock sees the window it asked for.
             var expiresAt = now.Add(verdict.TimeToLive ?? options.DefaultDocketTtl);
 
+            // What the record says in words, beyond what it swears to.
+            //
+            // GT-5: when a Standing Order was held back, the reason it was held back is the reason a
+            // person is being asked, and it belongs on the card they are being asked on. A reviewer
+            // shown a confirmation with no explanation cannot tell an ordinary review from one a
+            // policy escalated, which is the difference that decides how carefully they read it.
+            //
+            // AZ-4: a blocked entry says in words why no decision on it will be accepted. The marker
+            // is the structured fact and a surface can render it, but one that renders warnings and
+            // not markers would otherwise show a card with no decision available and no explanation.
+            //
+            // Both go on the ROW, not just the card: the card reports the record, and a card
+            // carrying a sentence the row does not is a card that disagrees with what was filed.
+            var notes = new List<string>(context.Affidavit.Warnings);
+            if (verdict.DegradedFrom is not null && verdict.Reason is { Length: > 0 } held)
+                notes.Add(held);
+
+            if (requirement is ReviewRequirement.ReferralRequired or ReviewRequirement.MultiParty)
+            {
+                notes.Add(
+                    $"{requirement} is a requirement level this release records verbatim but does " +
+                    "not run: it is not implemented in this version, so no decision on this entry " +
+                    "will be accepted.");
+            }
+
+            var sworn = notes.Count == context.Affidavit.Warnings.Length
+                ? context.Affidavit
+                : context.Affidavit with { Warnings = [.. notes] };
+
             // 4. File (DK-1).
             //    Same shape as DocketEntry.Amendments since the Area-8 amendments unification —
             //    no copy or value-type widening needed on the way in.
@@ -516,7 +545,7 @@ public sealed class ReviewGate(
                 UserId: context.UserId,
                 ReviewerUserId: context.ReviewerUserId,
                 OperationType: proposal.ToolName,
-                Envelope: context.Affidavit,
+                Envelope: sworn,
                 Status: ReviewStatus.Pending,
                 CreatedAt: now,
                 ExpiresAt: expiresAt,
@@ -598,7 +627,7 @@ public sealed class ReviewGate(
                 // see. Built through the same factory and sent down the same retry path as every
                 // other branch, so the three cannot drift.
                 var approvedCard = await EvidenceCardRequestFactory.CreateAsync(
-                    docketStore, entryId, context.Affidavit, expiresAt, cancellationToken,
+                    docketStore, entryId, sworn, expiresAt, cancellationToken,
                     requiresConfirmation: false);
                 await BroadcastEvidenceCardWithRetryAsync(
                     context.SessionId, entryId, proposal.ToolName, approvedCard, cancellationToken);
@@ -628,7 +657,7 @@ public sealed class ReviewGate(
                 // The card still goes out, and it says on its face that the entry is blocked — a
                 // blocked entry never claims a confirmation is being awaited.
                 var blockedRequest = await EvidenceCardRequestFactory.CreateAsync(
-                    docketStore, entryId, context.Affidavit, expiresAt, cancellationToken,
+                    docketStore, entryId, sworn, expiresAt, cancellationToken,
                     blocked: blocked);
                 await BroadcastEvidenceCardWithRetryAsync(
                     context.SessionId, entryId, proposal.ToolName, blockedRequest, cancellationToken);
@@ -644,7 +673,7 @@ public sealed class ReviewGate(
             // same resubmission reverse-lookup rather than threaded through as a parameter, so
             // ResubmitAsync's own filing call needs no special case.
             var request = await EvidenceCardRequestFactory.CreateAsync(
-                docketStore, entryId, context.Affidavit, expiresAt, cancellationToken);
+                docketStore, entryId, sworn, expiresAt, cancellationToken);
             await BroadcastEvidenceCardWithRetryAsync(
                 context.SessionId, entryId, proposal.ToolName, request, cancellationToken);
 

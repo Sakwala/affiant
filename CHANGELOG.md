@@ -791,6 +791,96 @@ discriminator, together, because they are one subject seen from four angles.
 7. **`ProvenanceTag` gains a sixth positional parameter (`At`, defaulted `null`).** Existing
     construction sites compile unchanged; a positional deconstruction of five elements does not.
 
+### One decision core, and the record a decision leaves
+
+Until this change a decision reached a blocking `FileReviewAsync` **before** the framework compared
+the tenant, before it asked the host's authorization port and before it looked at the row's blocked
+marker. While a filing was awaiting, a member of another tenant approved the row and was written onto
+it as the attestor; a principal the host's policy declined did the same; and so did a host that had
+registered no policy at all, which the deny-all default exists to refuse. Separately, a host that
+delivered its own `EvidenceCardResponse` unblocked the waiter and the row was written approved with
+**no attestation**, after which an execution report was accepted against it.
+
+#### Changed — breaking
+
+1. **Every decision runs one core, and nothing is handed off before it.** The principal; the
+   tenant-scoped row, where a row in another tenant is `entry-not-found`; the host's authorization
+   port; the state and blocked checks; the attestation. Only then, and only if the row actually
+   transitioned, is a waiting call unblocked — by the *result*, which it reports and does not act on.
+2. **`IStreamingTransport.AwaitEvidenceCardResponseAsync` returns `DecisionHandOff`**, and
+   **`TryDeliverResponse` takes one**, in place of `EvidenceCardResponse`. *Migration:* a host hub
+   takes a reviewer's decision to `ReviewGate.HandleDecisionAsync` with a `DecisionContext` and never
+   touches the transport. A custom transport changes two signatures and keeps its waiter registry as
+   it is. Only the gate can construct a hand-off — the constructor is internal — so a delivery can no
+   longer approve anything.
+3. **`ReviewGate.FileReviewAsync` is `[Obsolete]` (`AFFIANT0002`)**, kept for one release. It decides
+   nothing: it awaits a hand-off and reports it, and what it still owns is the timeout. *Migration:*
+   file with `FileForReviewAsync` and decide with `HandleDecisionAsync`.
+4. **`Attestor.Member.FromStorage`, `Attestor.MemberViaRelay.FromStorage` and
+   `Attestor.StandingOrder.FromStorage` are internal.** Rehydration is the stores' business, and a
+   factory that mints a member attestation from a bare string is one a machine caller can reach
+   (AZ-3). *Migration:* a host that was reconstructing an attestation reads it off the row instead;
+   `Attestor.Member.Of(Principal.Member)` is the only public way to a member attestation, and it takes
+   a person.
+5. **`IDocketStore.MarkBlockedAsync` takes a `DocketScope`.** *Migration:* pass the tenant the entry
+   belongs to. Without it, any caller holding an entry id could write a blocked marker onto another
+   tenant's pending row — and because the guard that stops a marker being overwritten also stops it
+   being cleared, the row became permanently undecidable.
+6. **`IDocketStore.UpdateAmendmentsAsync` is removed.** It was an unscoped, unguarded,
+   last-write-wins overwrite of any row's amendments by entry id alone, and the remarks defending its
+   missing status guard named a caller that no longer exists. *Migration:* an approval's accepted
+   amendments are written by the guarded transition; a refused late decision's are preserved by
+   `PreserveAmendmentsAsync`. A recorded fact is not edited in place (DK-4).
+7. **`DocketEntry` gains `Channel`** and the three stores persist it (one added column, folded into
+   the same migration that added the other row facts). Additive for a caller; a schema change for a
+   deployment, applied by `MigrateAffiantSchemaAsync`.
+8. **`ApprovalVerdict` gains `RiskScore`** and `IApprovalPolicy` gains `ConfigurationFault`, both
+   defaulted. A Standing Order that declares a risk ceiling with no scorer registered is now refused
+   at **startup** (CV-1) rather than on its first evaluation. *Migration:* register a calculator with
+   `SetRiskScoreCalculator<T>()`, or drop the `RiskThreshold` override.
+9. **A blocked entry answers `decision-not-pending`** with the marker's own code in the refusal's
+   detail, where it used to answer with the marker's code as the refusal code (AZ-4). *Migration:* a
+   host branching on `requirement-not-implemented` or `coverage-refused` as an error code branches on
+   `decision-not-pending` and reads the detail.
+
+#### Fixed
+
+- **The stores refuse to write an unattested decision.** A transition to approved or rejected without
+  an attestation is an `ArgumentException` on all three backends; so is one attested to a person with
+  no decision record. A Standing Order approval is the one that carries no decision record, because
+  nobody chose anything. Defence in depth: the decision core makes the state unreachable, the store
+  makes it unwritable.
+- **`MarkExecutedAsync` refuses a row that carries no attestation** (AZ-5). An executor is reachable
+  only through an entry that says who approved it.
+- **Every refusal names its reason.** A second execution report says a host reports once; a
+  not-pending refusal says which state the row is in; a not-found refusal says nothing about the row,
+  which is the point.
+- **Filing is scoped and its ids are derived** (GT-2, GT-4). The idempotent-replay lookup compared no
+  tenant, so a caller supplying another tenant's entry id received that tenant's Affidavit on its own
+  session group. With no `ReviewContext.EntryId` the gate now derives one from the tenant, the
+  conversation, the tool and the canonical form of the record.
+- **A sweep tick is bounded across all three of its phases** (DK-3), and each phase resumes from where
+  it stopped rather than re-walking the same first rows.
+- **A rehydration page fills across the group boundary** (DK-5), instead of stopping at it and
+  reporting `more` with a limit it had not spent.
+- **A registry event is observable without an ambient span** (TL-1), so the decision and
+  execution-report paths — reached by host code directly — no longer emit into nothing.
+- **A null tool argument is sworn `Empty`** at confidence 0 (AF-1) instead of being tagged as though
+  the conversation had said something.
+- **A bound tag wins a tie** (PV-2, PV-3): at equal confidence and equal grade, a tag pointing at
+  something an auditor can re-check displaces one pointing at nothing.
+- **An inference reports whether the value was literally in the turn, and which span it read**, so a
+  value read verbatim is graded `Conversation` and carries an utterance-span binding.
+- **A Standing Order approval broadcasts its Evidence Card**, with `requiresConfirmation` false
+  (SR-4), and a blocked row's card carries the row's own marker and says in words why no decision will
+  be accepted.
+- **`standing-order.fired` is emitted by the gate**, where the write is actually approved with no
+  person present and where the entry id exists to name.
+- **`ApprovalPolicyEvaluator` measures a review window against the injected `TimeProvider`** (GT-4),
+  so the chain and the gate cannot disagree about whether a window is stampable.
+- **`DocketDepthInstrument.StopAsync` no longer throws** when a host disposes its services before
+  stopping them.
+
 ### The conformance driver
 
 #### Added

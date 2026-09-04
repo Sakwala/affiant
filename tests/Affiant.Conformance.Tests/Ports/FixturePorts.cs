@@ -192,16 +192,16 @@ internal sealed class FixturePolicy(PolicySpec spec, double? riskScore) : IAppro
             PolicyId: spec.Id,
             PolicyVersion: spec.Version);
 
-        // The risk comparison, where this fixture declares one and a scorer is wired. The framework
-        // owns the comparison; the host owns the number (GT-5).
+        // The risk comparison, through the framework's own helper: the framework owns the
+        // comparison and the sentence, the host owns the number (GT-5). A driver writing its own
+        // sentence here would be testing the driver's wording rather than the framework's.
         if (verdict.Requirement == ReviewRequirement.StandingOrder
             && spec.Verdict.Threshold is { } ceiling
-            && riskScore is { } score
-            && score > ceiling)
+            && riskScore is { } score)
         {
-            verdict = verdict.DegradeToReviewer(
-                StandingOrderBlockedReasons.RiskAboveThreshold,
-                $"risk {score} is above the ceiling {ceiling}");
+            verdict = Affiant.Core.Services.StandingOrderGuardrails.ApplyRiskCeiling(
+                verdict, (int)Math.Round(score * 100), (int)Math.Round(ceiling * 100),
+                spec.Id, spec.Version);
         }
 
         return Task.FromResult<ApprovalVerdict?>(verdict);

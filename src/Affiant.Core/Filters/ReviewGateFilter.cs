@@ -235,7 +235,7 @@ public sealed class ReviewGateFilter(
             // card for anyone to look at.
             context.Result = new ToolError(
                 ToolName: proposal.ToolName,
-                Timestamp: DateTimeOffset.UtcNow,
+                Timestamp: _time.GetUtcNow(),
                 Code: refusal.Code,
                 Message: refusal.Message,
                 Retryable: false).ToJsonString();
@@ -329,7 +329,7 @@ public sealed class ReviewGateFilter(
     {
         context.Result = new ToolError(
             ToolName: toolName,
-            Timestamp: DateTimeOffset.UtcNow,
+            Timestamp: _time.GetUtcNow(),
             Code: ToolErrorCodes.WireUpInvalid,
             Message: reason,
             Retryable: false).ToJsonString();

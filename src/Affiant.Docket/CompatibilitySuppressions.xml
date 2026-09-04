@@ -2,10 +2,11 @@
 <!-- https://learn.microsoft.com/dotnet/fundamentals/package-validation/diagnostic-ids -->
 <!--
   Declared breaks against 1.0.0-beta.1, permitted by the repository's prerelease-stability policy and
-  required by it to be declared. Two changes account for every entry here: the store implements the
-  scoped, guarded, paged Docket contract (and drops the two unscoped expiry members the sweep used to
-  call), and every component that needs the current instant takes an injectable TimeProvider as an
-  added constructor parameter.
+  required by it to be declared. Three changes account for every entry here: the store implements the
+  scoped, guarded, paged Docket contract (dropping the two unscoped expiry members the sweep used to
+  call, and the unscoped amendments overwrite that had no caller left); MarkBlockedAsync takes the
+  scope every other member that moves a row takes; and every component that needs the current instant
+  takes an injectable TimeProvider as an added constructor parameter.
 
   See CHANGELOG.md's upgrade notes.
 -->
@@ -34,6 +35,13 @@
   <Suppression>
     <DiagnosticId>CP0002</DiagnosticId>
     <Target>M:Affiant.Docket.Stores.InMemoryDocketStore.MarkExpiredAsync(System.Collections.Generic.IEnumerable{System.Guid},System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Docket.dll</Left>
+    <Right>lib/net10.0/Affiant.Docket.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Docket.Stores.InMemoryDocketStore.UpdateAmendmentsAsync(System.Guid,System.Collections.Generic.IReadOnlyDictionary{System.String,System.Object},System.Threading.CancellationToken)</Target>
     <Left>lib/net10.0/Affiant.Docket.dll</Left>
     <Right>lib/net10.0/Affiant.Docket.dll</Right>
     <IsBaselineSuppression>true</IsBaselineSuppression>

@@ -37,6 +37,16 @@ PLANNED_FOR = "1.0.0-beta.3"
 
 # disposition, detail, and the extra key that disposition requires.
 CAUSES = {
+    "TL-1-registry": (
+        "planned",
+        "A registry event that only the framework's own hosted component emits. `docket.expired` is "
+        "emitted by DocketExpiryService, the hosted scheduler; a host that schedules the sweep "
+        "itself and calls IDocketStore.ExpireDueAsync directly -- which DK-3 explicitly sanctions -- "
+        "records the expiry durably and emits nothing, so an operator counting expiries sees a "
+        "number that depends on which of two supported wirings the host chose. The event belongs "
+        "where the expiry is recorded rather than where it happens to be scheduled from.",
+        {},
+    ),
     "AZ-1-attestation": (
         "planned",
         "Nothing on a Docket row says who or what approved the write. DocketEntry has twelve "
@@ -277,6 +287,7 @@ SCAN = [
     ("PV-1-inference", r"affidavit\.fields\[\d+\]\.(value|source|confidence|priorSources)"),
     ("SR-4-card", r"^card\.protocolVersion$"),
     ("DK-5-rehydrate", r"^card$"),
+    ("TL-1-registry", r"^telemetry\["),
 ]
 
 

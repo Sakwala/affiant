@@ -2,7 +2,7 @@
 <!-- https://learn.microsoft.com/dotnet/fundamentals/package-validation/diagnostic-ids -->
 <!--
   Declared breaks against 1.0.0-beta.1, permitted by the repository's prerelease-stability policy and
-  required by it to be declared. Four changes account for every entry here:
+  required by it to be declared. Six changes account for every entry here:
 
   1. The Affidavit as the rules define it — the record gains its two companion confidence numbers, a
      field gains a binding and a mandatory marker, and the projection port gains the entity id an
@@ -12,17 +12,26 @@
   2. An approval policy returns a verdict rather than a bare requirement, so it can name this write's
      review window (the deadline is stamped from the policy result, after the chain) and so the
      framework can record why a Standing Order was held back. IApprovalPolicy and
-     IApprovalPolicyEvaluator change their return types; the two new members on IApprovalPolicy are
+     IApprovalPolicyEvaluator change their return types; the new members on IApprovalPolicy are
      default interface members, so an existing implementation compiles unchanged apart from the
      return type.
   3. The Docket row and the store contract as the rules define them. DocketEntry gains the execution
      outcome, the decision record, the attestation, the blocked marker, the accepted amendment state,
-     the preserved late amendments and the lineage, so its positional constructor and Deconstruct
-     change shape; IDocketStore gains the scoped, guarded, paged surface and drops the two unscoped
-     expiry members the sweep used to call.
+     the preserved late amendments, the lineage and the channel, so its positional constructor and
+     Deconstruct change shape; IDocketStore gains the scoped, guarded, paged surface and drops the two
+     unscoped expiry members the sweep used to call.
   4. A decision names who made it. IApprovalPolicy.EvaluateAsync regains the conversation identity the
-     specification always declared, and the gate's decision surface takes a decision context carrying
-     the principal — a source break at every call site, and the point of the change.
+     specification declares a policy is given, and the decision surface takes a principal.
+  5. The wire as the rulebook defines it: the Evidence Card envelope carries the record's two
+     companion numbers, whether a person must confirm, the blocked marker, the presentation hints, the
+     warnings and the host's own verb, so its positional constructor and Deconstruct change shape.
+     Build cards with EvidenceCardRequest.For, which fills every repeated number from the record it is
+     given.
+  6. A decision reaches a blocking caller as a gate-minted DecisionHandOff rather than a client-shaped
+     response. IStreamingTransport.AwaitEvidenceCardResponseAsync and TryDeliverResponse change their
+     types accordingly, and IDocketStore.MarkBlockedAsync takes the scope every other member that
+     moves a row takes. UpdateAmendmentsAsync is removed: it was an unscoped, unguarded overwrite with
+     no caller left, and a recorded fact is not edited in place.
 
   See CHANGELOG.md's upgrade notes.
 -->
@@ -58,6 +67,27 @@
   <Suppression>
     <DiagnosticId>CP0002</DiagnosticId>
     <Target>M:Affiant.Abstractions.Interfaces.IDocketStore.MarkExpiredAsync(System.Collections.Generic.IEnumerable{System.Guid},System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Interfaces.IDocketStore.UpdateAmendmentsAsync(System.Guid,System.Collections.Generic.IReadOnlyDictionary{System.String,System.Object},System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Interfaces.IStreamingTransport.AwaitEvidenceCardResponseAsync(System.String,System.Guid,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Interfaces.IStreamingTransport.TryDeliverResponse(System.Guid,Affiant.Abstractions.Transport.EvidenceCardResponse)</Target>
     <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
     <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
     <IsBaselineSuppression>true</IsBaselineSuppression>
@@ -168,6 +198,20 @@
     <IsBaselineSuppression>true</IsBaselineSuppression>
   </Suppression>
   <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Transport.EvidenceCardRequest.#ctor(System.Guid,Affiant.Abstractions.Models.Affidavit,System.DateTimeOffset,System.Collections.Generic.IReadOnlyDictionary{System.String,System.Object})</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Transport.EvidenceCardRequest.Deconstruct(System.Guid@,Affiant.Abstractions.Models.Affidavit@,System.DateTimeOffset@,System.Collections.Generic.IReadOnlyDictionary{System.String,System.Object}@)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
     <DiagnosticId>CP0006</DiagnosticId>
     <Target>M:Affiant.Abstractions.Interfaces.IAffidavitProjection.Project(Affiant.Abstractions.Interfaces.IContextFabric,System.String,System.Collections.Generic.IReadOnlyList{System.String},System.String)</Target>
     <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
@@ -225,7 +269,7 @@
   </Suppression>
   <Suppression>
     <DiagnosticId>CP0006</DiagnosticId>
-    <Target>M:Affiant.Abstractions.Interfaces.IDocketStore.MarkBlockedAsync(System.Guid,Affiant.Abstractions.Models.BlockedMarker,System.Threading.CancellationToken)</Target>
+    <Target>M:Affiant.Abstractions.Interfaces.IDocketStore.MarkBlockedAsync(System.Guid,Affiant.Abstractions.Interfaces.DocketScope,Affiant.Abstractions.Models.BlockedMarker,System.Threading.CancellationToken)</Target>
     <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
     <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
     <IsBaselineSuppression>true</IsBaselineSuppression>
@@ -261,6 +305,13 @@
   <Suppression>
     <DiagnosticId>CP0006</DiagnosticId>
     <Target>M:Affiant.Abstractions.Interfaces.IDocketStore.TransitionAsync(System.Guid,Affiant.Abstractions.Interfaces.DocketScope,Affiant.Abstractions.Models.ReviewStatus,Affiant.Abstractions.Interfaces.DocketTransitionPatch,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0006</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Interfaces.IStreamingTransport.AwaitEvidenceCardResponseAsync(System.String,System.Guid,System.Threading.CancellationToken)</Target>
     <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
     <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
     <IsBaselineSuppression>true</IsBaselineSuppression>

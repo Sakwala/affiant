@@ -126,7 +126,8 @@ public static class StandingOrderGuard
         ArgumentNullException.ThrowIfNull(unbound);
         return
             $"PV-4: this Standing Order predicates on {unbound.Source} provenance, and " +
-            $"\"{unbound.Field}\" carries a {unbound.Source} tag pointing at nothing an auditor " +
+            $"\"{unbound.Field}\" carries a {unbound.Source} tag with no binding — pointing at " +
+            "nothing an auditor " +
             "could re-check; a person is asked instead.";
     }
 }

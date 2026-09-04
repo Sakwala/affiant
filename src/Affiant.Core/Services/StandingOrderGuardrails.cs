@@ -36,6 +36,62 @@ using Affiant.Core.Observability;
 public static class StandingOrderGuardrails
 {
     /// <summary>
+    /// The risk comparison (GT-5): a Standing Order that declares a ceiling fires only when the
+    /// host's score is at or below it, and is otherwise degraded to reviewer confirmation with the
+    /// reason a person is being asked.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The framework owns the comparison; the host owns the number.</b> This is the one
+    /// implementation of it, and the one sentence that says why the order did not fire — a policy
+    /// written against the bare <c>IApprovalPolicy</c> and one built on <c>StandingOrderBase</c>
+    /// degrade identically, and a reviewer reading the card sees the same explanation either way.
+    /// </para>
+    /// <para>
+    /// The stable code is a separate attribute from the sentence: a dashboard alerts on the code,
+    /// and the sentence stays free to be rewritten for whoever reads the card.
+    /// </para>
+    /// </remarks>
+    /// <param name="verdict">The Standing Order verdict under comparison.</param>
+    /// <param name="riskScore">The host's score for this write.</param>
+    /// <param name="threshold">The ceiling the order declared.</param>
+    /// <param name="policyId">The policy, for the telemetry event.</param>
+    /// <param name="policyVersion">Its version, or <c>null</c>.</param>
+    /// <returns>
+    /// The verdict carrying the score when it fires; a degraded one carrying the reason when it does
+    /// not.
+    /// </returns>
+    public static ApprovalVerdict ApplyRiskCeiling(
+        ApprovalVerdict verdict,
+        int riskScore,
+        int threshold,
+        string policyId,
+        string? policyVersion = null)
+    {
+        ArgumentNullException.ThrowIfNull(verdict);
+        ArgumentNullException.ThrowIfNull(policyId);
+
+        if (riskScore <= threshold)
+            return verdict with { RiskScore = riskScore };
+
+        var overThreshold =
+            $"GT-5: the host's risk score ({riskScore}) is above the Standing Order's threshold " +
+            $"({threshold}), so a person still confirms this write.";
+
+        AffiantTelemetry.RecordStandingOrderBlocked(
+            policyId,
+            blockedReason: StandingOrderBlockedReasons.RiskAboveThreshold,
+            reason: overThreshold,
+            riskScore: riskScore,
+            riskThreshold: threshold,
+            policyVersion: policyVersion);
+
+        return verdict
+            .DegradeToReviewer(StandingOrderBlockedReasons.RiskAboveThreshold, overThreshold)
+            with { RiskScore = riskScore };
+    }
+
+    /// <summary>
     /// <paramref name="verdict"/> unchanged, or degraded to
     /// <see cref="ReviewRequirement.ReviewerConfirmation"/> — keeping its own review window — when
     /// the mandatory-<c>Empty</c> or PV-4 check holds it back. A degrade emits

@@ -214,34 +214,21 @@ public abstract class StandingOrderBase : IApprovalPolicy
             Logger.LogInformation(
                 "Standing Order {Policy} auto-approved: risk {Score} \u2264 threshold {Threshold}, approver {Approver}",
                 GetType().Name, riskScore, threshold.Value, approverId ?? "[system]");
-
-            // The score travels on the verdict rather than into an event here: the gate emits
-            // `standing-order.fired` when it actually files the write approved, which is the only
-            // place that knows the entry id, and an event emitted from the chain would fire for a
-            // verdict a later check went on to degrade (TL-1, AZ-1).
-            return verdict with { RiskScore = riskScore };
+        }
+        else
+        {
+            Logger.LogInformation(
+                "Standing Order {Policy} matched conditions but risk {Score} exceeds threshold {Threshold}",
+                GetType().Name, riskScore, threshold.Value);
         }
 
-        var overThreshold =
-            $"GT-5: the host's risk score ({riskScore}) is above this Standing Order's threshold " +
-            $"({threshold.Value}), so a person still confirms this write.";
-
-        Logger.LogInformation(
-            "Standing Order {Policy} matched conditions but risk {Score} exceeds threshold {Threshold}",
-            GetType().Name, riskScore, threshold.Value);
-
-        // TL-1 `standing-order.blocked` (GT-5). The stable code is a separate attribute from the
-        // sentence: a dashboard alerts on the code, and the sentence stays free to be rewritten for
-        // whoever reads the card.
-        AffiantTelemetry.RecordStandingOrderBlocked(
-            PolicyId,
-            blockedReason: StandingOrderBlockedReasons.RiskAboveThreshold,
-            reason: overThreshold,
-            riskScore: riskScore,
-            riskThreshold: threshold.Value,
-            policyVersion: PolicyVersion);
-
-        return verdict.DegradeToReviewer(StandingOrderBlockedReasons.RiskAboveThreshold, overThreshold);
+        // The comparison, and the sentence that says why the order did not fire, are the
+        // framework's: one implementation, so a policy written against the bare interface and one
+        // built on this base degrade identically (GT-5). The score travels on the verdict rather
+        // than into an event here — the gate emits `standing-order.fired` where the write is
+        // actually approved, and a verdict a later check degrades never reaches it.
+        return StandingOrderGuardrails.ApplyRiskCeiling(
+            verdict, riskScore, threshold.Value, PolicyId, PolicyVersion);
     }
 
     /// <summary>

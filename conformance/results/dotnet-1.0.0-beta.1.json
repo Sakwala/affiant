@@ -7,268 +7,106 @@
     "runtime": "net10.0"
   },
   "protocolTag": "v0.1.1",
-  "producedAt": "2026-09-04T05:10:51.363Z",
+  "producedAt": "2026-09-04T12:18:11.696Z",
   "summary": {
     "total": 63,
-    "passed": 0,
-    "failed": 63,
-    "errored": 0,
+    "passed": 44,
+    "failed": 17,
+    "errored": 2,
     "skipped": 0,
-    "durationMs": 453.771
+    "durationMs": 2199.532
   },
   "results": [
     {
       "id": "gate/substance-hollow-refused",
-      "outcome": "fail",
-      "durationMs": 156.1,
+      "outcome": "error",
+      "durationMs": 621.132,
       "diff": [
         {
-          "at": "error",
-          "expected": {
-            "code": "substance-refused",
-            "messageContains": "Empty provenance"
-          },
-          "actual": null
-        },
-        {
-          "at": "card.protocolVersion",
-          "expected": "the protocol version the card was built under (SR-4)",
-          "actual": "(absent) \u2014 EvidenceCardRequest carries no version"
+          "at": "driver",
+          "expected": "the fixture runs",
+          "actual": "AffiantSubstanceException: GT-3: the write \u0027relay_capture\u0027 proposed swears to nothing \u2014 no proposed field carries provenance other than Empty. It was not filed, not counted and not broadcast: a reviewer confirming a proposal that knows nothing is the incident this gate exists to prevent, not an edge case it tolerates. Check that the tool\u0027s Affidavit projection is filling the fields it declares."
         }
-      ]
+      ],
+      "reason": "AffiantSubstanceException: GT-3: the write \u0027relay_capture\u0027 proposed swears to nothing \u2014 no proposed field carries provenance other than Empty. It was not filed, not counted and not broadcast: a reviewer confirming a proposal that knows nothing is the incident this gate exists to prevent, not an edge case it tolerates. Check that the tool\u0027s Affidavit projection is filling the fields it declares."
     },
     {
       "id": "gate/substance-zero-field-refused",
-      "outcome": "fail",
-      "durationMs": 3.469,
+      "outcome": "error",
+      "durationMs": 11.651,
       "diff": [
         {
-          "at": "error",
-          "expected": {
-            "code": "substance-refused",
-            "messageContains": "no proposed field carries provenance other than Empty"
-          },
-          "actual": null
-        },
-        {
-          "at": "card.protocolVersion",
-          "expected": "the protocol version the card was built under (SR-4)",
-          "actual": "(absent) \u2014 EvidenceCardRequest carries no version"
+          "at": "driver",
+          "expected": "the fixture runs",
+          "actual": "AffiantSubstanceException: GT-3: the write \u0027relay_capture\u0027 proposed swears to nothing \u2014 no proposed field carries provenance other than Empty. It was not filed, not counted and not broadcast: a reviewer confirming a proposal that knows nothing is the incident this gate exists to prevent, not an edge case it tolerates. Check that the tool\u0027s Affidavit projection is filling the fields it declares."
         }
-      ]
+      ],
+      "reason": "AffiantSubstanceException: GT-3: the write \u0027relay_capture\u0027 proposed swears to nothing \u2014 no proposed field carries provenance other than Empty. It was not filed, not counted and not broadcast: a reviewer confirming a proposal that knows nothing is the incident this gate exists to prevent, not an edge case it tolerates. Check that the tool\u0027s Affidavit projection is filling the fields it declares."
     },
     {
       "id": "gate/ttl-from-verdict",
-      "outcome": "fail",
-      "durationMs": 8.588,
-      "diff": [
-        {
-          "at": "entry.expiresAtOffsetMs",
-          "expected": 300000,
-          "actual": 1800000
-        },
-        {
-          "at": "card.protocolVersion",
-          "expected": "the protocol version the card was built under (SR-4)",
-          "actual": "(absent) \u2014 EvidenceCardRequest carries no version"
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 76.438
     },
     {
       "id": "gate/ttl-from-policy-default",
-      "outcome": "fail",
-      "durationMs": 3.114,
-      "diff": [
-        {
-          "at": "entry.expiresAtOffsetMs",
-          "expected": 900000,
-          "actual": 1800000
-        },
-        {
-          "at": "card.protocolVersion",
-          "expected": "the protocol version the card was built under (SR-4)",
-          "actual": "(absent) \u2014 EvidenceCardRequest carries no version"
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 6.264
     },
     {
       "id": "gate/ttl-from-gate-default",
-      "outcome": "fail",
-      "durationMs": 2.577,
-      "diff": [
-        {
-          "at": "card.protocolVersion",
-          "expected": "the protocol version the card was built under (SR-4)",
-          "actual": "(absent) \u2014 EvidenceCardRequest carries no version"
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 5.625
     },
     {
       "id": "gate/standing-order-by-the-book",
-      "outcome": "fail",
-      "durationMs": 4.849,
-      "diff": [
-        {
-          "at": "entry.execution",
-          "expected": "unexecuted",
-          "actual": null
-        },
-        {
-          "at": "entry.attestation",
-          "expected": {
-            "kind": "standing-order",
-            "policyId": "auto-approve",
-            "version": "2.1.0"
-          },
-          "actual": null
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 43.039
     },
     {
       "id": "gate/standing-order-threshold-under",
-      "outcome": "fail",
-      "durationMs": 3.626,
-      "diff": [
-        {
-          "at": "entry.execution",
-          "expected": "unexecuted",
-          "actual": null
-        },
-        {
-          "at": "entry.attestation",
-          "expected": {
-            "kind": "standing-order",
-            "policyId": "under-a-thousand",
-            "version": "1.0.0"
-          },
-          "actual": null
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 15.108
     },
     {
       "id": "gate/standing-order-threshold-over",
-      "outcome": "fail",
-      "durationMs": 4.076,
-      "diff": [
-        {
-          "at": "entry.status",
-          "expected": "pending",
-          "actual": "approved"
-        },
-        {
-          "at": "entry.requirement",
-          "expected": "ReviewerConfirmation",
-          "actual": "StandingOrder"
-        },
-        {
-          "at": "card",
-          "expected": "an Evidence Card",
-          "actual": "no card was broadcast"
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 35.753
     },
     {
       "id": "gate/standing-order-unbound-input",
-      "outcome": "fail",
-      "durationMs": 2.98,
-      "diff": [
-        {
-          "at": "entry.status",
-          "expected": "pending",
-          "actual": "approved"
-        },
-        {
-          "at": "entry.requirement",
-          "expected": "ReviewerConfirmation",
-          "actual": "StandingOrder"
-        },
-        {
-          "at": "card",
-          "expected": "an Evidence Card",
-          "actual": "no card was broadcast"
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 12.843
     },
     {
       "id": "gate/standing-order-bound-input",
-      "outcome": "fail",
-      "durationMs": 20.74,
-      "diff": [
-        {
-          "at": "entry.execution",
-          "expected": "unexecuted",
-          "actual": null
-        },
-        {
-          "at": "entry.attestation",
-          "expected": {
-            "kind": "standing-order",
-            "policyId": "relay-capture",
-            "version": "1.0.0"
-          },
-          "actual": null
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 69.949
     },
     {
       "id": "gate/multiparty-blocked",
-      "outcome": "fail",
-      "durationMs": 2.401,
-      "diff": [
-        {
-          "at": "entry.requirement",
-          "expected": "MultiParty",
-          "actual": "ReviewerConfirmation"
-        },
-        {
-          "at": "entry.blocked",
-          "expected": {
-            "code": "requirement-not-implemented",
-            "level": "MultiParty"
-          },
-          "actual": null
-        },
-        {
-          "at": "card.warningsContain[not implemented in this version]",
-          "expected": "a warning containing it",
-          "actual": "the card carries no warnings"
-        },
-        {
-          "at": "card.protocolVersion",
-          "expected": "the protocol version the card was built under (SR-4)",
-          "actual": "(absent) \u2014 EvidenceCardRequest carries no version"
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 12.572
     },
     {
       "id": "gate/referral-blocked",
-      "outcome": "fail",
-      "durationMs": 8.438,
-      "diff": [
-        {
-          "at": "entry.status",
-          "expected": "pending",
-          "actual": "deferred"
-        },
-        {
-          "at": "entry.blocked",
-          "expected": {
-            "code": "requirement-not-implemented",
-            "level": "ReferralRequired"
-          },
-          "actual": null
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 12.679
     },
     {
       "id": "gate/coverage-refused-declared",
       "outcome": "fail",
-      "durationMs": 2.014,
+      "durationMs": 14.763,
       "diff": [
         {
           "at": "entry.status",
           "expected": "pending",
           "actual": "approved"
+        },
+        {
+          "at": "entry.execution",
+          "expected": null,
+          "actual": "unexecuted"
         },
         {
           "at": "entry.blocked",
@@ -280,864 +118,263 @@
           "actual": null
         },
         {
-          "at": "card",
-          "expected": "an Evidence Card",
-          "actual": "no card was broadcast"
+          "at": "entry.attestation",
+          "expected": null,
+          "actual": {
+            "kind": "standing-order",
+            "policyId": "policy-1",
+            "version": "1.0.0"
+          }
+        },
+        {
+          "at": "card.warningsContain[declared uncovered]",
+          "expected": "a warning containing it",
+          "actual": "the card carries no warnings"
         }
       ]
     },
     {
       "id": "gate/update-previous-values",
-      "outcome": "fail",
-      "durationMs": 2.56,
-      "diff": [
-        {
-          "at": "entry.affidavit.entityId",
-          "expected": "invoice-1",
-          "actual": null
-        },
-        {
-          "at": "entry.affidavit.populatedConfidence",
-          "expected": 0.9,
-          "actual": "(absent)"
-        },
-        {
-          "at": "entry.affidavit.fields[0].previousValue",
-          "expected": "Draft",
-          "actual": null
-        },
-        {
-          "at": "card.protocolVersion",
-          "expected": "the protocol version the card was built under (SR-4)",
-          "actual": "(absent) \u2014 EvidenceCardRequest carries no version"
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 73.065
     },
     {
       "id": "gate/create-null-previous-values",
-      "outcome": "fail",
-      "durationMs": 1.665,
-      "diff": [
-        {
-          "at": "entry.affidavit.populatedConfidence",
-          "expected": 0.9,
-          "actual": "(absent)"
-        },
-        {
-          "at": "card.protocolVersion",
-          "expected": "the protocol version the card was built under (SR-4)",
-          "actual": "(absent) \u2014 EvidenceCardRequest carries no version"
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 13.85
     },
     {
       "id": "gate/inference-conversation-and-inferred",
-      "outcome": "fail",
-      "durationMs": 23.523,
-      "diff": [
-        {
-          "at": "entry.affidavit.entityId",
-          "expected": "invoice-1",
-          "actual": null
-        },
-        {
-          "at": "entry.affidavit.aggregateConfidence",
-          "expected": 0,
-          "actual": 0.65
-        },
-        {
-          "at": "entry.affidavit.populatedConfidence",
-          "expected": 0.4,
-          "actual": "(absent)"
-        },
-        {
-          "at": "entry.affidavit.fields[0].previousValue",
-          "expected": "Draft",
-          "actual": null
-        },
-        {
-          "at": "entry.affidavit.fields[0].source",
-          "expected": "Conversation",
-          "actual": "Inferred"
-        },
-        {
-          "at": "entry.affidavit.fields[0].bound",
-          "expected": true,
-          "actual": false
-        },
-        {
-          "at": "card.protocolVersion",
-          "expected": "the protocol version the card was built under (SR-4)",
-          "actual": "(absent) \u2014 EvidenceCardRequest carries no version"
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 91.617
     },
     {
       "id": "gate/threshold-without-scorer",
-      "outcome": "fail",
-      "durationMs": 1.733,
-      "diff": [
-        {
-          "at": "error",
-          "expected": {
-            "code": "wireup-invalid",
-            "messageContains": "riskScorer"
-          },
-          "actual": null
-        },
-        {
-          "at": "store.count",
-          "expected": 0,
-          "actual": 1
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 11.275
     },
     {
       "id": "decide/approve",
-      "outcome": "fail",
-      "durationMs": 10.526,
-      "diff": [
-        {
-          "at": "entry.execution",
-          "expected": "unexecuted",
-          "actual": null
-        },
-        {
-          "at": "entry.attestation",
-          "expected": {
-            "kind": "member",
-            "id": "ana"
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.decision",
-          "expected": {
-            "kind": "approve",
-            "reason": "checked against the purchase order"
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.affidavit.populatedConfidence",
-          "expected": 0.9,
-          "actual": "(absent)"
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 61.71
     },
     {
       "id": "decide/reject",
-      "outcome": "fail",
-      "durationMs": 4.242,
-      "diff": [
-        {
-          "at": "entry.attestation",
-          "expected": {
-            "kind": "member",
-            "id": "ana"
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.decision",
-          "expected": {
-            "kind": "reject",
-            "reason": "the amount is an order of magnitude out"
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.affidavit.populatedConfidence",
-          "expected": 0.9,
-          "actual": "(absent)"
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 17.359
     },
     {
       "id": "decide/second-decision-refused",
-      "outcome": "fail",
-      "durationMs": 7.896,
-      "diff": [
-        {
-          "at": "entry.execution",
-          "expected": "unexecuted",
-          "actual": null
-        },
-        {
-          "at": "entry.attestation",
-          "expected": {
-            "kind": "member",
-            "id": "ana"
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.decision",
-          "expected": {
-            "kind": "approve",
-            "reason": null
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.affidavit.populatedConfidence",
-          "expected": 0.9,
-          "actual": "(absent)"
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 12.854
     },
     {
       "id": "decide/expired-amendments-preserved",
       "outcome": "fail",
-      "durationMs": 4.754,
+      "durationMs": 30.252,
       "diff": [
         {
-          "at": "error",
+          "at": "entry.preservedAmendments.amendments",
           "expected": {
-            "code": "decision-expired"
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.status",
-          "expected": "expired",
-          "actual": "approved"
-        },
-        {
-          "at": "entry.amendments",
-          "expected": null,
-          "actual": {
             "amount": "4000",
             "note": null
-          }
-        },
-        {
-          "at": "entry.affidavit.populatedConfidence",
-          "expected": 0.9,
+          },
           "actual": "(absent)"
         },
         {
-          "at": "entry.preservedAmendments",
-          "expected": {
-            "amendments": {
-              "amount": "4000",
-              "note": null
-            },
-            "at": "2026-09-04T09:45:00.000Z",
-            "by": "ana"
-          },
-          "actual": null
+          "at": "entry.preservedAmendments.at",
+          "expected": "2026-09-04T09:45:00.000Z",
+          "actual": "(absent)"
+        },
+        {
+          "at": "entry.preservedAmendments.by",
+          "expected": "ana",
+          "actual": "(absent)"
         }
       ]
     },
     {
       "id": "decide/blocked-refused",
-      "outcome": "fail",
-      "durationMs": 3.473,
-      "diff": [
-        {
-          "at": "error",
-          "expected": {
-            "code": "decision-not-pending"
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.status",
-          "expected": "pending",
-          "actual": "approved"
-        },
-        {
-          "at": "entry.requirement",
-          "expected": "MultiParty",
-          "actual": "ReviewerConfirmation"
-        },
-        {
-          "at": "entry.blocked",
-          "expected": {
-            "code": "requirement-not-implemented",
-            "level": "MultiParty"
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.affidavit.populatedConfidence",
-          "expected": 0.9,
-          "actual": "(absent)"
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 19.245
     },
     {
       "id": "decide/amend-recompute",
       "outcome": "fail",
-      "durationMs": 7.963,
+      "durationMs": 364.574,
       "diff": [
-        {
-          "at": "entry.execution",
-          "expected": "unexecuted",
-          "actual": null
-        },
-        {
-          "at": "entry.attestation",
-          "expected": {
-            "kind": "member",
-            "id": "ana"
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.decision",
-          "expected": {
-            "kind": "approve",
-            "reason": null
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.affidavit.populatedConfidence",
-          "expected": 0.9,
-          "actual": "(absent)"
-        },
-        {
-          "at": "entry.amendedAffidavit",
-          "expected": {
-            "aggregateConfidence": 0.9,
-            "populatedConfidence": 0.9,
-            "emptyFieldCount": 0,
-            "fields": [
-              {
-                "name": "status",
-                "value": "Active",
-                "source": "Conversation",
-                "bound": false
-              },
-              {
-                "name": "amount",
-                "value": "4000",
-                "source": "UserStated",
-                "bound": true,
-                "bindingKind": "reviewer-act",
-                "confidence": 1,
-                "priorSources": [
-                  "Conversation"
-                ]
-              }
-            ]
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.canonicalDiffersFromProposal",
-          "expected": true,
-          "actual": "(absent)"
-        },
         {
           "at": "canonicalHash",
           "expected": "8d1579d7c6e7463ae44e36adfc4db166066cf0ae4ddd3e3ea04b52f394ecff6a",
-          "actual": "(absent)"
+          "actual": "7ad7cde314202972f10a01be30726ab39678a97a2bee6d5bbfe4ca221cdc258b"
         }
       ]
     },
     {
       "id": "decide/unresolved-identity",
-      "outcome": "fail",
-      "durationMs": 3.455,
-      "diff": [
-        {
-          "at": "error",
-          "expected": {
-            "code": "decision-unauthorized"
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.status",
-          "expected": "pending",
-          "actual": "approved"
-        },
-        {
-          "at": "entry.affidavit.populatedConfidence",
-          "expected": 0.9,
-          "actual": "(absent)"
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 29.995
     },
     {
       "id": "decide/wrong-tenant",
-      "outcome": "fail",
-      "durationMs": 3.395,
-      "diff": [
-        {
-          "at": "error",
-          "expected": {
-            "code": "entry-not-found"
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.status",
-          "expected": "pending",
-          "actual": "approved"
-        },
-        {
-          "at": "entry.affidavit.populatedConfidence",
-          "expected": 0.9,
-          "actual": "(absent)"
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 9.545
     },
     {
       "id": "decide/authorization-declined",
-      "outcome": "fail",
-      "durationMs": 3.252,
-      "diff": [
-        {
-          "at": "error",
-          "expected": {
-            "code": "decision-unauthorized"
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.status",
-          "expected": "pending",
-          "actual": "approved"
-        },
-        {
-          "at": "entry.affidavit.populatedConfidence",
-          "expected": 0.9,
-          "actual": "(absent)"
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 9.326
     },
     {
       "id": "decide/relay-member-via-relay",
-      "outcome": "fail",
-      "durationMs": 3.659,
-      "diff": [
-        {
-          "at": "entry.execution",
-          "expected": "unexecuted",
-          "actual": null
-        },
-        {
-          "at": "entry.attestation",
-          "expected": {
-            "kind": "member-via-relay",
-            "memberId": "ana",
-            "relay": {
-              "principal": "whatsapp-relay",
-              "channelIdentity": "\u002B94770000000",
-              "messageId": "wamid-42"
-            }
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.decision",
-          "expected": {
-            "kind": "approve",
-            "reason": null
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.affidavit.populatedConfidence",
-          "expected": 0.9,
-          "actual": "(absent)"
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 7.214
     },
     {
       "id": "decide/relay-without-assertion-refused",
-      "outcome": "fail",
-      "durationMs": 4.452,
-      "diff": [
-        {
-          "at": "prior.refusal",
-          "expected": "decision-unauthorized",
-          "actual": "(no refusal)"
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 6.614
     },
     {
       "id": "decide/execution-executed",
-      "outcome": "fail",
-      "durationMs": 4.622,
-      "diff": [
-        {
-          "at": "entry.execution",
-          "expected": "executed",
-          "actual": null
-        },
-        {
-          "at": "entry.attestation",
-          "expected": {
-            "kind": "member",
-            "id": "ana"
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.decision",
-          "expected": {
-            "kind": "approve",
-            "reason": null
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.affidavit.populatedConfidence",
-          "expected": 0.9,
-          "actual": "(absent)"
-        }
-      ],
-      "reason": "not-implemented: markExecuted: 1.0.0-beta.1 records no execution outcome. A Docket row has no execution state and IDocketStore has no way to report one, so an approved-but-failed write is indistinguishable from an approved-and-committed one (DK-1, AZ-5, AZ-7)."
+      "outcome": "pass",
+      "durationMs": 15.022
     },
     {
       "id": "decide/execution-failed",
-      "outcome": "fail",
-      "durationMs": 4.653,
-      "diff": [
-        {
-          "at": "entry.execution",
-          "expected": "failed",
-          "actual": null
-        },
-        {
-          "at": "entry.attestation",
-          "expected": {
-            "kind": "member",
-            "id": "ana"
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.decision",
-          "expected": {
-            "kind": "approve",
-            "reason": null
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.affidavit.populatedConfidence",
-          "expected": 0.9,
-          "actual": "(absent)"
-        }
-      ],
-      "reason": "not-implemented: markExecuted: 1.0.0-beta.1 records no execution outcome. A Docket row has no execution state and IDocketStore has no way to report one, so an approved-but-failed write is indistinguishable from an approved-and-committed one (DK-1, AZ-5, AZ-7)."
+      "outcome": "pass",
+      "durationMs": 20.594
     },
     {
       "id": "decide/execution-on-pending-refused",
-      "outcome": "fail",
-      "durationMs": 8.591,
-      "diff": [
-        {
-          "at": "error",
-          "expected": {
-            "code": "decision-not-pending"
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.affidavit.populatedConfidence",
-          "expected": 0.9,
-          "actual": "(absent)"
-        }
-      ],
-      "reason": "not-implemented: markExecuted: 1.0.0-beta.1 records no execution outcome. A Docket row has no execution state and IDocketStore has no way to report one, so an approved-but-failed write is indistinguishable from an approved-and-committed one (DK-1, AZ-5, AZ-7)."
+      "outcome": "pass",
+      "durationMs": 45.954
     },
     {
       "id": "decide/resubmit-prefills",
       "outcome": "fail",
-      "durationMs": 4.5,
+      "durationMs": 28.94,
       "diff": [
         {
-          "at": "prior.refusal",
-          "expected": "decision-expired",
-          "actual": "(no refusal)"
+          "at": "entry.affidavit.fields[1].value",
+          "expected": "4000",
+          "actual": "40"
+        },
+        {
+          "at": "entry.affidavit.fields[1].source",
+          "expected": "UserStated",
+          "actual": "Conversation"
+        },
+        {
+          "at": "entry.affidavit.fields[1].bound",
+          "expected": true,
+          "actual": false
+        },
+        {
+          "at": "entry.affidavit.fields[1].bindingKind",
+          "expected": "reviewer-act",
+          "actual": null
+        },
+        {
+          "at": "entry.affidavit.fields[1].priorSources.length",
+          "expected": "1",
+          "actual": "0"
+        },
+        {
+          "at": "entry.affidavit.fields[2].value",
+          "expected": null,
+          "actual": "kept"
+        },
+        {
+          "at": "entry.affidavit.fields[2].source",
+          "expected": "UserStated",
+          "actual": "Conversation"
+        },
+        {
+          "at": "entry.affidavit.fields[2].bound",
+          "expected": true,
+          "actual": false
+        },
+        {
+          "at": "entry.affidavit.fields[2].bindingKind",
+          "expected": "reviewer-act",
+          "actual": null
+        },
+        {
+          "at": "entry.affidavit.fields[2].priorSources.length",
+          "expected": "1",
+          "actual": "0"
+        },
+        {
+          "at": "card.priorAmendments",
+          "expected": {
+            "amount": "4000",
+            "note": null
+          },
+          "actual": null
+        },
+        {
+          "at": "superseded.preservedAmendments.amendments",
+          "expected": {
+            "amount": "4000",
+            "note": null
+          },
+          "actual": "(absent)"
+        },
+        {
+          "at": "superseded.preservedAmendments.at",
+          "expected": "2026-09-04T09:45:00.000Z",
+          "actual": "(absent)"
+        },
+        {
+          "at": "superseded.preservedAmendments.by",
+          "expected": "ana",
+          "actual": "(absent)"
         }
       ]
     },
     {
       "id": "decide/executed-only-through-a-report",
-      "outcome": "fail",
-      "durationMs": 9.369,
-      "diff": [
-        {
-          "at": "entry.execution",
-          "expected": "unexecuted",
-          "actual": null
-        },
-        {
-          "at": "entry.attestation",
-          "expected": {
-            "kind": "member",
-            "id": "ana"
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.decision",
-          "expected": {
-            "kind": "approve",
-            "reason": null
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.affidavit.populatedConfidence",
-          "expected": 0.9,
-          "actual": "(absent)"
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 24.263
     },
     {
       "id": "decide/authorization-throws",
-      "outcome": "fail",
-      "durationMs": 4.21,
-      "diff": [
-        {
-          "at": "error",
-          "expected": {
-            "code": "decision-unauthorized"
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.status",
-          "expected": "pending",
-          "actual": "approved"
-        },
-        {
-          "at": "telemetry[decision.unauthorized]",
-          "expected": "emitted",
-          "actual": "never emitted"
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 9.431
     },
     {
       "id": "decide/execution-recorded-once",
-      "outcome": "fail",
-      "durationMs": 5.542,
-      "diff": [
-        {
-          "at": "error",
-          "expected": {
-            "code": "execution-already-recorded",
-            "messageContains": "reports once"
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.execution",
-          "expected": "executed",
-          "actual": null
-        },
-        {
-          "at": "entry.executionDetail",
-          "expected": "invoice row 41",
-          "actual": "(absent)"
-        },
-        {
-          "at": "entry.attestation",
-          "expected": {
-            "kind": "member",
-            "id": "ana"
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.decision",
-          "expected": {
-            "kind": "approve",
-            "reason": null
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.affidavit.populatedConfidence",
-          "expected": 0.9,
-          "actual": "(absent)"
-        },
-        {
-          "at": "store.approvedUnexecuted",
-          "expected": 0,
-          "actual": 1
-        }
-      ],
-      "reason": "not-implemented: markExecuted: 1.0.0-beta.1 records no execution outcome. A Docket row has no execution state and IDocketStore has no way to report one, so an approved-but-failed write is indistinguishable from an approved-and-committed one (DK-1, AZ-5, AZ-7)."
+      "outcome": "pass",
+      "durationMs": 12.557
     },
     {
       "id": "decide/execution-second-report-refused",
-      "outcome": "fail",
-      "durationMs": 8.079,
-      "diff": [
-        {
-          "at": "error",
-          "expected": {
-            "code": "execution-already-recorded",
-            "messageContains": "reports once"
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.execution",
-          "expected": "failed",
-          "actual": null
-        },
-        {
-          "at": "entry.executionDetail",
-          "expected": "unique constraint on invoice_no",
-          "actual": "(absent)"
-        },
-        {
-          "at": "entry.attestation",
-          "expected": {
-            "kind": "member",
-            "id": "ana"
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.decision",
-          "expected": {
-            "kind": "approve",
-            "reason": null
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.affidavit.populatedConfidence",
-          "expected": 0.9,
-          "actual": "(absent)"
-        },
-        {
-          "at": "store.approvedUnexecuted",
-          "expected": 0,
-          "actual": 1
-        }
-      ],
-      "reason": "not-implemented: markExecuted: 1.0.0-beta.1 records no execution outcome. A Docket row has no execution state and IDocketStore has no way to report one, so an approved-but-failed write is indistinguishable from an approved-and-committed one (DK-1, AZ-5, AZ-7)."
+      "outcome": "pass",
+      "durationMs": 16.911
     },
     {
       "id": "sequence-a/approve-round-trip",
       "outcome": "fail",
-      "durationMs": 13.211,
+      "durationMs": 41.217,
       "diff": [
-        {
-          "at": "entry.execution",
-          "expected": "executed",
-          "actual": null
-        },
-        {
-          "at": "entry.channel",
-          "expected": "chat",
-          "actual": "(absent)"
-        },
-        {
-          "at": "entry.attestation",
-          "expected": {
-            "kind": "member",
-            "id": "ana"
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.decision",
-          "expected": {
-            "kind": "approve",
-            "reason": "matches the purchase order"
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.affidavit.entityId",
-          "expected": "invoice-1",
-          "actual": null
-        },
-        {
-          "at": "entry.affidavit.populatedConfidence",
-          "expected": 0.9,
-          "actual": "(absent)"
-        },
-        {
-          "at": "entry.affidavit.fields[0].value",
-          "expected": "Active",
-          "actual": "Draft"
-        },
-        {
-          "at": "entry.affidavit.fields[0].bound",
-          "expected": true,
-          "actual": false
-        },
-        {
-          "at": "entry.affidavit.fields[0].bindingKind",
-          "expected": "utterance-span",
-          "actual": "(absent)"
-        },
-        {
-          "at": "telemetry[affidavit.filed]",
-          "expected": "emitted",
-          "actual": "never emitted"
-        },
-        {
-          "at": "telemetry[docket.transition]",
-          "expected": "emitted",
-          "actual": "never emitted"
-        },
-        {
-          "at": "store.approvedUnexecuted",
-          "expected": 0,
-          "actual": 1
-        },
         {
           "at": "canonicalHash",
           "expected": "776b7b407490fb96b4792a1aba4dd0ea23518e4fb5288324fa0ce56af6837275",
-          "actual": "(absent)"
-        }
-      ],
-      "reason": "not-implemented: markExecuted: 1.0.0-beta.1 records no execution outcome. A Docket row has no execution state and IDocketStore has no way to report one, so an approved-but-failed write is indistinguishable from an approved-and-committed one (DK-1, AZ-5, AZ-7)."
-    },
-    {
-      "id": "sequence-a/reject-round-trip",
-      "outcome": "fail",
-      "durationMs": 4.237,
-      "diff": [
-        {
-          "at": "entry.attestation",
-          "expected": {
-            "kind": "member",
-            "id": "ana"
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.decision",
-          "expected": {
-            "kind": "reject",
-            "reason": "the purchase order says Retired"
-          },
-          "actual": null
+          "actual": "d0d9487f1679c3b9e1c2793fb01a2e615a49cd9e11be32557397f3b480225a36"
         }
       ]
     },
     {
+      "id": "sequence-a/reject-round-trip",
+      "outcome": "pass",
+      "durationMs": 24.465
+    },
+    {
       "id": "sequence-a/typed-inputs-on-the-card",
       "outcome": "fail",
-      "durationMs": 3.187,
+      "durationMs": 31.251,
       "diff": [
-        {
-          "at": "entry.affidavit.aggregateConfidence",
-          "expected": 0.6,
-          "actual": 0.9
-        },
-        {
-          "at": "entry.affidavit.populatedConfidence",
-          "expected": 0.6,
-          "actual": "(absent)"
-        },
         {
           "at": "entry.affidavit.fields[0].value",
           "expected": "Active",
@@ -1147,36 +384,6 @@
           "at": "entry.affidavit.fields[1].value",
           "expected": 40,
           "actual": 0
-        },
-        {
-          "at": "entry.affidavit.fields[2].value",
-          "expected": "2026-10-01",
-          "actual": null
-        },
-        {
-          "at": "entry.affidavit.fields[2].source",
-          "expected": "Inferred",
-          "actual": "Conversation"
-        },
-        {
-          "at": "entry.affidavit.fields[3].value",
-          "expected": "raised in chat",
-          "actual": null
-        },
-        {
-          "at": "entry.affidavit.fields[3].source",
-          "expected": "Inferred",
-          "actual": "Conversation"
-        },
-        {
-          "at": "card.aggregateConfidence",
-          "expected": 0.6,
-          "actual": 0.9
-        },
-        {
-          "at": "card.populatedConfidence",
-          "expected": 0.6,
-          "actual": "(absent)"
         },
         {
           "at": "card.fields[0].value",
@@ -1189,363 +396,126 @@
           "actual": 0
         },
         {
-          "at": "card.fields[2].value",
-          "expected": "2026-10-01",
-          "actual": null
-        },
-        {
-          "at": "card.fields[3].value",
-          "expected": "raised in chat",
-          "actual": null
-        },
-        {
-          "at": "card.presentation",
-          "expected": [
-            {
-              "name": "status",
-              "kind": "enum",
-              "allowedValues": [
-                "Draft",
-                "Active",
-                "Retired"
-              ]
-            },
-            {
-              "name": "amount",
-              "kind": "number",
-              "pattern": "^\\d\u002B(\\.\\d{1,2})?$"
-            }
-          ],
-          "actual": "(absent)"
-        },
-        {
-          "at": "card.protocolVersion",
-          "expected": "the protocol version the card was built under (SR-4)",
-          "actual": "(absent) \u2014 EvidenceCardRequest carries no version"
+          "at": "card.presentation.length",
+          "expected": "2",
+          "actual": "3"
         }
       ]
     },
     {
       "id": "sequence-a/picker-external-binding",
       "outcome": "fail",
-      "durationMs": 4.011,
+      "durationMs": 27.14,
       "diff": [
-        {
-          "at": "entry.affidavit.aggregateConfidence",
-          "expected": 0.9,
-          "actual": 0.95
-        },
-        {
-          "at": "entry.affidavit.populatedConfidence",
-          "expected": 0.9,
-          "actual": "(absent)"
-        },
         {
           "at": "entry.affidavit.fields[0].value",
           "expected": "Active",
           "actual": "Draft"
-        },
-        {
-          "at": "entry.affidavit.fields[1].bound",
-          "expected": true,
-          "actual": false
-        },
-        {
-          "at": "entry.affidavit.fields[1].bindingKind",
-          "expected": "external-ref",
-          "actual": "(absent)"
-        },
-        {
-          "at": "entry.affidavit.fields[1].priorSources.length",
-          "expected": "1",
-          "actual": "2"
-        },
-        {
-          "at": "card.protocolVersion",
-          "expected": "the protocol version the card was built under (SR-4)",
-          "actual": "(absent) \u2014 EvidenceCardRequest carries no version"
         }
       ]
     },
     {
       "id": "sequence-a/mandatory-field-left-empty",
-      "outcome": "fail",
-      "durationMs": 2.37,
-      "diff": [
-        {
-          "at": "entry.status",
-          "expected": "pending",
-          "actual": "approved"
-        },
-        {
-          "at": "entry.requirement",
-          "expected": "ReviewerConfirmation",
-          "actual": "StandingOrder"
-        },
-        {
-          "at": "entry.affidavit.aggregateConfidence",
-          "expected": 0,
-          "actual": 0.9
-        },
-        {
-          "at": "entry.affidavit.populatedConfidence",
-          "expected": 0.9,
-          "actual": "(absent)"
-        },
-        {
-          "at": "entry.affidavit.emptyFieldCount",
-          "expected": 1,
-          "actual": 0
-        },
-        {
-          "at": "entry.affidavit.fields[0].value",
-          "expected": "Active",
-          "actual": "Draft"
-        },
-        {
-          "at": "entry.affidavit.fields[0].bound",
-          "expected": true,
-          "actual": false
-        },
-        {
-          "at": "entry.affidavit.fields[0].bindingKind",
-          "expected": "utterance-span",
-          "actual": "(absent)"
-        },
-        {
-          "at": "entry.affidavit.fields[1].source",
-          "expected": "Empty",
-          "actual": "Conversation"
-        },
-        {
-          "at": "entry.affidavit.fields[1].confidence",
-          "expected": 0,
-          "actual": 0.9
-        },
-        {
-          "at": "card",
-          "expected": "an Evidence Card",
-          "actual": "no card was broadcast"
-        },
-        {
-          "at": "telemetry[standing-order.blocked]",
-          "expected": "emitted",
-          "actual": "never emitted"
-        },
-        {
-          "at": "telemetry[affidavit.filed]",
-          "expected": "emitted",
-          "actual": "never emitted"
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 10.054
     },
     {
       "id": "sequence-a/mandatory-field-reviewer-approves",
-      "outcome": "fail",
-      "durationMs": 3.065,
-      "diff": [
-        {
-          "at": "entry.execution",
-          "expected": "unexecuted",
-          "actual": null
-        },
-        {
-          "at": "entry.attestation",
-          "expected": {
-            "kind": "member",
-            "id": "ana"
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.affidavit.aggregateConfidence",
-          "expected": 0,
-          "actual": 0.9
-        },
-        {
-          "at": "entry.affidavit.populatedConfidence",
-          "expected": 0.9,
-          "actual": "(absent)"
-        },
-        {
-          "at": "entry.affidavit.emptyFieldCount",
-          "expected": 1,
-          "actual": 0
-        },
-        {
-          "at": "entry.affidavit.fields[0].value",
-          "expected": "Active",
-          "actual": "Draft"
-        },
-        {
-          "at": "entry.affidavit.fields[0].bound",
-          "expected": true,
-          "actual": false
-        },
-        {
-          "at": "entry.affidavit.fields[0].bindingKind",
-          "expected": "utterance-span",
-          "actual": "(absent)"
-        },
-        {
-          "at": "entry.affidavit.fields[1].source",
-          "expected": "Empty",
-          "actual": "Conversation"
-        },
-        {
-          "at": "entry.affidavit.fields[1].confidence",
-          "expected": 0,
-          "actual": 0.9
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 10.988
     },
     {
       "id": "sequence-a/expiry-then-resubmit",
-      "outcome": "fail",
-      "durationMs": 2.942,
-      "diff": [
-        {
-          "at": "entry.lineage.supersedes",
-          "expected": "a link to some entry",
-          "actual": "no link"
-        },
-        {
-          "at": "entry.affidavit.fields[0].value",
-          "expected": "Active",
-          "actual": "Draft"
-        },
-        {
-          "at": "superseded",
-          "expected": "a Docket row",
-          "actual": "no row was filed or acted on"
-        },
-        {
-          "at": "store.count",
-          "expected": 2,
-          "actual": 1
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 15.505
     },
     {
       "id": "sequence-a/late-amendments-preserved",
       "outcome": "fail",
-      "durationMs": 3.799,
+      "durationMs": 10.932,
       "diff": [
         {
-          "at": "prior.refusal",
-          "expected": "decision-expired",
-          "actual": "(no refusal)"
+          "at": "entry.affidavit.fields[0].value",
+          "expected": "Retired",
+          "actual": "Active"
+        },
+        {
+          "at": "entry.affidavit.fields[0].source",
+          "expected": "UserStated",
+          "actual": "Conversation"
+        },
+        {
+          "at": "entry.affidavit.fields[0].bindingKind",
+          "expected": "reviewer-act",
+          "actual": "utterance-span"
+        },
+        {
+          "at": "entry.affidavit.fields[0].confidence",
+          "expected": 1,
+          "actual": 0.9
+        },
+        {
+          "at": "card.priorAmendments",
+          "expected": {
+            "status": "Retired"
+          },
+          "actual": null
+        },
+        {
+          "at": "superseded.preservedAmendments.amendments",
+          "expected": {
+            "status": "Retired"
+          },
+          "actual": "(absent)"
+        },
+        {
+          "at": "superseded.preservedAmendments.at",
+          "expected": "2026-09-04T09:45:00.000Z",
+          "actual": "(absent)"
+        },
+        {
+          "at": "superseded.preservedAmendments.by",
+          "expected": "ana",
+          "actual": "(absent)"
         }
       ]
     },
     {
       "id": "sequence-a/interleaved-conversations",
-      "outcome": "fail",
-      "durationMs": 3.605,
-      "diff": [
-        {
-          "at": "entry.affidavit.entityId",
-          "expected": "invoice-2",
-          "actual": null
-        },
-        {
-          "at": "entry.affidavit.fields[0].value",
-          "expected": "Active",
-          "actual": "Draft"
-        },
-        {
-          "at": "card.protocolVersion",
-          "expected": "the protocol version the card was built under (SR-4)",
-          "actual": "(absent) \u2014 EvidenceCardRequest carries no version"
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 9.834
     },
     {
       "id": "sequence-a/replay-keeps-the-deadline",
-      "outcome": "fail",
-      "durationMs": 4.681,
-      "diff": [
-        {
-          "at": "card.requiredBy",
-          "expected": "2026-09-04T05:40:51.3117267\u002B00:00",
-          "actual": "2026-09-04T05:40:51.3131406\u002B00:00"
-        },
-        {
-          "at": "card.protocolVersion",
-          "expected": "the protocol version the card was built under (SR-4)",
-          "actual": "(absent) \u2014 EvidenceCardRequest carries no version"
-        },
-        {
-          "at": "card.affidavit",
-          "expected": "the row\u0027s own Affidavit",
-          "actual": "a different Affidavit from the row\u0027s"
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 8.388
     },
     {
       "id": "sequence-a/sweep-pages",
       "outcome": "fail",
-      "durationMs": 8.893,
+      "durationMs": 38.589,
       "diff": [
-        {
-          "at": "expired.count",
-          "expected": 2,
-          "actual": 0
-        },
-        {
-          "at": "expired.more",
-          "expected": true,
-          "actual": "(absent)"
-        },
         {
           "at": "telemetry[docket.expired]",
           "expected": "emitted",
           "actual": "never emitted"
-        },
-        {
-          "at": "store.pending",
-          "expected": 0,
-          "actual": 3
         }
       ]
     },
     {
       "id": "sequence-a/rehydration-order",
-      "outcome": "fail",
-      "durationMs": 11.708,
-      "diff": [
-        {
-          "at": "page.count",
-          "expected": 2,
-          "actual": 1
-        },
-        {
-          "at": "page.more",
-          "expected": false,
-          "actual": "(absent)"
-        },
-        {
-          "at": "page.statuses",
-          "expected": [
-            "pending",
-            "approved"
-          ],
-          "actual": "(absent)"
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 29.57
     },
     {
       "id": "sequence-a/coverage-refused-at-wire-up",
       "outcome": "fail",
-      "durationMs": 1.893,
+      "durationMs": 3.532,
       "diff": [
         {
           "at": "error",
-          "expected": {
-            "code": "coverage-refused",
-            "messageContains": "no-execute"
-          },
-          "actual": null
+          "expected": "{\u0022code\u0022:\u0022coverage-refused\u0022,\u0022messageContains\u0022:\u0022no-execute\u0022}",
+          "actual": "no refusal was produced"
         },
         {
           "at": "telemetry[coverage.refused]",
@@ -1556,326 +526,48 @@
           "at": "store.count",
           "expected": 0,
           "actual": 1
-        },
-        {
-          "at": "card.protocolVersion",
-          "expected": "the protocol version the card was built under (SR-4)",
-          "actual": "(absent) \u2014 EvidenceCardRequest carries no version"
         }
       ]
     },
     {
       "id": "sequence-a/mandatory-field-empty-blocks-standing-order",
-      "outcome": "fail",
-      "durationMs": 2.572,
-      "diff": [
-        {
-          "at": "entry.status",
-          "expected": "pending",
-          "actual": "approved"
-        },
-        {
-          "at": "entry.requirement",
-          "expected": "ReviewerConfirmation",
-          "actual": "StandingOrder"
-        },
-        {
-          "at": "entry.affidavit.aggregateConfidence",
-          "expected": 0,
-          "actual": 0.90999997
-        },
-        {
-          "at": "entry.affidavit.populatedConfidence",
-          "expected": 0.92,
-          "actual": "(absent)"
-        },
-        {
-          "at": "entry.affidavit.emptyFieldCount",
-          "expected": 1,
-          "actual": 0
-        },
-        {
-          "at": "entry.affidavit.fields[0].source",
-          "expected": "Conversation",
-          "actual": "Inferred"
-        },
-        {
-          "at": "entry.affidavit.fields[0].bound",
-          "expected": true,
-          "actual": false
-        },
-        {
-          "at": "entry.affidavit.fields[1].source",
-          "expected": "Empty",
-          "actual": "Conversation"
-        },
-        {
-          "at": "entry.affidavit.fields[1].confidence",
-          "expected": 0,
-          "actual": 0.9
-        },
-        {
-          "at": "card",
-          "expected": "an Evidence Card",
-          "actual": "no card was broadcast"
-        },
-        {
-          "at": "telemetry[standing-order.blocked]",
-          "expected": "emitted",
-          "actual": "never emitted"
-        },
-        {
-          "at": "telemetry[affidavit.filed]",
-          "expected": "emitted",
-          "actual": "never emitted"
-        },
-        {
-          "at": "store.pending",
-          "expected": 1,
-          "actual": 0
-        },
-        {
-          "at": "store.approvedUnexecuted",
-          "expected": 0,
-          "actual": 1
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 4.182
     },
     {
       "id": "sequence-a/optional-field-empty-standing-order-fires",
-      "outcome": "fail",
-      "durationMs": 2.212,
-      "diff": [
-        {
-          "at": "entry.execution",
-          "expected": "unexecuted",
-          "actual": null
-        },
-        {
-          "at": "entry.attestation",
-          "expected": {
-            "kind": "standing-order",
-            "policyId": "auto-approve-invoice-status",
-            "version": "1.0.0"
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.affidavit.aggregateConfidence",
-          "expected": 0,
-          "actual": 0.90999997
-        },
-        {
-          "at": "entry.affidavit.populatedConfidence",
-          "expected": 0.92,
-          "actual": "(absent)"
-        },
-        {
-          "at": "entry.affidavit.emptyFieldCount",
-          "expected": 1,
-          "actual": 0
-        },
-        {
-          "at": "entry.affidavit.fields[0].source",
-          "expected": "Conversation",
-          "actual": "Inferred"
-        },
-        {
-          "at": "entry.affidavit.fields[0].bound",
-          "expected": true,
-          "actual": false
-        },
-        {
-          "at": "entry.affidavit.fields[1].source",
-          "expected": "Empty",
-          "actual": "Conversation"
-        },
-        {
-          "at": "entry.affidavit.fields[1].confidence",
-          "expected": 0,
-          "actual": 0.9
-        },
-        {
-          "at": "telemetry[standing-order.fired]",
-          "expected": "emitted",
-          "actual": "never emitted"
-        },
-        {
-          "at": "telemetry[affidavit.filed]",
-          "expected": "emitted",
-          "actual": "never emitted"
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 3.789
     },
     {
       "id": "sequence-c/relay-auto-approve-bound-external",
-      "outcome": "fail",
-      "durationMs": 2.164,
-      "diff": [
-        {
-          "at": "entry.execution",
-          "expected": "unexecuted",
-          "actual": null
-        },
-        {
-          "at": "entry.channel",
-          "expected": "mcp",
-          "actual": "(absent)"
-        },
-        {
-          "at": "entry.attestation",
-          "expected": {
-            "kind": "standing-order",
-            "policyId": "relay-capture",
-            "version": "1.0.0"
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.affidavit.populatedConfidence",
-          "expected": 1,
-          "actual": "(absent)"
-        },
-        {
-          "at": "entry.affidavit.fields[0].bound",
-          "expected": true,
-          "actual": false
-        },
-        {
-          "at": "entry.affidavit.fields[0].bindingKind",
-          "expected": "external-ref",
-          "actual": "(absent)"
-        },
-        {
-          "at": "card",
-          "expected": "an Evidence Card",
-          "actual": "no card was broadcast"
-        },
-        {
-          "at": "telemetry[standing-order.fired]",
-          "expected": "emitted",
-          "actual": "never emitted"
-        },
-        {
-          "at": "telemetry[affidavit.filed]",
-          "expected": "emitted",
-          "actual": "never emitted"
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 6.88
     },
     {
       "id": "sequence-c/relayed-decision-member-via-relay",
-      "outcome": "fail",
-      "durationMs": 2.984,
-      "diff": [
-        {
-          "at": "entry.execution",
-          "expected": "unexecuted",
-          "actual": null
-        },
-        {
-          "at": "entry.attestation",
-          "expected": {
-            "kind": "member-via-relay",
-            "memberId": "ana",
-            "relay": {
-              "principal": "whatsapp-relay",
-              "channelIdentity": "\u002B94770000000",
-              "messageId": "wamid-1"
-            }
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.decision",
-          "expected": {
-            "kind": "approve",
-            "reason": "confirmed on the channel"
-          },
-          "actual": null
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 8.226
     },
     {
       "id": "sequence-c/unbound-external-asks-a-person",
-      "outcome": "fail",
-      "durationMs": 1.85,
-      "diff": [
-        {
-          "at": "entry.status",
-          "expected": "pending",
-          "actual": "approved"
-        },
-        {
-          "at": "entry.requirement",
-          "expected": "ReviewerConfirmation",
-          "actual": "StandingOrder"
-        },
-        {
-          "at": "card",
-          "expected": "an Evidence Card",
-          "actual": "no card was broadcast"
-        },
-        {
-          "at": "telemetry[standing-order.blocked]",
-          "expected": "emitted",
-          "actual": "never emitted"
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 7.585
     },
     {
       "id": "sequence-c/relay-may-not-attest-member",
-      "outcome": "fail",
-      "durationMs": 2.667,
-      "diff": [
-        {
-          "at": "error",
-          "expected": {
-            "code": "decision-unauthorized",
-            "messageContains": "AZ-3"
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.status",
-          "expected": "pending",
-          "actual": "approved"
-        },
-        {
-          "at": "telemetry[decision.unauthorized]",
-          "expected": "emitted",
-          "actual": "never emitted"
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 7.967
     },
     {
       "id": "sequence-c/relay-decision-other-tenant-not-found",
-      "outcome": "fail",
-      "durationMs": 2.767,
-      "diff": [
-        {
-          "at": "error",
-          "expected": {
-            "code": "entry-not-found"
-          },
-          "actual": null
-        },
-        {
-          "at": "entry.status",
-          "expected": "pending",
-          "actual": "approved"
-        },
-        {
-          "at": "telemetry[decision.unauthorized]",
-          "expected": "emitted",
-          "actual": "never emitted"
-        }
-      ]
+      "outcome": "pass",
+      "durationMs": 4.784
     },
     {
       "id": "canonical/create-shaped",
       "outcome": "fail",
-      "durationMs": 5.664,
+      "durationMs": 10.077,
       "diff": [
         {
           "at": "model.protocolVersion",
@@ -1937,7 +629,7 @@
     {
       "id": "canonical/update-shaped",
       "outcome": "fail",
-      "durationMs": 0.251,
+      "durationMs": 0.807,
       "diff": [
         {
           "at": "model.protocolVersion",
@@ -2029,7 +721,7 @@
     {
       "id": "canonical/wire-evidence-card-request",
       "outcome": "fail",
-      "durationMs": 0.133,
+      "durationMs": 0.716,
       "diff": [
         {
           "at": "model.protocolVersion",
@@ -2091,7 +783,7 @@
     {
       "id": "canonical/wire-evidence-card-request-amended",
       "outcome": "fail",
-      "durationMs": 0.355,
+      "durationMs": 1.288,
       "diff": [
         {
           "at": "amendments",
@@ -2169,7 +861,7 @@
     {
       "id": "canonical/key-order-stress",
       "outcome": "fail",
-      "durationMs": 0.169,
+      "durationMs": 0.784,
       "diff": [
         {
           "at": "model.protocolVersion",
@@ -2216,7 +908,7 @@
     {
       "id": "canonical/number-forms",
       "outcome": "fail",
-      "durationMs": 0.284,
+      "durationMs": 0.992,
       "diff": [
         {
           "at": "model.protocolVersion",
@@ -2263,7 +955,7 @@
     {
       "id": "canonical/money-and-escapes",
       "outcome": "fail",
-      "durationMs": 0.282,
+      "durationMs": 0.963,
       "diff": [
         {
           "at": "model.protocolVersion",

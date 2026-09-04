@@ -68,8 +68,12 @@ public sealed class AffiantWireUpValidator(
     ILogger<AffiantWireUpValidator> logger,
     IServiceProviderIsService? isService = null,
     IAffiantToolRegistry? toolRegistry = null,
-    IServiceScopeFactory? scopeFactory = null) : IHostedService
+    IServiceScopeFactory? scopeFactory = null,
+    TimeProvider? timeProvider = null) : IHostedService
 {
+    /// <summary>The one clock (GT-4): whether a deadline can be stamped is asked of the same one.</summary>
+    private readonly TimeProvider _time = timeProvider ?? TimeProvider.System;
+
     private const string TransportFix =
         "call services.AddAffiantSignalR<THub>() (package Affiant.Transport.SignalR, plus " +
         "app.MapAffiantSignalR<THub>(...) in the request pipeline), or register your own " +
@@ -282,7 +286,7 @@ public sealed class AffiantWireUpValidator(
     private void ValidateDeadline()
     {
         var ttl = options.DefaultDocketTtl;
-        var overflows = ttl > DateTimeOffset.MaxValue - DateTimeOffset.UtcNow;
+        var overflows = ttl > DateTimeOffset.MaxValue - _time.GetUtcNow();
         if (ttl >= TimeSpan.FromMilliseconds(1) && !overflows) return;
 
         var reason = overflows

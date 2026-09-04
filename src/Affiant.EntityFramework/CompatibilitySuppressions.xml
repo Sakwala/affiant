@@ -3,9 +3,10 @@
 <!--
   Declared breaks against 1.0.0-beta.1, permitted by the repository's prerelease-stability policy and
   required by it to be declared. The SQLite and PostgreSQL stores implement the scoped, guarded, paged
-  Docket contract (dropping the two unscoped expiry members), and every store takes an injectable
-  TimeProvider as an added constructor parameter so expiry can be read as state against a clock a test
-  can move.
+  Docket contract (dropping the two unscoped expiry members and the unscoped amendments overwrite),
+  MarkBlockedAsync takes a scope like every other member that moves a row, and every store takes an
+  injectable TimeProvider as an added constructor parameter so expiry can be read as state against a
+  clock a test can move.
 
   See CHANGELOG.md's upgrade notes.
 -->
@@ -47,6 +48,13 @@
   </Suppression>
   <Suppression>
     <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.EntityFramework.Stores.PostgresDocketStore.UpdateAmendmentsAsync(System.Guid,System.Collections.Generic.IReadOnlyDictionary{System.String,System.Object},System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.EntityFramework.dll</Left>
+    <Right>lib/net10.0/Affiant.EntityFramework.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
     <Target>M:Affiant.EntityFramework.Stores.SqliteChatSessionStore.#ctor(Affiant.EntityFramework.AffiantDbContext)</Target>
     <Left>lib/net10.0/Affiant.EntityFramework.dll</Left>
     <Right>lib/net10.0/Affiant.EntityFramework.dll</Right>
@@ -69,6 +77,13 @@
   <Suppression>
     <DiagnosticId>CP0002</DiagnosticId>
     <Target>M:Affiant.EntityFramework.Stores.SqliteDocketStore.MarkExpiredAsync(System.Collections.Generic.IEnumerable{System.Guid},System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.EntityFramework.dll</Left>
+    <Right>lib/net10.0/Affiant.EntityFramework.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.EntityFramework.Stores.SqliteDocketStore.UpdateAmendmentsAsync(System.Guid,System.Collections.Generic.IReadOnlyDictionary{System.String,System.Object},System.Threading.CancellationToken)</Target>
     <Left>lib/net10.0/Affiant.EntityFramework.dll</Left>
     <Right>lib/net10.0/Affiant.EntityFramework.dll</Right>
     <IsBaselineSuppression>true</IsBaselineSuppression>
