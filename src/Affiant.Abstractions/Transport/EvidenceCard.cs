@@ -50,10 +50,12 @@ public record EvidenceCardRequest(
 /// keyed by <see cref="AffidavitField.Name"/>, values are the reviewer's replacement
 /// value (<c>null</c> means the reviewer explicitly cleared the field). Null or empty on
 /// rejection, or when the reviewer approved without editing anything. The framework's review
-/// gate service persists these onto the <see cref="DocketEntry"/> it owns; appending
-/// <see cref="ProvenanceTag"/> UserStated tags to the amended fields' provenance chains
-/// is the host's <see cref="Interfaces.IWriteExecutor"/> overlay's responsibility — see
-/// framework spec §6 Rule 7 and §2.7.
+/// gate service persists these onto the <see cref="DocketEntry"/> it owns <em>and</em> folds them
+/// into an amended <see cref="Affidavit"/> beside the proposal — the reviewer's act on each amended
+/// field's chain and the three confidence numbers recomputed — returned on
+/// <see cref="ReviewOutcome.Approved.AmendedAffidavit"/>. See
+/// <see cref="AffidavitAmendments.Apply"/>, which is what a host's
+/// <see cref="Interfaces.IWriteExecutor"/> should use rather than stamping tags by hand.
 /// </summary>
 public record EvidenceCardResponse(
     Guid DocketId,

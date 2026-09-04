@@ -16,14 +16,14 @@ public class AddFieldResolverTests
     {
         public string FieldName => "Color";
         public Task<FieldResolution?> ResolveAsync(FieldResolutionContext context, CancellationToken cancellationToken) =>
-            Task.FromResult<FieldResolution?>(new FieldResolution("Red", ProvenanceTag.FromUser("Color")));
+            Task.FromResult<FieldResolution?>(new FieldResolution("Red", ProvenanceTag.FromUser("Color", binding: null)));
     }
 
     private sealed class WeightResolver : IFieldResolver
     {
         public string FieldName => "Weight";
         public Task<FieldResolution?> ResolveAsync(FieldResolutionContext context, CancellationToken cancellationToken) =>
-            Task.FromResult<FieldResolution?>(new FieldResolution("1.5", ProvenanceTag.FromUser("Weight")));
+            Task.FromResult<FieldResolution?>(new FieldResolution("1.5", ProvenanceTag.FromUser("Weight", binding: null)));
     }
 
     // --- Test 1: resolves same instance as concrete type ---
@@ -133,7 +133,7 @@ public class AddFieldResolverTests
             // Genuinely yields — proves the sync-over-async bridge in SchemaDrivenAffidavitProjection
             // correctly awaits real asynchronous work, not just a synchronously-completed Task.
             await Task.Yield();
-            return new FieldResolution(_lookup.Lookup(), ProvenanceTag.FromUser("Color"));
+            return new FieldResolution(_lookup.Lookup(), ProvenanceTag.FromUser("Color", binding: null));
         }
     }
 

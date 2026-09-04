@@ -82,6 +82,8 @@ public class WithAffiantIntegrationTests
                 Fields: [new AffidavitField(
                     "name", name, null, ProvenanceChain.From(ProvenanceTag.FromTool("CreateWidget")))],
                 AggregateConfidence: 0.9f,
+                PopulatedConfidence: 0.9f,
+                EmptyFieldCount: 0,
                 Warnings: [],
                 RequiresConfirmation: false);
 
@@ -112,6 +114,8 @@ public class WithAffiantIntegrationTests
             EntityId: null,
             Fields: [],
             AggregateConfidence: 1.0f,
+            PopulatedConfidence: 1.0f,
+            EmptyFieldCount: 0,
             Warnings: [],
             RequiresConfirmation: false));
 

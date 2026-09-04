@@ -49,8 +49,10 @@ public class ApprovalPolicyEvaluatorTests
         EntityType: "TestEntity",
         EntityId: null,
         Fields: [new AffidavitField("field", "value", null,
-            ProvenanceChain.From(ProvenanceTag.FromInference("field", 1.0f)))],
+            ProvenanceChain.From(ProvenanceTag.FromInference(InferenceSource.Inferred, "field", 1.0f)))],
         AggregateConfidence: 1.0f,
+        PopulatedConfidence: 1.0f,
+        EmptyFieldCount: 0,
         Warnings: [],
         RequiresConfirmation: true);
 

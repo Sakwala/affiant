@@ -14,6 +14,8 @@ public class RiskScoreCalculatorBaseTests
         EntityId: null,
         Fields: fields,
         AggregateConfidence: 1.0f,
+        PopulatedConfidence: 1.0f,
+        EmptyFieldCount: 0,
         Warnings: [],
         RequiresConfirmation: false);
 

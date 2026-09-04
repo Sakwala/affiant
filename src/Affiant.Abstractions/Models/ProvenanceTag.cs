@@ -57,20 +57,138 @@ public enum ProvenanceSource
 }
 
 /// <summary>
+/// The two grades an implementation's own inference is allowed to mint.
+///
+/// <para>
+/// This type exists so the restriction is <b>structural</b> rather than a convention a reviewer has
+/// to spot: the inference path is handed
+/// <see cref="ProvenanceTag.FromInference(InferenceSource, string, float, ProvenanceBinding?)"/>,
+/// whose source parameter is this enum and therefore cannot name
+/// <see cref="ProvenanceSource.UserStated"/>, <see cref="ProvenanceSource.External"/> or
+/// <see cref="ProvenanceSource.Computed"/>.
+/// </para>
+///
+/// <para>
+/// <see cref="ProvenanceSource.UserStated"/> is an observation of a person's act — an utterance
+/// span, a form input, a reviewer's amendment or prefill — never the host vouching for a value it
+/// produced itself. <see cref="ProvenanceSource.External"/> and
+/// <see cref="ProvenanceSource.Computed"/> claim an artifact outside the conversation, which an
+/// inference has none of.
+/// </para>
+/// </summary>
+public enum InferenceSource
+{
+    /// <summary>The value was literally present in the unmodified turn.</summary>
+    Conversation,
+
+    /// <summary>The model reasoned to the value from conversational signals.</summary>
+    Inferred
+}
+
+/// <summary>
 /// Sworn-provenance tag carried by every field value the framework tracks.
 /// Records where a value came from (<see cref="Source"/>), how confident
 /// the framework is in it (<see cref="Confidence"/>), a human-readable
-/// explanation (<see cref="Evidence"/>), and which conversation turn produced it
-/// (<see cref="ConversationTurn"/>).
+/// explanation (<see cref="Evidence"/>), which conversation turn produced it
+/// (<see cref="ConversationTurn"/>), and — for a grade that claims an artifact outside the
+/// conversation — what an auditor should look at to check it (<see cref="Binding"/>).
 ///
 /// Matches framework specification §2.2.
 /// </summary>
+/// <param name="Source">Where the value came from.</param>
+/// <param name="Confidence">
+/// Confidence in the value. <b>Always clamped into <c>[0, 1]</c> by this record</b>, and always
+/// <c>0</c> when <paramref name="Source"/> is <see cref="ProvenanceSource.Empty"/> — "nobody knows
+/// where this came from" cannot also be a confident claim. A producer that reports 1.4, -0.2 or
+/// <see cref="float.NaN"/> gets 1, 0 and 0 respectively; the clamp lives here rather than at each
+/// mint site so no caller can route around it.
+/// </param>
+/// <param name="Evidence">A human-readable line for the reviewer, or null when there is nothing to say.</param>
+/// <param name="ConversationTurn">Index of the turn the value came from, or null.</param>
+/// <param name="Binding">
+/// What to look at to check the value, or null when the producer had nothing to point at. A tag
+/// graded above <see cref="ProvenanceSource.Conversation"/> should carry one — see
+/// <see cref="ProvenanceBinding"/> and <see cref="IsBound"/>.
+/// </param>
 public sealed record ProvenanceTag(
     ProvenanceSource Source,
     float Confidence,
     string? Evidence,
-    int? ConversationTurn)
+    int? ConversationTurn,
+    ProvenanceBinding? Binding = null)
 {
+    private readonly float _confidence = Normalize(Source, Confidence);
+
+    /// <inheritdoc cref="ProvenanceTag(ProvenanceSource, float, string?, int?, ProvenanceBinding?)" />
+    public float Confidence
+    {
+        get => this.Source == ProvenanceSource.Empty ? 0f : _confidence;
+        init => _confidence = Normalize(this.Source, value);
+    }
+
+    /// <summary>
+    /// Clamps a producer-reported confidence into <c>[0, 1]</c> and forces an
+    /// <see cref="ProvenanceSource.Empty"/> tag to 0.
+    ///
+    /// <see cref="float.NaN"/> becomes 0: a number that is not a number is not a claim.
+    /// </summary>
+    private static float Normalize(ProvenanceSource source, float confidence)
+    {
+        if (source == ProvenanceSource.Empty) return 0f;
+        if (float.IsNaN(confidence)) return 0f;
+        return Math.Clamp(confidence, 0f, 1f);
+    }
+
+    /// <summary>
+    /// Whether this tag points at something an auditor can check — see <see cref="ProvenanceBinding"/>.
+    /// </summary>
+    [JsonIgnore]
+    public bool IsBound => Binding is not null;
+
+    /// <summary>
+    /// Whether a tag with this source should carry a <see cref="ProvenanceBinding"/> to be worth its
+    /// grade: the three sources <b>above</b> <see cref="ProvenanceSource.Conversation"/> —
+    /// <see cref="ProvenanceSource.UserStated"/>, <see cref="ProvenanceSource.External"/> and
+    /// <see cref="ProvenanceSource.Computed"/>.
+    ///
+    /// At or below <see cref="ProvenanceSource.Conversation"/> the grade already says "this came
+    /// from the turn, or from a model reading the turn", and the turn is itself the artifact. Above
+    /// it, the tag claims an artifact outside the conversation, and a claim with no pointer at that
+    /// artifact is not checkable.
+    /// </summary>
+    public static bool RequiresBinding(ProvenanceSource source) =>
+        (int)source < (int)ProvenanceSource.Conversation;
+
+    /// <summary>
+    /// Whether this tag wins a merge against <paramref name="incumbent"/>: higher confidence wins,
+    /// and a tie breaks toward the more deterministic source (the lower
+    /// <see cref="ProvenanceSource"/> ordinal).
+    ///
+    /// <para>
+    /// An exact tie — same confidence, same source — leaves the incumbent in force. It was there
+    /// first and the challenger brings nothing new; the challenger is still preserved in the chain,
+    /// so the fact that two producers agreed stays on the record.
+    /// </para>
+    ///
+    /// <para>
+    /// This is the framework's one implementation of the merge comparison. Everything that has to
+    /// decide which of two tags wins — <see cref="ProvenanceChain.Merge"/>, the schema-driven
+    /// projection, the task-inference merge step — calls it, so the rule cannot be stated three
+    /// slightly different ways.
+    /// </para>
+    ///
+    /// <para>
+    /// A reviewer's act is deliberately <em>not</em> routed through here: it is not a confidence
+    /// contest it might lose. See <see cref="ProvenanceChain.Append"/>.
+    /// </para>
+    /// </summary>
+    public bool Beats(ProvenanceTag incumbent)
+    {
+        ArgumentNullException.ThrowIfNull(incumbent);
+        return Confidence > incumbent.Confidence ||
+               (Confidence == incumbent.Confidence && (int)Source < (int)incumbent.Source);
+    }
+
     /// <summary>
     /// The canonical "no data" tag. Every field with no known provenance must be
     /// tagged with this value rather than left unset — see framework spec §6 Rule 7.
@@ -84,10 +202,42 @@ public sealed record ProvenanceTag(
         new(ProvenanceSource.Conversation, confidence, $"Extracted from {toolName}", null);
 
     /// <summary>
-    /// Tag an LLM-inferred field. Default confidence 0.6.
+    /// Tag a value the implementation's own inference produced.
+    ///
+    /// <para>
+    /// <paramref name="source"/> is an <see cref="InferenceSource"/> and not a
+    /// <see cref="ProvenanceSource"/>, which is the whole point: an inference can say "the value was
+    /// literally in the turn" (<see cref="InferenceSource.Conversation"/>) or "the model reasoned to
+    /// it" (<see cref="InferenceSource.Inferred"/>) and has no way at all to claim
+    /// <see cref="ProvenanceSource.UserStated"/>, <see cref="ProvenanceSource.External"/> or
+    /// <see cref="ProvenanceSource.Computed"/>. The restriction is a property of the type rather
+    /// than a convention a reviewer has to spot.
+    /// </para>
     /// </summary>
-    public static ProvenanceTag FromInference(string fieldName, float confidence = 0.6f) =>
-        new(ProvenanceSource.Inferred, confidence, $"LLM inferred: {fieldName}", null);
+    /// <param name="source">Which of the two inference grades is being claimed.</param>
+    /// <param name="fieldName">The field the value belongs to, for the reviewer-facing line.</param>
+    /// <param name="confidence">
+    /// The model's reported confidence. Clamped into <c>[0, 1]</c> by the tag itself.
+    /// </param>
+    /// <param name="binding">
+    /// An <see cref="ProvenanceBinding.UtteranceSpan"/> when the inference port supplied offsets
+    /// into the unmodified utterance; null otherwise.
+    /// </param>
+    public static ProvenanceTag FromInference(
+        InferenceSource source,
+        string fieldName,
+        float confidence = 0.6f,
+        ProvenanceBinding? binding = null) =>
+        new(
+            source == InferenceSource.Conversation
+                ? ProvenanceSource.Conversation
+                : ProvenanceSource.Inferred,
+            confidence,
+            source == InferenceSource.Conversation
+                ? $"Read from the turn: {fieldName}"
+                : $"LLM inferred: {fieldName}",
+            null,
+            binding);
 
     /// <summary>
     /// Tag a value applied by a deterministic fallback rule. Default confidence 0.3.
@@ -96,8 +246,18 @@ public sealed record ProvenanceTag(
         new(ProvenanceSource.Default, confidence, reason, null);
 
     /// <summary>
-    /// Tag a value the user stated directly in chat. Maximal confidence.
+    /// Tag a value a person stated: an utterance span, a form input, a reviewer's amendment or
+    /// prefill. Maximal confidence.
     /// </summary>
-    public static ProvenanceTag FromUser(string fieldName) =>
-        new(ProvenanceSource.UserStated, 1.0f, $"User stated: {fieldName}", null);
+    /// <param name="fieldName">The field the person stated, for the reviewer-facing line.</param>
+    /// <param name="binding">
+    /// What an auditor should look at to check the claim — an
+    /// <see cref="ProvenanceBinding.UtteranceSpan"/>, a <see cref="ProvenanceBinding.FormInput"/>
+    /// or a <see cref="ProvenanceBinding.ReviewerAct"/>. Pass <c>null</c> only when the caller
+    /// genuinely has nothing to point at: an unbound <see cref="ProvenanceSource.UserStated"/> tag
+    /// is recorded exactly as claimed, but it is the weakest form of the strongest grade and a
+    /// policy is entitled to refuse to rest on it.
+    /// </param>
+    public static ProvenanceTag FromUser(string fieldName, ProvenanceBinding? binding) =>
+        new(ProvenanceSource.UserStated, 1.0f, $"User stated: {fieldName}", null, binding);
 }

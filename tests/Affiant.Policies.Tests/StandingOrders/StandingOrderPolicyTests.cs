@@ -49,6 +49,8 @@ public class StandingOrderPolicyTests
         EntityId: null,
         Fields: [],
         AggregateConfidence: 1.0f,
+        PopulatedConfidence: 1.0f,
+        EmptyFieldCount: 0,
         Warnings: [],
         RequiresConfirmation: false);
 
@@ -58,6 +60,8 @@ public class StandingOrderPolicyTests
         EntityId: null,
         Fields: [new AffidavitField("Value", 100m, null, ProvenanceChain.From(ProvenanceTag.Empty))],
         AggregateConfidence: 1.0f,
+        PopulatedConfidence: 1.0f,
+        EmptyFieldCount: 0,
         Warnings: [],
         RequiresConfirmation: false);
 

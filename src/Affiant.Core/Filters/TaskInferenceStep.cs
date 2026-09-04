@@ -14,7 +14,12 @@ using Microsoft.Extensions.Logging;
 /// the ProvenanceChains stored in ContextFabric, and upserts winning values as an EntityRef.
 ///
 /// Merge rule (framework spec §2.3): higher confidence wins; ties break by ProvenanceSource
-/// ordinal (lower ordinal = more deterministic, e.g. UserStated=0 beats External=1).
+/// ordinal (lower ordinal = more deterministic, e.g. UserStated=0 beats External=1). The comparison
+/// itself is <see cref="ProvenanceTag.Beats"/>, so this step, the schema-driven projection and
+/// <see cref="ProvenanceChain.Merge"/> cannot state the rule three slightly different ways.
+///
+/// A model-reported confidence is clamped into [0, 1] by <see cref="ProvenanceTag"/> itself, so a
+/// model that answers 1.4 or -0.2 cannot mint a tag outside the range every other rule reads.
 ///
 /// The strategy is accepted as a parameter to ExecuteAsync (not a constructor dependency),
 /// enabling multi-write hosts where each write tool uses its own strategy without a
@@ -83,7 +88,14 @@ public sealed class TaskInferenceStep
                 continue;
             }
 
-            var candidateTag = ProvenanceTag.FromInference(field.Name, newConfidence);
+            // The inference step mints through ProvenanceTag.FromInference, whose source parameter
+            // is an InferenceSource and therefore cannot name UserStated, External or Computed.
+            // Those three are claims about an artifact outside the model's own reasoning — a
+            // person's act, a system of record, a named rule — and an inference has none of them.
+            // The restriction is structural, not a convention: there is no overload reachable from
+            // here that could name them.
+            var candidateTag = ProvenanceTag.FromInference(
+                InferenceSource.Inferred, field.Name, newConfidence);
             var currentChain = _contextFabric.GetFieldChain(field.Name);
 
             bool wins;
@@ -96,9 +108,7 @@ public sealed class TaskInferenceStep
             else
             {
                 var current = currentChain.Current;
-                wins = candidateTag.Confidence > current.Confidence ||
-                       (candidateTag.Confidence == current.Confidence &&
-                        (int)candidateTag.Source < (int)current.Source);
+                wins = candidateTag.Beats(current);
                 reason = wins
                     ? $"Higher confidence: {candidateTag.Confidence} > {current.Confidence}"
                     : $"Lower or equal confidence: {candidateTag.Confidence} vs {current.Confidence}";
@@ -162,10 +172,9 @@ public sealed class TaskInferenceStep
     /// </summary>
     public static ProvenanceTag ResolveByConfidence(ProvenanceTag a, ProvenanceTag b)
     {
-        var bWins =
-            b.Confidence > a.Confidence ||
-            (b.Confidence == a.Confidence && (int)b.Source < (int)a.Source);
-        return bWins ? b : a;
+        ArgumentNullException.ThrowIfNull(a);
+        ArgumentNullException.ThrowIfNull(b);
+        return b.Beats(a) ? b : a;
     }
 }
 

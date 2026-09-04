@@ -105,6 +105,8 @@ internal static class AffiantTestHost
             EntityId: null,
             Fields: [],
             AggregateConfidence: 1.0f,
+            PopulatedConfidence: 1.0f,
+            EmptyFieldCount: 0,
             Warnings: [],
             RequiresConfirmation: false));
 

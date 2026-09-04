@@ -162,12 +162,15 @@ public sealed class ReviewGate(
 
         // This call won the approval race — persist the reviewer's amendments (if any) onto
         // the entry it just transitioned. See EvidenceCardResponse.Amendments.
+        Affidavit? amendedAffidavit = null;
         if (response.Amendments is { Count: > 0 })
         {
             await docketStore.UpdateAmendmentsAsync(entryId, response.Amendments, cancellationToken);
+            amendedAffidavit = FoldAmendments(
+                context.Affidavit, response.Amendments, entryId, context.ReviewerUserId);
         }
 
-        return new ReviewOutcome.Approved(entryId);
+        return new ReviewOutcome.Approved(entryId, amendedAffidavit);
     }
 
     /// <summary>
@@ -540,6 +543,14 @@ public sealed class ReviewGate(
     /// persists the <see cref="ReviewStatus.Expired"/> transition itself and broadcasts
     /// <see cref="TransportEvent.DocketExpired"/> — see <see cref="DocketExpiryBroadcaster"/>
     /// (affiant#14).
+    ///
+    /// <para>
+    /// On an approval that carries amendments, the returned
+    /// <see cref="ReviewOutcome.Approved.AmendedAffidavit"/> is the filed proposal with those
+    /// corrections folded in — the reviewer's act on each amended field's chain and all three
+    /// confidence numbers recomputed. The proposal on <see cref="DocketEntry.Envelope"/> is left
+    /// exactly as the reviewer saw it.
+    /// </para>
     /// </param>
     public async Task<(ReviewOutcome? Outcome, DateTimeOffset? EntryCreatedAt)> HandleDecisionAsync(
         Guid entryId,
@@ -626,16 +637,61 @@ public sealed class ReviewGate(
         }
 
         // This call won the transition race — persist the reviewer's amendments (if any).
+        Affidavit? amendedAffidavit = null;
         if (decision == ApprovalDecision.Approved && amendments is { Count: > 0 })
         {
             await docketStore.UpdateAmendmentsAsync(entryId, amendments, cancellationToken);
+            amendedAffidavit = FoldAmendments(
+                entry.Envelope, amendments, entryId, entry.ReviewerUserId ?? entry.UserId);
         }
 
         ReviewOutcome outcome = decision == ApprovalDecision.Approved
-            ? new ReviewOutcome.Approved(entryId)
+            ? new ReviewOutcome.Approved(entryId, amendedAffidavit)
             : new ReviewOutcome.Rejected(entryId);
         logger.LogInformation(
             "HandleDecisionAsync: DocketEntry {EntryId} {Decision} (restart path)", entryId, decision);
         return (outcome, createdAt);
+    }
+
+    /// <summary>
+    /// Folds an accepted amendment into the filed proposal, returning the amended
+    /// <see cref="Affidavit"/> that sits beside it — the reviewer's corrections as the values, their
+    /// act on top of each amended field's chain, and all three confidence numbers recomputed, so a
+    /// corrected card never reports the machine's pre-correction confidence.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The amendments themselves are persisted <em>before</em> this runs, and this never affects
+    /// whether the decision stuck: a map naming a field the Affidavit does not propose is a host
+    /// defect (a surface that offered an edit for a field the write never proposed), and the right
+    /// answer is a loud warning and no amended record — not an exception thrown after the entry has
+    /// already transitioned to Approved, which would lose the decision rather than the extra key.
+    /// </para>
+    /// <para>
+    /// The amended record travels on <see cref="ReviewOutcome.Approved.AmendedAffidavit"/> and is
+    /// not persisted: giving the Docket row its own column is a store change, and belongs to the
+    /// change that owns the row and its backends.
+    /// </para>
+    /// </remarks>
+    private Affidavit? FoldAmendments(
+        Affidavit proposal,
+        IReadOnlyDictionary<string, object?> amendments,
+        Guid entryId,
+        string reviewerId)
+    {
+        try
+        {
+            return AffidavitAmendments.Apply(
+                proposal, amendments, entryId, DateTimeOffset.UtcNow, reviewerId);
+        }
+        catch (ArgumentException ex)
+        {
+            logger.LogWarning(ex,
+                "ReviewGate: the amendments accepted on DocketEntry {EntryId} name a field the filed " +
+                "Affidavit does not propose, so no amended Affidavit was produced. The amendments " +
+                "themselves are persisted on the entry; the decision stands.",
+                entryId);
+            return null;
+        }
     }
 }

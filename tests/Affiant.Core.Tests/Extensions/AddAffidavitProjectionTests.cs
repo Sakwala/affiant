@@ -13,14 +13,16 @@ public class AddAffidavitProjectionTests
     private sealed class WidgetProjection : IAffidavitProjection
     {
         public string EntityType => "Widget";
-        public Affidavit Project(IContextFabric fabric, string operationType, IReadOnlyList<string> warnings)
+        public Affidavit Project(
+            IContextFabric fabric, string operationType, IReadOnlyList<string> warnings, string? entityId = null)
             => throw new NotImplementedException();
     }
 
     private sealed class GadgetProjection : IAffidavitProjection
     {
         public string EntityType => "Gadget";
-        public Affidavit Project(IContextFabric fabric, string operationType, IReadOnlyList<string> warnings)
+        public Affidavit Project(
+            IContextFabric fabric, string operationType, IReadOnlyList<string> warnings, string? entityId = null)
             => throw new NotImplementedException();
     }
 

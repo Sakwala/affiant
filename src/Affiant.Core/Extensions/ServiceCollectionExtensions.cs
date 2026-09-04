@@ -295,6 +295,32 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
+    /// Registers an <see cref="IPreviousValueSource"/> in DI — the host port the built-in
+    /// projection asks, on an update-shaped operation only, for the values the write replaces.
+    /// Multiple sources may be registered (one per store, say); the projection consults them in
+    /// registration order and takes the first non-null answer. Calling with the same
+    /// <typeparamref name="TSource"/> twice is a no-op.
+    /// </summary>
+    /// <remarks>
+    /// Registered <b>Scoped</b>, for the same reason <see cref="AddFieldResolver{TResolver}"/> is:
+    /// a previous-value source reads the host's domain store and will normally take a Scoped
+    /// dependency (a DbContext, a per-request client). Both projection registration paths are Scoped
+    /// too, so nothing captures a scope it should not.
+    /// </remarks>
+    public static IServiceCollection AddPreviousValueSource<TSource>(
+        this IServiceCollection services)
+        where TSource : class, IPreviousValueSource
+    {
+        // Idempotency guard: skip if TSource was already registered.
+        if (services.Any(d => d.ServiceType == typeof(TSource)))
+            return services;
+
+        services.AddScoped<TSource>();
+        services.AddScoped<IPreviousValueSource>(sp => sp.GetRequiredService<TSource>());
+        return services;
+    }
+
+    /// <summary>
     /// Registers a deterministic field source in DI. Multiple sources may be registered for
     /// the same or different field names; all resolve via <c>GetServices&lt;IDeterministicFieldSource&gt;()</c>.
     /// Calling with the same <typeparamref name="TSource"/> twice is a no-op.

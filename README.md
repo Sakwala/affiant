@@ -36,8 +36,13 @@ call:
 - Every value carries a **`ProvenanceChain`** — the ordered history of how that field
   arrived at its current value — and its **`PreviousValue`**, so an update shows exactly
   what is changing.
-- Every proposed mutation is a durable, sworn **`Affidavit`** with an **`AggregateConfidence`**,
-  reviewed on an **Evidence Card** and persisted for audit whether it is approved or rejected.
+- Every proposed mutation is a durable, sworn **`Affidavit`** carrying three confidence
+  numbers, reviewed on an **Evidence Card** and persisted for audit whether it is approved or
+  rejected. **`AggregateConfidence`** is the *minimum* over every proposed field with an
+  `Empty` field counting as `0` — so it is `0` exactly when some proposed field has unknown
+  provenance, and a mostly-blank record can never report a high score.
+  **`PopulatedConfidence`** (the minimum over the fields that *are* populated, `null` when
+  none is) and **`EmptyFieldCount`** are what make that `0` readable.
 
 The result is *data identity*: not "an agent did something", but "this specific value came
 from this specific source, and here is the proof". See [Positioning](#positioning) for how
@@ -223,24 +228,30 @@ public class RequestLeavePlugin(HrDbContext db)
 
         var fields = new AffidavitField[]
         {
+            // The user typed these into the chat, so the binding is the form-style input they
+            // came from. Pass null only when there is genuinely nothing to point at.
             new("StartDate", startDate.ToString("yyyy-MM-dd"), null,
-                ProvenanceChain.From(ProvenanceTag.FromUser("StartDate"))),
+                ProvenanceChain.From(ProvenanceTag.FromUser(
+                    "StartDate", new ProvenanceBinding.FormInput(new FormInputRef("startDate"))))),
             new("EndDate", endDate.ToString("yyyy-MM-dd"), null,
-                ProvenanceChain.From(ProvenanceTag.FromUser("EndDate"))),
+                ProvenanceChain.From(ProvenanceTag.FromUser(
+                    "EndDate", new ProvenanceBinding.FormInput(new FormInputRef("endDate"))))),
             new("LeaveType", leaveType, null,
-                ProvenanceChain.From(ProvenanceTag.FromUser("LeaveType"))),
+                ProvenanceChain.From(ProvenanceTag.FromUser(
+                    "LeaveType", new ProvenanceBinding.FormInput(new FormInputRef("leaveType"))))),
             new("Reason", reason, null,
-                ProvenanceChain.From(ProvenanceTag.FromUser("Reason"))),
+                ProvenanceChain.From(ProvenanceTag.FromUser(
+                    "Reason", new ProvenanceBinding.FormInput(new FormInputRef("reason"))))),
         };
 
-        var affidavit = new Affidavit(
-            OperationType: "create",
-            EntityType: "LeaveRequest",
-            EntityId: null,
-            Fields: fields,
-            AggregateConfidence: 1.0f,
-            Warnings: [],
-            RequiresConfirmation: true);
+        // Affidavit.Create computes all three confidence numbers from the fields, so a
+        // hand-written aggregate can never disagree with what it is meant to summarise.
+        var affidavit = Affidavit.Create(
+            operationType: "create",
+            entityType: "LeaveRequest",
+            entityId: null,
+            fields: fields,
+            warnings: []);
 
         return Task.FromResult(
             new WriteProposal(toolName, DateTimeOffset.UtcNow, affidavit).ToJsonString());

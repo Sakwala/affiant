@@ -554,9 +554,27 @@ public static class ComplianceHarness
                 resolvers,
                 deterministicSources,
                 loggerFactory.CreateLogger<SchemaDrivenAffidavitProjection>(),
-                eventStream);
+                eventStream,
+                provider.GetServices<IPreviousValueSource>());
 
-            var affidavit = projection.Project(fabric, descriptor.Operation.Kind, Array.Empty<string>());
+            // An update-shaped operation names the entity it updates, so the case has to say which
+            // one. A fixture that declares an update tool and no InferenceFixtureCase.EntityId is a
+            // fixture that cannot describe the write it is testing, and says so rather than being
+            // silently projected as a create.
+            if (Operation.IsUpdateShaped(descriptor.Operation.Kind) && string.IsNullOrEmpty(fixtureCase.EntityId))
+            {
+                fixtureFailures.Add(new FixtureFailure(
+                    fixture.Strategy,
+                    fixtureCase.Name,
+                    $"Tool '{descriptor.FunctionName}' declares operation " +
+                    $"'{descriptor.Operation.Kind}', which is update-shaped, but this case sets no " +
+                    "InferenceFixtureCase.EntityId. An update-shaped Affidavit names the entity it " +
+                    "updates and swears to what each field replaces; set EntityId on the case."));
+                return CaseOutcome.NoAffidavit;
+            }
+
+            var affidavit = projection.Project(
+                fabric, descriptor.Operation.Kind, Array.Empty<string>(), fixtureCase.EntityId);
 
             // Substance gate runs on the produced Affidavit regardless of what the fixture asserts —
             // this is the assertion-independent guard against b72c1fa.

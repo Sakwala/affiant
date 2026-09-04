@@ -80,11 +80,44 @@ Every field value in the system carries a `ProvenanceTag`. There are no exceptio
 ```csharp
 public sealed record ProvenanceTag(
     ProvenanceSource Source,      // Which of the 7 sources produced this value
-    float Confidence,             // 0.0–1.0 confidence score
+    float Confidence,             // Clamped into [0, 1] by the record; always 0 when Source is Empty
     string? Evidence,             // Human-readable explanation of why this source was assigned
-    int? ConversationTurn         // Which conversation turn produced this value (null for non-conversational sources)
+    int? ConversationTurn,        // Which conversation turn produced this value (null for non-conversational sources)
+    ProvenanceBinding? Binding = null  // What an auditor looks at to check the value; null when there is nothing to point at
 );
 ```
+
+**The confidence range is enforced by the type, not by each mint site.** A producer that reports
+1.4, -0.2 or `NaN` gets 1, 0 and 0. An `Empty` tag always reads 0 — "nobody knows where this came
+from" cannot also be a confident claim — so the tag and the aggregate can never disagree about it.
+
+**Bindings.** A tag says *where* a value came from; a `ProvenanceBinding` points at the artifact an
+auditor can go and check years later. The kinds are a fixed set of five, and each carries its own
+`Ref` shape:
+
+```csharp
+public abstract record ProvenanceBinding            // travels as { "kind": ..., "ref": { ... } }
+{
+    sealed record UtteranceSpan(UtteranceSpanRef Ref);   // offset, length, hash of the spanned substring
+    sealed record ReviewerAct(ReviewerActRef Ref);       // entryId, decisionAt — the Docket decision
+    sealed record FormInput(FormInputRef Ref);           // the form field a person typed into
+    sealed record ExternalRef(ExternalRecordRef Ref);    // system, recordId (+ fetchedAt, contentHash, relay)
+    sealed record ComputationRef(ComputationRuleRef Ref);// rule, inputs (+ an external constant and when it was verified)
+}
+```
+
+A binding whose source cannot be re-fetched or re-verified is not a binding. A tag graded above
+`Conversation` (`UserStated`, `External`, `Computed` — see `ProvenanceTag.RequiresBinding`) *should*
+carry one; an unbound tag at those grades is recorded exactly as it was claimed, and it is a policy's
+question, not the tag's, whether a verdict may rest on it.
+
+**What an implementation's own inference may mint.** `ProvenanceTag.FromInference` takes an
+`InferenceSource`, an enum with exactly two members — `Conversation` (the value was literally present
+in the turn) and `Inferred` (the model reasoned to it). `UserStated`, `External` and `Computed` are
+therefore not values the inference path can name at all: the restriction is structural rather than a
+convention. `UserStated` is an observation of a person's act — an utterance span, a form input, a
+reviewer's amendment or prefill (`ProvenanceTag.FromUser(fieldName, binding)`) — never the host
+vouching for a value it produced itself.
 
 ### 2.3 ProvenanceChain (Record)
 
@@ -97,7 +130,11 @@ public sealed record ProvenanceChain(
 );
 ```
 
-**Merge rule**: When `TaskInferenceStep` produces an inferred value for a field that `ContextFabric` already holds from a higher-confidence source, the higher-confidence value wins. Ties break toward the more deterministic source using the hierarchy defined in `ProvenanceSource`. The losing provenance is appended to the `Prior` list.
+**Merge rule**: When `TaskInferenceStep` produces an inferred value for a field that `ContextFabric` already holds from a higher-confidence source, the higher-confidence value wins. Ties break toward the more deterministic source using the hierarchy defined in `ProvenanceSource`. The losing provenance is appended to the `Prior` list — nothing is ever dropped from a chain, because a merge that discarded the loser would erase the fact that two producers disagreed. An exact tie (same confidence, same source) leaves the incumbent in force.
+
+The comparison itself is `ProvenanceTag.Beats(incumbent)` — one implementation, called by `ProvenanceChain.Merge`, by `SchemaDrivenAffidavitProjection` and by `TaskInferenceStep`, so the rule cannot be stated three slightly different ways.
+
+**A reviewer's act is not a merge.** `ProvenanceChain.Append(tag)` puts a tag in force unconditionally, pushing the displaced tag onto `Prior`. A person's correction is not a confidence contest it might lose to the machine's own tag, so the amendment path appends rather than merges — see §2.7's amendment note.
 
 ### 2.4 ToolEnvelope (Discriminated Union)
 
@@ -187,9 +224,11 @@ The core write-side contract — formerly called `ConfirmationEnvelope` in the r
 public sealed record Affidavit(
     string OperationType,                      // e.g., "UpdateCustomer", "CreateWorkOrder"
     string EntityType,                         // The domain entity being mutated
-    string? EntityId,                          // Null for create operations
-    AffidavitField[] Fields,                   // Every field with its value and provenance
-    float AggregateConfidence,                 // Minimum of all field confidences
+    string? EntityId,                          // Null for creates, non-null for updates
+    AffidavitField[] Fields,                   // Exactly the proposed fields, with value and provenance
+    float AggregateConfidence,                 // MINIMUM over every proposed field, an Empty field counting as 0
+    float? PopulatedConfidence,                // Minimum over the non-Empty fields; null when none is populated
+    int EmptyFieldCount,                       // How many proposed fields read Empty
     string[] Warnings,                         // Business-rule violations detected
     bool RequiresConfirmation                  // Can be overridden by IApprovalPolicy (Standing Order)
 );
@@ -197,10 +236,35 @@ public sealed record Affidavit(
 public sealed record AffidavitField(
     string Name,                               // Field name (domain-specific)
     object? Value,                             // Proposed value
-    object? PreviousValue,                     // Current value (null for creates)
+    object? PreviousValue,                     // The stored value being replaced; null on a create, and on an update field the entity had no value for
     ProvenanceChain Provenance                 // Full provenance chain for this field
 );
 ```
+
+**The three confidence numbers.** `AggregateConfidence` is the **minimum** over every proposed
+field's current tag, with an `Empty` field counting as `0` whatever its tag says — so it is `0` if
+and only if some proposed field has unknown provenance. It is deliberately not a mean over the
+non-`Empty` fields: a ten-field record with nine unknown fields and one at `1.0` would score a
+perfect `1.0`, which is the exact hole the number exists to close. Because a bare `0` tells a
+reviewer nothing about *how much* is blank, two companions travel with it: `PopulatedConfidence`
+(the minimum over the fields that are populated, `null` — not `0` — when none is) and
+`EmptyFieldCount`. A host policy floor predicates on those two; the aggregate is the safety number,
+and neither the framework nor a policy defines a threshold on it.
+
+All three are computed by one function, `AffidavitConfidence.Compute(fields)`, at filing time and
+again whenever an accepted amendment changes the fields. `Affidavit.Create(...)` builds a record
+with all three computed, and `affidavit.WithFields(...)` recomputes them — a producer should reach
+for those rather than passing numbers of its own.
+
+**The operation shape (`EntityId` and `PreviousValue`).** `EntityId` is non-null **if and only if**
+the operation is update-shaped (`Operation.IsUpdateShaped`), which makes "create-only" a predicate a
+policy can test without knowing the host's verbs. An update-shaped Affidavit carries a
+`PreviousValue` on every proposed field — the entity's stored value before the write, or `null`
+where the field had none. Those values come from the host, through
+`IPreviousValueSource.GetPreviousValuesAsync(entityType, entityId, ct)`, which
+`SchemaDrivenAffidavitProjection` consults **for updates only**; a create carries `null` throughout.
+A host whose write tools declare update operations and registers no source fails at startup
+(`AffiantWireUpValidator`), rather than filing create-shaped records for updates.
 
 ### 2.7 DocketEntry (Record) — The Review Queue Item
 
@@ -236,13 +300,27 @@ approval transition has won the double-submit race (§ below, "Docket idempotenc
 `Approved` throughout this round-trip — `ReviewStatus` has no distinct value for "approved with
 amendments" (nor for withdrawal); an amended approval is fully described by `Status == Approved`
 plus a non-null `Amendments`, and no code path ever transitions `Status` on account of an amendment.
-Framework responsibility ends there: appending a UserStated `ProvenanceTag` (`ProvenanceTag.FromUser`,
-Rule 7) to each amended field's `ProvenanceChain` before the write reaches the domain store is the
-host's `IWriteExecutor` overlay's job — `IWriteExecutor.ExecuteAsync(affidavit, amendments, ct)`
-already accepts the amendments dictionary for exactly that purpose. A test asserting the persisted
-chain ends in `UserStated` therefore belongs in the host's test suite, once the overlay exists,
-not in `Affiant.Testing.ComplianceHarness` (which asserts task-inference extraction substance, an
-unrelated pipeline stage).
+**What an accepted amendment does to the record.** The framework folds the amendment itself, in one
+place: `AffidavitAmendments.Apply(affidavit, amendments, entryId, decisionAt, reviewerId)` returns
+the amended Affidavit **beside** the proposal — `DocketEntry.Envelope` keeps the record the reviewer
+was actually shown — and `ReviewGate` returns it on `ReviewOutcome.Approved.AmendedAffidavit`. An
+amended field's value becomes the reviewer's, its current tag is `UserStated` carrying a
+`reviewer-act` binding that names the decision (`entryId`, `decisionAt`), and that tag is
+**appended** to the chain rather than merged, so the machine's pre-correction tag is preserved
+beneath it and never replaced. All three confidence numbers are recomputed over the amended fields;
+before this existed they were computed once at filing and never again, so a card could show a
+corrected value under a number that was never about that value. A field's `PreviousValue` never
+moves — it is what the entity holds now, which an amendment does not change.
+
+A **cleared** field (`null` under its key) follows the field-list rule instead of taking the
+reviewer's maximal tag: a mandatory field stays present and reads `Empty` at confidence 0, and an
+optional field leaves `Fields` entirely. Writing the reviewer's `1.0` over an emptied field would
+make the numbers *rise* as a reviewer wiped the record; this way clearing can never raise a number,
+and the reviewer's act is still on the record because the `Empty` tag carries the same
+`reviewer-act` binding a set would.
+
+A host's `IWriteExecutor` overlay no longer hand-rolls any of that: it calls the same helper (or
+uses the amended Affidavit the gate returns) before the write reaches the domain store.
 
 **Resubmission and lineage (Area-5 Decision 2, affiant#31).** `ReviewGate.ResubmitAsync(expiredEntryId, ct)`
 lets a caller retry a review whose `DocketEntry` has already gone `Expired`: it mints a brand-new
@@ -778,7 +856,7 @@ L2 introduces three new abstractions in `Affiant.Abstractions.Interfaces`, each 
 
 **`IInferenceTrigger`** decides, per tool invocation, whether inference should run. Its single method, `ShouldRun(InferenceTriggerContext) → bool`, receives the function name, plugin name, current tool arguments, the active `ContextFabric`, and the invocation phase (`PreTool`). The framework registers one default trigger: `WriteIntentInferenceTrigger`, which returns `true` for any tool whose `AffiantToolDescriptor` has `Operation.Kind` equal to `"WriteCreate"` or `"WriteUpdate"`. Hosts may register additional triggers via DI; `InferenceTriggerFilter` short-circuits on the first trigger that returns `true`.
 
-**`IAffidavitProjection`** constructs the Affidavit for a given entity type after inference results are merged into the `ContextFabric`. Its `Project(IContextFabric, operationType, warnings) → Affidavit` method reads fields from the fabric, applies `IDeterministicFieldSource` overrides (see below), and falls back to `ProvenanceTag.Empty` for any field the fabric cannot satisfy (Rule 7). The default implementation is `SchemaDrivenAffidavitProjection` in `Affiant.Core`.
+**`IAffidavitProjection`** constructs the Affidavit for a given entity type after inference results are merged into the `ContextFabric`. Its `Project(IContextFabric, operationType, warnings, entityId?) → Affidavit` method reads fields from the fabric, applies `IDeterministicFieldSource` overrides (see below), and falls back to `ProvenanceTag.Empty` for any field the fabric cannot satisfy (Rule 7). `entityId` names the entity an update-shaped operation targets and is non-null if and only if the operation is update-shaped (§2.6); it is a parameter rather than something read out of the fabric because only the caller knows which entity the operation targets. The default implementation is `SchemaDrivenAffidavitProjection` in `Affiant.Core`.
 
 **`IDeterministicFieldSource`** is an augmentation surface for fields that should always come from a deterministic source (e.g., a system clock, a session-authenticated user ID) rather than from LLM inference. `SchemaDrivenAffidavitProjection` checks registered `IDeterministicFieldSource` implementations per field before consulting the fabric; the first non-null resolution wins.
 
@@ -792,7 +870,7 @@ Three default service implementations ship with the framework. Hosts that accept
 
 **`WriteIntentInferenceTrigger`** (in `Affiant.Core.Triggers`) is the default `IInferenceTrigger` registered by `AddAffiantInferenceOrchestration()`. It fires inference for any tool whose registered `AffiantToolDescriptor` has `Operation.Kind` of `"WriteCreate"` or `"WriteUpdate"`.
 
-**`SchemaDrivenAffidavitProjection`** (in `Affiant.Core.Services`) is the default `IAffidavitProjection`. It iterates the fields declared by the active `ITaskInferenceStrategy`, applies `IDeterministicFieldSource` overrides first, then reads from the `ContextFabric`, and falls back to `ProvenanceTag.Empty` for any unresolved field (Rule 7). After projection it emits the `affidavit.projected` span event and publishes a typed `AffidavitEmittedEvent` through `IObservabilityEventStream<AffidavitEmittedEvent>` for downstream subscribers.
+**`SchemaDrivenAffidavitProjection`** (in `Affiant.Core.Services`) is the default `IAffidavitProjection`. It iterates the fields declared by the active `ITaskInferenceStrategy`, applies `IDeterministicFieldSource` overrides first, then reads from the `ContextFabric`, and falls back to `ProvenanceTag.Empty` for any unresolved field (Rule 7). Its field list covers the strategy's declared projected fields exactly — every one present, no other present, checked rather than assumed — and on an update-shaped operation it fills each field's `PreviousValue` from the host's `IPreviousValueSource` (§2.6). After projection it emits the `affidavit.projected` span event and publishes a typed `AffidavitEmittedEvent` through `IObservabilityEventStream<AffidavitEmittedEvent>` for downstream subscribers.
 
 **`FunctionNameInferenceTrigger`** — *deleted 2026-08-20* (Area-8 ruling 5). It was a soft-deprecated `IInferenceTrigger` that fired by explicit function-name allowlist rather than registry classification, kept for hosts adopted before the Tool Descriptor Registry (§3.11) existed. It carried an `[Obsolete]` attribute from the day it was written and had zero usage in either host app, so it was removed rather than shipped deprecated-on-arrival in the first public package. Use `WriteIntentInferenceTrigger` with `[AffiantWriteTool]` decoration; a host that genuinely needs allowlist triggering implements the two-member `IInferenceTrigger` itself.
 
@@ -1293,7 +1371,7 @@ These rules are non-negotiable. Every implementation, code review, and plugin au
 
 > **The wire path is now a framework mechanism, not host folklore (built 2026-08-04, area-4 architecture review P1f(b)).** Until 2026-08-04, this rule described a real discovery contract (`IRouteRegistry`) with no framework-owned way to actually deliver a guidance walkthrough to a client: the only implementation anywhere was a reference host hand-rolling a raw SignalR broadcast (`Clients.Group(...).SendAsync("GuideUI", ...)`) directly, bypassing the framework's transport abstraction entirely. As of 2026-08-04, `Affiant.Core.UiBridge.UiGuidanceBridge` carries the wire path itself: `BuildStep(elementId, description, prefillValue?, title?)` resolves a step's popover placement and highlight padding from the `GuidableElement.Attributes` registered for `elementId`, and `BroadcastGuidanceAsync(sessionGroupId, payload, ct)` sends the assembled `Affiant.Abstractions.Transport.UiGuidancePayload` through `IStreamingTransport` as `TransportEvent.UiGuidance` (wire method name `"GuideUI"` — preserved deliberately so an existing client keeps working unmodified; see §2.10 and §3.1). What stays host-owned is exactly what Rule 6 was always about: per-step *content* (which fields to guide through, prefill values, description text) is domain-specific and is composed by the host's own guidance tool before being handed to `UiGuidanceBridge` — the framework now carries the mechanism, never the content, mirroring `ReviewGate`'s own split between framework-owned filing and host-owned review context (§6 Rule 3, §4 Layer 4).
 
-**Rule 7: Every Affidavit field carries provenance, no exceptions.** If a field's provenance is unknown, it must be tagged `ProvenanceSource.Empty` — never omitted. The Evidence Card renders provenance as visual indicators (green for UserStated, amber for Inferred, grey for Default). *Rationale*: Missing provenance is indistinguishable from "the framework forgot to track it" versus "the AI made this up." *Anti-pattern*: Fields without provenance tags that the UI renders identically to user-confirmed values.
+**Rule 7: Every Affidavit field carries provenance, no exceptions.** If a *proposed* field's provenance is unknown, it must be tagged `ProvenanceSource.Empty` — never omitted. The converse is equally binding: a field the operation does **not** propose (untouched on an update, not applicable to the operation) is **absent** from `Fields` rather than present with an `Empty` tag. Omitting the not-proposed and `Empty`-tagging the unknown is what makes the field list a statement of intent a policy can read; conflating them makes it neither. The Evidence Card renders provenance as visual indicators (green for UserStated, amber for Inferred, grey for Default). *Rationale*: Missing provenance is indistinguishable from "the framework forgot to track it" versus "the AI made this up." *Anti-pattern*: Fields without provenance tags that the UI renders identically to user-confirmed values.
 
 > **The Area 3 gating principle (ratified 2026-08-03, verbatim from the ecosystem architecture
 > review's Area 3 position paper — `docs/architecture-review/area-3-tool-calling-reliability.md`
@@ -1408,6 +1486,17 @@ public class CustomerPlugin(IServiceScopeFactory scopeFactory)
 
 Write tools return `WriteProposal` containing an Affidavit — they NEVER execute the mutation. The `ReviewGate` handles confirmation, and `IWriteExecutor` handles execution.
 
+Two things this example is careful about, because both are rules rather than style:
+
+- **A field the tool proposes is always present, `Empty`-tagged when its provenance is unknown**
+  — never quietly omitted. Omission and `Empty` mean different things: absent says "this write does
+  not touch that field", `Empty` says "it does, and nobody knows where the value came from". The
+  second is what drags `AggregateConfidence` to 0 and shows up in `EmptyFieldCount`, and a reviewer
+  is entitled to see it. A field the operation genuinely does not propose *is* absent (see the note
+  after the code).
+- **The three confidence numbers come from the fields.** `Affidavit.Create` computes them, so a
+  hand-written aggregate can never disagree with what it is meant to summarise.
+
 ```csharp
 [KernelFunction, Description("Update a customer's contact information")]
 public async Task<string> UpdateCustomer(
@@ -1424,34 +1513,43 @@ public async Task<string> UpdateCustomer(
             "UpdateCustomer", DateTimeOffset.UtcNow, "CUSTOMER_NOT_FOUND",
             $"No customer found with ID {customerId}", Retryable: false));
 
-    // Build Affidavit fields with provenance
-    var fields = new List<AffidavitField>();
+    // This tool proposes both contact fields, so both are on the Affidavit. A parameter the caller
+    // left null is a proposed field with no known origin: present, tagged Empty at confidence 0.
+    // The value the tool WAS given came from a person's turn, so it is bound to the utterance the
+    // argument was read from — a UserStated tag with nothing to point at is the weakest form of the
+    // strongest grade.
+    var fields = new[]
+    {
+        new AffidavitField("email", email, customer.Email,
+            email is null
+                ? ProvenanceChain.From(ProvenanceTag.Empty)
+                : ProvenanceChain.From(ProvenanceTag.FromUser(
+                    "email", new ProvenanceBinding.FormInput(new FormInputRef("email"))))),
 
-    if (email is not null)
-        fields.Add(new AffidavitField("email", email, customer.Email,
-            new ProvenanceChain(
-                new ProvenanceTag(ProvenanceSource.UserStated, 0.95f, "Parameter from tool call", null),
-                Array.Empty<ProvenanceTag>())));
+        new AffidavitField("phone", phone, customer.Phone,
+            phone is null
+                ? ProvenanceChain.From(ProvenanceTag.Empty)
+                : ProvenanceChain.From(ProvenanceTag.FromUser(
+                    "phone", new ProvenanceBinding.FormInput(new FormInputRef("phone"))))),
+    };
 
-    if (phone is not null)
-        fields.Add(new AffidavitField("phone", phone, customer.Phone,
-            new ProvenanceChain(
-                new ProvenanceTag(ProvenanceSource.UserStated, 0.90f, "Parameter from tool call", null),
-                Array.Empty<ProvenanceTag>())));
-
-    var affidavit = new Affidavit(
-        OperationType: "UpdateCustomer",
-        EntityType: "Customer",
-        EntityId: customerId,
-        Fields: fields.ToArray(),
-        AggregateConfidence: fields.Min(f => f.Provenance.Current.Confidence),
-        Warnings: Array.Empty<string>(),
-        RequiresConfirmation: true);
+    var affidavit = Affidavit.Create(
+        operationType: "WriteUpdate",   // update-shaped: it names the entity and swears to what it replaces
+        entityType: "Customer",
+        entityId: customerId,           // non-null if and only if the operation is update-shaped
+        fields: fields,
+        warnings: Array.Empty<string>());
 
     return JsonSerializer.Serialize(new WriteProposal(
         "UpdateCustomer", DateTimeOffset.UtcNow, affidavit));
 }
 ```
+
+**What "absent" looks like, for contrast.** A `Customer` also has a `billingAddress`, and this tool
+never touches it — so it is simply not in `fields`. That is the other half of the rule: the field
+list is a statement of intent a policy can read, and it says exactly which fields this write
+proposes. If the tool's contract changed so that it *could* write the billing address, the field
+would move from absent to present-and-`Empty` whenever the caller left it out.
 
 ### 7.4 ContextExtractor Registration
 

@@ -92,17 +92,20 @@ public class SchemaDrivenAffidavitProjectionTests
             Assert.Equal(ProvenanceSource.Empty, f.Provenance.Current.Source);
         });
         Assert.Equal(0f, affidavit.AggregateConfidence);
+        // Nothing is populated, so there is nothing to be confident about — null, not 0.
+        Assert.Null(affidavit.PopulatedConfidence);
+        Assert.Equal(2, affidavit.EmptyFieldCount);
         Assert.True(affidavit.RequiresConfirmation);
     }
 
-    // --- Test 2: populated fabric → fields carry their chains, AggregateConfidence = mean ---
+    // --- Test 2: populated fabric → fields carry their chains, aggregate = the MINIMUM ---
 
     [Fact]
     public void PopulatedFabric_FieldsCarryChains_CorrectAggregateConfidence()
     {
         var fabric = new ContextFabric();
-        var colorTag = ProvenanceTag.FromInference("Color", 0.8f);
-        var weightTag = ProvenanceTag.FromInference("Weight", 0.6f);
+        var colorTag = ProvenanceTag.FromInference(InferenceSource.Inferred, "Color", 0.8f);
+        var weightTag = ProvenanceTag.FromInference(InferenceSource.Inferred, "Weight", 0.6f);
         fabric.SetFieldChain("Color", ProvenanceChain.From(colorTag));
         fabric.SetFieldChain("Weight", ProvenanceChain.From(weightTag));
         fabric.Upsert(new EntityRef("Widget", "Widget", "Widget", new Dictionary<string, object>
@@ -118,7 +121,10 @@ public class SchemaDrivenAffidavitProjectionTests
         var colorField = affidavit.Fields.Single(f => f.Name == "Color");
         Assert.Equal("Red", colorField.Value);
         Assert.Equal(ProvenanceSource.Inferred, colorField.Provenance.Current.Source);
-        Assert.Equal(0.7f, affidavit.AggregateConfidence, 5); // mean(0.8, 0.6)
+        // The aggregate is the minimum over every proposed field, not the mean: min(0.8, 0.6).
+        Assert.Equal(0.6f, affidavit.AggregateConfidence, 5);
+        Assert.Equal(0.6f, affidavit.PopulatedConfidence!.Value, 5);
+        Assert.Equal(0, affidavit.EmptyFieldCount);
     }
 
     // --- Test 3: deterministic source wins over fabric ---
@@ -127,13 +133,13 @@ public class SchemaDrivenAffidavitProjectionTests
     public void DeterministicSource_WinsOverFabric()
     {
         var fabric = new ContextFabric();
-        fabric.SetFieldChain("Color", ProvenanceChain.From(ProvenanceTag.FromInference("Color", 0.5f)));
+        fabric.SetFieldChain("Color", ProvenanceChain.From(ProvenanceTag.FromInference(InferenceSource.Inferred, "Color", 0.5f)));
         fabric.Upsert(new EntityRef("Widget", "Widget", "Widget", new Dictionary<string, object>
         {
             ["Color"] = "Blue",
         }));
 
-        var deterministicTag = ProvenanceTag.FromUser("Color");
+        var deterministicTag = ProvenanceTag.FromUser("Color", binding: null);
         var source = new FixedSource("Color", deterministicTag);
         var projection = BuildProjection(sources: [source]);
 
@@ -149,7 +155,7 @@ public class SchemaDrivenAffidavitProjectionTests
     public void DeterministicSource_ReturnsNull_FallsBackToFabric()
     {
         var fabric = new ContextFabric();
-        var fabricTag = ProvenanceTag.FromInference("Color", 0.7f);
+        var fabricTag = ProvenanceTag.FromInference(InferenceSource.Inferred, "Color", 0.7f);
         fabric.SetFieldChain("Color", ProvenanceChain.From(fabricTag));
         fabric.Upsert(new EntityRef("Widget", "Widget", "Widget", new Dictionary<string, object>
         {
@@ -202,14 +208,14 @@ public class SchemaDrivenAffidavitProjectionTests
         Assert.Equal(warnings, affidavit.Warnings);
     }
 
-    // --- Test 8: AggregateConfidence excludes Empty-sourced fields ---
+    // --- Test 8: an Empty proposed field drags the aggregate to 0 and shows up in the companions ---
 
     [Fact]
-    public void AggregateConfidence_ExcludesEmptyFields()
+    public void AggregateConfidence_IsZero_WhenAProposedFieldIsEmpty()
     {
         var fabric = new ContextFabric();
         // Only Color has a real chain; Weight stays Empty
-        fabric.SetFieldChain("Color", ProvenanceChain.From(ProvenanceTag.FromInference("Color", 0.9f)));
+        fabric.SetFieldChain("Color", ProvenanceChain.From(ProvenanceTag.FromInference(InferenceSource.Inferred, "Color", 0.9f)));
         fabric.Upsert(new EntityRef("Widget", "Widget", "Widget", new Dictionary<string, object>
         {
             ["Color"] = "Yellow",
@@ -218,8 +224,13 @@ public class SchemaDrivenAffidavitProjectionTests
         var projection = BuildProjection();
         var affidavit = projection.Project(fabric, "WriteCreate", []);
 
-        // Only Color contributes → confidence = 0.9
-        Assert.Equal(0.9f, affidavit.AggregateConfidence, 5);
+        // Weight is proposed with unknown provenance, so it counts as 0 and the aggregate is 0 —
+        // a mean over the non-Empty fields would have reported 0.9 for a half-blank record.
+        Assert.Equal(0f, affidavit.AggregateConfidence, 5);
+        // The two companions are what make that 0 readable: one field is blank, and the populated
+        // one is worth 0.9.
+        Assert.Equal(0.9f, affidavit.PopulatedConfidence!.Value, 5);
+        Assert.Equal(1, affidavit.EmptyFieldCount);
     }
 
     // --- Test 9: strategy.Required threads to AffidavitField.IsMandatory (issue #2) ---

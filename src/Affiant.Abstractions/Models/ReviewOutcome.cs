@@ -7,7 +7,29 @@ namespace Affiant.Abstractions.Models;
 public abstract record ReviewOutcome(Guid DocketId)
 {
     /// <summary>The reviewer (or StandingOrder policy) approved the proposed write.</summary>
-    public sealed record Approved(Guid DocketId) : ReviewOutcome(DocketId);
+    /// <param name="AmendedAffidavit">
+    /// The filed proposal with the reviewer's accepted amendments folded in — their corrections as
+    /// the field values, their act on top of each amended field's provenance chain, and all three
+    /// confidence numbers recomputed over the result (see <see cref="AffidavitAmendments.Apply"/>).
+    /// <c>null</c> when the write was approved unchanged.
+    ///
+    /// <para>
+    /// It travels <b>beside</b> the proposal rather than over it: <see cref="DocketEntry.Envelope"/>
+    /// keeps the record the reviewer was actually shown, and this is the record the write is
+    /// performed from. The two are different documents and both are worth keeping — which is why an
+    /// executor handed only the proposal and a bag of amendments used to report the machine's
+    /// pre-correction confidence for a value a human had already fixed.
+    /// </para>
+    ///
+    /// <para>
+    /// Carried on the outcome rather than persisted on the Docket row: giving the row its own
+    /// column is a store change (a new column on every backend plus a migration) and is the
+    /// docket-and-store change's to make, not this one's. Until then, a host that wants the amended
+    /// record durable writes it in its own executor.
+    /// </para>
+    /// </param>
+    public sealed record Approved(Guid DocketId, Affidavit? AmendedAffidavit = null)
+        : ReviewOutcome(DocketId);
 
     /// <summary>The reviewer explicitly rejected the proposed write.</summary>
     public sealed record Rejected(Guid DocketId, string Reason = "No reason provided") : ReviewOutcome(DocketId);

@@ -358,8 +358,10 @@ public class ReviewGateTests
             EntityType: "Order",
             EntityId: null,
             Fields: [new AffidavitField("title", "Test Order", null,
-                ProvenanceChain.From(ProvenanceTag.FromInference("title", 0.8f)))],
+                ProvenanceChain.From(ProvenanceTag.FromInference(InferenceSource.Inferred, "title", 0.8f)))],
             AggregateConfidence: 0.8f,
+            PopulatedConfidence: 0.8f,
+            EmptyFieldCount: 0,
             Warnings: [],
             RequiresConfirmation: true);
 
@@ -549,6 +551,95 @@ public class ReviewGateTests
         Assert.Equal("Reviewer-Edited Title", entry.Amendments!["title"]);
         Assert.True(entry.Amendments.ContainsKey("notes"));
         Assert.Null(entry.Amendments["notes"]);
+    }
+
+    // ── The amended Affidavit that travels beside the proposal ────────────────
+
+    [Fact]
+    public async Task FileReviewAsync_ApprovedWithAmendments_ReturnsTheAmendedAffidavitBesideTheProposal()
+    {
+        var entryId = Guid.NewGuid();
+        var (gate, transport, store) = CreateGate(ReviewRequirement.ReviewerConfirmation);
+        transport.EnqueueResponse(new EvidenceCardResponse(
+            entryId,
+            ApprovalDecision.Approved,
+            Amendments: new Dictionary<string, object?> { ["title"] = "Reviewer-Edited Title" }));
+
+        var (proposal, context) = CreateTestInput(entryId);
+        var outcome = await gate.FileReviewAsync(proposal, context);
+
+        var approved = Assert.IsType<ReviewOutcome.Approved>(outcome);
+        Assert.NotNull(approved.AmendedAffidavit);
+
+        // The reviewer's correction, their act on top of the field's chain, and the recomputed
+        // numbers — the machine had proposed the title at 0.8.
+        var field = Assert.Single(approved.AmendedAffidavit!.Fields);
+        Assert.Equal("Reviewer-Edited Title", field.Value);
+        Assert.Equal(ProvenanceSource.UserStated, field.Provenance.Current.Source);
+        Assert.IsType<ProvenanceBinding.ReviewerAct>(field.Provenance.Current.Binding);
+        Assert.Equal(1.0f, approved.AmendedAffidavit.AggregateConfidence, 5);
+
+        // The filed proposal is untouched: the card the reviewer was shown is still readable.
+        var entry = await store.GetDocketEntryAsync(entryId, default);
+        Assert.Equal(0.8f, entry!.Envelope.AggregateConfidence, 5);
+        Assert.Equal("Test Order", entry.Envelope.Fields.Single().Value);
+    }
+
+    [Fact]
+    public async Task FileReviewAsync_ApprovedUnchanged_CarriesNoAmendedAffidavit()
+    {
+        var (gate, transport, _) = CreateGate(ReviewRequirement.ReviewerConfirmation);
+        transport.EnqueueResponse(new EvidenceCardResponse(Guid.Empty, ApprovalDecision.Approved));
+
+        var (proposal, context) = CreateTestInput();
+        var outcome = await gate.FileReviewAsync(proposal, context);
+
+        Assert.Null(Assert.IsType<ReviewOutcome.Approved>(outcome).AmendedAffidavit);
+    }
+
+    [Fact]
+    public async Task HandleDecisionAsync_ApprovedWithAmendments_ReturnsTheAmendedAffidavit()
+    {
+        // The restart path: no live waiter, so the decision is replayed through the docket store.
+        var entryId = Guid.NewGuid();
+        var (gate, _, store) = CreateGate(ReviewRequirement.ReviewerConfirmation);
+
+        var (proposal, context) = CreateTestInput(entryId);
+        await gate.FileForReviewAsync(proposal, context);
+
+        var (outcome, _) = await gate.HandleDecisionAsync(
+            entryId,
+            ApprovalDecision.Approved,
+            new Dictionary<string, object?> { ["title"] = "Reviewer-Edited Title" });
+
+        var approved = Assert.IsType<ReviewOutcome.Approved>(outcome);
+        Assert.Equal("Reviewer-Edited Title", approved.AmendedAffidavit!.Fields.Single().Value);
+        Assert.Equal(1.0f, approved.AmendedAffidavit.AggregateConfidence, 5);
+        Assert.Equal(0.8f, (await store.GetDocketEntryAsync(entryId, default))!.Envelope.AggregateConfidence, 5);
+    }
+
+    [Fact]
+    public async Task FileReviewAsync_AmendmentNamingAFieldTheAffidavitDoesNotPropose_StillApproves()
+    {
+        // A host surface that offered an edit for a field the write never proposed is a defect, but
+        // it must not undo a decision that has already transitioned: the amendments are persisted,
+        // the approval stands, and only the amended record is withheld.
+        var entryId = Guid.NewGuid();
+        var (gate, transport, store) = CreateGate(ReviewRequirement.ReviewerConfirmation);
+        transport.EnqueueResponse(new EvidenceCardResponse(
+            entryId,
+            ApprovalDecision.Approved,
+            Amendments: new Dictionary<string, object?> { ["notes"] = "not a proposed field" }));
+
+        var (proposal, context) = CreateTestInput(entryId);
+        var outcome = await gate.FileReviewAsync(proposal, context);
+
+        var approved = Assert.IsType<ReviewOutcome.Approved>(outcome);
+        Assert.Null(approved.AmendedAffidavit);
+
+        var entry = await store.GetDocketEntryAsync(entryId, default);
+        Assert.Equal(ReviewStatus.Approved, entry!.Status);
+        Assert.True(entry.Amendments!.ContainsKey("notes"));
     }
 
     [Fact]

@@ -13,7 +13,136 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
 
 ## [Unreleased]
 
-_Nothing yet — changes after `v1.0.0-beta.1` accumulate here._
+### The Affidavit as the rules define it
+
+The record every write proposal is wrapped in now says what the specification always claimed it
+said. Three defects are closed together because they are one defect seen from three angles: the
+confidence number on a card could be wrong in both directions, and the record could not describe an
+update at all.
+
+#### Added
+
+- **`Affidavit.PopulatedConfidence` (`float?`) and `Affidavit.EmptyFieldCount` (`int`).** A safety
+  number that reads `0` tells a reviewer nothing about how much of the record is blank or how good
+  the populated part is. `PopulatedConfidence` is the minimum over the fields that *are* populated —
+  `null`, not `0`, when none is, because "there is nothing populated to be confident about" is a
+  different statement from "the populated fields are worthless". `EmptyFieldCount` is how many
+  proposed fields read `Empty`. A host policy floor predicates on these two; the aggregate stays the
+  safety number, and neither the framework nor a policy defines a threshold on it.
+- **`AffidavitConfidence.Compute(fields)`** — the one implementation of all three numbers, used at
+  filing and again on every accepted amendment. **`Affidavit.Create(...)`** builds a record with
+  them computed, and **`affidavit.WithFields(...)`** recomputes them; producers should reach for
+  those rather than passing numbers of their own.
+- **`IPreviousValueSource`** (`GetPreviousValuesAsync(entityType, entityId, ct)`) and
+  **`services.AddPreviousValueSource<TSource>()`** — the host port the built-in projection asks, on
+  an update-shaped operation only, for the values the write replaces. More than one may be
+  registered; they are consulted in registration order and the first non-`null` answer wins
+  (`null` means "not mine, ask the next"; an empty map is a real answer).
+- **`ProvenanceTag.Binding`** and **`ProvenanceBinding`** — what an auditor looks at to check a
+  value, as a fixed set of five kinds (`UtteranceSpan`, `ReviewerAct`, `FormInput`, `ExternalRef`,
+  `ComputationRef`), each with its own `Ref` shape, travelling as `{ "kind": …, "ref": { … } }`
+  with the names pinned by attribute so the same bytes read the same way on any transport.
+  `ProvenanceTag.IsBound` and `ProvenanceTag.RequiresBinding(source)` say whether a tag points at
+  anything and whether its grade ought to.
+- **`AffidavitAmendments.Apply(affidavit, amendments, entryId, decisionAt, reviewerId)`** — the one
+  implementation of what an accepted correction does to the record, and
+  **`ReviewOutcome.Approved.AmendedAffidavit`**, which carries it back from the gate.
+- **`ProvenanceTag.Beats(incumbent)`** — the one implementation of the merge comparison, now called
+  by `ProvenanceChain.Merge`, by the schema-driven projection and by `TaskInferenceStep`, which each
+  stated it separately before.
+- **`Operation.IsUpdateShaped(operationType)`** — the predicate that decides whether an operation
+  names an entity, accepting `"WriteUpdate"` and the protocol's own `"update"`.
+- **`InferenceFixtureCase.EntityId`** — the entity an update-shaped compliance case targets.
+
+#### Changed
+
+- **`Affidavit.AggregateConfidence` is the minimum, not a mean.** It is the minimum over *every*
+  proposed field's current tag, with an `Empty` field counting as `0` whatever its tag says — so it
+  is `0` if and only if some proposed field has unknown provenance. The shipped projection computed
+  the arithmetic mean over the non-`Empty` fields, which let a ten-field record with nine unknown
+  fields and one at `1.0` report a perfect `1.0`. (Closes #56.)
+- **The built-in projection can produce an update-shaped Affidavit.**
+  `SchemaDrivenAffidavitProjection` fills `EntityId` from its new `entityId` argument and each
+  field's `PreviousValue` from the registered `IPreviousValueSource`. It previously hard-coded both
+  to `null`, so every Affidavit it built was create-shaped and the promise that a field's previous
+  value shows exactly what is changing could not be met without a host writing a complete
+  replacement projection. (Closes #57.)
+- **An accepted amendment recomputes the three numbers.** The gate folds the reviewer's corrections
+  into an amended Affidavit that travels *beside* the proposal — `DocketEntry.Envelope` still holds
+  the record the reviewer was shown — with the amended field's current tag `UserStated` carrying a
+  `reviewer-act` binding naming the decision, appended on top of the chain so the machine's
+  pre-correction tag is preserved beneath it. Nothing recomputed the numbers before, so a card could
+  show a corrected value under a number that was never about that value. (Closes #74.)
+- **A cleared field follows the field-list rule rather than taking the reviewer's tag.** A cleared
+  mandatory field stays present and reads `Empty` at confidence 0; a cleared optional field leaves
+  `Fields` entirely. Writing the reviewer's `1.0` over an emptied field would make the numbers rise
+  as a reviewer wiped the record.
+- **Confidence is clamped into `[0, 1]` by `ProvenanceTag` itself**, and an `Empty` tag always reads
+  `0`. A producer reporting `1.4`, `-0.2` or `NaN` gets `1`, `0` and `0`. The clamp lives on the
+  record rather than at each mint site so no caller can route around it — the inference step in
+  particular passed a model-reported confidence through untouched.
+- **The projection's field list is checked, not assumed.** It must cover the strategy's declared
+  projected fields exactly — every one present, no other present, none twice — and throws naming the
+  discrepancy otherwise.
+- **`AffiantWireUpValidator` refuses at startup** when a registered write tool declares an update
+  operation and no `IPreviousValueSource` is registered, naming the tools. A create-only host is
+  unaffected. Like the other missing-contract checks, it is downgraded to a warning by
+  `AffiantCoreOptions.AcknowledgeMissingReviewWiring`.
+- **`ProvenanceChain.Merge`** now delegates its comparison to `ProvenanceTag.Beats`; behaviour is
+  unchanged. `ProvenanceChain.Append` is documented as what it always was — the unconditional
+  supersede a reviewer's act needs, which is not a confidence contest it might lose.
+
+#### Removed
+
+- `ProvenanceTag.FromUser(string fieldName)` — replaced by
+  `FromUser(string fieldName, ProvenanceBinding? binding)`.
+- `ProvenanceTag.FromInference(string fieldName, float confidence)` — replaced by
+  `FromInference(InferenceSource source, string fieldName, float confidence, ProvenanceBinding? binding)`.
+
+#### Upgrade notes (breaking changes; pre-1.0 breaks are permitted and declared)
+
+1. **`Affidavit` gains two required constructor parameters.** `PopulatedConfidence` (`float?`) and
+   `EmptyFieldCount` (`int`) sit immediately after `AggregateConfidence`.
+   *Migration:* replace hand-written construction with
+   `Affidavit.Create(operationType, entityType, entityId, fields, warnings, requiresConfirmation)`,
+   which computes all three from the fields. If you must keep the constructor, pass
+   `AffidavitConfidence.Compute(fields)`'s three values. They are required rather than defaulted on
+   purpose: a default of `(null, 0)` would quietly claim "no field is empty" on every existing
+   record. A payload persisted before this release deserializes with `PopulatedConfidence` null and
+   `EmptyFieldCount` 0; rows written from now on carry the real values.
+2. **`ProvenanceTag.FromUser` requires a binding argument.** *Migration:* pass the artifact the
+   claim rests on — `new ProvenanceBinding.FormInput(new FormInputRef("email"))`,
+   `new ProvenanceBinding.UtteranceSpan(...)`, `new ProvenanceBinding.ReviewerAct(...)` — or
+   `binding: null` where there is genuinely nothing to point at. An unbound `UserStated` tag is
+   still recorded exactly as claimed; it is the weakest form of the strongest grade, and a policy
+   is entitled to refuse to rest on it.
+3. **`ProvenanceTag.FromInference` takes an `InferenceSource` first.** *Migration:*
+   `FromInference("Field", 0.6f)` becomes
+   `FromInference(InferenceSource.Inferred, "Field", 0.6f)`, or `InferenceSource.Conversation` when
+   the value was literally present in the turn. The enum has exactly two members, which is the
+   point: the inference path now has no way to name `UserStated`, `External` or `Computed`, so the
+   restriction is structural rather than a convention.
+4. **`ProvenanceTag` gains a fifth positional parameter (`Binding`, defaulted `null`).** Existing
+   construction sites compile unchanged; a positional deconstruction of four elements does not.
+5. **`IAffidavitProjection.Project` gains a fourth parameter (`string? entityId = null`).** Callers
+   compile unchanged; a host that implements the interface must add the parameter. *Migration:* pass
+   the entity an update-shaped operation targets, and `null` (or nothing) for a create. The built-in
+   projection refuses either mismatch — an update with no entity id, or a create that names one —
+   rather than filing a record whose shape contradicts its own operation.
+6. **`ReviewOutcome.Approved` gains `AmendedAffidavit` (defaulted `null`).** Existing construction
+   and `is ReviewOutcome.Approved` matching are unchanged; a positional deconstruction of one
+   element is not.
+7. **`InferenceFixtureCase` gains `EntityId` (defaulted `null`).** A compliance fixture whose tool
+   declares an update operation must set it; the harness now reports a fixture failure naming the
+   tool rather than silently projecting the case as a create.
+8. **A host with update-shaped write tools must register an `IPreviousValueSource`** or the
+   application fails at startup. *Migration:* implement the interface over your own store and call
+   `services.AddPreviousValueSource<TSource>()`. A host that has been working around the create-only
+   projection with its own `IAffidavitProjection` can keep it and register a source, or drop the
+   replacement and use the built-in one.
+9. **A host `IWriteExecutor` that stamped reviewer provenance by hand should stop.** Use the amended
+   Affidavit the gate returns on `ReviewOutcome.Approved.AmendedAffidavit`, or call
+   `AffidavitAmendments.Apply` — one fold, one answer.
 
 ## [1.0.0-beta.1] — 2026-08-23
 

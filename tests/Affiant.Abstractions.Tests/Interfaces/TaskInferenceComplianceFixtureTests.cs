@@ -33,14 +33,16 @@ public class TaskInferenceComplianceFixtureTests
     }
 
     [Fact]
-    public void InferenceFixtureCase_HasFourPositionalParameters()
+    public void InferenceFixtureCase_HasFivePositionalParameters()
     {
         var props = typeof(InferenceFixtureCase).GetProperties();
-        Assert.Equal(4, props.Length);
+        Assert.Equal(5, props.Length);
         Assert.Contains(props, p => p.Name == "Name");
         Assert.Contains(props, p => p.Name == "History");
         Assert.Contains(props, p => p.Name == "Arguments");
         Assert.Contains(props, p => p.Name == "Assertion");
+        // The entity an update-shaped case targets; null (and defaulted) for a create.
+        Assert.Contains(props, p => p.Name == "EntityId");
     }
 
     [Fact]

@@ -105,6 +105,8 @@ public sealed class SessionRehydratorTests
             EntityId: null,
             Fields: [],
             AggregateConfidence: 0.9f,
+            PopulatedConfidence: 0.9f,
+            EmptyFieldCount: 0,
             Warnings: [],
             RequiresConfirmation: true);
 

@@ -242,8 +242,10 @@ on a `Scoped` service (a `DbContext`, or any per-request dependency your host re
 - Parameters express *user intent* — nullable parameters mean "only include this field if the user provided it"
 - `AffidavitField` records the proposed value, the previous value (null for creates), and a `ProvenanceChain`
 - `ProvenanceChain.From(tag)` creates a single-node chain; use `.Append(tag)` to accumulate history
-- `ProvenanceTag.FromUser(fieldName)` tags a value the user stated directly; `new ProvenanceTag(Computed, ...)` for derived values
+- `ProvenanceTag.FromUser(fieldName, binding)` tags a value a person stated — the binding says what an auditor should look at (`ProvenanceBinding.UtteranceSpan`, `.FormInput`, `.ReviewerAct`); pass `null` only when there is genuinely nothing to point at. Use `new ProvenanceTag(ProvenanceSource.Computed, …, new ProvenanceBinding.ComputationRef(…))` for derived values, and `ProvenanceTag.FromInference(InferenceSource.Conversation | .Inferred, …)` for anything the model produced — the inference factory has no way to name `UserStated`, `External` or `Computed`, which is deliberate
 - `Affidavit.RequiresConfirmation: true` tells the `ReviewGate` to show an Evidence Card before committing
+- Build the record with `Affidavit.Create(...)`, which computes the three confidence numbers from the fields — `AggregateConfidence` (the minimum over every proposed field, an `Empty` field counting as 0), `PopulatedConfidence` and `EmptyFieldCount`. Never hand-write them
+- `EntityId` is non-null **if and only if** the operation is update-shaped, and an update fills every field's `PreviousValue` — from your own store in a hand-written tool, or from an `IPreviousValueSource` when the schema-driven projection builds the record
 
 **Worked example — multi-field write proposal with mixed provenance:**
 
@@ -324,13 +326,17 @@ public class RequestLeavePlugin(HRPortalDbContext dbContext, ILogger<RequestLeav
             var fields = new AffidavitField[]
             {
                 new("StartDate",  startDate.ToString("yyyy-MM-dd"), null,
-                    ProvenanceChain.From(ProvenanceTag.FromUser("StartDate"))),
+                    ProvenanceChain.From(ProvenanceTag.FromUser(
+                        "StartDate", new ProvenanceBinding.FormInput(new FormInputRef("startDate"))))),
                 new("EndDate",    endDate.ToString("yyyy-MM-dd"), null,
-                    ProvenanceChain.From(ProvenanceTag.FromUser("EndDate"))),
+                    ProvenanceChain.From(ProvenanceTag.FromUser(
+                        "EndDate", new ProvenanceBinding.FormInput(new FormInputRef("endDate"))))),
                 new("LeaveType",  normalizedType, null,
-                    ProvenanceChain.From(ProvenanceTag.FromUser("LeaveType"))),
+                    ProvenanceChain.From(ProvenanceTag.FromUser(
+                        "LeaveType", new ProvenanceBinding.FormInput(new FormInputRef("leaveType"))))),
                 new("Reason",     reason, null,
-                    ProvenanceChain.From(ProvenanceTag.FromUser("Reason"))),
+                    ProvenanceChain.From(ProvenanceTag.FromUser(
+                        "Reason", new ProvenanceBinding.FormInput(new FormInputRef("reason"))))),
                 new("RemainingDaysAfter", remainingAfter.ToString(), null,
                     ProvenanceChain.From(new ProvenanceTag(
                         ProvenanceSource.Computed, 1.0f,
@@ -342,14 +348,16 @@ public class RequestLeavePlugin(HRPortalDbContext dbContext, ILogger<RequestLeav
                 ? [$"Insufficient balance: {remainingAfter} days remaining after request."]
                 : [];
 
-            var affidavit = new Affidavit(
-                OperationType: "create",
-                EntityType:    "LeaveRequest",
-                EntityId:      null,         // null = create operation; non-null = update
-                Fields:        fields,
-                AggregateConfidence: 1.0f,
-                Warnings: warnings,
-                RequiresConfirmation: true); // ReviewGate will show an Evidence Card
+            // Affidavit.Create computes AggregateConfidence (the MINIMUM over every proposed
+            // field, an Empty field counting as 0), PopulatedConfidence and EmptyFieldCount from
+            // the fields — so the numbers on the card can never disagree with the evidence.
+            var affidavit = Affidavit.Create(
+                operationType: "create",
+                entityType:    "LeaveRequest",
+                entityId:      null,         // null = create; non-null if and only if update-shaped
+                fields:        fields,
+                warnings:      warnings,
+                requiresConfirmation: true); // ReviewGate will show an Evidence Card
 
             // This is a WriteProposal — no database mutation happens here.
             // IWriteExecutor.ExecuteAsync is called only after ReviewGate approval.
@@ -560,23 +568,26 @@ public class LeaveRequestFieldMapper(ILogger<LeaveRequestFieldMapper> logger) : 
         var fields = new AffidavitField[]
         {
             new("StartDate", entity.StartDate.ToString("yyyy-MM-dd"), null,
-                ProvenanceChain.From(ProvenanceTag.FromUser("StartDate"))),
+                ProvenanceChain.From(ProvenanceTag.FromUser(
+                    "StartDate", new ProvenanceBinding.FormInput(new FormInputRef("startDate"))))),
             new("EndDate", entity.EndDate.ToString("yyyy-MM-dd"), null,
-                ProvenanceChain.From(ProvenanceTag.FromUser("EndDate"))),
+                ProvenanceChain.From(ProvenanceTag.FromUser(
+                    "EndDate", new ProvenanceBinding.FormInput(new FormInputRef("endDate"))))),
             new("LeaveType", entity.LeaveType.ToString(), null,
-                ProvenanceChain.From(ProvenanceTag.FromUser("LeaveType"))),
+                ProvenanceChain.From(ProvenanceTag.FromUser(
+                    "LeaveType", new ProvenanceBinding.FormInput(new FormInputRef("leaveType"))))),
             new("Reason", entity.Reason, null,
-                ProvenanceChain.From(ProvenanceTag.FromUser("Reason"))),
+                ProvenanceChain.From(ProvenanceTag.FromUser(
+                    "Reason", new ProvenanceBinding.FormInput(new FormInputRef("reason"))))),
         };
 
-        return new Affidavit(
-            OperationType: operationType,
-            EntityType:    "LeaveRequest",
-            EntityId:      entity.RequestId == 0 ? null : entity.RequestId.ToString(),
-            Fields:        fields,
-            AggregateConfidence: 1.0f,
-            Warnings: [],
-            RequiresConfirmation: false);
+        return Affidavit.Create(
+            operationType: operationType,
+            entityType:    "LeaveRequest",
+            entityId:      entity.RequestId == 0 ? null : entity.RequestId.ToString(),
+            fields:        fields,
+            warnings:      [],
+            requiresConfirmation: false);
     }
 }
 ```
@@ -1042,11 +1053,12 @@ public class MyWritePlugin
 
             var fields = new AffidavitField[]
             {
-                new("Name", name, null, ProvenanceChain.From(ProvenanceTag.FromUser("Name"))),
+                new("Name", name, null, ProvenanceChain.From(ProvenanceTag.FromUser(
+                    "Name", new ProvenanceBinding.FormInput(new FormInputRef("name"))))),
             };
 
             return new WriteProposal(toolName, DateTimeOffset.UtcNow,
-                new Affidavit("create", "MyEntity", null, fields, 1.0f, [], true))
+                Affidavit.Create("create", "MyEntity", null, fields, []))
                 .ToJsonString();
         }
         catch (Exception ex) when (ex is TimeoutException or DbUpdateException)
@@ -1112,7 +1124,9 @@ return new ToolError(toolName, DateTimeOffset.UtcNow,
 
 **Cause:** You constructed `AffidavitField` without a meaningful `ProvenanceChain`, or used `ProvenanceSource.Empty` when the real source is known.
 
-**Fix:** Tag every field with its actual source. Use `ProvenanceTag.FromUser(fieldName)` for user-stated values, `new ProvenanceTag(Computed, 1.0f, "evidence string", null)` for computed values. The `Evidence` string is displayed to the reviewer — make it meaningful.
+**Fix:** Tag every field with its actual source. Use `ProvenanceTag.FromUser(fieldName, binding)` for values a person stated, `new ProvenanceTag(ProvenanceSource.Computed, 1.0f, "evidence string", null, new ProvenanceBinding.ComputationRef(new ComputationRuleRef("ruleName", ["input"])))` for computed values. The `Evidence` string is displayed to the reviewer — make it meaningful, and the binding is what an auditor follows years later.
+
+Note the difference between grey and absent: a field the write *proposes* but cannot source is present with an `Empty` tag (grey, and counted in `EmptyFieldCount`), and a field the write does not propose at all is absent from `Fields` entirely. Grey is a real statement — "this write touches the field and nobody knows where the value came from" — and it is what drags `AggregateConfidence` to 0.
 
 ---
 

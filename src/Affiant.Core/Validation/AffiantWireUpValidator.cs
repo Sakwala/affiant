@@ -3,6 +3,7 @@ namespace Affiant.Core.Validation;
 using System.Text;
 using Affiant.Abstractions.Exceptions;
 using Affiant.Abstractions.Interfaces;
+using Affiant.Abstractions.Models;
 using Affiant.Core.Extensions;
 using Affiant.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -64,12 +65,20 @@ using Microsoft.Extensions.Logging;
 public sealed class AffiantWireUpValidator(
     AffiantCoreOptions options,
     ILogger<AffiantWireUpValidator> logger,
-    IServiceProviderIsService? isService = null) : IHostedService
+    IServiceProviderIsService? isService = null,
+    IAffiantToolRegistry? toolRegistry = null) : IHostedService
 {
     private const string TransportFix =
         "call services.AddAffiantSignalR<THub>() (package Affiant.Transport.SignalR, plus " +
         "app.MapAffiantSignalR<THub>(...) in the request pipeline), or register your own " +
         "IStreamingTransport implementation";
+
+    private static string PreviousValueSourceFix(IReadOnlyList<string> updateTools) =>
+        "call services.AddPreviousValueSource<TSource>() with a source that reads the entity's " +
+        "stored values from your own system of record — needed because " +
+        $"[{string.Join(", ", updateTools)}] declare update operations, and an update-shaped " +
+        "Affidavit carries the value each field replaces so a reviewer can see what is changing. " +
+        "Register a source, or declare those tools as creates";
 
     private const string DocketStoreFix =
         "call services.AddAffiantEntityFramework(ef => ef.UseSqlite(...) | ef.UsePostgres(...)) " +
@@ -97,6 +106,19 @@ public sealed class AffiantWireUpValidator(
         if (!isService.IsService(typeof(IDocketStore)))
             missing.Add((typeof(IDocketStore).FullName!, DocketStoreFix));
 
+        // An update-shaped Affidavit swears to what each field replaces, and only the host's own
+        // system of record knows that — so a host whose write tools declare update operations and
+        // registers no IPreviousValueSource cannot produce a lawful update Affidavit at all. The
+        // check is conditional on purpose: a create-only host is unaffected and nothing about its
+        // wiring changes.
+        var updateTools = toolRegistry?.All
+            .Where(d => Operation.IsUpdateShaped(d.Operation.Kind))
+            .Select(d => d.PluginName is null ? d.FunctionName : $"{d.PluginName}.{d.FunctionName}")
+            .ToArray() ?? [];
+
+        if (updateTools.Length > 0 && !isService.IsService(typeof(IPreviousValueSource)))
+            missing.Add((typeof(IPreviousValueSource).FullName!, PreviousValueSourceFix(updateTools)));
+
         if (missing.Count == 0) return Task.CompletedTask;
 
         if (options.AcknowledgeMissingReviewWiring)
@@ -115,17 +137,19 @@ public sealed class AffiantWireUpValidator(
 
         var message = new StringBuilder();
         message.AppendLine(
-            "Affiant.Core: AddAffiantCore() registered ReviewGate — the review state machine every " +
-            "write proposal is filed through — but the following dependencies it needs were not " +
-            "registered by any package in this application:");
+            "Affiant.Core: AddAffiantCore() registered the write-review path — ReviewGate, the state " +
+            "machine every write proposal is filed through, and the Affidavit projection that builds " +
+            "what a reviewer sees — but the following contracts it needs were not registered by any " +
+            "package in this application:");
         foreach (var (contract, fix) in missing)
             message.AppendLine($"- {contract} — {fix}.");
         message.AppendLine();
         message.AppendLine(
-            "Without them the application starts and converses normally, and fails only when a tool " +
-            "first produces a WriteProposal and ReviewGateFilter tries to file it — mid-conversation, " +
-            "at the one moment provenance was supposed to be captured. Failing here instead is " +
-            "deliberate (area-8 ruling 6).");
+            "Without them the application starts and converses normally, and the gap surfaces only " +
+            "when a tool first produces a WriteProposal — mid-conversation, at the one moment " +
+            "provenance was supposed to be captured, either as a filing failure or as an update " +
+            "Affidavit that swears to no previous values at all. Failing here instead is deliberate " +
+            "(area-8 ruling 6).");
         message.AppendLine(
             "If this host deliberately runs without a review loop, set " +
             "AffiantCoreOptions.AcknowledgeMissingReviewWiring = true in AddAffiantCore(options => ...) " +

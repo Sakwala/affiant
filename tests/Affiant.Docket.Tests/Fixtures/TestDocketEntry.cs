@@ -22,7 +22,7 @@ public static class TestDocketEntry
             Name: "primaryField",
             Value: "test-value",
             PreviousValue: null,
-            Provenance: ProvenanceChain.From(ProvenanceTag.FromUser("primaryField")));
+            Provenance: ProvenanceChain.From(ProvenanceTag.FromUser("primaryField", binding: null)));
 
         var inferredField = new AffidavitField(
             Name: "secondaryField",
@@ -37,6 +37,8 @@ public static class TestDocketEntry
             EntityId: "entity-001",
             Fields: [userField, inferredField],
             AggregateConfidence: 0.85f,
+            PopulatedConfidence: 0.85f,
+            EmptyFieldCount: 0,
             Warnings: [],
             RequiresConfirmation: false);
 
