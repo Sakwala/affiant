@@ -155,9 +155,15 @@ public sealed class SchemaDrivenAffidavitProjection : IAffidavitProjection
                         if (chain is not null)
                         {
                             provenance = chain;
-                            if (chain.Current.Source != ProvenanceSource.Empty
-                                && entity is not null
-                                && entity.Fields.TryGetValue(field.Name, out var fv))
+
+                            // The value as it stands, whatever the tag says about it — an Empty tag
+                            // included. A field that asserts a value while swearing nothing about
+                            // where it came from is GT-3's HOLLOW signature, and the gate refuses it
+                            // by name; a projection that dropped the value here would turn every
+                            // hollow proposal into an empty one and the refusal would report the
+                            // wrong thing about it. What makes the claim safe is that the tag
+                            // travels with the value and says the value has nothing behind it.
+                            if (entity is not null && entity.Fields.TryGetValue(field.Name, out var fv))
                             {
                                 value = fv;
                             }
