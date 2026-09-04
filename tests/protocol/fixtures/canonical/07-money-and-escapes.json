@@ -4,14 +4,16 @@
     "SR-1",
     "SR-2"
   ],
-  "note": "Money as two strings, never a number (SR-2): a GBP amount with cents a float would lose, a JPY amount with no minor units, a negative amount, and an amount far beyond what a double can hold. Alongside them the string rules: only what JSON requires is escaped, so a quote, a backslash and the C0 controls are escaped (with the two-character forms where JSON has them, lowercase u-escapes otherwise) while every non-ASCII character is written as itself and encoded as UTF-8 -- an e-acute is two bytes, not six -- and a solidus is never escaped.",
+  "note": "Money as two strings, never a number (SR-2): a GBP amount with cents a float would lose, a JPY amount with no minor units, a negative amount, and an amount far beyond what a double can hold. Alongside them the string rules: only what JSON requires is escaped, so a quote, a backslash and the C0 controls are escaped (with the two-character forms where JSON has them, lowercase u-escapes otherwise) while every non-ASCII character is written as itself and encoded as UTF-8 — an e-acute is two bytes, not six — and a solidus is never escaped. The escaping rules apply to keys and to values alike, which is why the note on one tag carries a quote of its own.",
   "input": {
-    "operationType": "WriteUpdate",
+    "protocolVersion": "0.1.0",
+    "operationType": "update",
     "entityType": "Invoice",
     "entityId": "INV-2026-0045",
     "fields": [
       {
         "name": "Total",
+        "kind": "number",
         "value": {
           "amount": "4000.10",
           "currency": "GBP"
@@ -24,22 +26,26 @@
           "current": {
             "source": "Computed",
             "confidence": 1,
-            "evidence": "Sum of the line items",
+            "note": "Sum of the line items",
+            "at": "2026-09-04T09:00:00.000Z",
             "conversationTurn": null,
             "binding": {
               "kind": "computation-ref",
-              "ref": "invoice.total@v3"
+              "ref": {
+                "rule": "invoice.total@v3",
+                "inputs": [
+                  "LineItems"
+                ]
+              }
             }
           },
           "prior": []
         },
-        "isMandatory": true,
-        "kind": "number",
-        "allowedValues": null,
-        "pattern": null
+        "isMandatory": true
       },
       {
         "name": "Refund",
+        "kind": "number",
         "value": {
           "currency": "JPY",
           "amount": "-1250"
@@ -49,18 +55,23 @@
           "current": {
             "source": "UserStated",
             "confidence": 1,
-            "evidence": "Reviewer typed it",
-            "conversationTurn": null
+            "note": "Reviewer typed it into the \"Refund\" box",
+            "at": "2026-09-04T09:00:00.000Z",
+            "conversationTurn": null,
+            "binding": {
+              "kind": "form-input",
+              "ref": {
+                "field": "Refund"
+              }
+            }
           },
           "prior": []
         },
-        "isMandatory": false,
-        "kind": "number",
-        "allowedValues": null,
-        "pattern": null
+        "isMandatory": false
       },
       {
         "name": "Ceiling",
+        "kind": "number",
         "value": {
           "amount": "123456789012345678901234567890.99",
           "currency": "LKR"
@@ -70,47 +81,48 @@
           "current": {
             "source": "External",
             "confidence": 1,
-            "evidence": "Read from the ledger",
+            "note": "Read from the ledger",
+            "at": "2026-09-04T09:00:00.000Z",
             "conversationTurn": null,
             "binding": {
               "kind": "external-ref",
-              "ref": "ledger:limit/9"
+              "ref": {
+                "system": "ledger",
+                "recordId": "limit/9"
+              }
             }
           },
           "prior": []
         },
-        "isMandatory": false,
-        "kind": "number",
-        "allowedValues": null,
-        "pattern": null
+        "isMandatory": false
       },
       {
         "name": "Memo",
+        "kind": "text",
         "value": "quote \" backslash \\ tab \t newline \n cr \r backspace \b formfeed \f nul \u0000 unit-separator \u001f solidus a/b accented éüñ script 日本語 emoji 😀 private-use ",
         "previousValue": null,
         "provenance": {
           "current": {
             "source": "Conversation",
             "confidence": 0.7,
-            "evidence": "Taken verbatim from the turn",
-            "conversationTurn": 2
+            "note": "Taken verbatim from the turn",
+            "at": "2026-09-04T09:00:00.000Z",
+            "conversationTurn": 2,
+            "binding": null
           },
           "prior": []
         },
-        "isMandatory": false,
-        "kind": "text",
-        "allowedValues": null,
-        "pattern": null
+        "isMandatory": false
       }
     ],
     "aggregateConfidence": 0.7,
     "populatedConfidence": 0.7,
     "emptyFieldCount": 0,
-    "warnings": [],
-    "requiresConfirmation": true
+    "conversationTurn": 2,
+    "createdAt": "2026-09-04T09:00:00.000Z"
   },
   "amendments": null,
   "reviewerAct": null,
-  "expectedBytesUtf8": "{\"aggregateConfidence\":0.7,\"emptyFieldCount\":0,\"entityId\":\"INV-2026-0045\",\"entityType\":\"Invoice\",\"fields\":[{\"allowedValues\":null,\"isMandatory\":true,\"kind\":\"number\",\"name\":\"Total\",\"pattern\":null,\"previousValue\":{\"amount\":\"0\",\"currency\":\"GBP\"},\"provenance\":{\"current\":{\"binding\":{\"kind\":\"computation-ref\",\"ref\":\"invoice.total@v3\"},\"confidence\":1,\"conversationTurn\":null,\"evidence\":\"Sum of the line items\",\"source\":\"Computed\"},\"prior\":[]},\"value\":{\"amount\":\"4000.10\",\"currency\":\"GBP\"}},{\"allowedValues\":null,\"isMandatory\":false,\"kind\":\"number\",\"name\":\"Refund\",\"pattern\":null,\"previousValue\":null,\"provenance\":{\"current\":{\"confidence\":1,\"conversationTurn\":null,\"evidence\":\"Reviewer typed it\",\"source\":\"UserStated\"},\"prior\":[]},\"value\":{\"amount\":\"-1250\",\"currency\":\"JPY\"}},{\"allowedValues\":null,\"isMandatory\":false,\"kind\":\"number\",\"name\":\"Ceiling\",\"pattern\":null,\"previousValue\":null,\"provenance\":{\"current\":{\"binding\":{\"kind\":\"external-ref\",\"ref\":\"ledger:limit/9\"},\"confidence\":1,\"conversationTurn\":null,\"evidence\":\"Read from the ledger\",\"source\":\"External\"},\"prior\":[]},\"value\":{\"amount\":\"123456789012345678901234567890.99\",\"currency\":\"LKR\"}},{\"allowedValues\":null,\"isMandatory\":false,\"kind\":\"text\",\"name\":\"Memo\",\"pattern\":null,\"previousValue\":null,\"provenance\":{\"current\":{\"confidence\":0.7,\"conversationTurn\":2,\"evidence\":\"Taken verbatim from the turn\",\"source\":\"Conversation\"},\"prior\":[]},\"value\":\"quote \\\" backslash \\\\ tab \\t newline \\n cr \\r backspace \\b formfeed \\f nul \\u0000 unit-separator \\u001f solidus a/b accented éüñ script 日本語 emoji 😀 private-use \"}],\"operationType\":\"WriteUpdate\",\"populatedConfidence\":0.7,\"requiresConfirmation\":true,\"warnings\":[]}",
-  "expectedSha256": "2970e9ad511c5b2a7d9b96e2fd6cf4389620dcbb616422e1e80a22670536b9c1"
+  "expectedBytesUtf8": "{\"aggregateConfidence\":0.7,\"conversationTurn\":2,\"createdAt\":\"2026-09-04T09:00:00.000Z\",\"emptyFieldCount\":0,\"entityId\":\"INV-2026-0045\",\"entityType\":\"Invoice\",\"fields\":[{\"isMandatory\":true,\"kind\":\"number\",\"name\":\"Total\",\"previousValue\":{\"amount\":\"0\",\"currency\":\"GBP\"},\"provenance\":{\"current\":{\"at\":\"2026-09-04T09:00:00.000Z\",\"binding\":{\"kind\":\"computation-ref\",\"ref\":{\"inputs\":[\"LineItems\"],\"rule\":\"invoice.total@v3\"}},\"confidence\":1,\"conversationTurn\":null,\"note\":\"Sum of the line items\",\"source\":\"Computed\"},\"prior\":[]},\"value\":{\"amount\":\"4000.10\",\"currency\":\"GBP\"}},{\"isMandatory\":false,\"kind\":\"number\",\"name\":\"Refund\",\"previousValue\":null,\"provenance\":{\"current\":{\"at\":\"2026-09-04T09:00:00.000Z\",\"binding\":{\"kind\":\"form-input\",\"ref\":{\"field\":\"Refund\"}},\"confidence\":1,\"conversationTurn\":null,\"note\":\"Reviewer typed it into the \\\"Refund\\\" box\",\"source\":\"UserStated\"},\"prior\":[]},\"value\":{\"amount\":\"-1250\",\"currency\":\"JPY\"}},{\"isMandatory\":false,\"kind\":\"number\",\"name\":\"Ceiling\",\"previousValue\":null,\"provenance\":{\"current\":{\"at\":\"2026-09-04T09:00:00.000Z\",\"binding\":{\"kind\":\"external-ref\",\"ref\":{\"recordId\":\"limit/9\",\"system\":\"ledger\"}},\"confidence\":1,\"conversationTurn\":null,\"note\":\"Read from the ledger\",\"source\":\"External\"},\"prior\":[]},\"value\":{\"amount\":\"123456789012345678901234567890.99\",\"currency\":\"LKR\"}},{\"isMandatory\":false,\"kind\":\"text\",\"name\":\"Memo\",\"previousValue\":null,\"provenance\":{\"current\":{\"at\":\"2026-09-04T09:00:00.000Z\",\"binding\":null,\"confidence\":0.7,\"conversationTurn\":2,\"note\":\"Taken verbatim from the turn\",\"source\":\"Conversation\"},\"prior\":[]},\"value\":\"quote \\\" backslash \\\\ tab \\t newline \\n cr \\r backspace \\b formfeed \\f nul \\u0000 unit-separator \\u001f solidus a/b accented éüñ script 日本語 emoji 😀 private-use \"}],\"operationType\":\"update\",\"populatedConfidence\":0.7,\"protocolVersion\":\"0.1.0\"}",
+  "expectedSha256": "95bb5dbbd77fd340c16764245de08e887e807733e2983cef31c59c55467a2dc4"
 }

@@ -234,6 +234,13 @@ public static class CanonicalSerializer
         var amended = new HashSet<string>(StringComparer.Ordinal);
         var next = new JsonArray();
 
+        // The turn the amendment tag carries is the AFFIDAVIT's, not the amended field's.
+        // A reviewer's correction belongs to the conversation the proposal was made in; the
+        // displaced tag's own turn says when the machine produced the value it replaced, and
+        // reusing it would date the person's act to the machine's turn. The typed path reads
+        // Affidavit.ConversationTurn for the same reason, and the two must not drift.
+        var turn = TurnOf(affidavit);
+
         foreach (var element in fields)
         {
             if (element is not JsonObject field ||
@@ -269,7 +276,7 @@ public static class CanonicalSerializer
                 entryId,
                 decisionAt,
                 reviewerId,
-                TurnOf(field));
+                turn);
 
             copy["provenance"] = Supersede(
                 field["provenance"],
@@ -308,9 +315,17 @@ public static class CanonicalSerializer
         return result;
     }
 
-    private static int? TurnOf(JsonObject field) =>
-        field["provenance"]?["current"]?["conversationTurn"] is { } turn &&
-        turn.GetValueKind() == JsonValueKind.Number
+    /// <summary>
+    /// The conversation turn a document states, or <c>null</c> when it states none.
+    /// </summary>
+    /// <remarks>
+    /// Read off the Affidavit rather than off a field: the turn on a tag says when that tag's
+    /// producer made its claim, and an amendment's tag is a person's act in the conversation the
+    /// proposal belongs to. A seed-shaped record carries no <c>conversationTurn</c> at all and
+    /// yields <c>null</c>, which is what it means.
+    /// </remarks>
+    private static int? TurnOf(JsonObject affidavit) =>
+        affidavit["conversationTurn"] is { } turn && turn.GetValueKind() == JsonValueKind.Number
             ? turn.GetValue<int>()
             : null;
 

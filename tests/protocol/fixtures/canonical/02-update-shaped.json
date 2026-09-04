@@ -5,61 +5,67 @@
     "AF-3",
     "PV-1"
   ],
-  "note": "An update-shaped Affidavit: entityId set, a previousValue on every proposed field, one of them null because the field had no stored value (AF-3). One chain carries a superseded tag in `prior`, so the vector pins that array order is data and is never sorted. `null` is written; a property whose value is undefined is omitted, which no JSON file can express — `test/canonical.test.ts` covers that half.",
+  "note": "An update-shaped Affidavit: entityId set, a previousValue on every proposed field, one of them null because the field had no stored value (AF-3). `DueDate`'s chain was merged rather than minted, so a superseded `Inferred` tag sits in `prior` behind the `Conversation` tag that beat it (PV-1) — which pins that array order is data and is never sorted. The two bound tags carry the v0.1 binding shapes: an `external-ref` naming a system and a record within it, and a `computation-ref` naming a re-runnable rule and what it consumed. `null` is written; a property whose value is undefined is omitted, which no JSON file can express — `test/canonical.test.ts` covers that half.",
   "input": {
-    "operationType": "WriteUpdate",
+    "protocolVersion": "0.1.0",
+    "operationType": "update",
     "entityType": "Invoice",
     "entityId": "INV-2026-0044",
     "fields": [
       {
         "name": "DueDate",
+        "kind": "date",
         "value": "2026-10-01",
         "previousValue": "2026-09-15",
         "provenance": {
           "current": {
             "source": "Conversation",
             "confidence": 0.82,
-            "evidence": "Extracted from the turn",
-            "conversationTurn": 4
+            "note": "Extracted from the turn",
+            "at": "2026-09-04T09:00:00.000Z",
+            "conversationTurn": 4,
+            "binding": null
           },
           "prior": [
             {
               "source": "Inferred",
               "confidence": 0.4,
-              "evidence": "Guessed from the payment terms",
-              "conversationTurn": 4
+              "note": "Guessed from the payment terms",
+              "at": "2026-09-04T09:00:00.000Z",
+              "conversationTurn": 4,
+              "binding": null
             }
           ]
         },
-        "isMandatory": true,
-        "kind": "date",
-        "allowedValues": null,
-        "pattern": null
+        "isMandatory": true
       },
       {
         "name": "Reference",
+        "kind": "text",
         "value": "PO-77",
         "previousValue": null,
         "provenance": {
           "current": {
             "source": "External",
             "confidence": 1,
-            "evidence": "Read from the purchase-order system",
+            "note": "Read from the purchase-order system",
+            "at": "2026-09-04T09:00:00.000Z",
             "conversationTurn": null,
             "binding": {
               "kind": "external-ref",
-              "ref": "erp:purchase-order/77"
+              "ref": {
+                "system": "erp",
+                "recordId": "purchase-order/77"
+              }
             }
           },
           "prior": []
         },
-        "isMandatory": false,
-        "kind": "text",
-        "allowedValues": null,
-        "pattern": null
+        "isMandatory": false
       },
       {
         "name": "Total",
+        "kind": "number",
         "value": {
           "amount": "4000.10",
           "currency": "GBP"
@@ -72,31 +78,32 @@
           "current": {
             "source": "Computed",
             "confidence": 1,
-            "evidence": "Sum of the line items",
+            "note": "Sum of the line items",
+            "at": "2026-09-04T09:00:00.000Z",
             "conversationTurn": null,
             "binding": {
               "kind": "computation-ref",
-              "ref": "invoice.total@v3"
+              "ref": {
+                "rule": "invoice.total@v3",
+                "inputs": [
+                  "LineItems"
+                ]
+              }
             }
           },
           "prior": []
         },
-        "isMandatory": true,
-        "kind": "number",
-        "allowedValues": null,
-        "pattern": null
+        "isMandatory": true
       }
     ],
     "aggregateConfidence": 0.82,
     "populatedConfidence": 0.82,
     "emptyFieldCount": 0,
-    "warnings": [
-      "The total changed by more than 10x."
-    ],
-    "requiresConfirmation": true
+    "conversationTurn": 4,
+    "createdAt": "2026-09-04T09:00:00.000Z"
   },
   "amendments": null,
   "reviewerAct": null,
-  "expectedBytesUtf8": "{\"aggregateConfidence\":0.82,\"emptyFieldCount\":0,\"entityId\":\"INV-2026-0044\",\"entityType\":\"Invoice\",\"fields\":[{\"allowedValues\":null,\"isMandatory\":true,\"kind\":\"date\",\"name\":\"DueDate\",\"pattern\":null,\"previousValue\":\"2026-09-15\",\"provenance\":{\"current\":{\"confidence\":0.82,\"conversationTurn\":4,\"evidence\":\"Extracted from the turn\",\"source\":\"Conversation\"},\"prior\":[{\"confidence\":0.4,\"conversationTurn\":4,\"evidence\":\"Guessed from the payment terms\",\"source\":\"Inferred\"}]},\"value\":\"2026-10-01\"},{\"allowedValues\":null,\"isMandatory\":false,\"kind\":\"text\",\"name\":\"Reference\",\"pattern\":null,\"previousValue\":null,\"provenance\":{\"current\":{\"binding\":{\"kind\":\"external-ref\",\"ref\":\"erp:purchase-order/77\"},\"confidence\":1,\"conversationTurn\":null,\"evidence\":\"Read from the purchase-order system\",\"source\":\"External\"},\"prior\":[]},\"value\":\"PO-77\"},{\"allowedValues\":null,\"isMandatory\":true,\"kind\":\"number\",\"name\":\"Total\",\"pattern\":null,\"previousValue\":{\"amount\":\"40.00\",\"currency\":\"GBP\"},\"provenance\":{\"current\":{\"binding\":{\"kind\":\"computation-ref\",\"ref\":\"invoice.total@v3\"},\"confidence\":1,\"conversationTurn\":null,\"evidence\":\"Sum of the line items\",\"source\":\"Computed\"},\"prior\":[]},\"value\":{\"amount\":\"4000.10\",\"currency\":\"GBP\"}}],\"operationType\":\"WriteUpdate\",\"populatedConfidence\":0.82,\"requiresConfirmation\":true,\"warnings\":[\"The total changed by more than 10x.\"]}",
-  "expectedSha256": "125220b31c330f0b05a176c9652b8037a0aea55fefed7b1e59d1e5b1edfff333"
+  "expectedBytesUtf8": "{\"aggregateConfidence\":0.82,\"conversationTurn\":4,\"createdAt\":\"2026-09-04T09:00:00.000Z\",\"emptyFieldCount\":0,\"entityId\":\"INV-2026-0044\",\"entityType\":\"Invoice\",\"fields\":[{\"isMandatory\":true,\"kind\":\"date\",\"name\":\"DueDate\",\"previousValue\":\"2026-09-15\",\"provenance\":{\"current\":{\"at\":\"2026-09-04T09:00:00.000Z\",\"binding\":null,\"confidence\":0.82,\"conversationTurn\":4,\"note\":\"Extracted from the turn\",\"source\":\"Conversation\"},\"prior\":[{\"at\":\"2026-09-04T09:00:00.000Z\",\"binding\":null,\"confidence\":0.4,\"conversationTurn\":4,\"note\":\"Guessed from the payment terms\",\"source\":\"Inferred\"}]},\"value\":\"2026-10-01\"},{\"isMandatory\":false,\"kind\":\"text\",\"name\":\"Reference\",\"previousValue\":null,\"provenance\":{\"current\":{\"at\":\"2026-09-04T09:00:00.000Z\",\"binding\":{\"kind\":\"external-ref\",\"ref\":{\"recordId\":\"purchase-order/77\",\"system\":\"erp\"}},\"confidence\":1,\"conversationTurn\":null,\"note\":\"Read from the purchase-order system\",\"source\":\"External\"},\"prior\":[]},\"value\":\"PO-77\"},{\"isMandatory\":true,\"kind\":\"number\",\"name\":\"Total\",\"previousValue\":{\"amount\":\"40.00\",\"currency\":\"GBP\"},\"provenance\":{\"current\":{\"at\":\"2026-09-04T09:00:00.000Z\",\"binding\":{\"kind\":\"computation-ref\",\"ref\":{\"inputs\":[\"LineItems\"],\"rule\":\"invoice.total@v3\"}},\"confidence\":1,\"conversationTurn\":null,\"note\":\"Sum of the line items\",\"source\":\"Computed\"},\"prior\":[]},\"value\":{\"amount\":\"4000.10\",\"currency\":\"GBP\"}}],\"operationType\":\"update\",\"populatedConfidence\":0.82,\"protocolVersion\":\"0.1.0\"}",
+  "expectedSha256": "a93d55c94d919d4c034709729d1fbbf792e2875afc67a3a42a4c3b2a522763e1"
 }

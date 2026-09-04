@@ -5,60 +5,58 @@
     "AF-1",
     "AF-3"
   ],
-  "note": "A create-shaped Affidavit: entityId null, previousValue null on every field (AF-3), one field tagged Empty to show that unknown provenance is present rather than omitted (AF-1). The canonical bytes sort every key by code point at every level, so `aggregateConfidence` precedes `entityId` precedes `entityType` precedes `fields` regardless of the order the host built the object in.",
+  "note": "A create-shaped Affidavit: entityId null, previousValue null on every field (AF-3), one field left with no provenance so the record carries an `Empty` tag at confidence 0 rather than omitting the field (AF-1). The three numbers are AF-2's: the aggregate is 0 because one proposed field is `Empty`, the populated minimum is 0.9 over the field that is not, and one field is counted empty. The canonical bytes sort every key by code point at every level, so `aggregateConfidence` precedes `conversationTurn` precedes `createdAt` regardless of the order `toWire` emits them in.",
   "input": {
-    "operationType": "WriteCreate",
+    "protocolVersion": "0.1.0",
+    "operationType": "create",
     "entityType": "Widget",
     "entityId": null,
     "fields": [
       {
         "name": "Status",
+        "kind": "enum",
         "value": "Active",
         "previousValue": null,
         "provenance": {
           "current": {
             "source": "Conversation",
             "confidence": 0.9,
-            "evidence": "Extracted from the turn",
-            "conversationTurn": 1
+            "note": "Extracted from the turn",
+            "at": "2026-09-04T09:00:00.000Z",
+            "conversationTurn": 1,
+            "binding": null
           },
           "prior": []
         },
-        "isMandatory": true,
-        "kind": "enum",
-        "allowedValues": [
-          "Active",
-          "Retired"
-        ],
-        "pattern": null
+        "isMandatory": true
       },
       {
         "name": "Owner",
+        "kind": "text",
         "value": null,
         "previousValue": null,
         "provenance": {
           "current": {
             "source": "Empty",
             "confidence": 0,
-            "evidence": null,
-            "conversationTurn": null
+            "note": "Provenance unknown",
+            "at": "2026-09-04T09:00:00.000Z",
+            "conversationTurn": null,
+            "binding": null
           },
           "prior": []
         },
-        "isMandatory": false,
-        "kind": "text",
-        "allowedValues": null,
-        "pattern": null
+        "isMandatory": false
       }
     ],
     "aggregateConfidence": 0,
     "populatedConfidence": 0.9,
     "emptyFieldCount": 1,
-    "warnings": [],
-    "requiresConfirmation": true
+    "conversationTurn": 1,
+    "createdAt": "2026-09-04T09:00:00.000Z"
   },
   "amendments": null,
   "reviewerAct": null,
-  "expectedBytesUtf8": "{\"aggregateConfidence\":0,\"emptyFieldCount\":1,\"entityId\":null,\"entityType\":\"Widget\",\"fields\":[{\"allowedValues\":[\"Active\",\"Retired\"],\"isMandatory\":true,\"kind\":\"enum\",\"name\":\"Status\",\"pattern\":null,\"previousValue\":null,\"provenance\":{\"current\":{\"confidence\":0.9,\"conversationTurn\":1,\"evidence\":\"Extracted from the turn\",\"source\":\"Conversation\"},\"prior\":[]},\"value\":\"Active\"},{\"allowedValues\":null,\"isMandatory\":false,\"kind\":\"text\",\"name\":\"Owner\",\"pattern\":null,\"previousValue\":null,\"provenance\":{\"current\":{\"confidence\":0,\"conversationTurn\":null,\"evidence\":null,\"source\":\"Empty\"},\"prior\":[]},\"value\":null}],\"operationType\":\"WriteCreate\",\"populatedConfidence\":0.9,\"requiresConfirmation\":true,\"warnings\":[]}",
-  "expectedSha256": "4f4f83330f99ae64e36b54439efcf9556e1b7a46054d750a9485bc41a992b48f"
+  "expectedBytesUtf8": "{\"aggregateConfidence\":0,\"conversationTurn\":1,\"createdAt\":\"2026-09-04T09:00:00.000Z\",\"emptyFieldCount\":1,\"entityId\":null,\"entityType\":\"Widget\",\"fields\":[{\"isMandatory\":true,\"kind\":\"enum\",\"name\":\"Status\",\"previousValue\":null,\"provenance\":{\"current\":{\"at\":\"2026-09-04T09:00:00.000Z\",\"binding\":null,\"confidence\":0.9,\"conversationTurn\":1,\"note\":\"Extracted from the turn\",\"source\":\"Conversation\"},\"prior\":[]},\"value\":\"Active\"},{\"isMandatory\":false,\"kind\":\"text\",\"name\":\"Owner\",\"previousValue\":null,\"provenance\":{\"current\":{\"at\":\"2026-09-04T09:00:00.000Z\",\"binding\":null,\"confidence\":0,\"conversationTurn\":null,\"note\":\"Provenance unknown\",\"source\":\"Empty\"},\"prior\":[]},\"value\":null}],\"operationType\":\"create\",\"populatedConfidence\":0.9,\"protocolVersion\":\"0.1.0\"}",
+  "expectedSha256": "089ac04a11d52441e2eded9c518a4d3ede89f04c911fd9531741d66d9ff82281"
 }

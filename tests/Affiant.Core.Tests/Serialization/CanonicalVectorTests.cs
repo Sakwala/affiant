@@ -13,20 +13,26 @@ using Xunit;
 /// <para>
 /// A vector is an input document, the exact UTF-8 bytes SR-1 produces for it, and the SHA-256 of
 /// those bytes. They are the rulebook's own files, vendored under <c>tests/protocol/</c> from
-/// <c>Sakwala/affiant-protocol</c> at commit <c>977e141</c> (<c>v0.1.0-2-g977e141</c>) — never
+/// <c>Sakwala/affiant-protocol</c> at the tag <c>v0.1.1</c> (commit <c>8530987</c>) — never
 /// re-derived here, because a test that computed its own expectation would prove only that this
 /// implementation agrees with itself.
 /// </para>
 ///
 /// <para>
-/// <b>What each vector is for.</b> Two of the seven are not Affidavits at all: <c>key-order-stress</c>
-/// is a document whose keys are written in reverse order at every level, including the cases a naive
-/// comparator gets wrong (a private-use character must sort before an emoji, which a UTF-16 code-unit
-/// comparison gets backwards); and <c>number-forms</c> is a table of every number form the rule has
-/// to decide. Four are Affidavit-shaped and pin the record's own bytes. The seventh,
-/// <c>wire-evidence-card-request-amended</c>, is the same Affidavit as the sixth with a reviewer's
-/// accepted amendments applied — and its hash differs, which is the whole point: an execution grant
-/// minted for the proposal a reviewer was shown must not validate the proposal they amended.
+/// <b>What each vector is for.</b> All seven are v0.1 Affidavits, and the rulebook's fixture lint
+/// holds each one against <c>schemas/0.1.0/affidavit.schema.json</c> on every push — a check added at
+/// <c>v0.1.1</c>, when the seven vectors were regenerated because the ones published at <c>v0.1.0</c>
+/// described a seed-shaped record that schema refuses. Two of them stress the FORM rather than the
+/// record, carrying their cases inside a field's value: <c>key-order-stress</c> writes its keys in
+/// reverse order at every level, including the cases a naive comparator gets wrong (a private-use
+/// character must sort before an emoji, which a UTF-16 code-unit comparison gets backwards), and
+/// <c>number-forms</c> carries every number form the rule has to decide. The other five pin the
+/// record's own bytes. The last, <c>wire-evidence-card-request-amended</c>, is the same Affidavit as
+/// <c>wire-evidence-card-request</c> with a reviewer's accepted amendments applied — and its hash
+/// differs, which is the whole point: an execution grant minted for the proposal a reviewer was shown
+/// must not validate the proposal they amended. It carries the accepted state as
+/// <c>amendedInput</c>, which is what <see cref="CanonicalSerializer.ApplyAmendmentsForCanonical"/>
+/// must produce.
 /// </para>
 /// </summary>
 public class CanonicalVectorTests
@@ -57,6 +63,32 @@ public class CanonicalVectorTests
             CanonicalSerializer.Canonicalize(accepted));
 
         Assert.Equal(vector.ExpectedSha256, CanonicalSerializer.CanonicalHash(accepted));
+    }
+
+    /// <summary>
+    /// The accepted state this implementation folds is the one the vector writes down.
+    ///
+    /// <para>
+    /// From the rulebook's <c>v0.1.1</c> an amended vector carries <c>amendedInput</c>: the Affidavit
+    /// its amendments produce, which is the document the pinned bytes are taken over and the one a
+    /// host's execution grant binds to. Asserting the bytes alone would leave a whole class of
+    /// disagreement invisible — two different states can be told apart only by reading them — and
+    /// this is where a failure says <b>which property</b> parted company rather than only that byte
+    /// 447 did.
+    /// </para>
+    /// </summary>
+    [Theory]
+    [InlineData("04-wire-evidence-card-request-amended.json")]
+    public void TheAcceptedStateIsTheOneTheVectorWritesDown(string file)
+    {
+        var vector = Load(file);
+        Assert.NotNull(vector.AmendedInput);
+
+        var accepted = AcceptedState(vector);
+
+        Assert.Equal(
+            CanonicalSerializer.CanonicalString(vector.AmendedInput),
+            CanonicalSerializer.CanonicalString(accepted));
     }
 
     /// <summary>
@@ -140,16 +172,14 @@ public class CanonicalVectorTests
     /// vector carries amendments, the input as filed otherwise.
     ///
     /// <para>
-    /// <b>Why this goes through the document overload rather than through <c>Affidavit</c>.</b> Two of
-    /// the seven inputs are not Affidavits at all, so no typed path could read them. And the amended
-    /// vector settles it for the other five: its expected bytes keep the <b>seed</b> spelling
-    /// <c>evidence</c> on the tag the reviewer superseded, while the tag the reviewer's act put in
-    /// force carries the v0.1 spelling <c>note</c> and an <c>at</c>. Both are correct — a canonical
-    /// form re-writes nothing it was handed, and only the newly minted tag is this implementation's
-    /// to spell — but that is reachable only by folding the amendment into the document. Re-typing
-    /// the input through the model first would silently rename a property on a tag nobody amended and
-    /// produce different bytes for a document nobody changed. The typed path is covered by
-    /// <see cref="TheTypedPathAndTheDocumentPathAgreeAboutAnAmendment"/>.
+    /// <b>Why this goes through the document overload rather than through <c>Affidavit</c>.</b> A
+    /// vector is a document, and the driver contract says an implementation <b>reproduces</b> a
+    /// vector's bytes rather than re-deriving them. Re-typing the input through this repository's
+    /// model first would put the model's own spelling of every property between the vendored bytes
+    /// and the comparison, so a rename here could rewrite a tag nobody amended and the test would
+    /// still be green. The typed path is not left unchecked: it is covered by
+    /// <see cref="TheTypedPathAndTheDocumentPathAgreeAboutAnAmendment"/>, which builds a record
+    /// through <c>Affidavit</c>, amends it both ways and asserts the two produce the same bytes.
     /// </para>
     /// </summary>
     private static JsonNode AcceptedState(Vector vector) =>
@@ -197,6 +227,7 @@ public class CanonicalVectorTests
             document["input"]!.AsObject(),
             amendments,
             act,
+            document["amendedInput"] as JsonObject,
             document["expectedBytesUtf8"]!.GetValue<string>(),
             document["expectedSha256"]!.GetValue<string>());
     }
@@ -206,6 +237,7 @@ public class CanonicalVectorTests
         JsonObject Input,
         Dictionary<string, object?>? Amendments,
         ReviewerAct? ReviewerAct,
+        JsonObject? AmendedInput,
         string ExpectedBytesUtf8,
         string ExpectedSha256);
 

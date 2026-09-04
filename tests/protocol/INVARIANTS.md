@@ -607,3 +607,13 @@ to exist is corrected here, never invented on the wire. *Checked by:* `suite: te
   terms; GT-4's replay clause keeps the "if still `pending`" qualifier. To be tagged `v0.1.0` together with the v0.1
   schemas and the conformance suite once they exist.
 - 2026-09-04 — citation index completed: every fixture that names a rule is listed on that rule's *Checked by* line.
+- 2026-09-04 — **v0.1.1**: the seven canonical byte vectors regenerated from v0.1-shaped inputs. At v0.1.0 they described
+  a seed-shaped record the Affidavit schema refuses — `operationType` "WriteUpdate", the card's presentation on the
+  fields, `warnings` and `requiresConfirmation` on the record, `evidence` where a tag says `note`, and no
+  `protocolVersion`, `conversationTurn` or `createdAt` — because they were promoted from the reference implementation
+  before it was aligned to this version's wire, and nothing checked them afterwards. SR-1's canonical form is over the
+  accepted state of the Affidavit *as `schemas/0.1.0/affidavit.schema.json` defines it* (AF-1, AF-5), so those vectors
+  pinned the bytes of a document this protocol does not have. Every byte and every digest moved. The lint now validates
+  every vector's `input` — and its `amendedInput`, the accepted state an amended vector's bytes are taken over —
+  against that schema on every push. No rule text changed: the schemas, the wire and the 56 declarative fixtures are
+  `v0.1.0`'s.

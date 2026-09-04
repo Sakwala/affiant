@@ -165,7 +165,19 @@ discriminator, together, because they are one subject seen from four angles.
   **The form is taken over the accepted state** — the amended record where there is one, the proposal
   otherwise. A form over the proposal alone would let a host's execution grant, minted for the record
   a reviewer *was shown*, still validate the record they *amended*.
-  All seven of the protocol's normative byte vectors reproduce, byte for byte and digest for digest.
+  All seven of the protocol's normative byte vectors reproduce, byte for byte and digest for digest,
+  at the rulebook's [`v0.1.1`](https://github.com/Sakwala/affiant-protocol/releases/tag/v0.1.1) tag,
+  where all seven describe the v0.1 record. The amended vector also states the accepted state it
+  canonicalises, and `ApplyAmendmentsForCanonical` reproduces that state property for property, not
+  only the bytes over it.
+
+  One correction fell out of the re-vendoring. The tag an accepted amendment mints carried the
+  **amended field's** conversation turn, not the **Affidavit's**. Those were the same number for as
+  long as no vector stated a turn on the record, and different the moment one did: a reviewer's
+  correction belongs to the conversation the proposal was made in, and the displaced tag's own turn
+  says when the machine produced the value it replaced. Dating a person's act to the machine's turn
+  is the wrong answer whether or not a vector catches it, and `AffidavitAmendments.Apply` — the typed
+  path, which reads `Affidavit.ConversationTurn` — was already right.
 - **`Money`** (`Amount` decimal string, `Currency` ISO 4217 shape) and its converter, which writes the
   two strings and **refuses a JSON number** where money was expected, naming the rule and saying why:
   no binary float represents `0.10`, so a card showing "£4,000.10" and a store holding

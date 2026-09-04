@@ -3,44 +3,74 @@
   "rules": [
     "SR-1"
   ],
-  "note": "Keys written in reverse order at every level, plus the cases a naive comparator gets wrong. U+E000 (private use) must sort BEFORE U+1F600 (an emoji) because SR-1 sorts by Unicode code point and 0xE000 < 0x1F600; a comparator using JavaScript's < compares UTF-16 code units, sees the emoji's leading surrogate 0xD83D, and puts the emoji first. Also here: an integer-shaped key (JavaScript reorders those to the front of Object.keys on its own), a precomposed e-acute against the same letter decomposed (two distinct keys, never normalized), a key that is a prefix of another, keys differing only by case, the empty key, and a key carrying a solidus, which JSON escaping must not touch.",
+  "note": "An Affidavit whose one field carries, as its value, every key-ordering case a naive comparator gets wrong — written in reverse order at every level. U+E000 (private use) must sort BEFORE U+1F600 (an emoji) because SR-1 sorts by Unicode code point and 0xE000 < 0x1F600; a comparator using JavaScript's < compares UTF-16 code units, sees the emoji's leading surrogate 0xD83D, and puts the emoji first. Also here: an integer-shaped key (JavaScript reorders those to the front of Object.keys on its own), a precomposed e-acute against the same letter decomposed (two distinct keys, never normalized), a key that is a prefix of another, keys differing only by case, the empty key, and a key carrying a solidus, which JSON escaping must not touch. The record's own keys are sorted by the same rule at the top level, where `toWire` emits them in a different order from the one they are written in. `kind` is a rendering hint and never constrains a value, which is why a field of kind `text` may carry an object.",
   "input": {
-    "zeta": {
-      "2": "another integer-shaped key",
-      "10": "integer-shaped key",
-      "😀": "emoji key, U+1F600",
-      "": "private use, U+E000",
-      "é": "e-acute precomposed, U+00E9",
-      "é": "e plus combining acute, U+0065 U+0301",
-      "ab": "prefix plus one",
-      "a": "prefix",
-      "B": "uppercase B",
-      "b": "lowercase b",
-      "A": "uppercase A",
-      "": "the empty key",
-      "a/b": "a solidus, which JSON never escapes"
-    },
-    "middle": [
+    "protocolVersion": "0.1.0",
+    "operationType": "create",
+    "entityType": "Widget",
+    "entityId": null,
+    "fields": [
       {
-        "second": 2,
-        "first": 1
-      },
-      {
-        "b": [
-          3,
-          2,
-          1
-        ],
-        "a": {
-          "y": null,
-          "x": true
-        }
+        "name": "Payload",
+        "kind": "text",
+        "value": {
+          "zeta": {
+            "2": "another integer-shaped key",
+            "10": "integer-shaped key",
+            "😀": "emoji key, U+1F600",
+            "": "private use, U+E000",
+            "é": "e-acute precomposed, U+00E9",
+            "é": "e plus combining acute, U+0065 U+0301",
+            "ab": "prefix plus one",
+            "a": "prefix",
+            "B": "uppercase B",
+            "b": "lowercase b",
+            "A": "uppercase A",
+            "": "the empty key",
+            "a/b": "a solidus, which JSON never escapes"
+          },
+          "middle": [
+            {
+              "second": 2,
+              "first": 1
+            },
+            {
+              "b": [
+                3,
+                2,
+                1
+              ],
+              "a": {
+                "y": null,
+                "x": true
+              }
+            }
+          ],
+          "alpha": "written last, sorts first"
+        },
+        "previousValue": null,
+        "provenance": {
+          "current": {
+            "source": "Conversation",
+            "confidence": 0.5,
+            "note": "Taken verbatim from the turn",
+            "at": "2026-09-04T09:00:00.000Z",
+            "conversationTurn": null,
+            "binding": null
+          },
+          "prior": []
+        },
+        "isMandatory": true
       }
     ],
-    "alpha": "written last, sorts first"
+    "aggregateConfidence": 0.5,
+    "populatedConfidence": 0.5,
+    "emptyFieldCount": 0,
+    "conversationTurn": null,
+    "createdAt": "2026-09-04T09:00:00.000Z"
   },
   "amendments": null,
   "reviewerAct": null,
-  "expectedBytesUtf8": "{\"alpha\":\"written last, sorts first\",\"middle\":[{\"first\":1,\"second\":2},{\"a\":{\"x\":true,\"y\":null},\"b\":[3,2,1]}],\"zeta\":{\"\":\"the empty key\",\"10\":\"integer-shaped key\",\"2\":\"another integer-shaped key\",\"A\":\"uppercase A\",\"B\":\"uppercase B\",\"a\":\"prefix\",\"a/b\":\"a solidus, which JSON never escapes\",\"ab\":\"prefix plus one\",\"b\":\"lowercase b\",\"é\":\"e plus combining acute, U+0065 U+0301\",\"é\":\"e-acute precomposed, U+00E9\",\"\":\"private use, U+E000\",\"😀\":\"emoji key, U+1F600\"}}",
-  "expectedSha256": "bfb9d23217cd75bc12976620e641b735b73448db6072104d09d94489246fec3a"
+  "expectedBytesUtf8": "{\"aggregateConfidence\":0.5,\"conversationTurn\":null,\"createdAt\":\"2026-09-04T09:00:00.000Z\",\"emptyFieldCount\":0,\"entityId\":null,\"entityType\":\"Widget\",\"fields\":[{\"isMandatory\":true,\"kind\":\"text\",\"name\":\"Payload\",\"previousValue\":null,\"provenance\":{\"current\":{\"at\":\"2026-09-04T09:00:00.000Z\",\"binding\":null,\"confidence\":0.5,\"conversationTurn\":null,\"note\":\"Taken verbatim from the turn\",\"source\":\"Conversation\"},\"prior\":[]},\"value\":{\"alpha\":\"written last, sorts first\",\"middle\":[{\"first\":1,\"second\":2},{\"a\":{\"x\":true,\"y\":null},\"b\":[3,2,1]}],\"zeta\":{\"\":\"the empty key\",\"10\":\"integer-shaped key\",\"2\":\"another integer-shaped key\",\"A\":\"uppercase A\",\"B\":\"uppercase B\",\"a\":\"prefix\",\"a/b\":\"a solidus, which JSON never escapes\",\"ab\":\"prefix plus one\",\"b\":\"lowercase b\",\"é\":\"e plus combining acute, U+0065 U+0301\",\"é\":\"e-acute precomposed, U+00E9\",\"\":\"private use, U+E000\",\"😀\":\"emoji key, U+1F600\"}}}],\"operationType\":\"create\",\"populatedConfidence\":0.5,\"protocolVersion\":\"0.1.0\"}",
+  "expectedSha256": "a55f7422693c3469c8e5da30977dbbccb23231b693a678290203187ec77efe2c"
 }
