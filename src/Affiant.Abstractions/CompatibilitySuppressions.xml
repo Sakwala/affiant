@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <!-- https://learn.microsoft.com/dotnet/fundamentals/package-validation/diagnostic-ids -->
 <!--
-  Declared breaks against 1.0.0-beta.1, permitted by the repository's prerelease-stability policy and
+  Declared breaks against 1.0.0-beta.1.1, permitted by the repository's prerelease-stability policy and
   required by it to be declared. Six changes account for every entry here:
 
   1. The Affidavit as the rules define it — the record gains its two companion confidence numbers, a

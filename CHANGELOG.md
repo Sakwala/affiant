@@ -970,9 +970,13 @@ delivered its own `EvidenceCardResponse` unblocked the waiter and the row was wr
   them. Run against any other version the assertion reports itself skipped, with the reason, rather
   than failing (every correction would be a red build) or quietly passing (the check would stop
   running and nobody would know).
-- **`PackageValidationBaselineVersion` stays at `1.0.0-beta.1`** until `1.0.0-beta.1.1` is tagged.
-  It names a version `dotnet pack` downloads from a feed, and beta.1.1 is not published; it moves
-  when the tag is cut.
+- **`PackageValidationBaselineVersion` is `1.0.0-beta.1.1`**, the latest published version. It names
+  a version `dotnet pack` downloads from a feed and diffs this build against, so a break against
+  what is already on nuget.org fails the build unless it is declared. Moving the baseline off
+  `1.0.0-beta.1` retired three declarations in `Affiant.Policies` — the removal of the framework's
+  stock risk formula, the risk threshold's type and the risk calculator's return type were breaks
+  against beta.1 and are what beta.1.1 shipped, so against that baseline there is nothing left to
+  declare.
 
 ### The conformance driver
 
@@ -1036,7 +1040,7 @@ delivered its own `EvidenceCardResponse` unblocked the waiter and the row was wr
   rulebook's negative oracle, and `conformance/results/dotnet-1.0.0-beta.1.json` is that release's
   record, kept as it was published.
 
-## [1.0.0-beta.1.1] — unreleased
+## [1.0.0-beta.1.1] — 2026-09-04
 
 ### Fixed
 

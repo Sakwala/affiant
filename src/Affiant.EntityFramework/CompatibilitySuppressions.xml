@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <!-- https://learn.microsoft.com/dotnet/fundamentals/package-validation/diagnostic-ids -->
 <!--
-  Declared breaks against 1.0.0-beta.1, permitted by the repository's prerelease-stability policy and
+  Declared breaks against 1.0.0-beta.1.1, permitted by the repository's prerelease-stability policy and
   required by it to be declared. The SQLite and PostgreSQL stores implement the scoped, guarded, paged
   Docket contract (dropping the two unscoped expiry members and the unscoped amendments overwrite),
   MarkBlockedAsync takes a scope like every other member that moves a row, and every store takes an

@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <!-- https://learn.microsoft.com/dotnet/fundamentals/package-validation/diagnostic-ids -->
 <!--
-  Declared breaks against 1.0.0-beta.1, permitted by the repository's prerelease-stability policy and
+  Declared breaks against 1.0.0-beta.1.1, permitted by the repository's prerelease-stability policy and
   required by it to be declared: the inference completion port and the manual tool invoker each take an
   injectable TimeProvider as an added optional constructor parameter, so every instant they stamp reads
   a clock a test can move. See CHANGELOG.md's upgrade notes.

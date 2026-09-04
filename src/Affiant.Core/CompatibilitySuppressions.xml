@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <!-- https://learn.microsoft.com/dotnet/fundamentals/package-validation/diagnostic-ids -->
 <!--
-  Declared breaks against 1.0.0-beta.1, permitted by the repository's prerelease-stability policy and
+  Declared breaks against 1.0.0-beta.1.1, permitted by the repository's prerelease-stability policy and
   required by it to be declared. Every entry follows a contract change in Affiant.Abstractions — the
   projection's entity id and previous-value seam, the approval-policy verdict, the Docket row and its
   store contract, the decision context that names the principal, and the sealed decision hand-off a
@@ -101,6 +101,13 @@
   <Suppression>
     <DiagnosticId>CP0002</DiagnosticId>
     <Target>M:Affiant.Core.Validation.AffiantWireUpValidator.#ctor(Affiant.Core.Extensions.AffiantCoreOptions,Microsoft.Extensions.Logging.ILogger{Affiant.Core.Validation.AffiantWireUpValidator},Microsoft.Extensions.DependencyInjection.IServiceProviderIsService)</Target>
+    <Left>lib/net10.0/Affiant.Core.dll</Left>
+    <Right>lib/net10.0/Affiant.Core.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Core.Filters.TaskInferenceStep.#ctor(Affiant.Core.Services.ContextFabric,Microsoft.Extensions.Logging.ILogger{Affiant.Core.Filters.TaskInferenceStep})</Target>
     <Left>lib/net10.0/Affiant.Core.dll</Left>
     <Right>lib/net10.0/Affiant.Core.dll</Right>
     <IsBaselineSuppression>true</IsBaselineSuppression>
