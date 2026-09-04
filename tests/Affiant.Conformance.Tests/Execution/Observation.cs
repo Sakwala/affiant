@@ -284,28 +284,28 @@ internal static class Observation
     /// A driver that only checked what a fixture states would pass a card that disagreed with its
     /// own row on every one of the 56.
     /// </remarks>
-    public static void CardInvariants(DocketEntry entry, EvidenceCardRequest? card, List<Mismatch> into)
+    public static void CardInvariants(DocketEntry entry, EvidenceCardRequest? card, List<Mismatch> into, string at = "card")
     {
         if (card is null)
         {
-            into.Add(Mismatch.Said("card", "a card for the row that was filed", "no card was broadcast"));
+            into.Add(Mismatch.Said(at, "a card for the row that was filed", "no card was broadcast"));
             return;
         }
 
         if (card.DocketId != entry.EntryId)
         {
-            into.Add(Mismatch.Said("card.docketId", entry.EntryId.ToString(), card.DocketId.ToString()));
+            into.Add(Mismatch.Said($"{at}.docketId", entry.EntryId.ToString(), card.DocketId.ToString()));
         }
 
         if (card.RequiredBy != entry.ExpiresAt)
         {
-            into.Add(Mismatch.Said("card.requiredBy", entry.ExpiresAt.ToString("O"), card.RequiredBy.ToString("O")));
+            into.Add(Mismatch.Said($"{at}.requiredBy", entry.ExpiresAt.ToString("O"), card.RequiredBy.ToString("O")));
         }
 
         // SR-4: the card carries the row's own protocol version.
         if (card.ProtocolVersion != entry.ProtocolVersion)
         {
-            into.Add(Mismatch.Said("card.protocolVersion", entry.ProtocolVersion, card.ProtocolVersion));
+            into.Add(Mismatch.Said($"{at}.protocolVersion", entry.ProtocolVersion, card.ProtocolVersion));
         }
 
         // AF-2/SR-1: the card's three numbers are the record's — the state an approval accepted
@@ -313,13 +313,13 @@ internal static class Observation
         var record = entry.AmendedAffidavit ?? entry.Envelope;
         if (card.Affidavit != record)
         {
-            into.Add(Mismatch.Said("card.affidavit", "the row's own Affidavit", "a different Affidavit from the row's"));
+            into.Add(Mismatch.Said($"{at}.affidavit", "the row's own Affidavit", "a different Affidavit from the row's"));
         }
 
         if (card.PopulatedConfidence != record.PopulatedConfidence)
         {
             into.Add(Mismatch.Said(
-                "card.populatedConfidence",
+                $"{at}.populatedConfidence",
                 record.PopulatedConfidence?.ToString() ?? "null",
                 card.PopulatedConfidence?.ToString() ?? "null"));
         }
@@ -327,7 +327,7 @@ internal static class Observation
         if (card.EmptyFieldCount != record.EmptyFieldCount)
         {
             into.Add(Mismatch.Said(
-                "card.emptyFieldCount",
+                $"{at}.emptyFieldCount",
                 record.EmptyFieldCount.ToString(),
                 card.EmptyFieldCount.ToString()));
         }
@@ -341,14 +341,14 @@ internal static class Observation
         if (!JsonNode.DeepEquals(rowMarker, cardMarker))
         {
             into.Add(Mismatch.Said(
-                "card.blocked",
+                $"{at}.blocked",
                 rowMarker?.ToJsonString() ?? "null",
                 cardMarker?.ToJsonString() ?? "(absent) — the card does not say the row is blocked"));
         }
 
         if (entry.Blocked is not null && card.RequiresConfirmation)
         {
-            into.Add(Mismatch.Said("card.requiresConfirmation", "false on a blocked row", "true"));
+            into.Add(Mismatch.Said($"{at}.requiresConfirmation", "false on a blocked row", "true"));
         }
     }
 

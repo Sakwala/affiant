@@ -59,6 +59,14 @@ internal sealed class StepExecutor(GateHarness harness, GivenSpec given)
 
         /// <summary>Set when the step kind has no counterpart in this release: the fixture fails, and this says why.</summary>
         public string? NotImplemented { get; init; }
+
+        /// <summary>
+        /// The row as it stood when this step filed it. The card invariants compare a card against
+        /// the row it was broadcast for, so they need the row at that moment: a later step that
+        /// decides the row, folds an amendment into it or expires it does not make the card the gate
+        /// broadcast earlier wrong.
+        /// </summary>
+        public DocketEntry? Filed { get; init; }
     }
 
     /// <summary>The row a clause is about: the step's own, or the last one filed.</summary>
@@ -228,7 +236,13 @@ internal sealed class StepExecutor(GateHarness harness, GivenSpec given)
             .Select(b => (EvidenceCardRequest)b.Payload)
             .LastOrDefault();
 
-        return new StepResult(null) { EntryId = entryId, Card = card, IsFiling = true };
+        return new StepResult(null)
+        {
+            EntryId = entryId,
+            Card = card,
+            IsFiling = true,
+            Filed = await harness.Store.GetDocketEntryAsync(entryId, ct),
+        };
     }
 
     private async Task<StepResult> DecideAsync(StepSpec step, string conversationId, CancellationToken ct)
@@ -294,7 +308,13 @@ internal sealed class StepExecutor(GateHarness harness, GivenSpec given)
 
         _lastFiled = newId;
         Remember(step, newId);
-        return new StepResult(null) { EntryId = newId, Card = harness.Transport.CardFor(newId), IsFiling = true };
+        return new StepResult(null)
+        {
+            EntryId = newId,
+            Card = harness.Transport.CardFor(newId),
+            IsFiling = true,
+            Filed = await harness.Store.GetDocketEntryAsync(newId, ct),
+        };
     }
 
     private async Task<StepResult> GetAsync(StepSpec step, CancellationToken ct)

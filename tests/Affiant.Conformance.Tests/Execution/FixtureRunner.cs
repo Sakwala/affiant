@@ -40,10 +40,23 @@ internal sealed class FixtureRunner
             var filed = new List<Guid>();
             var notImplemented = new List<string>();
 
+            // Every filing the fixture performs, in the order it performed them: the card
+            // invariants are checked on each, and a fixture's prior steps are filings like any
+            // other. Checking only the step under test leaves a gate that broadcast no card at all
+            // for a whole requirement level passing two thirds of the suite.
+            var filings = new List<(string At, StepExecutor.StepResult Result)>();
+
+            var priorIndex = 0;
             foreach (var prior in fixture.Given.Prior)
             {
                 var result = await executor.RunAsync(prior, ct);
                 Track(result, filed, notImplemented);
+                if (result.IsFiling)
+                {
+                    filings.Add(($"prior[{priorIndex}].card", result));
+                }
+
+                priorIndex++;
 
                 // A prior step's declared refusal is compared after that step runs.
                 if (prior.RefusalStated)
@@ -58,6 +71,10 @@ internal sealed class FixtureRunner
 
             var under = await executor.RunAsync(fixture.Given.Step, ct);
             Track(under, filed, notImplemented);
+            if (under.IsFiling)
+            {
+                filings.Add(("card", under));
+            }
 
             var diff = new List<Mismatch>();
 
@@ -82,24 +99,26 @@ internal sealed class FixtureRunner
                 diff.Add(Mismatch.Said("execute", "the gate never performs the write (GT-6)", "the write executor was called"));
             }
 
-            // The card invariants of RUNNER.md §4.2 hold for every card the gate ever produces and
-            // are checked on every filing, whether or not the fixture mentions them.
+            // RUNNER.md §4.1: whenever a row carries an attestation, the runner also checks that it
+            // names the entry it attests to. A record that cannot name its own subject is not
+            // evidence (AZ-1).
             if (under.EntryId is { } id && await harness.Store.GetDocketEntryAsync(id, ct) is { } entry)
             {
-                // RUNNER.md §4.1: whenever a row carries an attestation, the runner also checks that
-                // it names the entry it attests to. A record that cannot name its own subject is not
-                // evidence (AZ-1).
                 Observation.AttestationNamesItsSubject("entry", entry, diff);
+            }
 
-                // DRIVER.md §3: "The card invariants of RUNNER.md §4.2 are checked on EVERY filing,
-                // whether or not the fixture mentions them." Not guarded on a card having been
-                // broadcast: a filing that broadcast none is precisely what that check is for — the
-                // gate produces a card for every filing, including a Standing Order approval and a
-                // blocked row (SR-4, AZ-4).
-                if (under.IsFiling)
-                {
-                    Observation.CardInvariants(entry, under.Card, diff);
-                }
+            // DRIVER.md §3: "The card invariants of RUNNER.md §4.2 are checked on EVERY filing,
+            // whether or not the fixture mentions them." Every filing means every one the fixture
+            // performed, not only the step under test — a prior step files through the same gate and
+            // its card is subject to the same three facts. Not guarded on a card having been
+            // broadcast either: a filing that broadcast none is precisely what this check is for —
+            // the gate produces a card for every filing, including a Standing Order approval and a
+            // blocked row (SR-4, AZ-4).
+            foreach (var (at, filing) in filings)
+            {
+                if (filing.Filed is not { } filedEntry) continue;
+
+                Observation.CardInvariants(filedEntry, filing.Card, diff, at);
             }
 
             return new Outcome(diff.Count == 0 ? "pass" : "fail", diff, Reason(notImplemented));
