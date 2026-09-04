@@ -146,13 +146,16 @@ public sealed class DocketExpiryService(
         var batchSize = _docketOptions.ExpirySweepBatchSize;
         var sweepScope = _docketOptions.SweepScope;
 
-        // A budget PER PHASE (DK-3). One shared budget spent in phase order starved the phases
-        // behind it: the warning phase decrements for every pending row it WALKS, whether or not it
-        // warns about anything, so with a pending set larger than the budget the Evidence Card
-        // re-broadcast got nothing on every tick for ever and its cursor never advanced. Each phase
-        // now has its own budget and its own cursor, so a tick touches at most three times
-        // ExpirySweepBatchSize x ExpirySweepBatchesPerTick rows and no phase can starve another.
-        var budget = batchSize * _docketOptions.ExpirySweepBatchesPerTick;
+        // A budget PER PHASE (DK-3), and each phase gets its own — never a share of one spent in
+        // phase order. Two ways a shared budget starves the phases behind it: the warning phase
+        // spends for every pending row it WALKS, whether or not it warns about anything, so a
+        // pending set larger than the budget left the re-broadcast with nothing on every tick for
+        // ever; and a saturated DUE queue spent it all in phase 1, which left BOTH later phases
+        // with nothing on exactly the ticks that mattered most. Phase 1's own bound is its batch
+        // count, and draining the due queue is not charged to anyone else. A tick therefore touches
+        // at most three times ExpirySweepBatchSize x ExpirySweepBatchesPerTick rows — three
+        // independent budgets — and no phase can starve another.
+        var phaseBudget = batchSize * _docketOptions.ExpirySweepBatchesPerTick;
 
         // Phase 1: drain the due queue in bounded batches.
         var expiredCount = 0;
@@ -163,7 +166,6 @@ public sealed class DocketExpiryService(
             foreach (var entry in result.Expired)
             {
                 expiredCount++;
-                budget--;
 
                 // TL-1 `docket.expired` (DK-3). Emitted only by the sweep whose own compare-and-set
                 // won the transition — a concurrent decision that claimed the same entry reports its
@@ -190,7 +192,7 @@ public sealed class DocketExpiryService(
         {
             var warningThreshold = now.Add(options.DocketExpiryWarningWindow);
             (_warningCursor, _) = await WalkPendingAsync(
-                store, sweepScope, batchSize, _warningCursor, budget, ct, async entry =>
+                store, sweepScope, batchSize, _warningCursor, phaseBudget, ct, async entry =>
                 {
                     if (entry.ExpiresAt > warningThreshold) return;
                     await transport.BroadcastToGroupAsync(
@@ -203,7 +205,7 @@ public sealed class DocketExpiryService(
         if (transport is not null)
         {
             (_rebroadcastCursor, _) = await WalkPendingAsync(
-                store, sweepScope, batchSize, _rebroadcastCursor, budget, ct, async entry =>
+                store, sweepScope, batchSize, _rebroadcastCursor, phaseBudget, ct, async entry =>
                 {
                     // The card reports the ROW: the state an approval accepted where there is one,
                     // the proposal otherwise, and the row's own blocked marker (AF-2, AZ-4, SR-1).
