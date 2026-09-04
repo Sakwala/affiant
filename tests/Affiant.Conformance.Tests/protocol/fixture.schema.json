@@ -818,7 +818,7 @@
     },
 
     "cardMatcher": {
-      "description": "A partial matcher over an Evidence Card. `warningsContain` is a substring assertion over the card's warnings, not a property.",
+      "description": "A partial matcher over an Evidence Card. `warningsContain` is a substring assertion over the card's warnings, not a property. `presentation` is the envelope's rendering hints, stated as the WHOLE array and in the card's own order.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -830,12 +830,13 @@
         "aggregateConfidence": { "$ref": "#/$defs/unitInterval" },
         "populatedConfidence": { "oneOf": [{ "$ref": "#/$defs/unitInterval" }, { "type": "null" }] },
         "emptyFieldCount": { "type": "integer", "minimum": 0 },
-        "fields": { "type": "array", "items": { "$ref": "#/$defs/cardFieldMatcher" } }
+        "fields": { "type": "array", "items": { "$ref": "#/$defs/cardFieldMatcher" } },
+        "presentation": { "type": "array", "items": { "$ref": "#/$defs/cardPresentationMatcher" } }
       }
     },
 
     "cardFieldMatcher": {
-      "description": "The reviewer-facing shape of one field on the card, in order: its kind, its closed set of values, the pattern an input is constrained by.",
+      "description": "The reviewer-facing shape of one SWORN field on the card, in order: its kind and its value. The closed value set and the input mask are not here: from v0.1 they are presentation and live on the card envelope, which cardPresentationMatcher states.",
       "type": "object",
       "additionalProperties": false,
       "required": ["name"],
@@ -843,9 +844,20 @@
         "name": { "type": "string" },
         "kind": { "type": "string" },
         "value": { "$ref": "#/$defs/jsonValue" },
-        "allowedValues": { "oneOf": [{ "type": "array", "items": { "type": "string" } }, { "type": "null" }] },
-        "pattern": { "type": ["string", "null"] },
         "isMandatory": { "type": "boolean" }
+      }
+    },
+
+    "cardPresentationMatcher": {
+      "description": "One of the card envelope's rendering hints: the field it is about, the kind a surface should render, the closed set an amendment input offers, and the pattern that input is masked with. Presentation, never substance - the gate validates no value against either, and nothing here is part of the canonical form a host's execution grant binds to (SR-1). A hint the host did not declare is ABSENT, which is how the wire spells \"render this field from its own kind\".",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string" },
+        "kind": { "type": "string" },
+        "allowedValues": { "type": "array", "items": { "$ref": "#/$defs/jsonValue" } },
+        "pattern": { "type": "string" }
       }
     }
   }

@@ -17,6 +17,11 @@ make anything fail.
   [`conformance/results/dotnet-1.0.0-beta.1/`](https://github.com/Sakwala/affiant-protocol/tree/main/conformance/results/dotnet-1.0.0-beta.1).
 - Re-run at protocol ref `19c574726445c312d6f295f8c9e8851910f05836` when this repository bumped its pin,
   produced 2026-09-04T02:44:52.526Z — same outcome for every one of the 63 fixtures.
+- Re-run at the **`v0.1.0` tag** when the rulebook cut it, produced 2026-09-04T03:43:56.377Z — same
+  outcome again. One fixture's bytes differ at that tag: `sequence-a/typed-inputs-on-the-card` was
+  re-promoted to state the card's rendering hints where v0.1 keeps them, on the envelope's
+  `presentation` rather than on each field. It is a fixture this release fails either way, and it
+  is not one the oracle lists.
 - Whole suite: **3 passed, 60 failed, 0 errored, 0 skipped** of 63
 - Oracle fixtures: **19 listed, 19 failed, 0 passed**
 
