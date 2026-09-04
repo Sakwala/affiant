@@ -13,9 +13,16 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 /// <summary>
-/// The sweep's registry event (DK-3): one <c>docket.expired</c> per entry the sweep's own guarded
-/// write actually transitioned, and none for an entry it merely looked at.
+/// The expiry registry event (TL-1, DK-3): one <c>docket.expired</c> per entry whose expiry was
+/// actually recorded, and none for an entry that was merely looked at.
 /// </summary>
+/// <remarks>
+/// The event is emitted where the expiry is RECORDED — the store — and not where the sweep happens
+/// to be scheduled from. DK-3 explicitly sanctions a host scheduling the sweep itself and calling
+/// <c>IDocketStore.ExpireDueAsync</c> directly; when the hosted service was the only emitter, such a
+/// host recorded its expiries durably and emitted nothing, so an operator counting expiries saw a
+/// number that depended on which of two supported wirings the host had chosen.
+/// </remarks>
 public sealed class DocketExpiryTelemetryTests
 {
     [Fact]
@@ -64,6 +71,43 @@ public sealed class DocketExpiryTelemetryTests
         await service.ExpireOverdueAsync(CancellationToken.None);
 
         Assert.DoesNotContain(probe.Events, e => e.Name == TelemetryKeys.DocketExpired);
+    }
+
+    /// <summary>
+    /// A host that schedules the sweep itself — no hosted service anywhere — still emits the event,
+    /// because the store is what records the expiry (DK-3).
+    /// </summary>
+    [Fact]
+    public async Task AHostSchedulingTheSweepItself_EmitsTheSameEvent()
+    {
+        var store = new InMemoryDocketStore();
+        var overdue = TestDocketEntry.CreateDefault(expiresAt: DateTimeOffset.UtcNow.AddSeconds(-5));
+        await store.FileDocketEntryAsync(overdue, CancellationToken.None);
+
+        using var probe = new TelemetryProbe();
+        await store.ExpireDueAsync(
+            DateTimeOffset.UtcNow, DocketScope.EntireStore, 10, CancellationToken.None);
+
+        var expired = probe.Events
+            .Where(e => e.Name == TelemetryKeys.DocketExpired)
+            .Select(e => (string)e.Tags.Single(t => t.Key == TelemetryKeys.Attributes.EntryId).Value!)
+            .ToList();
+
+        Assert.Equal([overdue.EntryId.ToString()], expired);
+    }
+
+    /// <summary>One event per expiry, whichever wiring drove it — never one from each.</summary>
+    [Fact]
+    public async Task TheHostedSweep_EmitsOneEventPerExpiry_NotTwo()
+    {
+        var store = new InMemoryDocketStore();
+        var overdue = TestDocketEntry.CreateDefault(expiresAt: DateTimeOffset.UtcNow.AddSeconds(-5));
+        await store.FileDocketEntryAsync(overdue, CancellationToken.None);
+
+        using var probe = new TelemetryProbe();
+        await BuildExpiryService(store).ExpireOverdueAsync(CancellationToken.None);
+
+        Assert.Single(probe.Events, e => e.Name == TelemetryKeys.DocketExpired);
     }
 
     private static DocketExpiryService BuildExpiryService(IDocketStore store)

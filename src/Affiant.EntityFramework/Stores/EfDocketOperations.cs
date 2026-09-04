@@ -460,7 +460,14 @@ internal sealed class EfDocketOperations(AffiantDbContext db, ILogger logger, Ti
                     .SetProperty(d => d.Status, s_expired)
                     .SetProperty(d => d.DecidedAt, d => (DateTimeOffset?)d.ExpiresAt)
                     .SetProperty(d => d.DecidedAtTicks, d => (long?)d.ExpiresAtTicks), ct);
-            if (rows > 0) won.Add(entryId);
+            if (rows > 0)
+            {
+                won.Add(entryId);
+
+                // TL-1 `docket.expired`, emitted where the expiry is RECORDED (see the in-memory
+                // store for why): one event per row this call's own guarded write transitioned.
+                Affiant.Core.Observability.AffiantTelemetry.RecordDocketExpired(entryId);
+            }
         }
 
         if (won.Count == 0) return new ExpireDueResult([], more);

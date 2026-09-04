@@ -333,6 +333,13 @@ public sealed class InMemoryDocketStore(TimeProvider? timeProvider = null) : IDo
                 };
                 _entries[entry.EntryId] = updated;
                 expired.Add(updated);
+
+                // TL-1 `docket.expired`, emitted where the expiry is RECORDED and not where the
+                // sweep was scheduled from. DK-3 sanctions a host running the sweep itself; when
+                // only the hosted scheduler emitted, such a host recorded its expiries and told an
+                // operator nothing. Only this call's own guarded write emits: a concurrent decision
+                // that claimed the row reports its own outcome.
+                Affiant.Core.Observability.AffiantTelemetry.RecordDocketExpired(entry.EntryId);
             }
 
             return Task.FromResult(new ExpireDueResult(expired, more));

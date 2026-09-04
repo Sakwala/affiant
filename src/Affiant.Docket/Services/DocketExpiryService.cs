@@ -167,11 +167,10 @@ public sealed class DocketExpiryService(
             {
                 expiredCount++;
 
-                // TL-1 `docket.expired` (DK-3). Emitted only by the sweep whose own compare-and-set
-                // won the transition — a concurrent decision that claimed the same entry reports its
-                // own outcome, so a count of these events is a count of entries the sweep expired,
-                // not of entries it looked at.
-                AffiantTelemetry.RecordDocketExpired(entry.EntryId);
+                // `docket.expired` is emitted by the store, where the expiry is recorded: a host
+                // that schedules the sweep itself and calls ExpireDueAsync directly — which DK-3
+                // sanctions — emits the same event as this one, and an operator counting expiries
+                // gets the same number either way. Emitting here as well would double-count.
 
                 if (transport is not null)
                 {
