@@ -10,9 +10,9 @@ using Json.Schema;
 ///
 /// <para>
 /// The schemas are the rulebook's own files under <c>tests/protocol/schemas/0.1.0</c>, copied from
-/// <c>Sakwala/affiant-protocol</c> at the tag <c>v0.1.1</c> (commit <c>8530987</c>). They are
-/// unchanged from <c>v0.1.0</c>: that release patched the conformance vectors and the fixture lint,
-/// not the wire. They <c>$ref</c> each other by absolute
+/// <c>Sakwala/affiant-protocol</c> at the tag <c>v0.1.2</c> (commit <c>d803fb0</c>). They are
+/// unchanged from <c>v0.1.0</c>: the two releases since patched the conformance vectors, the fixture
+/// lint and two rule texts, not the wire. They <c>$ref</c> each other by absolute
 /// <c>$id</c>, so every one of them is registered before any evaluation runs — a schema library that
 /// fetched an unregistered <c>$id</c> over the network would make this suite depend on the internet,
 /// and it does not.

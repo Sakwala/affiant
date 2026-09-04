@@ -1,4 +1,4 @@
-b4ab09c55e240091647b52b2d2c6cfa14ca3cfd9aa5ebb7ac383710c17c82c89  ./INVARIANTS.md
+7aedd28eb5017672bf8714b5c41d7edc3c721f84c567579d035eda7569405435  ./INVARIANTS.md
 8c63f93b455e095f45b072ceb1299b8652e5b26763c907dc14a41d590122993c  ./fixtures/canonical/01-create-shaped.json
 db06019e78fce0097be4e7973a4f08602acf078f0ad4ce5047498c2b901e012d  ./fixtures/canonical/02-update-shaped.json
 5e71bc6d4c2b73cdae8bf32e43c9fbbd3e920c1d28a1fbe8ee4e8c05c01350a0  ./fixtures/canonical/03-wire-evidence-card-request.json

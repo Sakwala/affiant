@@ -249,6 +249,19 @@ entry's card with its **existing** `expiresAt`, never a fresh one (the reference
 card on every replay; a terminal entry's card is informational). Entry ids are therefore derived deterministically from the tenant, the
 conversation, the tool and the canonical form of the operation and its arguments, so a retry replays and a genuinely new
 proposal files.
+
+**Derivation.** The material is the canonical JSON (SR-1's rules: keys sorted by Unicode code point, no insignificant
+whitespace, numbers in shortest positional form, `null` written, absent omitted) of an object carrying `tenantId`,
+`conversationId`, `toolName`, `operation`, `args` (the proposal's arguments as given, or `null` when there are none) and
+`supersedes` — present only when the proposal supersedes an earlier entry, i.e. a resubmission, so a first filing's id is
+unaffected by whether a resubmission of it ever exists. The digest is SHA-256 over the UTF-8 bytes of that material. The id
+is the digest's first 128 bits laid out as a UUID: the version nibble (hex index 12) set to `8`, the variant nibble (hex
+index 16) set to one of `8`, `9`, `a`, `b` chosen by that nibble's original value modulo 4, formatted `8-4-4-4-12` lowercase
+(RFC 9562 UUIDv8) — the reference implementation's `deriveEntryId` (`Sakwala/affiant-ts` `packages/core/src/gate/pipeline.ts`).
+Two implementations must derive the same id for the same proposal, because a Docket row's identity is both what a retry
+replays to and what a resubmission's `supersedes` points at. The Affidavit's own canonical form (SR-1) is deliberately not
+the material: it is produced after inference runs, inference is not deterministic, and the id must be fixed before
+inference runs, so a retry can be recognised before its Affidavit even exists.
 *Checked by:* `gate/ttl-from-verdict`, `gate/ttl-from-policy-default`, `gate/ttl-from-gate-default`,
 `sequence-a/replay-keeps-the-deadline`, `sequence-a/expiry-then-resubmit`; `suite: policy ttl validation`.
 *Source:* `src/Affiant.Core/Services/ReviewGate.cs` `FileForReviewCoreAsync` (time-to-live stamped before policy; fresh
@@ -441,6 +454,19 @@ round-trip decimal form, always positional (never exponent notation), `-0` as `0
 escaped only as JSON requires; `null` written; absent omitted (AF-1, DK-2); money as its two strings (SR-2); an amended field's
 reviewer-act tag included in its chain. `canonicalHash` is the SHA-256 of that form, computed asynchronously in every
 implementation's contract (RT-1). The seven byte-and-hash vectors in `canonical/` are normative.
+
+**What the form is taken over (v0.1.2).** The Affidavit **as `schemas/0.1.0/affidavit.schema.json` defines it** — every
+property that schema puts on the record, `protocolVersion` included, alongside `conversationTurn` and `createdAt`. The card
+envelope's presentation is **not** in the form: `allowedValues`, `pattern`, `warnings` and `requiresConfirmation` are a host's
+rendering of a proposal rather than its sworn substance, they live on the Evidence Card envelope and not on the record, and
+putting a rendering decision inside a hash a grant is checked against would let restyling an input invalidate a grant minted
+over evidence that did not change. The seven vectors in `canonical/` already state both halves: each one's
+`expectedBytesUtf8` carries `protocolVersion`, and none carries any of the four presentation keys. The reference
+implementation's **runtime** form disagreed with its own document form — its Affidavit model omitted `protocolVersion` and
+added it only on the way to the wire, so the bytes a Docket row hashed were not the bytes of the same record on a card — and
+was corrected at this version; the two declarative fixtures that pinned a hash produced by that path,
+`sequence-a/approve-round-trip` and `decide/amend-recompute`, are re-pinned from the corrected reference. The corrected bytes
+are the previous bytes with one key inserted; no other fixture, schema or rule changed.
 *Why:* conformance fixtures compare canonical forms; an utterance-span binding hashes; and a host's execution grant binds to
 `canonicalHash(accepted state)` — a form over the proposal alone would let an amended proposal execute against a grant
 minted for the unamended one. *Checked by:* `canonical/create-shaped`, `canonical/update-shaped`,
@@ -617,3 +643,12 @@ to exist is corrected here, never invented on the wire. *Checked by:* `suite: te
   every vector's `input` — and its `amendedInput`, the accepted state an amended vector's bytes are taken over —
   against that schema on every push. No rule text changed: the schemas, the wire and the 56 declarative fixtures are
   `v0.1.0`'s.
+- 2026-09-04 — **v0.1.2**: SR-1 states what the canonical form is taken over — the Affidavit as
+  `schemas/0.1.0/affidavit.schema.json` defines it, `protocolVersion` included; the card envelope's presentation
+  (`allowedValues`, `pattern`, `warnings`, `requiresConfirmation`) excluded. The seven vectors already said both halves,
+  and the earlier draft of this amendment said the opposite — that `protocolVersion` was envelope-only — which the
+  vectors refuse. What was actually wrong was the reference implementation's **runtime** form: its Affidavit model omitted
+  `protocolVersion` and only its wire writer added it, so the bytes a Docket row hashed were not the bytes of the same
+  record on a card. It is corrected, and the two declarative fixtures that pinned a hash produced by that path —
+  `sequence-a/approve-round-trip` and `decide/amend-recompute` — are re-promoted from the corrected reference. Those two
+  hashes are the only values that moved: no schema, no wire, no vector and no other fixture changed.

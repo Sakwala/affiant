@@ -771,7 +771,7 @@ discriminator, together, because they are one subject seen from four angles.
   otherwise. A form over the proposal alone would let a host's execution grant, minted for the record
   a reviewer *was shown*, still validate the record they *amended*.
   All seven of the protocol's normative byte vectors reproduce, byte for byte and digest for digest,
-  at the rulebook's [`v0.1.1`](https://github.com/Sakwala/affiant-protocol/releases/tag/v0.1.1) tag,
+  at the rulebook's [`v0.1.2`](https://github.com/Sakwala/affiant-protocol/releases/tag/v0.1.2) tag,
   where all seven describe the v0.1 record. The amended vector also states the accepted state it
   canonicalises, and `ApplyAmendmentsForCanonical` reproduces that state property for property, not
   only the bytes over it.
@@ -1051,17 +1051,16 @@ delivered its own `EvidenceCardResponse` unblocked the waiter and the row was wr
   attestation names the entry it attests to, and a filing's Evidence Card agrees with the row it
   was broadcast for.
 
-  **Reading against the rulebook's `v0.1.1` pin on this candidate: 61 of 63 pass, and the two that
-  do not are pinned against a value the rulebook is correcting.** `sequence-a/approve-round-trip`
-  and `decide/amend-recompute` state a content hash produced by the reference implementation's
-  runtime, over a model that does not carry the record's protocol version — while SR-1's form is
-  over the Affidavit as the rulebook's own schema defines it, where that property is required, and
-  all seven canonical byte vectors carry it in their expected bytes. The rulebook's two artifacts
-  disagree and no implementation can satisfy both; this one follows the schema and the vectors, and
-  both hashes are being re-pinned at the rulebook's `v0.1.2`. Everything else in both fixtures
-  passes. The parity manifest at `conformance/parity/dotnet-v0.1.json` says exactly that, and
-  regenerates byte for byte from the run log committed beside it
-  (`conformance/regenerate-parity.py`).
+  **Reading against the rulebook's `v0.1.2` pin on this candidate: all 63 pass.** The parity manifest
+  at `conformance/parity/dotnet-v0.1.json` therefore declares an empty failing list, which is what
+  this release's acceptance asks for, and it regenerates byte for byte from the run log committed
+  beside it (`conformance/regenerate-parity.py`).
+
+  The pin moved from `v0.1.1` to `v0.1.2` in this change. That release states in SR-1 that the
+  canonical form is taken over the Affidavit as the schema defines it — protocol version included —
+  regenerates the two conformance fixtures whose pinned content hashes had been produced by a
+  reference *runtime* whose model omitted it, and states the entry-id derivation in GT-4. This
+  implementation already matched all three; the re-pin is what let the last two rows close.
 
   `conformance/results/ORACLE-RUN-1.0.0-beta.1.md` reads the shipped release's own run against the
   rulebook's negative oracle, and `conformance/results/dotnet-1.0.0-beta.1.json` is that release's
