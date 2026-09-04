@@ -40,17 +40,17 @@
        — once PackageValidationBaselineVersion is set — that the new package is API-compatible with
        the previous release.
 
-       PackageValidationBaselineVersion is deliberately NOT set yet: it makes pack download that
-       version from a configured feed and diff against it, and nothing has been published (first
-       publish is 1.0.0-beta.1). Set it to 1.0.0-beta.1 in the beta.2 wave — that is the release
-       where breaking-change detection starts to have something to detect, and where the
-       prerelease-stability policy in the README says breaks are still permitted but must be
-       declared. -->
+       PackageValidationBaselineVersion is set to 1.0.0-beta.1, the first published version: pack
+       downloads it from a configured feed and diffs the package being built against it, so a
+       break against what is already on nuget.org fails the build unless it is declared in a
+       CompatibilitySuppressions.xml. Prerelease stability policy still permits breaks — it
+       requires them to be declared. -->
   <PropertyGroup>
     <IsPackable>true</IsPackable>
     <EnablePackageValidation>true</EnablePackageValidation>
+    <PackageValidationBaselineVersion>1.0.0-beta.1</PackageValidationBaselineVersion>
     <VersionPrefix>1.0.0</VersionPrefix>
-    <VersionSuffix>beta.1</VersionSuffix>
+    <VersionSuffix>beta.1.1</VersionSuffix>
     <Authors>Seevali</Authors>
     <PackageProjectUrl>https://github.com/Sakwala/affiant</PackageProjectUrl>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>

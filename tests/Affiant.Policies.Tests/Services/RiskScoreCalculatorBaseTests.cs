@@ -6,7 +6,29 @@ using Xunit;
 
 public class RiskScoreCalculatorBaseTests
 {
-    private readonly RiskScoreCalculatorBase _calculator = new DefaultRiskScoreCalculator();
+    /// <summary>
+    /// The shape a host writes: the framework supplies no formula, so the subclass is where
+    /// scoring lives. This one is the "value over fifty is high" rule a host might author.
+    /// </summary>
+    private sealed class ValueMagnitudeCalculator : RiskScoreCalculatorBase
+    {
+        public override Task<int> ComputeAsync(Affidavit affidavit, CancellationToken ct = default)
+        {
+            var valueField = affidavit.Fields.FirstOrDefault(f => f.Name == "Value");
+
+            var score = valueField?.Value switch
+            {
+                decimal d when d > 50m => (int)RiskLevel.High,
+                decimal => (int)RiskLevel.Medium,
+                null => (int)RiskLevel.Low,
+                _ => (int)RiskLevel.Medium
+            };
+
+            return Task.FromResult(score);
+        }
+    }
+
+    private readonly RiskScoreCalculatorBase _calculator = new ValueMagnitudeCalculator();
 
     private static Affidavit MakeAffidavit(params AffidavitField[] fields) => new(
         OperationType: "Test",
@@ -23,12 +45,11 @@ public class RiskScoreCalculatorBaseTests
         new("Value", value, null, ProvenanceChain.From(ProvenanceTag.Empty));
 
     [Theory]
-    [InlineData(5.0, 2)]    // $5 → Medium
-    [InlineData(25.0, 2)]   // $25 → Medium
-    [InlineData(50.0, 2)]   // $50 boundary → Medium (not strictly greater than)
-    [InlineData(51.0, 3)]   // $51 → High
-    [InlineData(100.0, 3)]  // $100 → High
-    public async Task ComputeAsync_scores_by_decimal_value_field(decimal value, int expectedScore)
+    [InlineData(5.0, 2)]
+    [InlineData(50.0, 2)]
+    [InlineData(51.0, 3)]
+    [InlineData(100.0, 3)]
+    public async Task Host_subclass_supplies_the_score(decimal value, int expectedScore)
     {
         var affidavit = MakeAffidavit(ValueField(value));
 
@@ -38,24 +59,13 @@ public class RiskScoreCalculatorBaseTests
     }
 
     [Fact]
-    public async Task ComputeAsync_returns_medium_when_no_value_field_present()
-    {
-        var affidavit = MakeAffidavit(new AffidavitField("Description", "no value field", null,
-            ProvenanceChain.From(ProvenanceTag.Empty)));
-
-        var score = await _calculator.ComputeAsync(affidavit);
-
-        Assert.Equal((int)RiskLevel.Medium, score);
-    }
-
-    [Fact]
-    public async Task ComputeAsync_returns_medium_for_empty_fields()
+    public async Task Host_subclass_can_return_the_lowest_band()
     {
         var affidavit = MakeAffidavit();
 
         var score = await _calculator.ComputeAsync(affidavit);
 
-        Assert.Equal((int)RiskLevel.Medium, score);
+        Assert.Equal((int)RiskLevel.Low, score);
     }
 
     [Theory]
@@ -73,16 +83,14 @@ public class RiskScoreCalculatorBaseTests
     }
 
     [Fact]
-    public async Task ComputeAsync_respects_cancellation_token()
+    public async Task ComputeAsync_accepts_a_cancellation_token()
     {
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        // Default implementation does not await anything cancelable, but the signature
-        // must accept the token without throwing for basic cancellation.
-        var affidavit = MakeAffidavit();
+        var affidavit = MakeAffidavit(ValueField(100m));
         var score = await _calculator.ComputeAsync(affidavit, cts.Token);
 
-        Assert.Equal((int)RiskLevel.Medium, score);
+        Assert.Equal((int)RiskLevel.High, score);
     }
 }

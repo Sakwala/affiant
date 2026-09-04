@@ -1,1 +1,79 @@
 #nullable enable
+Affiant.SemanticKernel.Adapters.SemanticKernelInferenceCompletionPort
+Affiant.SemanticKernel.Adapters.SemanticKernelInferenceCompletionPort.CompleteStructuredAsync(Affiant.Abstractions.Models.InferenceCompletionRequest! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Text.Json.JsonElement>!
+Affiant.SemanticKernel.Adapters.SemanticKernelInferenceCompletionPort.SemanticKernelInferenceCompletionPort(System.IServiceProvider! services, Microsoft.Extensions.Logging.ILogger<Affiant.SemanticKernel.Adapters.SemanticKernelInferenceCompletionPort!>! logger) -> void
+Affiant.SemanticKernel.Connectors.AffiantProviderConfiguration
+Affiant.SemanticKernel.Connectors.AffiantProviderConfiguration.AffiantProviderConfiguration() -> void
+Affiant.SemanticKernel.Connectors.AffiantProviderConfiguration.Primary.get -> Affiant.SemanticKernel.Connectors.LlmProviderConfiguration!
+Affiant.SemanticKernel.Connectors.AffiantProviderConfiguration.Primary.set -> void
+Affiant.SemanticKernel.Connectors.AffiantProviderConfiguration.Secondary.get -> Affiant.SemanticKernel.Connectors.LlmProviderConfiguration?
+Affiant.SemanticKernel.Connectors.AffiantProviderConfiguration.Secondary.set -> void
+Affiant.SemanticKernel.Connectors.CapabilityRegistry
+Affiant.SemanticKernel.Connectors.CapabilityRegistry.CapabilityRegistry() -> void
+Affiant.SemanticKernel.Connectors.CapabilityRegistry.Resolve(string! providerName) -> Affiant.Abstractions.Interfaces.IConnectorCapabilities!
+Affiant.SemanticKernel.Connectors.ChatCompletionFactory
+Affiant.SemanticKernel.Connectors.IManualToolInvoker
+Affiant.SemanticKernel.Connectors.IManualToolInvoker.CaptureAndInvokeAsync(Microsoft.SemanticKernel.FunctionCallContent! functionCall, Microsoft.SemanticKernel.Kernel! kernel, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Microsoft.SemanticKernel.FunctionResultContent!>!
+Affiant.SemanticKernel.Connectors.LlmProviderConfiguration
+Affiant.SemanticKernel.Connectors.LlmProviderConfiguration.ApiKey.get -> string!
+Affiant.SemanticKernel.Connectors.LlmProviderConfiguration.ApiKey.set -> void
+Affiant.SemanticKernel.Connectors.LlmProviderConfiguration.Endpoint.get -> string?
+Affiant.SemanticKernel.Connectors.LlmProviderConfiguration.Endpoint.set -> void
+Affiant.SemanticKernel.Connectors.LlmProviderConfiguration.LlmProviderConfiguration() -> void
+Affiant.SemanticKernel.Connectors.LlmProviderConfiguration.Model.get -> string!
+Affiant.SemanticKernel.Connectors.LlmProviderConfiguration.Model.set -> void
+Affiant.SemanticKernel.Connectors.LlmProviderConfiguration.Provider.get -> string!
+Affiant.SemanticKernel.Connectors.LlmProviderConfiguration.Provider.set -> void
+Affiant.SemanticKernel.Connectors.ManualToolInvoker
+Affiant.SemanticKernel.Connectors.ManualToolInvoker.CaptureAndInvokeAsync(Microsoft.SemanticKernel.FunctionCallContent! functionCall, Microsoft.SemanticKernel.Kernel! kernel, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Microsoft.SemanticKernel.FunctionResultContent!>!
+Affiant.SemanticKernel.Connectors.ManualToolInvoker.ManualToolInvoker(Affiant.Core.Services.ToolInvocationPipeline! pipeline, Microsoft.Extensions.Logging.ILogger<Affiant.SemanticKernel.Connectors.ManualToolInvoker!>! logger) -> void
+Affiant.SemanticKernel.Connectors.ProviderPair
+Affiant.SemanticKernel.Connectors.ProviderPair.Primary.get -> Microsoft.SemanticKernel.ChatCompletion.IChatCompletionService!
+Affiant.SemanticKernel.Connectors.ProviderPair.Primary.init -> void
+Affiant.SemanticKernel.Connectors.ProviderPair.PrimaryName.get -> string!
+Affiant.SemanticKernel.Connectors.ProviderPair.PrimaryName.init -> void
+Affiant.SemanticKernel.Connectors.ProviderPair.ProviderPair() -> void
+Affiant.SemanticKernel.Connectors.ProviderPair.Secondary.get -> Microsoft.SemanticKernel.ChatCompletion.IChatCompletionService?
+Affiant.SemanticKernel.Connectors.ProviderPair.Secondary.init -> void
+Affiant.SemanticKernel.Connectors.ProviderPair.SecondaryName.get -> string?
+Affiant.SemanticKernel.Connectors.ProviderPair.SecondaryName.init -> void
+Affiant.SemanticKernel.Extensions.KernelBuilderExtensions
+Affiant.SemanticKernel.Extensions.ServiceCollectionExtensions
+Affiant.SemanticKernel.Filters.AffiantAutoFunctionInvocationBridge
+Affiant.SemanticKernel.Filters.AffiantAutoFunctionInvocationBridge.AffiantAutoFunctionInvocationBridge(Affiant.Core.Services.ToolInvocationPipeline! pipeline) -> void
+Affiant.SemanticKernel.Filters.AffiantAutoFunctionInvocationBridge.OnAutoFunctionInvocationAsync(Microsoft.SemanticKernel.AutoFunctionInvocationContext! context, System.Func<Microsoft.SemanticKernel.AutoFunctionInvocationContext!, System.Threading.Tasks.Task!>! next) -> System.Threading.Tasks.Task!
+Affiant.SemanticKernel.Filters.AffiantFilterPipeline
+Affiant.SemanticKernel.Filters.AffiantFunctionInvocationBridge
+Affiant.SemanticKernel.Filters.AffiantFunctionInvocationBridge.AffiantFunctionInvocationBridge(Affiant.Core.Services.ToolInvocationPipeline! pipeline) -> void
+Affiant.SemanticKernel.Filters.AffiantFunctionInvocationBridge.OnFunctionInvocationAsync(Microsoft.SemanticKernel.FunctionInvocationContext! context, System.Func<Microsoft.SemanticKernel.FunctionInvocationContext!, System.Threading.Tasks.Task!>! next) -> System.Threading.Tasks.Task!
+Affiant.SemanticKernel.Services.RehydrationResult
+Affiant.SemanticKernel.Services.RehydrationResult.<Clone>$() -> Affiant.SemanticKernel.Services.RehydrationResult!
+Affiant.SemanticKernel.Services.RehydrationResult.Context.get -> Affiant.Abstractions.Models.ConversationContext?
+Affiant.SemanticKernel.Services.RehydrationResult.Context.init -> void
+Affiant.SemanticKernel.Services.RehydrationResult.Deconstruct(out Microsoft.SemanticKernel.ChatCompletion.ChatHistory! History, out Affiant.Abstractions.Models.ConversationContext? Context, out System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.DocketEntry!>! PendingEntries, out System.Collections.Generic.IReadOnlyDictionary<System.Guid, System.Collections.Generic.IReadOnlyDictionary<string!, object?>!>! PriorAmendmentsByEntryId) -> void
+Affiant.SemanticKernel.Services.RehydrationResult.Equals(Affiant.SemanticKernel.Services.RehydrationResult? other) -> bool
+Affiant.SemanticKernel.Services.RehydrationResult.History.get -> Microsoft.SemanticKernel.ChatCompletion.ChatHistory!
+Affiant.SemanticKernel.Services.RehydrationResult.History.init -> void
+Affiant.SemanticKernel.Services.RehydrationResult.PendingEntries.get -> System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.DocketEntry!>!
+Affiant.SemanticKernel.Services.RehydrationResult.PendingEntries.init -> void
+Affiant.SemanticKernel.Services.RehydrationResult.PriorAmendmentsByEntryId.get -> System.Collections.Generic.IReadOnlyDictionary<System.Guid, System.Collections.Generic.IReadOnlyDictionary<string!, object?>!>!
+Affiant.SemanticKernel.Services.RehydrationResult.PriorAmendmentsByEntryId.init -> void
+Affiant.SemanticKernel.Services.RehydrationResult.RehydrationResult(Microsoft.SemanticKernel.ChatCompletion.ChatHistory! History, Affiant.Abstractions.Models.ConversationContext? Context, System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.DocketEntry!>! PendingEntries, System.Collections.Generic.IReadOnlyDictionary<System.Guid, System.Collections.Generic.IReadOnlyDictionary<string!, object?>!>! PriorAmendmentsByEntryId) -> void
+Affiant.SemanticKernel.Services.SessionRehydrator
+Affiant.SemanticKernel.Services.SessionRehydrator.RehydrateAsync(string! sessionId, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.SemanticKernel.Services.RehydrationResult!>!
+Affiant.SemanticKernel.Services.SessionRehydrator.SessionRehydrator(Affiant.Abstractions.Interfaces.IChatSessionStore! chatStore, Affiant.Abstractions.Interfaces.IDocketStore! docketStore, Microsoft.Extensions.Configuration.IConfiguration! config, Microsoft.Extensions.Logging.ILogger<Affiant.SemanticKernel.Services.SessionRehydrator!>! logger) -> void
+Affiant.SemanticKernel.Validation.AffiantStartupValidator
+Affiant.SemanticKernel.Validation.AffiantStartupValidator.AffiantStartupValidator(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory! scopeFactory, Affiant.Abstractions.Interfaces.IAffiantToolRegistry! registry) -> void
+Affiant.SemanticKernel.Validation.AffiantStartupValidator.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Affiant.SemanticKernel.Validation.AffiantStartupValidator.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+override Affiant.SemanticKernel.Services.RehydrationResult.Equals(object? obj) -> bool
+override Affiant.SemanticKernel.Services.RehydrationResult.GetHashCode() -> int
+override Affiant.SemanticKernel.Services.RehydrationResult.ToString() -> string!
+static Affiant.SemanticKernel.Connectors.ChatCompletionFactory.Create(Affiant.SemanticKernel.Connectors.LlmProviderConfiguration! config) -> Microsoft.SemanticKernel.ChatCompletion.IChatCompletionService!
+static Affiant.SemanticKernel.Extensions.KernelBuilderExtensions.AddAffiantPluginsFromAssembly(this Microsoft.SemanticKernel.IKernelBuilder! builder, System.Reflection.Assembly! assembly, string? pluginName = null) -> Microsoft.SemanticKernel.IKernelBuilder!
+static Affiant.SemanticKernel.Extensions.KernelBuilderExtensions.AddAffiantPluginsFromType<T>(this Microsoft.SemanticKernel.IKernelBuilder! builder, string? pluginName = null) -> Microsoft.SemanticKernel.IKernelBuilder!
+static Affiant.SemanticKernel.Extensions.ServiceCollectionExtensions.AddAffiantInferenceOrchestration(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Affiant.SemanticKernel.Extensions.ServiceCollectionExtensions.AddAffiantSemanticKernel(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Affiant.Core.Services.SemanticKernelOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Affiant.SemanticKernel.Filters.AffiantFilterPipeline.AddAffiantSkFilters(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Affiant.SemanticKernel.Services.RehydrationResult.operator !=(Affiant.SemanticKernel.Services.RehydrationResult? left, Affiant.SemanticKernel.Services.RehydrationResult? right) -> bool
+static Affiant.SemanticKernel.Services.RehydrationResult.operator ==(Affiant.SemanticKernel.Services.RehydrationResult? left, Affiant.SemanticKernel.Services.RehydrationResult? right) -> bool

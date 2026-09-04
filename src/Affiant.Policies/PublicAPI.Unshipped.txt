@@ -1,32 +1,13 @@
-Affiant.Policies.Extensions.PoliciesBuilder
-Affiant.Policies.Extensions.PoliciesBuilder.AddDefaultReviewerConfirmation() -> Affiant.Policies.Extensions.PoliciesBuilder!
-Affiant.Policies.Extensions.PoliciesBuilder.AddReferralRule<TRule>(Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime = Microsoft.Extensions.DependencyInjection.ServiceLifetime.Scoped) -> Affiant.Policies.Extensions.PoliciesBuilder!
-Affiant.Policies.Extensions.PoliciesBuilder.AddStandingOrder<TPolicy>(Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime = Microsoft.Extensions.DependencyInjection.ServiceLifetime.Scoped) -> Affiant.Policies.Extensions.PoliciesBuilder!
-Affiant.Policies.Extensions.PoliciesBuilder.PoliciesBuilder(Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> void
-Affiant.Policies.Extensions.PoliciesBuilder.SetRiskScoreCalculator<TCalculator>(Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime = Microsoft.Extensions.DependencyInjection.ServiceLifetime.Scoped) -> Affiant.Policies.Extensions.PoliciesBuilder!
-Affiant.Policies.Extensions.ServiceCollectionExtensions
-Affiant.Policies.Referrals.ReferralRuleBase
-Affiant.Policies.Referrals.ReferralRuleBase.EvaluateAsync(Affiant.Abstractions.Models.Affidavit! affidavit, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Affiant.Abstractions.Models.ReviewRequirement?>!
-Affiant.Policies.Referrals.ReferralRuleBase.ReferralRuleBase(Microsoft.Extensions.Logging.ILogger? logger = null) -> void
-Affiant.Policies.Services.DefaultRiskScoreCalculator
-Affiant.Policies.Services.DefaultRiskScoreCalculator.DefaultRiskScoreCalculator() -> void
-Affiant.Policies.Services.RiskLevel
-Affiant.Policies.Services.RiskLevel.High = 3 -> Affiant.Policies.Services.RiskLevel
-Affiant.Policies.Services.RiskLevel.Low = 1 -> Affiant.Policies.Services.RiskLevel
-Affiant.Policies.Services.RiskLevel.Medium = 2 -> Affiant.Policies.Services.RiskLevel
-Affiant.Policies.Services.RiskScoreCalculatorBase
-Affiant.Policies.Services.RiskScoreCalculatorBase.ClassifyScore(int score) -> Affiant.Policies.Services.RiskLevel
-Affiant.Policies.Services.RiskScoreCalculatorBase.RiskScoreCalculatorBase() -> void
-Affiant.Policies.StandingOrders.StandingOrderBase
-Affiant.Policies.StandingOrders.StandingOrderBase.EvaluateAsync(Affiant.Abstractions.Models.Affidavit! affidavit, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Affiant.Abstractions.Models.ReviewRequirement?>!
-Affiant.Policies.StandingOrders.StandingOrderBase.StandingOrderBase(Affiant.Policies.Services.RiskScoreCalculatorBase! riskScorer, Microsoft.Extensions.Logging.ILogger? logger = null) -> void
-abstract Affiant.Policies.Referrals.ReferralRuleBase.GetReferredToUserIdAsync(Affiant.Abstractions.Models.Affidavit! affidavit, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string?>!
-abstract Affiant.Policies.Referrals.ReferralRuleBase.MatchesAsync(Affiant.Abstractions.Models.Affidavit! affidavit, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-abstract Affiant.Policies.StandingOrders.StandingOrderBase.MatchesAsync(Affiant.Abstractions.Models.Affidavit! affidavit, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-readonly Affiant.Policies.Referrals.ReferralRuleBase.Logger -> Microsoft.Extensions.Logging.ILogger!
-readonly Affiant.Policies.StandingOrders.StandingOrderBase.Logger -> Microsoft.Extensions.Logging.ILogger!
-readonly Affiant.Policies.StandingOrders.StandingOrderBase.RiskScorer -> Affiant.Policies.Services.RiskScoreCalculatorBase!
-static Affiant.Policies.Extensions.ServiceCollectionExtensions.AddAffiantPolicies(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Affiant.Policies.Extensions.PoliciesBuilder!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-virtual Affiant.Policies.Services.RiskScoreCalculatorBase.ComputeAsync(Affiant.Abstractions.Models.Affidavit! affidavit, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<int>!
-virtual Affiant.Policies.StandingOrders.StandingOrderBase.GetAutoApproverIdAsync(Affiant.Abstractions.Models.Affidavit! affidavit, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string?>!
-virtual Affiant.Policies.StandingOrders.StandingOrderBase.RiskThreshold.get -> int
+#nullable enable
+*REMOVED*Affiant.Policies.Services.DefaultRiskScoreCalculator
+*REMOVED*Affiant.Policies.Services.DefaultRiskScoreCalculator.DefaultRiskScoreCalculator() -> void
+*REMOVED*Affiant.Policies.StandingOrders.StandingOrderBase.StandingOrderBase(Affiant.Policies.Services.RiskScoreCalculatorBase! riskScorer, Microsoft.Extensions.Logging.ILogger? logger = null) -> void
+*REMOVED*readonly Affiant.Policies.StandingOrders.StandingOrderBase.RiskScorer -> Affiant.Policies.Services.RiskScoreCalculatorBase!
+*REMOVED*virtual Affiant.Policies.Services.RiskScoreCalculatorBase.ComputeAsync(Affiant.Abstractions.Models.Affidavit! affidavit, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<int>!
+*REMOVED*virtual Affiant.Policies.StandingOrders.StandingOrderBase.RiskThreshold.get -> int
+Affiant.Policies.AffiantPolicies
+Affiant.Policies.StandingOrders.StandingOrderBase.StandingOrderBase(Affiant.Policies.Services.RiskScoreCalculatorBase? riskScorer = null, Microsoft.Extensions.Logging.ILogger? logger = null) -> void
+abstract Affiant.Policies.Services.RiskScoreCalculatorBase.ComputeAsync(Affiant.Abstractions.Models.Affidavit! affidavit, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<int>!
+readonly Affiant.Policies.StandingOrders.StandingOrderBase.RiskScorer -> Affiant.Policies.Services.RiskScoreCalculatorBase?
+static Affiant.Policies.AffiantPolicies.ValidateStandingOrders(System.IServiceProvider! serviceProvider) -> void
+virtual Affiant.Policies.StandingOrders.StandingOrderBase.RiskThreshold.get -> int?

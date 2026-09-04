@@ -8,7 +8,6 @@ using Affiant.Policies.Services;
 using Affiant.Policies.StandingOrders;
 using Affiant.Policies.Referrals;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 /// <summary>
@@ -19,21 +18,25 @@ public class ApprovalPolicyEvaluatorIntegrationTests
 {
     // ── Test doubles ─────────────────────────────────────────────────────────
 
-    private sealed class LowRiskAutoApprovalOrder : StandingOrderBase
+    private sealed class FixedScoreCalculator(int score) : RiskScoreCalculatorBase
     {
-        public LowRiskAutoApprovalOrder() : base(new DefaultRiskScoreCalculator()) { }
+        public override Task<int> ComputeAsync(Affidavit affidavit, CancellationToken ct = default)
+            => Task.FromResult(score);
+    }
 
-        // Accepts all affidavits; risk scorer determines auto-approval.
+    /// <summary>A Standing Order with a Low ceiling: only the lowest risk band auto-approves.</summary>
+    private sealed class LowRiskAutoApprovalOrder(RiskScoreCalculatorBase riskScorer)
+        : StandingOrderBase(riskScorer)
+    {
+        protected override int? RiskThreshold => (int)RiskLevel.Low;
+
         protected override Task<bool> MatchesAsync(Affidavit affidavit, CancellationToken ct)
             => Task.FromResult(true);
     }
 
-    private sealed class HighThresholdOrder : StandingOrderBase
+    /// <summary>A Standing Order with no risk ceiling: matching the conditions is the whole test.</summary>
+    private sealed class UnconditionalOrder : StandingOrderBase
     {
-        public HighThresholdOrder() : base(new DefaultRiskScoreCalculator()) { }
-
-        protected override int RiskThreshold => (int)RiskLevel.High;
-
         protected override Task<bool> MatchesAsync(Affidavit affidavit, CancellationToken ct)
             => Task.FromResult(true);
     }
@@ -72,35 +75,6 @@ public class ApprovalPolicyEvaluatorIntegrationTests
         Warnings: [],
         RequiresConfirmation: false);
 
-    private static Affidavit HighValueAffidavit() => new(
-        OperationType: "Test",
-        EntityType: "TestEntity",
-        EntityId: null,
-        Fields: [new AffidavitField("Value", 100m, null, ProvenanceChain.From(ProvenanceTag.Empty))],
-        AggregateConfidence: 1.0f,
-        PopulatedConfidence: 1.0f,
-        EmptyFieldCount: 0,
-        Warnings: [],
-        RequiresConfirmation: false);
-
-    private static ApprovalPolicyEvaluator BuildEvaluator(
-        Action<PoliciesBuilder> configure,
-        bool includeCore = true)
-    {
-        var services = new ServiceCollection();
-        services.AddLogging();
-        if (includeCore)
-        {
-            services.AddSingleton<ApprovalPolicyEvaluator>();
-        }
-        services.AddAffiantPolicies(configure);
-
-        // Ensure evaluator is resolvable even without AddAffiantCore
-        services.AddSingleton<ApprovalPolicyEvaluator>();
-        var sp = services.BuildServiceProvider();
-        return sp.GetRequiredService<ApprovalPolicyEvaluator>();
-    }
-
     // ── Tests ─────────────────────────────────────────────────────────────────
 
     [Fact]
@@ -135,7 +109,7 @@ public class ApprovalPolicyEvaluatorIntegrationTests
         {
             neverPolicy,
             new AlwaysReferralRule(),
-            new LowRiskAutoApprovalOrder()   // Never reached
+            new UnconditionalOrder()   // Never reached
         };
         var evaluator = new ApprovalPolicyEvaluator(policies);
 
@@ -151,7 +125,7 @@ public class ApprovalPolicyEvaluatorIntegrationTests
         // Order A: StandingOrder first → StandingOrder wins
         var evaluatorA = new ApprovalPolicyEvaluator(new IApprovalPolicy[]
         {
-            new HighThresholdOrder(),
+            new UnconditionalOrder(),
             new AlwaysReferralRule()
         });
 
@@ -159,7 +133,7 @@ public class ApprovalPolicyEvaluatorIntegrationTests
         var evaluatorB = new ApprovalPolicyEvaluator(new IApprovalPolicy[]
         {
             new AlwaysReferralRule(),
-            new HighThresholdOrder()
+            new UnconditionalOrder()
         });
 
         var affidavit = MakeAffidavit();
@@ -171,35 +145,76 @@ public class ApprovalPolicyEvaluatorIntegrationTests
     }
 
     [Fact]
+    public async Task StandingOrder_written_by_the_book_auto_approves_through_the_evaluator()
+    {
+        // The whole framework contract for an auto-approval rule: subclass StandingOrderBase,
+        // implement MatchesAsync. No calculator registered, no threshold declared.
+        var services = new ServiceCollection();
+        services.AddAffiantPolicies(p => p
+            .AddStandingOrder<UnconditionalOrder>()
+            .AddDefaultReviewerConfirmation());
+        services.AddScoped<ApprovalPolicyEvaluator>();
+
+        var sp = services.BuildServiceProvider();
+        using var scope = sp.CreateScope();
+        var evaluator = scope.ServiceProvider.GetRequiredService<ApprovalPolicyEvaluator>();
+
+        var result = await evaluator.EvaluateAsync(MakeAffidavit());
+
+        Assert.Equal(ReviewRequirement.StandingOrder, result);
+    }
+
+    [Fact]
     public async Task Risk_score_driven_StandingOrder_auto_approves_low_risk()
     {
-        // LowRiskAutoApprovalOrder matches everything; threshold = Low (1).
-        // MakeAffidavit() has no "Value" field → default scorer returns Medium (2).
-        // Medium (2) > Low (1) → should NOT auto-approve.
+        // Ceiling is Low (1); the host's calculator scores this affidavit Low → auto-approves.
         var evaluator = new ApprovalPolicyEvaluator(new IApprovalPolicy[]
         {
-            new LowRiskAutoApprovalOrder(),
-            // Fallback added explicitly to make ordering obvious
+            new LowRiskAutoApprovalOrder(new FixedScoreCalculator((int)RiskLevel.Low))
         });
 
         var result = await evaluator.EvaluateAsync(MakeAffidavit());
 
-        // Default scorer returns Medium; threshold is Low → no match → falls through to built-in fallback
+        Assert.Equal(ReviewRequirement.StandingOrder, result);
+    }
+
+    [Fact]
+    public async Task Risk_score_driven_StandingOrder_defers_when_risk_exceeds_the_ceiling()
+    {
+        // Same order, but the host's calculator scores this affidavit High (3) → no match →
+        // falls through to the evaluator's built-in ReviewerConfirmation fallback.
+        var evaluator = new ApprovalPolicyEvaluator(new IApprovalPolicy[]
+        {
+            new LowRiskAutoApprovalOrder(new FixedScoreCalculator((int)RiskLevel.High))
+        });
+
+        var result = await evaluator.EvaluateAsync(MakeAffidavit());
+
         Assert.Equal(ReviewRequirement.ReviewerConfirmation, result);
     }
 
     [Fact]
-    public async Task Risk_score_driven_StandingOrder_auto_approves_when_threshold_covers_risk()
+    public async Task Risk_score_driven_StandingOrder_resolves_the_host_calculator_from_DI()
     {
-        // HighThresholdOrder matches everything and accepts up to High (3).
-        // HighValueAffidavit has Value=100 → scores High (3) → within High threshold → auto-approves.
-        var evaluator = new ApprovalPolicyEvaluator(new IApprovalPolicy[]
-        {
-            new HighThresholdOrder()
-        });
+        var services = new ServiceCollection();
+        services.AddAffiantPolicies(p => p
+            .SetRiskScoreCalculator<AlwaysLowCalculator>()
+            .AddStandingOrder<LowRiskAutoApprovalOrder>()
+            .AddDefaultReviewerConfirmation());
+        services.AddScoped<ApprovalPolicyEvaluator>();
 
-        var result = await evaluator.EvaluateAsync(HighValueAffidavit());
+        var sp = services.BuildServiceProvider();
+        using var scope = sp.CreateScope();
+        var evaluator = scope.ServiceProvider.GetRequiredService<ApprovalPolicyEvaluator>();
+
+        var result = await evaluator.EvaluateAsync(MakeAffidavit());
 
         Assert.Equal(ReviewRequirement.StandingOrder, result);
+    }
+
+    private sealed class AlwaysLowCalculator : RiskScoreCalculatorBase
+    {
+        public override Task<int> ComputeAsync(Affidavit affidavit, CancellationToken ct = default)
+            => Task.FromResult((int)RiskLevel.Low);
     }
 }

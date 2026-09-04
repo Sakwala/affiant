@@ -144,6 +144,85 @@ update at all.
    Affidavit the gate returns on `ReviewOutcome.Approved.AmendedAffidavit`, or call
    `AffidavitAmendments.Apply` — one fold, one answer.
 
+## [1.0.0-beta.1.1] — unreleased
+
+### Fixed
+
+- **A Standing Order written to the documented contract could never auto-approve.**
+  `StandingOrderBase` defaulted its `RiskThreshold` to `RiskLevel.Low` (1) and auto-approved only
+  when the computed score was at or below it, while the risk formula `AddAffiantPolicies()`
+  registered for every host returned `Medium` (2) or `High` (3) on every path — over-50 `Value`
+  field → High, any other `Value` → Medium, no `Value` field → Medium. Nothing scored `Low`, so a
+  subclass that implemented `MatchesAsync` and changed nothing else always fell through to reviewer
+  confirmation.
+- **New semantics.** `RiskThreshold` is now `int?` and defaults to `null`, meaning *no risk
+  ceiling*: matching the conditions is the whole test, and such a Standing Order needs no risk
+  calculator at all. Declaring a threshold opts into scoring — the framework still owns the
+  `score <= threshold` comparison, the host owns the score.
+- **Fail closed on misconfiguration.** A Standing Order that declares a `RiskThreshold` with no
+  `RiskScoreCalculatorBase` registered now throws `InvalidOperationException` naming
+  `SetRiskScoreCalculator<T>()`. It fails on the policy's first evaluation, before any write is
+  auto-approved, never silently — rather than deferring every write it was written to approve.
+
+### Added
+
+- `AffiantPolicies.ValidateStandingOrders(IServiceProvider)` — an optional boot-time check. It
+  resolves every registered `IApprovalPolicy` in a throwaway scope and runs each Standing Order's
+  risk-configuration check, turning a misconfiguration into a startup failure rather than a
+  first-request one. It evaluates no Affidavit and approves nothing.
+
+### Changed
+
+- `RiskScoreCalculatorBase.ComputeAsync` is **abstract**. There is no framework scoring formula:
+  what counts as risk is a property of the host's domain. `ClassifyScore` and the `RiskLevel` enum
+  are unchanged.
+- `AddAffiantPolicies()` registers an internal placeholder `RiskScoreCalculatorBase` when the host
+  registers none. It carries no formula and no risk floor — every call to it throws, naming
+  `SetRiskScoreCalculator<T>()`. It exists so that a Standing Order whose constructor takes
+  `RiskScoreCalculatorBase` as a *required* dependency — the shape every `1.0.0-beta.1` order that
+  declared a `RiskThreshold` was forced into — still resolves, and so sees the actionable message
+  rather than the container's own "Unable to resolve service for type 'RiskScoreCalculatorBase'".
+  It is registered with `TryAdd`, so a calculator the host registers always wins.
+- `StandingOrderBase`'s risk calculator is an optional constructor dependency
+  (`RiskScoreCalculatorBase? riskScorer = null`), and the protected `RiskScorer` field is nullable.
+- `StandingOrderBase.RiskThreshold` is `int?` (was `int`).
+
+### Removed
+
+- `DefaultRiskScoreCalculator`, and its automatic registration inside `AddAffiantPolicies()`.
+  `AddAffiantPolicies()` no longer registers any scoring formula — only the throwing placeholder
+  described above.
+
+### Upgrade note
+
+- A host that relied on the stock formula — over-50 `Value` field → High, otherwise Medium —
+  registers its own calculator: subclass `RiskScoreCalculatorBase`, implement `ComputeAsync`, and
+  pass it to `SetRiskScoreCalculator<T>()` inside `AddAffiantPolicies(...)`.
+- A host with a Standing Order that overrides `RiskThreshold` must register a calculator, or that
+  policy throws on its first evaluation, before any write is auto-approved, naming
+  `SetRiskScoreCalculator<T>()`. Call `AffiantPolicies.ValidateStandingOrders(app.Services)` after
+  `Build()` to hit the same failure at startup instead. Changing the override's type from `int` to
+  `int?` is required to compile — and it is required at runtime too, not merely convenient:
+  a subclass compiled against `1.0.0-beta.1` and dropped in as a binary without recompiling still
+  overrides a property whose signature the base class no longer declares, so the CLR fails at type
+  load with a `TypeLoadException` (or a `MissingMethodException` at the call site), not a graceful
+  fallback to the old behaviour.
+- The configuration check — is a calculator registered wherever a `RiskThreshold` is declared —
+  runs before `MatchesAsync`, on every evaluation. A misconfigured Standing Order therefore halts
+  *every* evaluation of that policy, not only the writes it would actually have matched: intended,
+  since the point is to fail loudly and closed rather than silently approve or refuse on an
+  unscored guess.
+- An order that took the calculator as a required constructor parameter — the shape beta.1's base
+  constructor forced — keeps working unchanged: it resolves against the placeholder and, if it
+  declares a `RiskThreshold`, reports the missing registration itself. Widening the parameter to
+  `RiskScoreCalculatorBase? scorer = null` is optional.
+- A host whose Standing Orders never overrode `RiskThreshold` needs no calculator and no code
+  change — but note the behaviour change: those orders now auto-approve on the match, which is what
+  they were always written to do.
+- These are declared breaking changes against `1.0.0-beta.1`, permitted by the prerelease-stability
+  policy, and recorded in `src/Affiant.Policies/CompatibilitySuppressions.xml`.
+- `StandingOrderBase.RiskScorer` is now nullable (`RiskScoreCalculatorBase?`). Binary-compatible; source-breaking for a subclass that dereferences it under nullable reference types with warnings as errors — add a null check or declare no threshold.
+
 ## [1.0.0-beta.1] — 2026-08-23
 
 First public release. The framework is a deterministic evidence layer for .NET agents:
