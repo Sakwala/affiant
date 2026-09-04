@@ -87,9 +87,19 @@ public sealed record AttestationRelay(string Principal, string ChannelIdentity, 
 /// </para>
 /// <para>
 /// The hierarchy is closed — the constructor is <c>private protected</c>, so the only attestor kinds
-/// that exist are the three nested here. Which principal is <em>permitted</em> to produce which arm
-/// is enforced where decisions are authorized, not here; this type fixes the shape so no code path
-/// can invent a fourth mode.
+/// that exist are the three nested here and no code path can invent a fourth mode.
+/// </para>
+/// <para>
+/// <b>The rule is structural, not a convention.</b> Every arm's own constructor is private, and the
+/// only way to build one is a factory that takes the thing entitled to produce it:
+/// <see cref="Member.Of(Principal.Member)"/> takes a human-verified session and nothing else, so
+/// there is no overload, no optional parameter and no <c>with</c> expression through which a
+/// machine caller reaches a <c>member</c> attestation — a compiler rejects the shortcut before a
+/// reviewer has to notice it. <see cref="MemberViaRelay.Of(Principal.Service)"/> takes a service
+/// principal and returns <c>null</c> unless it carries <em>both</em> the person it speaks for and
+/// the relay assertion that carried them, which is the strongest thing a machine can honestly say.
+/// <see cref="StandingOrder"/> is not reachable from a principal at all: a policy verdict writes
+/// that one, in the same operation as the filing.
 /// </para>
 /// </remarks>
 public abstract record Attestor
@@ -99,12 +109,70 @@ public abstract record Attestor
     /// <summary>The wire discriminator for this attestor kind.</summary>
     public abstract string Kind { get; }
 
-    /// <summary>A human-verified session decided this entry — the only claim a machine caller can never make.</summary>
-    /// <param name="Id">The host's id for the person.</param>
-    public sealed record Member(string Id) : Attestor
+    /// <summary>
+    /// The strongest attestation <paramref name="principal"/> can honestly make, or <c>null</c> when
+    /// it can make none.
+    /// </summary>
+    /// <remarks>
+    /// A member principal attests <see cref="Member"/>. A service principal carrying both a relay
+    /// assertion and the person it speaks for attests <see cref="MemberViaRelay"/>, naming both —
+    /// and that is the <em>only</em> thing it can attest. A service principal with nothing to relay
+    /// attests nothing: it is a machine acting on its own behalf, and a machine cannot agree to a
+    /// write in a person's name.
+    /// </remarks>
+    public static Attestor? For(Principal principal)
     {
+        ArgumentNullException.ThrowIfNull(principal);
+        return principal switch
+        {
+            Principal.Member member => Member.Of(member),
+            Principal.Service service => MemberViaRelay.Of(service),
+            _ => null,
+        };
+    }
+
+    /// <summary>Who this attestation is about: the person, however they reached the gate.</summary>
+    public string Subject => this switch
+    {
+        Member member => member.Id,
+        MemberViaRelay relayed => relayed.MemberId,
+        StandingOrder order => order.PolicyId,
+        _ => throw new InvalidOperationException(
+            $"unreachable: the Attestor hierarchy is closed and {GetType().Name} is not one of it"),
+    };
+
+    /// <summary>A human-verified session decided this entry — the only claim a machine caller can never make.</summary>
+    public sealed record Member : Attestor
+    {
+        private Member(string id) => Id = id;
+
+        /// <summary>The host's id for the person.</summary>
+        public string Id { get; }
+
         /// <inheritdoc/>
         public override string Kind => "member";
+
+        /// <summary>
+        /// The attestation a human-verified session makes. The parameter type is the enforcement:
+        /// there is no path from a <see cref="Principal.Service"/> to this record.
+        /// </summary>
+        public static Member Of(Principal.Member principal)
+        {
+            ArgumentNullException.ThrowIfNull(principal);
+            return new Member(principal.Id);
+        }
+
+        /// <summary>
+        /// Reads back an attestation a store already holds. Not a second way to <em>make</em> one:
+        /// it takes an id and no principal at all, so there is still no expression anywhere that
+        /// turns a <see cref="Principal.Service"/> into a member attestation. Reconstructing a
+        /// record that was written under the rule is not the same act as writing one that was not.
+        /// </summary>
+        public static Member FromStorage(string id)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(id);
+            return new Member(id);
+        }
     }
 
     /// <summary>
@@ -112,12 +180,46 @@ public abstract record Attestor
     /// identity rather than authenticating them. Both the person and the relay are named, because
     /// the record must not read as though the person signed in directly.
     /// </summary>
-    /// <param name="MemberId">The host's id for the person the relay named.</param>
-    /// <param name="Relay">The relay, and the message the decision arrived on.</param>
-    public sealed record MemberViaRelay(string MemberId, AttestationRelay Relay) : Attestor
+    public sealed record MemberViaRelay : Attestor
     {
+        private MemberViaRelay(string memberId, AttestationRelay relay)
+        {
+            MemberId = memberId;
+            Relay = relay;
+        }
+
+        /// <summary>The host's id for the person the relay named.</summary>
+        public string MemberId { get; }
+
+        /// <summary>The relay, and the message the decision arrived on.</summary>
+        public AttestationRelay Relay { get; }
+
         /// <inheritdoc/>
         public override string Kind => "member-via-relay";
+
+        /// <summary>
+        /// The strongest attestation a machine caller can make, or <c>null</c> when it has nothing
+        /// to relay — no asserted member, or no relay assertion naming the message the decision
+        /// arrived on. A service with neither is acting on its own behalf and attests nothing.
+        /// </summary>
+        public static MemberViaRelay? Of(Principal.Service principal)
+        {
+            ArgumentNullException.ThrowIfNull(principal);
+            if (principal.Relay is not { } relay) return null;
+            if (principal.AssertedMember is not { Length: > 0 } memberId) return null;
+
+            return new MemberViaRelay(
+                memberId,
+                new AttestationRelay(principal.Id, relay.ChannelIdentity, relay.MessageId));
+        }
+
+        /// <inheritdoc cref="Member.FromStorage(string)"/>
+        public static MemberViaRelay FromStorage(string memberId, AttestationRelay relay)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(memberId);
+            ArgumentNullException.ThrowIfNull(relay);
+            return new MemberViaRelay(memberId, relay);
+        }
     }
 
     /// <summary>
@@ -125,12 +227,49 @@ public abstract record Attestor
     /// in the same operation that files the entry approved — there is no window in which an approved
     /// write has no attribution.
     /// </summary>
-    /// <param name="PolicyId">The host's id for the policy that fired.</param>
-    /// <param name="Version">The version of that policy, so a later reader can tell what it said at the time.</param>
-    public sealed record StandingOrder(string PolicyId, string Version) : Attestor
+    public sealed record StandingOrder : Attestor
     {
+        private StandingOrder(string policyId, string version)
+        {
+            PolicyId = policyId;
+            Version = version;
+        }
+
+        /// <summary>The host's id for the policy that fired.</summary>
+        public string PolicyId { get; }
+
+        /// <summary>The version of that policy, so a later reader can tell what it said at the time.</summary>
+        public string Version { get; }
+
         /// <inheritdoc/>
         public override string Kind => "standing-order";
+
+        /// <summary>
+        /// The attestation the pipeline writes when a policy approves with no person present. Not
+        /// reachable from a <see cref="Principal"/>: nobody decided, so there is nobody to name.
+        /// </summary>
+        /// <param name="policyId">The policy that fired.</param>
+        /// <param name="version">
+        /// Its version, or <c>null</c> when the policy declares none — recorded as
+        /// <see cref="Unversioned"/> rather than left blank, so a reader can tell "this policy does
+        /// not version itself" from "the version was lost".
+        /// </param>
+        public static StandingOrder Of(string policyId, string? version)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(policyId);
+            return new StandingOrder(policyId, version is { Length: > 0 } v ? v : Unversioned);
+        }
+
+        /// <inheritdoc cref="Member.FromStorage(string)"/>
+        public static StandingOrder FromStorage(string policyId, string version)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(policyId);
+            ArgumentException.ThrowIfNullOrWhiteSpace(version);
+            return new StandingOrder(policyId, version);
+        }
+
+        /// <summary>What is recorded for a policy that declares no version of its own.</summary>
+        public const string Unversioned = "unversioned";
     }
 }
 

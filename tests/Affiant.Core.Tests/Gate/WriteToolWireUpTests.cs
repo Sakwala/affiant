@@ -32,6 +32,57 @@ public class WriteToolWireUpTests
         Assert.Contains("CreateWidget", ex.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// AZ-2: who may decide is host policy, and the framework will not guess it. The gate fails
+    /// closed without one — the deny-all refuses every decision — so this check is not what makes
+    /// the application safe; it is what stops a host shipping a review loop in which no decision can
+    /// ever be accepted, and discovering that the first time a reviewer presses approve.
+    /// </summary>
+    [Fact]
+    public async Task AWriteToolWithNoDecisionAuthorizationPolicy_FailsAtStartup_NamingTheToolAndTheFix()
+    {
+        var validator = BuildValidator(
+            services => services.AddAffiantTool<WidgetStrategy>("CreateWidget", Operation.WriteCreate, "Widget"),
+            withDecisionAuthorization: false);
+
+        var ex = await Assert.ThrowsAsync<AffiantStartupException>(
+            () => validator.StartAsync(CancellationToken.None));
+
+        Assert.Contains(typeof(IDecisionAuthorizationPolicy).FullName!, ex.Message, StringComparison.Ordinal);
+        Assert.Contains("CreateWidget", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("AddDecisionAuthorization", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The acknowledgment exists for a host that deliberately runs the read and inference half with
+    /// no review loop. A host that has declared a write-capable tool is, by its own declaration, not
+    /// that host — and there is no option that turns the gate off for a tool it covers.
+    /// </summary>
+    [Fact]
+    public async Task TheAcknowledgmentDoesNotWaiveTheAuthorizationPolicy_ForADeclaredWriteTool()
+    {
+        var validator = BuildValidator(
+            services => services.AddAffiantTool<WidgetStrategy>("CreateWidget", Operation.WriteCreate, "Widget"),
+            configureCore: options => options.AcknowledgeMissingReviewWiring = true,
+            withDecisionAuthorization: false);
+
+        var ex = await Assert.ThrowsAsync<AffiantStartupException>(
+            () => validator.StartAsync(CancellationToken.None));
+
+        Assert.Contains(typeof(IDecisionAuthorizationPolicy).FullName!, ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AReadOnlyHost_NeedsNoDecisionAuthorizationPolicy()
+    {
+        var validator = BuildValidator(
+            services => services.AddAffiantReadTool("FindWidget", "Widget"),
+            withReviewContextProvider: false,
+            withDecisionAuthorization: false);
+
+        await validator.StartAsync(CancellationToken.None); // must not throw
+    }
+
     [Fact]
     public async Task AWriteToolWithTheReviewLoopWired_StartsCleanly()
     {
@@ -75,7 +126,8 @@ public class WriteToolWireUpTests
     private static AffiantWireUpValidator BuildValidator(
         Action<IServiceCollection> wiring,
         bool withReviewContextProvider = true,
-        Action<AffiantCoreOptions>? configureCore = null)
+        Action<AffiantCoreOptions>? configureCore = null,
+        bool withDecisionAuthorization = true)
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -85,6 +137,8 @@ public class WriteToolWireUpTests
         services.AddScoped<ReviewGate>();
         if (withReviewContextProvider)
             services.AddSingleton<IReviewContextProvider, UnusedReviewContextProvider>();
+        if (withDecisionAuthorization)
+            services.AddDecisionAuthorization<AllowAllDecisionAuthorization>();
         wiring(services);
 
         return services.BuildServiceProvider()

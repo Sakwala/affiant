@@ -107,7 +107,7 @@ public class StandingOrderPolicyTests
     {
         var policy = new NeverMatchingOrder();
 
-        var result = await policy.EvaluateAsync(EmptyAffidavit());
+        var result = await policy.EvaluateAsync(EmptyAffidavit(), TestIdentities.Anyone);
 
         Assert.Null(result);
     }
@@ -118,7 +118,7 @@ public class StandingOrderPolicyTests
         // Subclass overriding only MatchesAsync, no risk ceiling, no calculator anywhere.
         var policy = new AlwaysMatchingOrder();
 
-        var result = await policy.EvaluateAsync(EmptyAffidavit());
+        var result = await policy.EvaluateAsync(EmptyAffidavit(), TestIdentities.Anyone);
 
         Assert.Equal(ReviewRequirement.StandingOrder, result!.Requirement);
     }
@@ -131,7 +131,7 @@ public class StandingOrderPolicyTests
         var policy = new LowCeilingOrder();
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => policy.EvaluateAsync(EmptyAffidavit()));
+            () => policy.EvaluateAsync(EmptyAffidavit(), TestIdentities.Anyone));
 
         Assert.Contains(nameof(LowCeilingOrder), ex.Message);
         Assert.Contains("SetRiskScoreCalculator<T>()", ex.Message);
@@ -144,7 +144,7 @@ public class StandingOrderPolicyTests
         var policy = new NeverMatchingCeilingOrder();
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => policy.EvaluateAsync(EmptyAffidavit()));
+            () => policy.EvaluateAsync(EmptyAffidavit(), TestIdentities.Anyone));
 
         Assert.Contains("SetRiskScoreCalculator<T>()", ex.Message);
         Assert.False(policy.MatcherWasCalled);
@@ -158,7 +158,7 @@ public class StandingOrderPolicyTests
         var policy = new LateThresholdOrder();
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => policy.EvaluateAsync(EmptyAffidavit()));
+            () => policy.EvaluateAsync(EmptyAffidavit(), TestIdentities.Anyone));
 
         Assert.Contains(nameof(LateThresholdOrder), ex.Message);
         Assert.Contains("SetRiskScoreCalculator<T>()", ex.Message);
@@ -169,7 +169,7 @@ public class StandingOrderPolicyTests
     {
         var policy = new LowCeilingOrder(new FixedScoreCalculator((int)RiskLevel.Low));
 
-        var result = await policy.EvaluateAsync(EmptyAffidavit());
+        var result = await policy.EvaluateAsync(EmptyAffidavit(), TestIdentities.Anyone);
 
         Assert.Equal(ReviewRequirement.StandingOrder, result!.Requirement);
     }
@@ -185,7 +185,7 @@ public class StandingOrderPolicyTests
     {
         var policy = new LowCeilingOrder(new FixedScoreCalculator((int)RiskLevel.High));
 
-        var result = await policy.EvaluateAsync(EmptyAffidavit());
+        var result = await policy.EvaluateAsync(EmptyAffidavit(), TestIdentities.Anyone);
 
         Assert.Equal(ReviewRequirement.ReviewerConfirmation, result!.Requirement);
         Assert.Equal(ReviewRequirement.StandingOrder, result.DegradedFrom);
@@ -197,7 +197,7 @@ public class StandingOrderPolicyTests
     {
         var policy = new HighCeilingOrder(new FixedScoreCalculator((int)RiskLevel.High));
 
-        var result = await policy.EvaluateAsync(EmptyAffidavit());
+        var result = await policy.EvaluateAsync(EmptyAffidavit(), TestIdentities.Anyone);
 
         Assert.Equal(ReviewRequirement.StandingOrder, result!.Requirement);
     }
@@ -211,7 +211,7 @@ public class StandingOrderPolicyTests
         var policy = new NeverMatchingOrder();
 
         // NeverMatchingOrder completes synchronously; even with a cancelled token it returns null.
-        var result = await policy.EvaluateAsync(EmptyAffidavit(), cts.Token);
+        var result = await policy.EvaluateAsync(EmptyAffidavit(), TestIdentities.Anyone, cts.Token);
 
         Assert.Null(result);
     }

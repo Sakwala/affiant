@@ -13,6 +13,191 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
 
 ## [Unreleased]
 
+### Decisions, attestation and identity as the rulebook defines them
+
+Until this release the framework's decision path accepted any entry id from any caller. There was no
+identity check, no tenant check, and no seam through which a host could supply one — so every host
+hand-rolled its own guard, and the guard a demo host actually wrote compared the reviewer id, never
+the tenant, and *permitted* the action when identity resolution itself failed. A demo-friendly
+fail-open on unresolved identity is an authorization bypass the moment a real deployment's identity
+resolution can fail, which it eventually will. Nothing recorded who approved a write either: the row
+said which reviewer a card had been routed to at filing time and nothing about who decided, so a host
+with any audit requirement that asks "who, specifically, approved this" had nowhere to look.
+
+Both are closed here, in the framework, so every host gets the same answer.
+
+#### Added
+
+- **`IDecisionAuthorizationPolicy` — the host's answer to "may this principal act on this entry".**
+  Registered with `services.AddDecisionAuthorization<TPolicy>()`. The framework does the parts a host
+  should not have to get right and delegates the one only a host can answer. In order, before any
+  transition: an unresolved principal is refused with `decision-unauthorized` **before the Docket is
+  read**; an entry outside the caller's tenant is `entry-not-found` — never "forbidden", because
+  telling a caller that an id it may not touch exists is the leak the check is for — and the row's
+  own tenant is compared by the framework rather than trusted from the store, so a store with a scope
+  bug does not make the gate fall open; then the host's port, where `false` **and a throw** both
+  refuse, because a callback that fell over has not said yes.
+- **`DenyAllDecisionAuthorization`, the default.** A host that registers no port refuses every
+  decision rather than admitting every decision. Obviously broken, and broken in the direction that
+  cannot approve a write nobody was entitled to approve. `AffiantWireUpValidator` refuses at startup
+  when the application declares a write-capable tool and no policy is registered, so no host runs on
+  the deny-all by accident; `AcknowledgeMissingReviewWiring` does not waive it, for the same reason it
+  waives nothing else that names a declared write tool.
+- **`Principal` and `DecisionContext` (in `Affiant.Abstractions`).** `Principal.Member` is a
+  human-verified session; `Principal.Service` is a machine caller that may name the person it speaks
+  for and the relay assertion that carried them. `DecisionContext` carries the principal, the tenant,
+  the conversation, the channel, the reviewer's reason and the act's instant — passed at the call
+  site, never resolved from ambient state, and with no unattributed variant to fall back on.
+- **The attestation on the row (`DocketEntry.Attestation`), written by the decision.** A `Member`
+  principal attests `member`. A `Service` principal carrying both an asserted member and a relay
+  assertion attests `member-via-relay`, naming the person *and* the relay — the record must not read
+  as though the person signed in directly. A `Service` principal with neither is refused: a machine
+  cannot agree to a write in a person's name. **The rule is structural**: every attestor kind's
+  constructor is private and the only factory that produces a `member` attestation takes a
+  `Principal.Member`, so there is no expression anywhere through which a machine caller reaches one —
+  a compiler rejects the shortcut before a reviewer has to notice it.
+- **A Standing Order's approval is attested too**, in the same operation that files the entry
+  approved: `standing-order` naming the policy and the version it fired under. There is no window in
+  which an approved write has no attribution. A policy that versions nothing records
+  `"unversioned"` rather than a blank, because "this policy does not version itself" and "the version
+  was lost" are different facts.
+- **`ReviewGate.MarkExecutedAsync(entryId, outcome, detail, context)` — the only path to an executed
+  write.** The host runs its own executor against the attested row and reports what happened, once,
+  under a guarded compare-and-set out of `unexecuted`; a second report is refused with
+  `execution-already-recorded` and the first stands. The status stays `Approved`: the approval
+  happened and is not undone by a failed write. A machine caller is admitted here and refused as a
+  decider — reporting an outcome is a statement of fact about work the host performed, while a
+  decision is an act of authority a machine may never make in a person's name.
+- **`ApprovalVerdict.PolicyId` / `PolicyVersion`, and `IApprovalPolicy.PolicyId` / `PolicyVersion`.**
+  The chain stamps which policy spoke onto the verdict rather than trusting the policy to report
+  itself: a record of who approved a write has to be the framework's answer.
+- **`ConversationIdentity.TenantId` and `.Channel`**, and `ReviewContext.Channel` /
+  `.ConversationStartedAt` so a host can supply them.
+- **`AffidavitFieldValues`** — the store-boundary converter that reads a filed Affidavit's values
+  back as the CLR values they were filed as.
+- **`EvidenceCardResponse.Attestation`** — the in-process hand-off from the call that receives a
+  decision to the call that writes the row, so a review a blocking `FileReviewAsync` is holding open
+  is recorded with the same attestation the non-blocking path writes. `[JsonIgnore]`: it is never on
+  the wire and never read from a client, because a client that could name whose signature a decision
+  is would be the whole problem.
+
+#### Fixed
+
+- **A stored Affidavit no longer scores differently from the one that was filed.** Field values are
+  `object?`, so a round trip through any store handed every field back as a raw JSON element rather
+  than the number, string or boolean the projection put there — and a host risk scorer that
+  pattern-matches on a value's type then saw an unrecognised type for every field of every stored row
+  and fell through to its default grade. Identical content scored one way when first filed and
+  another way when resubmitted, which is the path that always reads the record back out. The EF
+  stores now read values, previous values and amendment maps back typed, and a resubmission re-reads
+  both the Affidavit and the preserved corrections through the same converter.
+- **`docket.transition` and `decision.unauthorized` carry what they were always meant to.** The
+  transition event names the execution outcome and the attestation kind; the refusal event names the
+  principal kind and the entry point (`decide`, `mark-executed`, `resubmit`) and fires on every
+  refusal path, not only the decide one.
+
+#### Changed — breaking
+
+Pre-1.0 breaking changes are permitted by this repository's prerelease-stability policy and are
+declared here, in `PublicAPI.Unshipped.txt` and in each package's `CompatibilitySuppressions.xml`.
+
+1. **`ReviewGate.HandleDecisionAsync` takes a `DecisionContext`.** The four fail-open overloads it
+   had — including the parameterless-identity one — are gone. There is deliberately no overload that
+   omits the principal or the tenant: an overload that defaulted them would be the fail-open this
+   change exists to close.
+   ```csharp
+   // before
+   await gate.HandleDecisionAsync(entryId, ApprovalDecision.Approved, amendments);
+
+   // after
+   await gate.HandleDecisionAsync(
+       entryId,
+       ApprovalDecision.Approved,
+       new DecisionContext(
+           new Principal.Member(currentUser.Id),   // or Principal.Service(...) for a relay
+           TenantId: currentUser.TenantId,
+           ConversationId: sessionId,
+           Channel: "web",
+           Reason: reviewerReason),
+       amendments);
+   ```
+2. **`ReviewGate.ResubmitAsync` takes a `DecisionContext` too**, and runs the same checks: a caller
+   that could not have decided the entry cannot re-open it either. It now *returns* a
+   `ReviewFilingResult.Decided` carrying a refusal where it used to throw `InvalidOperationException`
+   for an entry that is not visible in the caller's tenant; a non-expired entry and a lost
+   resubmission race still throw.
+3. **An `IDecisionAuthorizationPolicy` is required** wherever a write-capable tool is declared. A host
+   that registers none starts refusing every decision and is refused at startup.
+4. **`IApprovalPolicy.EvaluateAsync` and `IApprovalPolicyEvaluator.EvaluateAsync` take a
+   `ConversationIdentity`** — the parameter the specification has always declared. Identity is
+   supplied so a policy can *bind* (a member-bound or tenant-bound Standing Order, an order that
+   trusts one channel and not another); authorizing the actor is the framework's job and is never
+   delegated to a policy. A policy that has nothing to bind to ignores the parameter, as the built-in
+   ones do.
+   ```csharp
+   // before
+   public Task<ApprovalVerdict?> EvaluateAsync(Affidavit affidavit, CancellationToken ct = default)
+
+   // after
+   public Task<ApprovalVerdict?> EvaluateAsync(
+       Affidavit affidavit, ConversationIdentity identity, CancellationToken ct = default)
+   ```
+5. **`StandingOrderBase.PolicyId` and `.PolicyVersion` are `public virtual`**, not `protected
+   virtual`: they now implement `IApprovalPolicy` members, because a Standing Order's approval is
+   attributed to the policy on the Docket row. A subclass that overrode either changes `protected
+   override` to `public override`.
+
+#### Migration — the host-side ownership check comes out
+
+A host that guards `HandleDecisionAsync` itself today should **delete that guard** and register an
+`IDecisionAuthorizationPolicy` instead. The framework now refuses an unresolved principal before it
+reads the Docket, and compares the row's tenant with the caller's itself; a host-side check that
+repeats either is dead code that can only drift from the framework's. What is left for the host is
+the one question the framework has no opinion about — whether *this* person, in a tenant that already
+matched, is one of the people entitled to decide *this* row:
+
+```csharp
+services.AddDecisionAuthorization<ReviewerOrManager>();
+
+internal sealed class ReviewerOrManager(IMembership membership) : IDecisionAuthorizationPolicy
+{
+    public async Task<bool> MayDecideAsync(
+        Principal principal, DocketEntry entry, CancellationToken ct)
+    {
+        // The tenant already matched and the principal is resolved — the gate saw to both.
+        var memberId = principal switch
+        {
+            Principal.Member member => member.Id,
+            Principal.Service { AssertedMember: { } asserted } => asserted,
+            _ => null,
+        };
+        if (memberId is null) return false;
+
+        return memberId == entry.ReviewerUserId
+            || await membership.IsApprovalManagerAsync(memberId, entry.TenantId, ct);
+    }
+}
+```
+
+Then, at the decision seam, build a `DecisionContext` from whatever the host authenticated — and pass
+`Principal: null` when it could not authenticate anybody, rather than inventing an id. The gate
+refuses that, which is the point.
+
+A host whose executor runs after approval reports the outcome once it knows it:
+
+```csharp
+var result = await writeExecutor.ExecuteAsync(approved.AmendedAffidavit ?? entry.Envelope, identity, ct);
+await gate.MarkExecutedAsync(
+    entry.EntryId,
+    result.Success ? ExecutionOutcome.Executed : ExecutionOutcome.Failed,
+    result.EntityId ?? result.ErrorMessage,
+    context,
+    ct);
+```
+
+Retries are the host's business; the outcome is the Docket's, and it is recorded once.
+
+
 ### The Affidavit as the rules define it
 
 The record every write proposal is wrapped in now says what the specification always claimed it

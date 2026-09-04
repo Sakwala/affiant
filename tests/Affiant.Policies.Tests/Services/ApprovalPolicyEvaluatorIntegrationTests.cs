@@ -54,7 +54,8 @@ public class ApprovalPolicyEvaluatorIntegrationTests
     {
         public int CallCount { get; private set; }
 
-        public Task<ApprovalVerdict?> EvaluateAsync(Affidavit affidavit, CancellationToken ct = default)
+        public Task<ApprovalVerdict?> EvaluateAsync(
+        Affidavit affidavit, ConversationIdentity identity, CancellationToken ct = default)
         {
             CallCount++;
             return Task.FromResult<ApprovalVerdict?>(null);
@@ -82,7 +83,7 @@ public class ApprovalPolicyEvaluatorIntegrationTests
     {
         var evaluator = new ApprovalPolicyEvaluator(Array.Empty<IApprovalPolicy>());
 
-        var result = await evaluator.EvaluateAsync(MakeAffidavit());
+        var result = await evaluator.EvaluateAsync(MakeAffidavit(), TestIdentities.Anyone);
 
         Assert.Equal(ReviewRequirement.ReviewerConfirmation, result!.Requirement);
     }
@@ -96,7 +97,7 @@ public class ApprovalPolicyEvaluatorIntegrationTests
         var sp = services.BuildServiceProvider();
         var evaluator = sp.GetRequiredService<ApprovalPolicyEvaluator>();
 
-        var result = await evaluator.EvaluateAsync(MakeAffidavit());
+        var result = await evaluator.EvaluateAsync(MakeAffidavit(), TestIdentities.Anyone);
 
         Assert.Equal(ReviewRequirement.ReviewerConfirmation, result!.Requirement);
     }
@@ -113,7 +114,7 @@ public class ApprovalPolicyEvaluatorIntegrationTests
         };
         var evaluator = new ApprovalPolicyEvaluator(policies);
 
-        var result = await evaluator.EvaluateAsync(MakeAffidavit());
+        var result = await evaluator.EvaluateAsync(MakeAffidavit(), TestIdentities.Anyone);
 
         Assert.Equal(ReviewRequirement.ReferralRequired, result!.Requirement);
         Assert.Equal(1, neverPolicy.CallCount);  // NeverMatchingPolicy was called once then chain stopped at Referral
@@ -137,8 +138,8 @@ public class ApprovalPolicyEvaluatorIntegrationTests
         });
 
         var affidavit = MakeAffidavit();
-        var resultA = await evaluatorA.EvaluateAsync(affidavit);
-        var resultB = await evaluatorB.EvaluateAsync(affidavit);
+        var resultA = await evaluatorA.EvaluateAsync(affidavit, TestIdentities.Anyone);
+        var resultB = await evaluatorB.EvaluateAsync(affidavit, TestIdentities.Anyone);
 
         Assert.Equal(ReviewRequirement.StandingOrder, resultA!.Requirement);
         Assert.Equal(ReviewRequirement.ReferralRequired, resultB!.Requirement);
@@ -159,7 +160,7 @@ public class ApprovalPolicyEvaluatorIntegrationTests
         using var scope = sp.CreateScope();
         var evaluator = scope.ServiceProvider.GetRequiredService<ApprovalPolicyEvaluator>();
 
-        var result = await evaluator.EvaluateAsync(MakeAffidavit());
+        var result = await evaluator.EvaluateAsync(MakeAffidavit(), TestIdentities.Anyone);
 
         Assert.Equal(ReviewRequirement.StandingOrder, result!.Requirement);
     }
@@ -173,7 +174,7 @@ public class ApprovalPolicyEvaluatorIntegrationTests
             new LowRiskAutoApprovalOrder(new FixedScoreCalculator((int)RiskLevel.Low))
         });
 
-        var result = await evaluator.EvaluateAsync(MakeAffidavit());
+        var result = await evaluator.EvaluateAsync(MakeAffidavit(), TestIdentities.Anyone);
 
         Assert.Equal(ReviewRequirement.StandingOrder, result!.Requirement);
     }
@@ -188,7 +189,7 @@ public class ApprovalPolicyEvaluatorIntegrationTests
             new LowRiskAutoApprovalOrder(new FixedScoreCalculator((int)RiskLevel.High))
         });
 
-        var result = await evaluator.EvaluateAsync(MakeAffidavit());
+        var result = await evaluator.EvaluateAsync(MakeAffidavit(), TestIdentities.Anyone);
 
         Assert.Equal(ReviewRequirement.ReviewerConfirmation, result!.Requirement);
     }
@@ -207,7 +208,7 @@ public class ApprovalPolicyEvaluatorIntegrationTests
         using var scope = sp.CreateScope();
         var evaluator = scope.ServiceProvider.GetRequiredService<ApprovalPolicyEvaluator>();
 
-        var result = await evaluator.EvaluateAsync(MakeAffidavit());
+        var result = await evaluator.EvaluateAsync(MakeAffidavit(), TestIdentities.Anyone);
 
         Assert.Equal(ReviewRequirement.StandingOrder, result!.Requirement);
     }

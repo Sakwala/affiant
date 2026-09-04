@@ -43,7 +43,17 @@ public abstract class ReferralRuleBase : IApprovalPolicy
     /// <inheritdoc />
     TimeSpan? IApprovalPolicy.DefaultTimeToLive => ReferralTimeToLive;
 
-    public async Task<ApprovalVerdict?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
+    /// <param name="affidavit">The proposed write, as sworn.</param>
+    /// <param name="identity">
+    /// Where the proposal came from — the conversation, the person, the tenant and the channel.
+    /// Supplied so a rule can <em>bind</em> to one of them; never a statement about who may approve,
+    /// which the framework decides through <c>IDecisionAuthorizationPolicy</c>.
+    /// </param>
+    /// <param name="cancellationToken">Caller cancellation.</param>
+    public async Task<ApprovalVerdict?> EvaluateAsync(
+        Affidavit affidavit,
+        ConversationIdentity identity,
+        CancellationToken cancellationToken = default)
     {
         if (!await MatchesAsync(affidavit, cancellationToken).ConfigureAwait(false))
             return null;

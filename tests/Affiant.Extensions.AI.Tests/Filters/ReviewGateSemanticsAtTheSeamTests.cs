@@ -173,7 +173,10 @@ public class ReviewGateSemanticsAtTheSeamTests
         // (c) decision applied — the reviewer approves the entry the card named.
         using var scope = sp.CreateScope();
         var gate = scope.ServiceProvider.GetRequiredService<ReviewGate>();
-        var (outcome, _) = await gate.HandleDecisionAsync(card.DocketId, ApprovalDecision.Approved);
+        var (outcome, _) = await gate.HandleDecisionAsync(
+            card.DocketId,
+            ApprovalDecision.Approved,
+            new DecisionContext(new Principal.Member("reviewer-1"), filed.TenantId));
 
         Assert.IsType<ReviewOutcome.Approved>(outcome);
         var resolved = Assert.Single(docket.Filed);

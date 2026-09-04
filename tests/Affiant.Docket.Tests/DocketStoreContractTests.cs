@@ -51,7 +51,7 @@ public sealed class DocketStoreContractTests
             new DocketTransitionPatch(
                 ReviewStatus.Approved,
                 Decision: new DecisionRecord(DecisionKind.Approve, "looks right", decidedAt),
-                Attestation: new Attestation(new Attestor.Member("member-1"), decidedAt, entry.EntryId),
+                Attestation: new Attestation(Attestor.Member.FromStorage("member-1"), decidedAt, entry.EntryId),
                 DecidedAt: decidedAt),
             CancellationToken.None);
 

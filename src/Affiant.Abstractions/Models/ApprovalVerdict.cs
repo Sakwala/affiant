@@ -49,12 +49,26 @@ namespace Affiant.Abstractions.Models;
 /// The requirement the policy originally named, when one of the three checks degraded it, else
 /// <see langword="null"/>.
 /// </param>
+/// <param name="PolicyId">
+/// The policy that produced this verdict, stamped by the chain rather than by the policy itself so
+/// it cannot be misreported. <see langword="null"/> only on the chain's own fallback verdict, which
+/// no policy produced. A <see cref="ReviewRequirement.StandingOrder"/> verdict carries it into the
+/// attestation the filing writes: a write approved with no person present still names who approved
+/// it, and "the policy" is the honest answer.
+/// </param>
+/// <param name="PolicyVersion">
+/// The version that policy declared when it fired, or <see langword="null"/> when it declares none.
+/// Recorded so a later reader can tell what the policy said at the time rather than what it says
+/// now.
+/// </param>
 public sealed record ApprovalVerdict(
     ReviewRequirement Requirement,
     TimeSpan? TimeToLive = null,
     string? Reason = null,
     string? BlockedReason = null,
-    ReviewRequirement? DegradedFrom = null)
+    ReviewRequirement? DegradedFrom = null,
+    string? PolicyId = null,
+    string? PolicyVersion = null)
 {
     /// <summary>
     /// A verdict that names a requirement and nothing else — the shape every <c>1.0.0-beta.1</c>

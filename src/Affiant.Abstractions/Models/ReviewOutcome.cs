@@ -125,6 +125,15 @@ public static class DocketRefusalCodes
 
     /// <summary>A second execution report arrived for a row whose outcome is already on the record.</summary>
     public const string ExecutionAlreadyRecorded = "execution-already-recorded";
+
+    /// <summary>
+    /// The caller may not act on this entry: no principal was resolved, the host's authorization
+    /// port declined or threw, or a machine caller with nothing to relay tried to attest a decision.
+    /// One code for all of them on purpose — the caller learns that it may not act and nothing about
+    /// which check said so, which is a different audience from the host's own
+    /// <c>decision.unauthorized</c> telemetry, where the four reasons are separate.
+    /// </summary>
+    public const string DecisionUnauthorized = "decision-unauthorized";
 }
 
 /// <summary>

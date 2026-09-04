@@ -87,6 +87,14 @@ public sealed class AffiantWireUpValidator(
         "are declared write-capable, and a proposal the gate cannot route to a reviewer is a write " +
         "nobody reviews";
 
+    private static string DecisionAuthorizationFix(IReadOnlyList<string> writeTools) =>
+        "call services.AddDecisionAuthorization<TPolicy>() with a policy that answers whether a " +
+        "principal may decide a given Docket entry — needed because " +
+        $"[{string.Join(", ", writeTools)}] are declared write-capable, and who may approve a " +
+        "write is the one question about the review loop the framework cannot answer for you. " +
+        "Without one the gate falls back to DenyAllDecisionAuthorization and every decision, " +
+        "execution report and resubmission is refused: safe, and unusable";
+
     private static string ReviewGateFix(IReadOnlyList<string> writeTools) =>
         "call services.AddAffiantCore(...) in this application's composition root — needed because " +
         $"[{string.Join(", ", writeTools)}] are declared write-capable and there is nothing " +
@@ -153,6 +161,18 @@ public sealed class AffiantWireUpValidator(
 
             if (!isService.IsService(typeof(ReviewGate)))
                 gateMissing.Add((typeof(ReviewGate).FullName!, ReviewGateFix(writeTools)));
+
+            // AZ-2: who may decide is host policy, and the framework will not guess it. The gate
+            // fails closed without one — DenyAllDecisionAuthorization refuses everything — so this
+            // check is not what makes the application safe; it is what stops a host from shipping a
+            // review loop in which no decision can ever be accepted, and from discovering that the
+            // first time a reviewer presses approve.
+            if (!isService.IsService(typeof(IDecisionAuthorizationPolicy)))
+            {
+                gateMissing.Add((
+                    typeof(IDecisionAuthorizationPolicy).FullName!,
+                    DecisionAuthorizationFix(writeTools)));
+            }
         }
 
         if (missing.Count == 0 && gateMissing.Count == 0) return Task.CompletedTask;

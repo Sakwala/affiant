@@ -84,11 +84,11 @@ internal static class DocketRowSerialization
         var kind = (string?)by["kind"];
         Attestor attestor = kind switch
         {
-            "member" => new Attestor.Member(Required(by, "id")),
-            "member-via-relay" => new Attestor.MemberViaRelay(
+            "member" => Attestor.Member.FromStorage(Required(by, "id")),
+            "member-via-relay" => Attestor.MemberViaRelay.FromStorage(
                 Required(by, "memberId"),
                 ReadRelay(by["relay"]?.AsObject())),
-            "standing-order" => new Attestor.StandingOrder(
+            "standing-order" => Attestor.StandingOrder.FromStorage(
                 Required(by, "policyId"), Required(by, "version")),
             _ => throw new InvalidOperationException(
                 $"Unknown attestor kind '{kind}' on a stored attestation. A row whose attestation " +
@@ -230,6 +230,12 @@ internal static class DocketRowSerialization
     /// the reviewer cleared the field, an absent key means they left it untouched, and an
     /// implementation never conflates the two.
     /// </summary>
+    /// <remarks>
+    /// Values come back as the CLR values they were written as, not as raw JSON elements: a
+    /// resubmission prefills these into the new proposal's fields, where a host risk scorer that
+    /// pattern-matches on the value's type would otherwise see a type it does not recognise for
+    /// every corrected field.
+    /// </remarks>
     public static IReadOnlyDictionary<string, object?>? ReadAmendments(string? json)
     {
         if (string.IsNullOrEmpty(json)) return null;
@@ -237,16 +243,10 @@ internal static class DocketRowSerialization
         var raw = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json, s_options);
         if (raw is null) return null;
 
-        var result = new Dictionary<string, object?>(raw.Count);
+        var result = new Dictionary<string, object?>(raw.Count, StringComparer.Ordinal);
         foreach (var (k, v) in raw)
-        {
-            result[k] = v.ValueKind switch
-            {
-                JsonValueKind.Null => null,
-                JsonValueKind.String => v.GetString(),
-                _ => v
-            };
-        }
+            result[k] = AffidavitFieldValues.Typed(v, kind: null);
+
         return result;
     }
 

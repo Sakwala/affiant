@@ -141,7 +141,7 @@ public class RiskConfigurationTests
         // while the base constructor runs.
         var policy = Assert.Single(scope.ServiceProvider.GetServices<IApprovalPolicy>());
 
-        Assert.Equal(ReviewRequirement.StandingOrder, (await policy.EvaluateAsync(EmptyAffidavit()))!.Requirement);
+        Assert.Equal(ReviewRequirement.StandingOrder, (await policy.EvaluateAsync(EmptyAffidavit(), TestIdentities.Anyone))!.Requirement);
     }
 
     [Fact]
@@ -157,7 +157,7 @@ public class RiskConfigurationTests
         var policy = Assert.Single(scope.ServiceProvider.GetServices<IApprovalPolicy>());
 
         // Held back by the ceiling degrades to a person; it does not vanish (GT-5).
-        var verdict = await policy.EvaluateAsync(EmptyAffidavit());
+        var verdict = await policy.EvaluateAsync(EmptyAffidavit(), TestIdentities.Anyone);
         Assert.Equal(ReviewRequirement.ReviewerConfirmation, verdict!.Requirement);
         Assert.Equal(StandingOrderBlockedReasons.RiskAboveThreshold, verdict.BlockedReason);
     }
@@ -173,7 +173,7 @@ public class RiskConfigurationTests
         var policy = Assert.Single(scope.ServiceProvider.GetServices<IApprovalPolicy>());
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => policy.EvaluateAsync(EmptyAffidavit()));
+            () => policy.EvaluateAsync(EmptyAffidavit(), TestIdentities.Anyone));
 
         Assert.Contains(nameof(ConfigDrivenOrder), ex.Message);
         Assert.Contains("SetRiskScoreCalculator<T>()", ex.Message);
@@ -194,7 +194,7 @@ public class RiskConfigurationTests
         var policy = Assert.Single(scope.ServiceProvider.GetServices<IApprovalPolicy>());
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => policy.EvaluateAsync(EmptyAffidavit()));
+            () => policy.EvaluateAsync(EmptyAffidavit(), TestIdentities.Anyone));
 
         Assert.Contains(nameof(Beta1ShapeOrder), ex.Message);
         Assert.Contains("SetRiskScoreCalculator<T>()", ex.Message);
@@ -212,7 +212,7 @@ public class RiskConfigurationTests
         using var scope = services.BuildServiceProvider().CreateScope();
         var policy = Assert.Single(scope.ServiceProvider.GetServices<IApprovalPolicy>());
 
-        Assert.Equal(ReviewRequirement.StandingOrder, (await policy.EvaluateAsync(EmptyAffidavit()))!.Requirement);
+        Assert.Equal(ReviewRequirement.StandingOrder, (await policy.EvaluateAsync(EmptyAffidavit(), TestIdentities.Anyone))!.Requirement);
     }
 
     [Fact]
@@ -225,7 +225,7 @@ public class RiskConfigurationTests
         var policy = Assert.Single(scope.ServiceProvider.GetServices<IApprovalPolicy>());
 
         // No ceiling means the placeholder is never asked to score anything.
-        Assert.Equal(ReviewRequirement.StandingOrder, (await policy.EvaluateAsync(EmptyAffidavit()))!.Requirement);
+        Assert.Equal(ReviewRequirement.StandingOrder, (await policy.EvaluateAsync(EmptyAffidavit(), TestIdentities.Anyone))!.Requirement);
     }
 
     // ── The optional eager check ──────────────────────────────────────────────
@@ -312,7 +312,7 @@ public class RiskConfigurationTests
         using var scope = services.BuildServiceProvider().CreateScope();
         var policies = scope.ServiceProvider.GetServices<IApprovalPolicy>().ToList();
 
-        Assert.Equal(ReviewRequirement.StandingOrder, (await policies[0].EvaluateAsync(EmptyAffidavit()))!.Requirement);
+        Assert.Equal(ReviewRequirement.StandingOrder, (await policies[0].EvaluateAsync(EmptyAffidavit(), TestIdentities.Anyone))!.Requirement);
     }
 
     [Fact]
@@ -322,7 +322,7 @@ public class RiskConfigurationTests
             new ThresholdConfig { Ceiling = (int)RiskLevel.Medium },
             new FixedScoreCalculator((int)RiskLevel.Medium));
 
-        Assert.Equal(ReviewRequirement.StandingOrder, (await policy.EvaluateAsync(EmptyAffidavit()))!.Requirement);
+        Assert.Equal(ReviewRequirement.StandingOrder, (await policy.EvaluateAsync(EmptyAffidavit(), TestIdentities.Anyone))!.Requirement);
     }
 
     // ── The placeholder scorer's own lifetime ──────────────────────────────────
@@ -355,6 +355,6 @@ public class RiskConfigurationTests
 
         var policy = Assert.Single(provider.GetServices<IApprovalPolicy>());
 
-        Assert.Equal(ReviewRequirement.StandingOrder, (await policy.EvaluateAsync(EmptyAffidavit()))!.Requirement);
+        Assert.Equal(ReviewRequirement.StandingOrder, (await policy.EvaluateAsync(EmptyAffidavit(), TestIdentities.Anyone))!.Requirement);
     }
 }

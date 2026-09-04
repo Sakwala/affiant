@@ -26,7 +26,7 @@ public class StandingOrderTelemetryTests
     {
         using var probe = new TelemetryProbe();
 
-        await new ByTheBookOrder().EvaluateAsync(NoFields());
+        await new ByTheBookOrder().EvaluateAsync(NoFields(), TestIdentities.Anyone);
 
         var attributes = probe.Attributes(TelemetryKeys.StandingOrderFired);
         Assert.Equal(typeof(ByTheBookOrder).FullName, attributes[TelemetryKeys.Attributes.PolicyId]);
@@ -39,7 +39,7 @@ public class StandingOrderTelemetryTests
     {
         using var probe = new TelemetryProbe();
 
-        await new UnderThresholdOrder().EvaluateAsync(NoFields());
+        await new UnderThresholdOrder().EvaluateAsync(NoFields(), TestIdentities.Anyone);
 
         var attributes = probe.Attributes(TelemetryKeys.StandingOrderFired);
         Assert.Equal((int)RiskLevel.Low, attributes[TelemetryKeys.Attributes.RiskScore]);
@@ -51,7 +51,7 @@ public class StandingOrderTelemetryTests
     {
         using var probe = new TelemetryProbe();
 
-        var verdict = await new OverThresholdOrder().EvaluateAsync(HighValue());
+        var verdict = await new OverThresholdOrder().EvaluateAsync(HighValue(), TestIdentities.Anyone);
 
         // The order matched and had an opinion, so it degrades to ReviewerConfirmation rather
         // than returning null and letting a later policy speak as though it never fired.
@@ -74,7 +74,7 @@ public class StandingOrderTelemetryTests
     {
         using var probe = new TelemetryProbe();
 
-        await new NeverMatchingOrder().EvaluateAsync(NoFields());
+        await new NeverMatchingOrder().EvaluateAsync(NoFields(), TestIdentities.Anyone);
 
         Assert.False(probe.Saw(TelemetryKeys.StandingOrderFired));
         Assert.False(probe.Saw(TelemetryKeys.StandingOrderBlocked));
@@ -85,7 +85,7 @@ public class StandingOrderTelemetryTests
     {
         using var probe = new TelemetryProbe();
 
-        await new VersionedOrder().EvaluateAsync(NoFields());
+        await new VersionedOrder().EvaluateAsync(NoFields(), TestIdentities.Anyone);
 
         var attributes = probe.Attributes(TelemetryKeys.StandingOrderFired);
         Assert.Equal("payments-v3", attributes[TelemetryKeys.Attributes.PolicyId]);
@@ -141,9 +141,9 @@ public class StandingOrderTelemetryTests
 
     private sealed class VersionedOrder() : StandingOrderBase(new LowScoringCalculator())
     {
-        protected override string PolicyId => "payments-v3";
+        public override string PolicyId => "payments-v3";
 
-        protected override string? PolicyVersion => "3";
+        public override string? PolicyVersion => "3";
 
         protected override Task<bool> MatchesAsync(Affidavit affidavit, CancellationToken ct)
             => Task.FromResult(true);

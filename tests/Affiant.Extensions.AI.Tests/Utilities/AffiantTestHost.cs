@@ -80,6 +80,10 @@ internal static class AffiantTestHost
         services.AddSingleton<IDocketStore>(docketStore);
         services.AddSingleton(approvalPolicy ?? new StandingOrderPolicy());
         services.AddSingleton<IApprovalPolicyEvaluator, ApprovalPolicyEvaluator>();
+
+        // Who may decide is the host's answer (AZ-2), and the framework's default refuses everyone.
+        // This host admits everyone: these tests are about the seam, not about authorization.
+        services.AddSingleton<IDecisionAuthorizationPolicy, AdmitEveryone>();
         services.AddSingleton<IReviewContextProvider>(new DelegatingReviewContextProvider(
             _ => BuildReviewContext()));
 
@@ -121,7 +125,8 @@ internal static class AffiantTestHost
 
     private sealed class StandingOrderPolicy : IApprovalPolicy
     {
-        public Task<ApprovalVerdict?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
+        public Task<ApprovalVerdict?> EvaluateAsync(
+        Affidavit affidavit, ConversationIdentity identity, CancellationToken cancellationToken = default)
             => Task.FromResult<ApprovalVerdict?>(ReviewRequirement.StandingOrder);
     }
 
@@ -176,8 +181,20 @@ internal sealed class StubInferenceChatClient : IChatClient
 internal sealed class ReviewerConfirmationPolicy : IApprovalPolicy
 {
     public Task<ApprovalVerdict?> EvaluateAsync(
-        Affidavit affidavit, CancellationToken cancellationToken = default)
+        Affidavit affidavit, ConversationIdentity identity, CancellationToken cancellationToken = default)
         => Task.FromResult<ApprovalVerdict?>(ReviewRequirement.ReviewerConfirmation);
+}
+
+/// <summary>
+/// The host authorization port for a seam test: every principal may act on every entry. The
+/// framework's own default is a deny-all, and these tests exercise the tool seam rather than the
+/// question of who is entitled to approve.
+/// </summary>
+internal sealed class AdmitEveryone : IDecisionAuthorizationPolicy
+{
+    public Task<bool> MayDecideAsync(
+        Principal principal, DocketEntry entry, CancellationToken cancellationToken = default)
+        => Task.FromResult(true);
 }
 
 /// <summary>

@@ -176,7 +176,8 @@ public class AffiantFunctionInvocationMiddlewareTests
 
     private sealed class StandingOrderPolicy : IApprovalPolicy
     {
-        public Task<ApprovalVerdict?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
+        public Task<ApprovalVerdict?> EvaluateAsync(
+        Affidavit affidavit, ConversationIdentity identity, CancellationToken cancellationToken = default)
             => Task.FromResult<ApprovalVerdict?>(ReviewRequirement.StandingOrder);
     }
 

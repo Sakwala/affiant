@@ -21,7 +21,19 @@ using Affiant.Abstractions.Models;
 /// <para>
 /// A policy decides the requirement and the review window only. It never performs the write, never
 /// files the docket entry, and is never the place to enforce authorization of the acting user —
-/// that is <see cref="IToolAuthorizationPolicy"/>'s job, evaluated earlier.
+/// that is <see cref="IToolAuthorizationPolicy"/>'s job at the tool seam and
+/// <see cref="IDecisionAuthorizationPolicy"/>'s at the decision, both enforced by the framework.
+/// </para>
+/// <para>
+/// <b>Identity is supplied so a policy can bind, never so it can authorize.</b> Every evaluation
+/// receives the <see cref="ConversationIdentity"/> of the turn that produced the proposal — the
+/// conversation, the person, the tenant and the channel — so an order can say "only for this
+/// member", "only inside this tenant", "only on our own web UI". That is binding: it decides what
+/// the policy is <em>about</em>. Whether the principal who eventually presses approve is entitled
+/// to do so is a different question the framework answers itself, before any transition, and it is
+/// never delegated here. The two are separated because a policy that authorises the actor is a
+/// policy every host has to get right, and an ownership check hand-rolled per host tends to check
+/// the acting user and not the tenant, and to fall open when identity is unresolved.
 /// </para>
 /// <para>
 /// <b>Two faults are refused at evaluation with nothing filed</b> (protocol rule CV-1): a verdict
@@ -43,7 +55,16 @@ public interface IApprovalPolicy
     /// the deadline still reads as one line.
     /// Implementations must be deterministic and stateless (no mutable fields).
     /// </summary>
-    Task<ApprovalVerdict?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default);
+    /// <param name="affidavit">The proposed write, as sworn.</param>
+    /// <param name="identity">
+    /// Where the proposal came from — the conversation, the person whose turn produced it, the
+    /// tenant and the channel. For <em>binding</em> only; see the interface's remarks.
+    /// </param>
+    /// <param name="cancellationToken">Caller cancellation.</param>
+    Task<ApprovalVerdict?> EvaluateAsync(
+        Affidavit affidavit,
+        ConversationIdentity identity,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// The provenance sources this policy predicates on (protocol rule PV-4). Empty — the default —
@@ -61,6 +82,27 @@ public interface IApprovalPolicy
     /// </para>
     /// </summary>
     IReadOnlyCollection<ProvenanceSource> DeclaredInputs => [];
+
+    /// <summary>
+    /// This policy's identity, on the <c>policy.id</c> telemetry attribute and — when it approves a
+    /// write with no person present — in the attestation the Docket row carries. Defaults to the
+    /// concrete type's full name, which is stable across releases in a way a display name is not.
+    /// Override it when a host names its policies in configuration and wants both keyed on that name.
+    /// </summary>
+    /// <remarks>
+    /// A Standing Order's approval is attributed to the policy that fired, because there is nobody
+    /// else to attribute it to (AZ-1). The chain stamps this onto the verdict rather than trusting a
+    /// policy to report itself: a record of who approved a write has to be the framework's answer.
+    /// </remarks>
+    string PolicyId => GetType().FullName ?? GetType().Name;
+
+    /// <summary>
+    /// This policy's own version, recorded alongside <see cref="PolicyId"/>, or
+    /// <see langword="null"/> when the policy does not version itself. Override it when a host
+    /// revises a policy's rules and needs to tell an approval made under the old rules from one made
+    /// under the new — a question an attestation written months ago is the only place to answer.
+    /// </summary>
+    string? PolicyVersion => null;
 
     /// <summary>
     /// This policy's own review window, used when its verdict names none (protocol rule GT-4), or

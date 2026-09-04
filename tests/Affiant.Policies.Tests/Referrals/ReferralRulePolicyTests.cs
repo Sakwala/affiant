@@ -43,7 +43,7 @@ public class ReferralRulePolicyTests
     {
         var rule = new ConfigurableReferralRule { ShouldMatch = false };
 
-        var result = await rule.EvaluateAsync(MakeAffidavit());
+        var result = await rule.EvaluateAsync(MakeAffidavit(), TestIdentities.Anyone);
 
         Assert.Null(result);
     }
@@ -53,7 +53,7 @@ public class ReferralRulePolicyTests
     {
         var rule = new ConfigurableReferralRule { ShouldMatch = true, ReferToUserId = "manager-123" };
 
-        var result = await rule.EvaluateAsync(MakeAffidavit());
+        var result = await rule.EvaluateAsync(MakeAffidavit(), TestIdentities.Anyone);
 
         Assert.NotNull(result);
         Assert.Equal(ReviewRequirement.ReferralRequired, result!.Requirement);
@@ -64,7 +64,7 @@ public class ReferralRulePolicyTests
     {
         var rule = new ConfigurableReferralRule { ShouldMatch = true, ReferToUserId = null };
 
-        var result = await rule.EvaluateAsync(MakeAffidavit());
+        var result = await rule.EvaluateAsync(MakeAffidavit(), TestIdentities.Anyone);
 
         Assert.Null(result);
     }
@@ -74,7 +74,7 @@ public class ReferralRulePolicyTests
     {
         var rule = new ConfigurableReferralRule { ShouldMatch = true, ReferToUserId = "" };
 
-        var result = await rule.EvaluateAsync(MakeAffidavit());
+        var result = await rule.EvaluateAsync(MakeAffidavit(), TestIdentities.Anyone);
 
         Assert.Null(result);
     }
@@ -86,8 +86,8 @@ public class ReferralRulePolicyTests
         var complianceReviewer = new ConfigurableReferralRule { ShouldMatch = true, ReferToUserId = "compliance-2" };
         var affidavit = MakeAffidavit();
 
-        var result1 = await seniorReviewer.EvaluateAsync(affidavit);
-        var result2 = await complianceReviewer.EvaluateAsync(affidavit);
+        var result1 = await seniorReviewer.EvaluateAsync(affidavit, TestIdentities.Anyone);
+        var result2 = await complianceReviewer.EvaluateAsync(affidavit, TestIdentities.Anyone);
 
         // Both return ReferralRequired; the ReviewerUserId is carried by the Docket entry
         // update in the host, not by the enum value itself.

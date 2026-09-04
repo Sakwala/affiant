@@ -145,7 +145,8 @@ public class AffiantAutoFunctionInvocationBridgeReviewGateTests
 
     private sealed class StandingOrderPolicy : IApprovalPolicy
     {
-        public Task<ApprovalVerdict?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
+        public Task<ApprovalVerdict?> EvaluateAsync(
+        Affidavit affidavit, ConversationIdentity identity, CancellationToken cancellationToken = default)
             => Task.FromResult<ApprovalVerdict?>(ReviewRequirement.StandingOrder);
     }
 
@@ -286,9 +287,34 @@ public class AffiantAutoFunctionInvocationBridgeReviewGateTests
         // Explicit implementations that refuse: this double exists for a test that never reaches
         // the Docket's decision surface, and a stub that quietly answered would let such a test
         // pass against behaviour nobody wrote.
+        /// <summary>
+        /// The guarded compare-and-set, over this double's own dictionary. Implemented rather than
+        /// refused because the filing path reaches it: a Standing Order's approval and its
+        /// attestation are one write.
+        /// </summary>
         Task<DocketTransitionResult> IDocketStore.TransitionAsync(
             Guid entryId, DocketScope scope, ReviewStatus expected, DocketTransitionPatch patch, CancellationToken ct)
-            => throw new NotSupportedException();
+        {
+            if (!_entries.TryGetValue(entryId, out var entry))
+                return Task.FromResult<DocketTransitionResult>(new DocketTransitionResult.NotFound());
+            if (entry.Status != expected)
+                return Task.FromResult<DocketTransitionResult>(new DocketTransitionResult.AlreadyDecided());
+
+            var moved = entry with
+            {
+                Status = patch.Status,
+                Execution = patch.Status == ReviewStatus.Approved
+                    ? patch.Execution ?? ExecutionOutcome.Unexecuted
+                    : null,
+                Decision = patch.Decision,
+                Amendments = patch.Amendments ?? entry.Amendments,
+                AmendedAffidavit = patch.AmendedAffidavit ?? entry.AmendedAffidavit,
+                Attestation = patch.Attestation ?? entry.Attestation,
+                DecidedAt = patch.DecidedAt ?? entry.DecidedAt,
+            };
+            _entries[entryId] = moved;
+            return Task.FromResult<DocketTransitionResult>(new DocketTransitionResult.Transitioned(moved));
+        }
 
         Task<PreserveAmendmentsResult> IDocketStore.PreserveAmendmentsAsync(
             Guid entryId, DocketScope scope, IReadOnlyDictionary<string, object?> amendments,

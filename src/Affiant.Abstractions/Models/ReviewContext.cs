@@ -16,6 +16,15 @@ namespace Affiant.Abstractions.Models;
 /// row's lineage; the successor half is written on the superseded row, so the history reads forward
 /// from either end.
 /// </param>
+/// <param name="Channel">
+/// The channel this turn arrived on — the host's own name for it (its web UI, a chat relay, a
+/// queue). Passed to the approval-policy chain on the <see cref="ConversationIdentity"/> so an order
+/// that trusts one surface and not another can say so.
+/// </param>
+/// <param name="ConversationStartedAt">
+/// When this conversation began, when the host knows. Passed through to the policy chain; the gate
+/// substitutes the filing instant when it is absent rather than guessing an earlier one.
+/// </param>
 public record ReviewContext(
     string SessionId,
     string TenantId,
@@ -24,4 +33,6 @@ public record ReviewContext(
     Affidavit Affidavit,
     Guid? EntryId = null,
     IReadOnlyDictionary<string, object?>? Amendments = null,
-    Guid? Supersedes = null);
+    Guid? Supersedes = null,
+    string? Channel = null,
+    DateTimeOffset? ConversationStartedAt = null);

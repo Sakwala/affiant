@@ -725,6 +725,19 @@ internal sealed class EfDocketOperations(AffiantDbContext db, ILogger logger, Ti
         };
     }
 
+    /// <summary>
+    /// The stored Affidavit, with its provenance chains re-attached and its field values read back
+    /// as the CLR values they were filed as.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="AffidavitField.Value"/> is <c>object?</c>, so a straight deserialization hands
+    /// every field back as a raw JSON element and never as the number, string or boolean the
+    /// projection put there. A host risk scorer that pattern-matches on the value's type would then
+    /// see an unrecognised type for every field of every row that came out of a store, and the same
+    /// content would score one way when first filed and another way when read back — which is the
+    /// path a resubmission always takes. <see cref="AffidavitFieldValues"/> closes that here, at the
+    /// store boundary, so no caller has to remember to.
+    /// </remarks>
     private static Affidavit? Rehydrate(string? affidavitJson, string? chainsJson)
     {
         if (string.IsNullOrEmpty(affidavitJson)) return null;
@@ -736,7 +749,7 @@ internal sealed class EfDocketOperations(AffiantDbContext db, ILogger logger, Ti
         var fields = affidavit.Fields
             .Select(f => chains.TryGetValue(f.Name, out var chain) ? f with { Provenance = chain } : f)
             .ToArray();
-        return affidavit with { Fields = fields };
+        return AffidavitFieldValues.Typed(affidavit with { Fields = fields });
     }
 
     private static string SerializeProvenanceChains(AffidavitField[] fields)

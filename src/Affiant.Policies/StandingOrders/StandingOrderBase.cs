@@ -136,9 +136,20 @@ public abstract class StandingOrderBase : IApprovalPolicy
     /// person is always safe. The order's own review window survives the degrade.
     /// </para>
     /// </summary>
-    public async Task<ApprovalVerdict?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
+    /// <param name="affidavit">The proposed write, as sworn.</param>
+    /// <param name="identity">
+    /// Where the proposal came from — the conversation, the person, the tenant and the channel.
+    /// Supplied so a rule can <em>bind</em> to one of them; never a statement about who may approve,
+    /// which the framework decides through <c>IDecisionAuthorizationPolicy</c>.
+    /// </param>
+    /// <param name="cancellationToken">Caller cancellation.</param>
+    public async Task<ApprovalVerdict?> EvaluateAsync(
+        Affidavit affidavit,
+        ConversationIdentity identity,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(affidavit);
+        ArgumentNullException.ThrowIfNull(identity);
 
         // Configuration first, before the conditions are even tested: a Standing Order that
         // declares a risk ceiling with no calculator to score it fails here — on its first
@@ -225,12 +236,12 @@ public abstract class StandingOrderBase : IApprovalPolicy
     /// full name, which is stable across releases in a way a display name is not. Override it when
     /// a host names its policies in configuration and wants alerts keyed on that name instead.
     /// </summary>
-    protected virtual string PolicyId => GetType().FullName ?? GetType().Name;
+    public virtual string PolicyId => GetType().FullName ?? GetType().Name;
 
     /// <summary>
     /// The policy's own version in telemetry (<c>policy.version</c>), or <see langword="null"/> when
     /// the policy does not version itself. Override it when a host revises a policy's rules and
     /// needs to tell an approval made under the old rules from one made under the new.
     /// </summary>
-    protected virtual string? PolicyVersion => null;
+    public virtual string? PolicyVersion => null;
 }

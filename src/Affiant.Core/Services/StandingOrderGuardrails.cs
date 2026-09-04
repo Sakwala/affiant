@@ -64,6 +64,11 @@ public static class StandingOrderGuardrails
         ArgumentNullException.ThrowIfNull(declaredInputs);
         ArgumentNullException.ThrowIfNull(policyId);
 
+        // Which policy spoke, stamped by the chain rather than reported by the policy: a Standing
+        // Order's approval is attributed to it on the Docket row (AZ-1), and a record of who
+        // approved a write with no person present has to be the framework's answer.
+        verdict = verdict with { PolicyId = policyId, PolicyVersion = policyVersion };
+
         if (verdict.Requirement != ReviewRequirement.StandingOrder) return verdict;
 
         // 1. GT-5: a Standing Order never fires over a required field with no known value.

@@ -15,5 +15,14 @@ public interface IApprovalPolicyEvaluator
     /// A policy named a review window that is not a deadline, or its <c>EvaluateAsync</c> threw
     /// (CV-1). Nothing is filed.
     /// </exception>
-    Task<ApprovalVerdict> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default);
+    /// <param name="affidavit">The proposed write, as sworn.</param>
+    /// <param name="identity">
+    /// Where the proposal came from, passed through to every policy in the chain so it can bind.
+    /// Never used to authorize an actor — see <see cref="IApprovalPolicy"/>'s remarks.
+    /// </param>
+    /// <param name="cancellationToken">Caller cancellation.</param>
+    Task<ApprovalVerdict> EvaluateAsync(
+        Affidavit affidavit,
+        ConversationIdentity identity,
+        CancellationToken cancellationToken = default);
 }

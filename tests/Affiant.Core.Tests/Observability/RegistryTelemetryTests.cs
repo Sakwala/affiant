@@ -1,5 +1,6 @@
 namespace Affiant.Core.Tests.Observability;
 
+using Affiant.Core.Tests.Gate;
 using Affiant.Abstractions.Exceptions;
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
@@ -164,7 +165,7 @@ public class RegistryTelemetryTests
         var filing = (ReviewFilingResult.RequiresReview)await gate.FileForReviewAsync(proposal, context);
 
         using var probe = new TelemetryProbe();
-        await gate.HandleDecisionAsync(filing.EntryId, ApprovalDecision.Approved);
+        await gate.HandleDecisionAsync(filing.EntryId, ApprovalDecision.Approved, Ctx());
 
         var attributes = probe.Attributes(TelemetryKeys.DocketTransition);
         Assert.Equal(filing.EntryId.ToString(), attributes[TelemetryKeys.Attributes.EntryId]);
@@ -180,10 +181,10 @@ public class RegistryTelemetryTests
         var (gate, _) = CreateGate(ReviewRequirement.ReviewerConfirmation);
         var (proposal, context) = CreateInput();
         var filing = (ReviewFilingResult.RequiresReview)await gate.FileForReviewAsync(proposal, context);
-        await gate.HandleDecisionAsync(filing.EntryId, ApprovalDecision.Approved);
+        await gate.HandleDecisionAsync(filing.EntryId, ApprovalDecision.Approved, Ctx());
 
         using var probe = new TelemetryProbe();
-        await gate.HandleDecisionAsync(filing.EntryId, ApprovalDecision.Approved);
+        await gate.HandleDecisionAsync(filing.EntryId, ApprovalDecision.Approved, Ctx());
 
         var attributes = probe.Attributes(TelemetryKeys.DecisionUnauthorized);
         Assert.Equal("decision-not-pending", attributes[TelemetryKeys.Attributes.Reason]);
@@ -197,7 +198,7 @@ public class RegistryTelemetryTests
         var (gate, _) = CreateGate(ReviewRequirement.ReviewerConfirmation);
 
         using var probe = new TelemetryProbe();
-        await gate.HandleDecisionAsync(Guid.NewGuid(), ApprovalDecision.Approved);
+        await gate.HandleDecisionAsync(Guid.NewGuid(), ApprovalDecision.Approved, Ctx());
 
         Assert.Equal(
             "entry-not-found",
@@ -215,7 +216,7 @@ public class RegistryTelemetryTests
         store.RewindDeadline(filing.EntryId);
 
         using var probe = new TelemetryProbe();
-        await gate.HandleDecisionAsync(filing.EntryId, ApprovalDecision.Approved);
+        await gate.HandleDecisionAsync(filing.EntryId, ApprovalDecision.Approved, Ctx());
 
         Assert.Equal(
             "decision-expired",
@@ -232,7 +233,7 @@ public class RegistryTelemetryTests
         // (CV-1) with the original throw as the inner exception, so the tool seam can hand the model
         // an error result instead of letting a raw stack trace escape.
         var refusal = await Assert.ThrowsAsync<AffiantPolicyException>(
-            () => evaluator.EvaluateAsync(BuildAffidavit()));
+            () => evaluator.EvaluateAsync(BuildAffidavit(), TestIdentities.Anyone));
         Assert.Equal("wireup-invalid", refusal.Code);
         Assert.IsType<InvalidOperationException>(refusal.InnerException);
 
@@ -247,7 +248,7 @@ public class RegistryTelemetryTests
         using var probe = new TelemetryProbe();
         var evaluator = new ApprovalPolicyEvaluator([]);
 
-        var requirement = await evaluator.EvaluateAsync(BuildAffidavit());
+        var requirement = await evaluator.EvaluateAsync(BuildAffidavit(), TestIdentities.Anyone);
 
         Assert.Equal(ReviewRequirement.ReviewerConfirmation, requirement!.Requirement);
         Assert.False(probe.Saw(TelemetryKeys.PolicyInvalid));
@@ -287,7 +288,8 @@ public class RegistryTelemetryTests
 
     private sealed class ThrowingPolicy : IApprovalPolicy
     {
-        public Task<ApprovalVerdict?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
+        public Task<ApprovalVerdict?> EvaluateAsync(
+        Affidavit affidavit, ConversationIdentity identity, CancellationToken cancellationToken = default)
             => throw new InvalidOperationException("this policy is broken");
     }
 
@@ -438,7 +440,8 @@ public class RegistryTelemetryTests
 
     private sealed class FixedRequirementEvaluator(ReviewRequirement requirement) : IApprovalPolicyEvaluator
     {
-        public Task<ApprovalVerdict> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
+        public Task<ApprovalVerdict> EvaluateAsync(
+        Affidavit affidavit, ConversationIdentity identity, CancellationToken cancellationToken = default)
             => Task.FromResult<ApprovalVerdict>(requirement);
     }
 
@@ -448,9 +451,14 @@ public class RegistryTelemetryTests
         var store = new TestDocketStore();
         var gate = new ReviewGate(
             new SilentTransport(), store, new FixedRequirementEvaluator(requirement),
-            options ?? new AffiantCoreOptions(), NullLogger<ReviewGate>.Instance);
+            options ?? new AffiantCoreOptions(), NullLogger<ReviewGate>.Instance,
+            timeProvider: null, new AllowAllDecisionAuthorization());
         return (gate, store);
     }
+
+    /// <summary>A resolved member principal in the entries' own tenant — this file tests events, not authorization.</summary>
+    private static DecisionContext Ctx() =>
+        new(new Principal.Member("reviewer-456"), "tenant-default", ConversationId: "session-1", Channel: "test");
 
     private static Affidavit BuildAffidavit() => Affidavit.Create(
         operationType: "CreateOrder",

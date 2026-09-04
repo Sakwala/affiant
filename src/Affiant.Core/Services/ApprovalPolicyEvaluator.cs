@@ -32,13 +32,15 @@ public sealed class ApprovalPolicyEvaluator(IEnumerable<IApprovalPolicy> policie
 {
     /// <inheritdoc />
     public async Task<ApprovalVerdict> EvaluateAsync(
-        Affidavit affidavit, CancellationToken cancellationToken = default)
+        Affidavit affidavit, ConversationIdentity identity, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(affidavit);
+        ArgumentNullException.ThrowIfNull(identity);
 
         foreach (var policy in policies)
         {
-            var verdict = await EvaluateOneAsync(policy, affidavit, cancellationToken).ConfigureAwait(false);
+            var verdict = await EvaluateOneAsync(policy, affidavit, identity, cancellationToken)
+                .ConfigureAwait(false);
             if (verdict is null) continue;
 
             CheckTimeToLive(policy, nameof(ApprovalVerdict.TimeToLive), verdict.TimeToLive);
@@ -56,13 +58,20 @@ public sealed class ApprovalPolicyEvaluator(IEnumerable<IApprovalPolicy> policie
             // GT-5 and PV-4. A verdict from StandingOrderBase has already been through these, so
             // this pass changes nothing for it; a verdict from a policy written against the bare
             // interface has not, and the rule is that the gate checks before honouring one.
+            //
+            // The chain stamps the policy that produced the verdict, rather than trusting a policy
+            // to name itself: a Standing Order's attestation names it (AZ-1), and a record of who
+            // approved a write with no person present has to be the framework's answer, not the
+            // approver's own.
             return StandingOrderGuardrails.Apply(
                 resolved,
                 affidavit,
                 policy.DeclaredInputs,
-                PolicyIdOf(policy));
+                PolicyIdOf(policy),
+                policy.PolicyVersion);
         }
 
+        // The chain's own fallback: a person. No policy produced it, so it names none.
         return new ApprovalVerdict(ReviewRequirement.ReviewerConfirmation);
     }
 
@@ -81,11 +90,14 @@ public sealed class ApprovalPolicyEvaluator(IEnumerable<IApprovalPolicy> policie
     /// </para>
     /// </summary>
     private async Task<ApprovalVerdict?> EvaluateOneAsync(
-        IApprovalPolicy policy, Affidavit affidavit, CancellationToken cancellationToken)
+        IApprovalPolicy policy,
+        Affidavit affidavit,
+        ConversationIdentity identity,
+        CancellationToken cancellationToken)
     {
         try
         {
-            return await policy.EvaluateAsync(affidavit, cancellationToken).ConfigureAwait(false);
+            return await policy.EvaluateAsync(affidavit, identity, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -128,6 +140,5 @@ public sealed class ApprovalPolicyEvaluator(IEnumerable<IApprovalPolicy> policie
         throw new AffiantPolicyException(reason);
     }
 
-    private static string PolicyIdOf(IApprovalPolicy policy) =>
-        policy.GetType().FullName ?? policy.GetType().Name;
+    private static string PolicyIdOf(IApprovalPolicy policy) => policy.PolicyId;
 }

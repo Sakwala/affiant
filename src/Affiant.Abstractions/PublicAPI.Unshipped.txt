@@ -1,11 +1,28 @@
 #nullable enable
 *REMOVED*Affiant.Abstractions.Interfaces.IAffidavitProjection.Project(Affiant.Abstractions.Interfaces.IContextFabric! fabric, string! operationType, System.Collections.Generic.IReadOnlyList<string!>! warnings) -> Affiant.Abstractions.Models.Affidavit!
+*REMOVED*Affiant.Abstractions.Interfaces.IApprovalPolicy.EvaluateAsync(Affiant.Abstractions.Models.Affidavit! affidavit, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Affiant.Abstractions.Models.ApprovalVerdict?>!
 *REMOVED*Affiant.Abstractions.Interfaces.IApprovalPolicy.EvaluateAsync(Affiant.Abstractions.Models.Affidavit! affidavit, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Affiant.Abstractions.Models.ReviewRequirement?>!
+*REMOVED*Affiant.Abstractions.Interfaces.IApprovalPolicyEvaluator.EvaluateAsync(Affiant.Abstractions.Models.Affidavit! affidavit, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Affiant.Abstractions.Models.ApprovalVerdict!>!
 *REMOVED*Affiant.Abstractions.Interfaces.IApprovalPolicyEvaluator.EvaluateAsync(Affiant.Abstractions.Models.Affidavit! affidavit, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Affiant.Abstractions.Models.ReviewRequirement>!
 *REMOVED*Affiant.Abstractions.Interfaces.IDocketStore.ListExpiredAsync(System.DateTimeOffset expiresBeforeUtc, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.DocketEntry!>!>!
 *REMOVED*Affiant.Abstractions.Interfaces.IDocketStore.MarkExpiredAsync(System.Collections.Generic.IEnumerable<System.Guid>! entryIds, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
 *REMOVED*Affiant.Abstractions.Models.Affidavit.Affidavit(string! OperationType, string! EntityType, string? EntityId, Affiant.Abstractions.Models.AffidavitField![]! Fields, float AggregateConfidence, string![]! Warnings, bool RequiresConfirmation) -> void
 *REMOVED*Affiant.Abstractions.Models.Affidavit.Deconstruct(out string! OperationType, out string! EntityType, out string? EntityId, out Affiant.Abstractions.Models.AffidavitField![]! Fields, out float AggregateConfidence, out string![]! Warnings, out bool RequiresConfirmation) -> void
+*REMOVED*Affiant.Abstractions.Models.ApprovalVerdict.ApprovalVerdict(Affiant.Abstractions.Models.ReviewRequirement Requirement, System.TimeSpan? TimeToLive = null, string? Reason = null, string? BlockedReason = null, Affiant.Abstractions.Models.ReviewRequirement? DegradedFrom = null) -> void
+*REMOVED*Affiant.Abstractions.Models.ApprovalVerdict.Deconstruct(out Affiant.Abstractions.Models.ReviewRequirement Requirement, out System.TimeSpan? TimeToLive, out string? Reason, out string? BlockedReason, out Affiant.Abstractions.Models.ReviewRequirement? DegradedFrom) -> void
+*REMOVED*Affiant.Abstractions.Models.Attestor.Member.Deconstruct(out string! Id) -> void
+*REMOVED*Affiant.Abstractions.Models.Attestor.Member.Id.init -> void
+*REMOVED*Affiant.Abstractions.Models.Attestor.Member.Member(string! Id) -> void
+*REMOVED*Affiant.Abstractions.Models.Attestor.MemberViaRelay.Deconstruct(out string! MemberId, out Affiant.Abstractions.Models.AttestationRelay! Relay) -> void
+*REMOVED*Affiant.Abstractions.Models.Attestor.MemberViaRelay.MemberId.init -> void
+*REMOVED*Affiant.Abstractions.Models.Attestor.MemberViaRelay.MemberViaRelay(string! MemberId, Affiant.Abstractions.Models.AttestationRelay! Relay) -> void
+*REMOVED*Affiant.Abstractions.Models.Attestor.MemberViaRelay.Relay.init -> void
+*REMOVED*Affiant.Abstractions.Models.Attestor.StandingOrder.Deconstruct(out string! PolicyId, out string! Version) -> void
+*REMOVED*Affiant.Abstractions.Models.Attestor.StandingOrder.PolicyId.init -> void
+*REMOVED*Affiant.Abstractions.Models.Attestor.StandingOrder.StandingOrder(string! PolicyId, string! Version) -> void
+*REMOVED*Affiant.Abstractions.Models.Attestor.StandingOrder.Version.init -> void
+*REMOVED*Affiant.Abstractions.Models.ConversationIdentity.ConversationIdentity(string! SessionId, string! UserId, System.DateTimeOffset StartedAt, string? HostAppName = null) -> void
+*REMOVED*Affiant.Abstractions.Models.ConversationIdentity.Deconstruct(out string! SessionId, out string! UserId, out System.DateTimeOffset StartedAt, out string? HostAppName) -> void
 *REMOVED*Affiant.Abstractions.Models.DocketEntry.Deconstruct(out System.Guid EntryId, out string! SessionId, out string! TenantId, out string! UserId, out string? ReviewerUserId, out string! OperationType, out Affiant.Abstractions.Models.Affidavit! Envelope, out Affiant.Abstractions.Models.ReviewStatus Status, out System.DateTimeOffset CreatedAt, out System.DateTimeOffset ExpiresAt, out System.Collections.Generic.IReadOnlyDictionary<string!, object?>? Amendments, out System.Guid? ResubmittedTo) -> void
 *REMOVED*Affiant.Abstractions.Models.DocketEntry.DocketEntry(System.Guid EntryId, string! SessionId, string! TenantId, string! UserId, string? ReviewerUserId, string! OperationType, Affiant.Abstractions.Models.Affidavit! Envelope, Affiant.Abstractions.Models.ReviewStatus Status, System.DateTimeOffset CreatedAt, System.DateTimeOffset ExpiresAt, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? Amendments, System.Guid? ResubmittedTo = null) -> void
 *REMOVED*Affiant.Abstractions.Models.InferenceFixtureCase.Deconstruct(out string! Name, out System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.AffiantChatMessage!>! History, out System.Collections.Generic.IReadOnlyDictionary<string!, object?>! Arguments, out System.Func<Affiant.Abstractions.Models.Affidavit!, bool>! Assertion) -> void
@@ -13,7 +30,9 @@
 *REMOVED*Affiant.Abstractions.Models.ProvenanceTag.Deconstruct(out Affiant.Abstractions.Models.ProvenanceSource Source, out float Confidence, out string? Evidence, out int? ConversationTurn) -> void
 *REMOVED*Affiant.Abstractions.Models.ProvenanceTag.ProvenanceTag(Affiant.Abstractions.Models.ProvenanceSource Source, float Confidence, string? Evidence, int? ConversationTurn) -> void
 *REMOVED*Affiant.Abstractions.Models.ReviewContext.Deconstruct(out string! SessionId, out string! TenantId, out string! UserId, out string! ReviewerUserId, out Affiant.Abstractions.Models.Affidavit! Affidavit, out System.Guid? EntryId, out System.Collections.Generic.IReadOnlyDictionary<string!, object?>? Amendments) -> void
+*REMOVED*Affiant.Abstractions.Models.ReviewContext.Deconstruct(out string! SessionId, out string! TenantId, out string! UserId, out string! ReviewerUserId, out Affiant.Abstractions.Models.Affidavit! Affidavit, out System.Guid? EntryId, out System.Collections.Generic.IReadOnlyDictionary<string!, object?>? Amendments, out System.Guid? Supersedes) -> void
 *REMOVED*Affiant.Abstractions.Models.ReviewContext.ReviewContext(string! SessionId, string! TenantId, string! UserId, string! ReviewerUserId, Affiant.Abstractions.Models.Affidavit! Affidavit, System.Guid? EntryId = null, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? Amendments = null) -> void
+*REMOVED*Affiant.Abstractions.Models.ReviewContext.ReviewContext(string! SessionId, string! TenantId, string! UserId, string! ReviewerUserId, Affiant.Abstractions.Models.Affidavit! Affidavit, System.Guid? EntryId = null, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? Amendments = null, System.Guid? Supersedes = null) -> void
 *REMOVED*Affiant.Abstractions.Models.ReviewOutcome.Approved.Approved(System.Guid DocketId) -> void
 *REMOVED*Affiant.Abstractions.Models.ReviewOutcome.Approved.Deconstruct(out System.Guid DocketId) -> void
 *REMOVED*static Affiant.Abstractions.Models.ProvenanceTag.FromInference(string! fieldName, float confidence = 0.6) -> Affiant.Abstractions.Models.ProvenanceTag!
@@ -117,8 +136,14 @@ Affiant.Abstractions.Interfaces.ExpireDueResult.More.init -> void
 Affiant.Abstractions.Interfaces.IAffidavitProjection.Project(Affiant.Abstractions.Interfaces.IContextFabric! fabric, string! operationType, System.Collections.Generic.IReadOnlyList<string!>! warnings, string? entityId = null) -> Affiant.Abstractions.Models.Affidavit!
 Affiant.Abstractions.Interfaces.IApprovalPolicy.DeclaredInputs.get -> System.Collections.Generic.IReadOnlyCollection<Affiant.Abstractions.Models.ProvenanceSource>!
 Affiant.Abstractions.Interfaces.IApprovalPolicy.DefaultTimeToLive.get -> System.TimeSpan?
+Affiant.Abstractions.Interfaces.IApprovalPolicy.EvaluateAsync(Affiant.Abstractions.Models.Affidavit! affidavit, Affiant.Abstractions.Models.ConversationIdentity! identity, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Affiant.Abstractions.Models.ApprovalVerdict?>!
 Affiant.Abstractions.Interfaces.IApprovalPolicy.EvaluateAsync(Affiant.Abstractions.Models.Affidavit! affidavit, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Affiant.Abstractions.Models.ApprovalVerdict?>!
+Affiant.Abstractions.Interfaces.IApprovalPolicy.PolicyId.get -> string!
+Affiant.Abstractions.Interfaces.IApprovalPolicy.PolicyVersion.get -> string?
+Affiant.Abstractions.Interfaces.IApprovalPolicyEvaluator.EvaluateAsync(Affiant.Abstractions.Models.Affidavit! affidavit, Affiant.Abstractions.Models.ConversationIdentity! identity, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Affiant.Abstractions.Models.ApprovalVerdict!>!
 Affiant.Abstractions.Interfaces.IApprovalPolicyEvaluator.EvaluateAsync(Affiant.Abstractions.Models.Affidavit! affidavit, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Affiant.Abstractions.Models.ApprovalVerdict!>!
+Affiant.Abstractions.Interfaces.IDecisionAuthorizationPolicy
+Affiant.Abstractions.Interfaces.IDecisionAuthorizationPolicy.MayDecideAsync(Affiant.Abstractions.Models.Principal! principal, Affiant.Abstractions.Models.DocketEntry! entry, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<bool>!
 Affiant.Abstractions.Interfaces.IDocketStore.ApplyRetentionAsync(Affiant.Abstractions.Interfaces.DocketRetentionPolicy! policy, Affiant.Abstractions.Interfaces.DocketScope! scope, int limit, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.RetentionResult!>!
 Affiant.Abstractions.Interfaces.IDocketStore.ExpireDueAsync(System.DateTimeOffset now, Affiant.Abstractions.Interfaces.DocketScope! scope, int limit, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.ExpireDueResult!>!
 Affiant.Abstractions.Interfaces.IDocketStore.ExportAsync(Affiant.Abstractions.Interfaces.DocketScope! scope, System.Threading.CancellationToken ct) -> System.Collections.Generic.IAsyncEnumerable<Affiant.Abstractions.Models.DocketEntry!>!
@@ -215,17 +240,24 @@ Affiant.Abstractions.Models.AffidavitConfidence.EmptyFieldCount.init -> void
 Affiant.Abstractions.Models.AffidavitConfidence.Equals(Affiant.Abstractions.Models.AffidavitConfidence other) -> bool
 Affiant.Abstractions.Models.AffidavitConfidence.PopulatedConfidence.get -> float?
 Affiant.Abstractions.Models.AffidavitConfidence.PopulatedConfidence.init -> void
+Affiant.Abstractions.Models.AffidavitFieldValues
 Affiant.Abstractions.Models.AffidavitSubstance
 Affiant.Abstractions.Models.ApprovalVerdict
 Affiant.Abstractions.Models.ApprovalVerdict.<Clone>$() -> Affiant.Abstractions.Models.ApprovalVerdict!
 Affiant.Abstractions.Models.ApprovalVerdict.ApprovalVerdict(Affiant.Abstractions.Models.ReviewRequirement Requirement, System.TimeSpan? TimeToLive = null, string? Reason = null, string? BlockedReason = null, Affiant.Abstractions.Models.ReviewRequirement? DegradedFrom = null) -> void
+Affiant.Abstractions.Models.ApprovalVerdict.ApprovalVerdict(Affiant.Abstractions.Models.ReviewRequirement Requirement, System.TimeSpan? TimeToLive = null, string? Reason = null, string? BlockedReason = null, Affiant.Abstractions.Models.ReviewRequirement? DegradedFrom = null, string? PolicyId = null, string? PolicyVersion = null) -> void
 Affiant.Abstractions.Models.ApprovalVerdict.BlockedReason.get -> string?
 Affiant.Abstractions.Models.ApprovalVerdict.BlockedReason.init -> void
 Affiant.Abstractions.Models.ApprovalVerdict.Deconstruct(out Affiant.Abstractions.Models.ReviewRequirement Requirement, out System.TimeSpan? TimeToLive, out string? Reason, out string? BlockedReason, out Affiant.Abstractions.Models.ReviewRequirement? DegradedFrom) -> void
+Affiant.Abstractions.Models.ApprovalVerdict.Deconstruct(out Affiant.Abstractions.Models.ReviewRequirement Requirement, out System.TimeSpan? TimeToLive, out string? Reason, out string? BlockedReason, out Affiant.Abstractions.Models.ReviewRequirement? DegradedFrom, out string? PolicyId, out string? PolicyVersion) -> void
 Affiant.Abstractions.Models.ApprovalVerdict.DegradeToReviewer(string! blockedReason, string! reason) -> Affiant.Abstractions.Models.ApprovalVerdict!
 Affiant.Abstractions.Models.ApprovalVerdict.DegradedFrom.get -> Affiant.Abstractions.Models.ReviewRequirement?
 Affiant.Abstractions.Models.ApprovalVerdict.DegradedFrom.init -> void
 Affiant.Abstractions.Models.ApprovalVerdict.Equals(Affiant.Abstractions.Models.ApprovalVerdict? other) -> bool
+Affiant.Abstractions.Models.ApprovalVerdict.PolicyId.get -> string?
+Affiant.Abstractions.Models.ApprovalVerdict.PolicyId.init -> void
+Affiant.Abstractions.Models.ApprovalVerdict.PolicyVersion.get -> string?
+Affiant.Abstractions.Models.ApprovalVerdict.PolicyVersion.init -> void
 Affiant.Abstractions.Models.ApprovalVerdict.Reason.get -> string?
 Affiant.Abstractions.Models.ApprovalVerdict.Reason.init -> void
 Affiant.Abstractions.Models.ApprovalVerdict.Requirement.get -> Affiant.Abstractions.Models.ReviewRequirement
@@ -278,6 +310,7 @@ Affiant.Abstractions.Models.Attestor.StandingOrder.PolicyId.init -> void
 Affiant.Abstractions.Models.Attestor.StandingOrder.StandingOrder(string! PolicyId, string! Version) -> void
 Affiant.Abstractions.Models.Attestor.StandingOrder.Version.get -> string!
 Affiant.Abstractions.Models.Attestor.StandingOrder.Version.init -> void
+Affiant.Abstractions.Models.Attestor.Subject.get -> string!
 Affiant.Abstractions.Models.BlockedMarker
 Affiant.Abstractions.Models.BlockedMarker.BlockedMarker(Affiant.Abstractions.Models.BlockedMarker! original) -> void
 Affiant.Abstractions.Models.BlockedMarker.CoverageRefused
@@ -314,10 +347,33 @@ Affiant.Abstractions.Models.ComputationRuleRef.Inputs.get -> System.Collections.
 Affiant.Abstractions.Models.ComputationRuleRef.Inputs.init -> void
 Affiant.Abstractions.Models.ComputationRuleRef.Rule.get -> string!
 Affiant.Abstractions.Models.ComputationRuleRef.Rule.init -> void
+Affiant.Abstractions.Models.ConversationIdentity.Channel.get -> string?
+Affiant.Abstractions.Models.ConversationIdentity.Channel.init -> void
+Affiant.Abstractions.Models.ConversationIdentity.ConversationIdentity(string! SessionId, string! UserId, System.DateTimeOffset StartedAt, string? HostAppName = null, string? TenantId = null, string? Channel = null) -> void
+Affiant.Abstractions.Models.ConversationIdentity.Deconstruct(out string! SessionId, out string! UserId, out System.DateTimeOffset StartedAt, out string? HostAppName, out string? TenantId, out string? Channel) -> void
+Affiant.Abstractions.Models.ConversationIdentity.TenantId.get -> string?
+Affiant.Abstractions.Models.ConversationIdentity.TenantId.init -> void
 Affiant.Abstractions.Models.CoverageCategory
 Affiant.Abstractions.Models.CoverageCategory.HostedMcp = 2 -> Affiant.Abstractions.Models.CoverageCategory
 Affiant.Abstractions.Models.CoverageCategory.NoExecute = 0 -> Affiant.Abstractions.Models.CoverageCategory
 Affiant.Abstractions.Models.CoverageCategory.ProviderExecuted = 1 -> Affiant.Abstractions.Models.CoverageCategory
+Affiant.Abstractions.Models.DecisionContext
+Affiant.Abstractions.Models.DecisionContext.<Clone>$() -> Affiant.Abstractions.Models.DecisionContext!
+Affiant.Abstractions.Models.DecisionContext.At.get -> System.DateTimeOffset?
+Affiant.Abstractions.Models.DecisionContext.At.init -> void
+Affiant.Abstractions.Models.DecisionContext.Channel.get -> string?
+Affiant.Abstractions.Models.DecisionContext.Channel.init -> void
+Affiant.Abstractions.Models.DecisionContext.ConversationId.get -> string?
+Affiant.Abstractions.Models.DecisionContext.ConversationId.init -> void
+Affiant.Abstractions.Models.DecisionContext.DecisionContext(Affiant.Abstractions.Models.Principal? Principal, string! TenantId, string? ConversationId = null, string? Channel = null, string? Reason = null, System.DateTimeOffset? At = null) -> void
+Affiant.Abstractions.Models.DecisionContext.Deconstruct(out Affiant.Abstractions.Models.Principal? Principal, out string! TenantId, out string? ConversationId, out string? Channel, out string? Reason, out System.DateTimeOffset? At) -> void
+Affiant.Abstractions.Models.DecisionContext.Equals(Affiant.Abstractions.Models.DecisionContext? other) -> bool
+Affiant.Abstractions.Models.DecisionContext.Principal.get -> Affiant.Abstractions.Models.Principal?
+Affiant.Abstractions.Models.DecisionContext.Principal.init -> void
+Affiant.Abstractions.Models.DecisionContext.Reason.get -> string?
+Affiant.Abstractions.Models.DecisionContext.Reason.init -> void
+Affiant.Abstractions.Models.DecisionContext.TenantId.get -> string!
+Affiant.Abstractions.Models.DecisionContext.TenantId.init -> void
 Affiant.Abstractions.Models.DecisionKind
 Affiant.Abstractions.Models.DecisionKind.Approve = 0 -> Affiant.Abstractions.Models.DecisionKind
 Affiant.Abstractions.Models.DecisionKind.Reject = 1 -> Affiant.Abstractions.Models.DecisionKind
@@ -413,6 +469,25 @@ Affiant.Abstractions.Models.PreservedAmendments.By.init -> void
 Affiant.Abstractions.Models.PreservedAmendments.Deconstruct(out System.Collections.Generic.IReadOnlyDictionary<string!, object?>! Amendments, out System.DateTimeOffset At, out string! By) -> void
 Affiant.Abstractions.Models.PreservedAmendments.Equals(Affiant.Abstractions.Models.PreservedAmendments? other) -> bool
 Affiant.Abstractions.Models.PreservedAmendments.PreservedAmendments(System.Collections.Generic.IReadOnlyDictionary<string!, object?>! Amendments, System.DateTimeOffset At, string! By) -> void
+Affiant.Abstractions.Models.Principal
+Affiant.Abstractions.Models.Principal.Member
+Affiant.Abstractions.Models.Principal.Member.Deconstruct(out string! Id) -> void
+Affiant.Abstractions.Models.Principal.Member.Equals(Affiant.Abstractions.Models.Principal.Member? other) -> bool
+Affiant.Abstractions.Models.Principal.Member.Id.get -> string!
+Affiant.Abstractions.Models.Principal.Member.Id.init -> void
+Affiant.Abstractions.Models.Principal.Member.Member(string! Id) -> void
+Affiant.Abstractions.Models.Principal.Principal(Affiant.Abstractions.Models.Principal! original) -> void
+Affiant.Abstractions.Models.Principal.PrincipalId.get -> string!
+Affiant.Abstractions.Models.Principal.Service
+Affiant.Abstractions.Models.Principal.Service.AssertedMember.get -> string?
+Affiant.Abstractions.Models.Principal.Service.AssertedMember.init -> void
+Affiant.Abstractions.Models.Principal.Service.Deconstruct(out string! Id, out Affiant.Abstractions.Models.RelayAssertion? Relay, out string? AssertedMember) -> void
+Affiant.Abstractions.Models.Principal.Service.Equals(Affiant.Abstractions.Models.Principal.Service? other) -> bool
+Affiant.Abstractions.Models.Principal.Service.Id.get -> string!
+Affiant.Abstractions.Models.Principal.Service.Id.init -> void
+Affiant.Abstractions.Models.Principal.Service.Relay.get -> Affiant.Abstractions.Models.RelayAssertion?
+Affiant.Abstractions.Models.Principal.Service.Relay.init -> void
+Affiant.Abstractions.Models.Principal.Service.Service(string! Id, Affiant.Abstractions.Models.RelayAssertion? Relay = null, string? AssertedMember = null) -> void
 Affiant.Abstractions.Models.ProvenanceBinding
 Affiant.Abstractions.Models.ProvenanceBinding.ComputationRef
 Affiant.Abstractions.Models.ProvenanceBinding.ComputationRef.ComputationRef(Affiant.Abstractions.Models.ComputationRuleRef! Ref) -> void
@@ -453,6 +528,15 @@ Affiant.Abstractions.Models.ProvenanceTag.Binding.init -> void
 Affiant.Abstractions.Models.ProvenanceTag.Deconstruct(out Affiant.Abstractions.Models.ProvenanceSource Source, out float Confidence, out string? Evidence, out int? ConversationTurn, out Affiant.Abstractions.Models.ProvenanceBinding? Binding) -> void
 Affiant.Abstractions.Models.ProvenanceTag.IsBound.get -> bool
 Affiant.Abstractions.Models.ProvenanceTag.ProvenanceTag(Affiant.Abstractions.Models.ProvenanceSource Source, float Confidence, string? Evidence, int? ConversationTurn, Affiant.Abstractions.Models.ProvenanceBinding? Binding = null) -> void
+Affiant.Abstractions.Models.RelayAssertion
+Affiant.Abstractions.Models.RelayAssertion.<Clone>$() -> Affiant.Abstractions.Models.RelayAssertion!
+Affiant.Abstractions.Models.RelayAssertion.ChannelIdentity.get -> string!
+Affiant.Abstractions.Models.RelayAssertion.ChannelIdentity.init -> void
+Affiant.Abstractions.Models.RelayAssertion.Deconstruct(out string! ChannelIdentity, out string! MessageId) -> void
+Affiant.Abstractions.Models.RelayAssertion.Equals(Affiant.Abstractions.Models.RelayAssertion? other) -> bool
+Affiant.Abstractions.Models.RelayAssertion.MessageId.get -> string!
+Affiant.Abstractions.Models.RelayAssertion.MessageId.init -> void
+Affiant.Abstractions.Models.RelayAssertion.RelayAssertion(string! ChannelIdentity, string! MessageId) -> void
 Affiant.Abstractions.Models.RelayRef
 Affiant.Abstractions.Models.RelayRef.<Clone>$() -> Affiant.Abstractions.Models.RelayRef!
 Affiant.Abstractions.Models.RelayRef.ChannelIdentity.get -> string!
@@ -464,8 +548,14 @@ Affiant.Abstractions.Models.RelayRef.MessageId.init -> void
 Affiant.Abstractions.Models.RelayRef.Principal.get -> string!
 Affiant.Abstractions.Models.RelayRef.Principal.init -> void
 Affiant.Abstractions.Models.RelayRef.RelayRef(string! Principal, string! ChannelIdentity, string! MessageId) -> void
+Affiant.Abstractions.Models.ReviewContext.Channel.get -> string?
+Affiant.Abstractions.Models.ReviewContext.Channel.init -> void
+Affiant.Abstractions.Models.ReviewContext.ConversationStartedAt.get -> System.DateTimeOffset?
+Affiant.Abstractions.Models.ReviewContext.ConversationStartedAt.init -> void
 Affiant.Abstractions.Models.ReviewContext.Deconstruct(out string! SessionId, out string! TenantId, out string! UserId, out string! ReviewerUserId, out Affiant.Abstractions.Models.Affidavit! Affidavit, out System.Guid? EntryId, out System.Collections.Generic.IReadOnlyDictionary<string!, object?>? Amendments, out System.Guid? Supersedes) -> void
+Affiant.Abstractions.Models.ReviewContext.Deconstruct(out string! SessionId, out string! TenantId, out string! UserId, out string! ReviewerUserId, out Affiant.Abstractions.Models.Affidavit! Affidavit, out System.Guid? EntryId, out System.Collections.Generic.IReadOnlyDictionary<string!, object?>? Amendments, out System.Guid? Supersedes, out string? Channel, out System.DateTimeOffset? ConversationStartedAt) -> void
 Affiant.Abstractions.Models.ReviewContext.ReviewContext(string! SessionId, string! TenantId, string! UserId, string! ReviewerUserId, Affiant.Abstractions.Models.Affidavit! Affidavit, System.Guid? EntryId = null, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? Amendments = null, System.Guid? Supersedes = null) -> void
+Affiant.Abstractions.Models.ReviewContext.ReviewContext(string! SessionId, string! TenantId, string! UserId, string! ReviewerUserId, Affiant.Abstractions.Models.Affidavit! Affidavit, System.Guid? EntryId = null, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? Amendments = null, System.Guid? Supersedes = null, string? Channel = null, System.DateTimeOffset? ConversationStartedAt = null) -> void
 Affiant.Abstractions.Models.ReviewContext.Supersedes.get -> System.Guid?
 Affiant.Abstractions.Models.ReviewContext.Supersedes.init -> void
 Affiant.Abstractions.Models.ReviewDeadline
@@ -538,6 +628,8 @@ Affiant.Abstractions.Telemetry.TelemetryKeyRegistry.RegistryVersion.init -> void
 Affiant.Abstractions.Telemetry.TelemetryKeyRegistry.TelemetryKeyRegistry(string! ProtocolVersion, string! RegistryVersion, System.Collections.Immutable.ImmutableArray<Affiant.Abstractions.Telemetry.TelemetryKeyEntry!> Keys) -> void
 Affiant.Abstractions.Telemetry.TelemetryKeys
 Affiant.Abstractions.Telemetry.TelemetryKeys.Attributes
+Affiant.Abstractions.Transport.EvidenceCardResponse.Attestation.get -> Affiant.Abstractions.Models.Attestation?
+Affiant.Abstractions.Transport.EvidenceCardResponse.Attestation.init -> void
 abstract Affiant.Abstractions.Interfaces.DocketTransitionResult.<Clone>$() -> Affiant.Abstractions.Interfaces.DocketTransitionResult!
 abstract Affiant.Abstractions.Interfaces.PreserveAmendmentsResult.<Clone>$() -> Affiant.Abstractions.Interfaces.PreserveAmendmentsResult!
 abstract Affiant.Abstractions.Interfaces.RecordExecutionResult.<Clone>$() -> Affiant.Abstractions.Interfaces.RecordExecutionResult!
@@ -546,6 +638,8 @@ abstract Affiant.Abstractions.Models.Attestor.<Clone>$() -> Affiant.Abstractions
 abstract Affiant.Abstractions.Models.Attestor.Kind.get -> string!
 abstract Affiant.Abstractions.Models.BlockedMarker.<Clone>$() -> Affiant.Abstractions.Models.BlockedMarker!
 abstract Affiant.Abstractions.Models.BlockedMarker.Code.get -> string!
+abstract Affiant.Abstractions.Models.Principal.<Clone>$() -> Affiant.Abstractions.Models.Principal!
+abstract Affiant.Abstractions.Models.Principal.Kind.get -> string!
 abstract Affiant.Abstractions.Models.ProvenanceBinding.<Clone>$() -> Affiant.Abstractions.Models.ProvenanceBinding!
 abstract Affiant.Abstractions.Models.ProvenanceBinding.Kind.get -> string!
 const Affiant.Abstractions.Exceptions.AffiantRefusalException.SubstanceRefusedCode = "substance-refused" -> string!
@@ -555,10 +649,12 @@ const Affiant.Abstractions.Interfaces.DocketCursor.PendingListing = "pending" ->
 const Affiant.Abstractions.Interfaces.DocketCursor.RehydrationApprovedUnexecutedListing = "rehydrate-approved-unexecuted" -> string!
 const Affiant.Abstractions.Interfaces.DocketCursor.RehydrationPendingListing = "rehydrate-pending" -> string!
 const Affiant.Abstractions.Models.AffiantProtocol.Version = "0.1.0" -> string!
+const Affiant.Abstractions.Models.Attestor.StandingOrder.Unversioned = "unversioned" -> string!
 const Affiant.Abstractions.Models.DocketRefusalCodes.CoverageRefused = "coverage-refused" -> string!
 const Affiant.Abstractions.Models.DocketRefusalCodes.DecisionExpired = "decision-expired" -> string!
 const Affiant.Abstractions.Models.DocketRefusalCodes.DecisionLostRace = "decision-lost-race" -> string!
 const Affiant.Abstractions.Models.DocketRefusalCodes.DecisionNotPending = "decision-not-pending" -> string!
+const Affiant.Abstractions.Models.DocketRefusalCodes.DecisionUnauthorized = "decision-unauthorized" -> string!
 const Affiant.Abstractions.Models.DocketRefusalCodes.EntryNotFound = "entry-not-found" -> string!
 const Affiant.Abstractions.Models.DocketRefusalCodes.ExecutionAlreadyRecorded = "execution-already-recorded" -> string!
 const Affiant.Abstractions.Models.DocketRefusalCodes.RequirementNotImplemented = "requirement-not-implemented" -> string!
@@ -749,6 +845,9 @@ override Affiant.Abstractions.Models.ComputationConstantRef.ToString() -> string
 override Affiant.Abstractions.Models.ComputationRuleRef.Equals(object? obj) -> bool
 override Affiant.Abstractions.Models.ComputationRuleRef.GetHashCode() -> int
 override Affiant.Abstractions.Models.ComputationRuleRef.ToString() -> string!
+override Affiant.Abstractions.Models.DecisionContext.Equals(object? obj) -> bool
+override Affiant.Abstractions.Models.DecisionContext.GetHashCode() -> int
+override Affiant.Abstractions.Models.DecisionContext.ToString() -> string!
 override Affiant.Abstractions.Models.DecisionRecord.Equals(object? obj) -> bool
 override Affiant.Abstractions.Models.DecisionRecord.GetHashCode() -> int
 override Affiant.Abstractions.Models.DecisionRecord.ToString() -> string!
@@ -764,6 +863,19 @@ override Affiant.Abstractions.Models.Lineage.ToString() -> string!
 override Affiant.Abstractions.Models.PreservedAmendments.Equals(object? obj) -> bool
 override Affiant.Abstractions.Models.PreservedAmendments.GetHashCode() -> int
 override Affiant.Abstractions.Models.PreservedAmendments.ToString() -> string!
+override Affiant.Abstractions.Models.Principal.Equals(object? obj) -> bool
+override Affiant.Abstractions.Models.Principal.GetHashCode() -> int
+override Affiant.Abstractions.Models.Principal.Member.<Clone>$() -> Affiant.Abstractions.Models.Principal.Member!
+override Affiant.Abstractions.Models.Principal.Member.Equals(object? obj) -> bool
+override Affiant.Abstractions.Models.Principal.Member.GetHashCode() -> int
+override Affiant.Abstractions.Models.Principal.Member.Kind.get -> string!
+override Affiant.Abstractions.Models.Principal.Member.ToString() -> string!
+override Affiant.Abstractions.Models.Principal.Service.<Clone>$() -> Affiant.Abstractions.Models.Principal.Service!
+override Affiant.Abstractions.Models.Principal.Service.Equals(object? obj) -> bool
+override Affiant.Abstractions.Models.Principal.Service.GetHashCode() -> int
+override Affiant.Abstractions.Models.Principal.Service.Kind.get -> string!
+override Affiant.Abstractions.Models.Principal.Service.ToString() -> string!
+override Affiant.Abstractions.Models.Principal.ToString() -> string!
 override Affiant.Abstractions.Models.ProvenanceBinding.ComputationRef.<Clone>$() -> Affiant.Abstractions.Models.ProvenanceBinding.ComputationRef!
 override Affiant.Abstractions.Models.ProvenanceBinding.ComputationRef.Equals(object? obj) -> bool
 override Affiant.Abstractions.Models.ProvenanceBinding.ComputationRef.GetHashCode() -> int
@@ -792,6 +904,9 @@ override Affiant.Abstractions.Models.ProvenanceBinding.UtteranceSpan.Equals(obje
 override Affiant.Abstractions.Models.ProvenanceBinding.UtteranceSpan.GetHashCode() -> int
 override Affiant.Abstractions.Models.ProvenanceBinding.UtteranceSpan.Kind.get -> string!
 override Affiant.Abstractions.Models.ProvenanceBinding.UtteranceSpan.ToString() -> string!
+override Affiant.Abstractions.Models.RelayAssertion.Equals(object? obj) -> bool
+override Affiant.Abstractions.Models.RelayAssertion.GetHashCode() -> int
+override Affiant.Abstractions.Models.RelayAssertion.ToString() -> string!
 override Affiant.Abstractions.Models.RelayRef.Equals(object? obj) -> bool
 override Affiant.Abstractions.Models.RelayRef.GetHashCode() -> int
 override Affiant.Abstractions.Models.RelayRef.ToString() -> string!
@@ -833,6 +948,8 @@ override sealed Affiant.Abstractions.Models.Attestor.MemberViaRelay.Equals(Affia
 override sealed Affiant.Abstractions.Models.Attestor.StandingOrder.Equals(Affiant.Abstractions.Models.Attestor? other) -> bool
 override sealed Affiant.Abstractions.Models.BlockedMarker.CoverageRefused.Equals(Affiant.Abstractions.Models.BlockedMarker? other) -> bool
 override sealed Affiant.Abstractions.Models.BlockedMarker.RequirementNotImplemented.Equals(Affiant.Abstractions.Models.BlockedMarker? other) -> bool
+override sealed Affiant.Abstractions.Models.Principal.Member.Equals(Affiant.Abstractions.Models.Principal? other) -> bool
+override sealed Affiant.Abstractions.Models.Principal.Service.Equals(Affiant.Abstractions.Models.Principal? other) -> bool
 override sealed Affiant.Abstractions.Models.ProvenanceBinding.ComputationRef.Equals(Affiant.Abstractions.Models.ProvenanceBinding? other) -> bool
 override sealed Affiant.Abstractions.Models.ProvenanceBinding.ExternalRef.Equals(Affiant.Abstractions.Models.ProvenanceBinding? other) -> bool
 override sealed Affiant.Abstractions.Models.ProvenanceBinding.FormInput.Equals(Affiant.Abstractions.Models.ProvenanceBinding? other) -> bool
@@ -911,6 +1028,9 @@ static Affiant.Abstractions.Models.AffidavitAmendments.Apply(Affiant.Abstraction
 static Affiant.Abstractions.Models.AffidavitConfidence.Compute(System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.AffidavitField!>! fields) -> Affiant.Abstractions.Models.AffidavitConfidence
 static Affiant.Abstractions.Models.AffidavitConfidence.operator !=(Affiant.Abstractions.Models.AffidavitConfidence left, Affiant.Abstractions.Models.AffidavitConfidence right) -> bool
 static Affiant.Abstractions.Models.AffidavitConfidence.operator ==(Affiant.Abstractions.Models.AffidavitConfidence left, Affiant.Abstractions.Models.AffidavitConfidence right) -> bool
+static Affiant.Abstractions.Models.AffidavitFieldValues.Typed(Affiant.Abstractions.Models.Affidavit! affidavit) -> Affiant.Abstractions.Models.Affidavit!
+static Affiant.Abstractions.Models.AffidavitFieldValues.Typed(System.Collections.Generic.IReadOnlyDictionary<string!, object?>? amendments) -> System.Collections.Generic.IReadOnlyDictionary<string!, object?>?
+static Affiant.Abstractions.Models.AffidavitFieldValues.Typed(object? value, string? kind) -> object?
 static Affiant.Abstractions.Models.AffidavitSubstance.DescribeFailure(Affiant.Abstractions.Models.Affidavit! affidavit) -> string?
 static Affiant.Abstractions.Models.AffidavitSubstance.IsSubstantive(Affiant.Abstractions.Models.Affidavit! affidavit) -> bool
 static Affiant.Abstractions.Models.ApprovalVerdict.implicit operator Affiant.Abstractions.Models.ApprovalVerdict!(Affiant.Abstractions.Models.ReviewRequirement requirement) -> Affiant.Abstractions.Models.ApprovalVerdict!
@@ -920,10 +1040,17 @@ static Affiant.Abstractions.Models.Attestation.operator !=(Affiant.Abstractions.
 static Affiant.Abstractions.Models.Attestation.operator ==(Affiant.Abstractions.Models.Attestation? left, Affiant.Abstractions.Models.Attestation? right) -> bool
 static Affiant.Abstractions.Models.AttestationRelay.operator !=(Affiant.Abstractions.Models.AttestationRelay? left, Affiant.Abstractions.Models.AttestationRelay? right) -> bool
 static Affiant.Abstractions.Models.AttestationRelay.operator ==(Affiant.Abstractions.Models.AttestationRelay? left, Affiant.Abstractions.Models.AttestationRelay? right) -> bool
+static Affiant.Abstractions.Models.Attestor.For(Affiant.Abstractions.Models.Principal! principal) -> Affiant.Abstractions.Models.Attestor?
+static Affiant.Abstractions.Models.Attestor.Member.FromStorage(string! id) -> Affiant.Abstractions.Models.Attestor.Member!
+static Affiant.Abstractions.Models.Attestor.Member.Of(Affiant.Abstractions.Models.Principal.Member! principal) -> Affiant.Abstractions.Models.Attestor.Member!
 static Affiant.Abstractions.Models.Attestor.Member.operator !=(Affiant.Abstractions.Models.Attestor.Member? left, Affiant.Abstractions.Models.Attestor.Member? right) -> bool
 static Affiant.Abstractions.Models.Attestor.Member.operator ==(Affiant.Abstractions.Models.Attestor.Member? left, Affiant.Abstractions.Models.Attestor.Member? right) -> bool
+static Affiant.Abstractions.Models.Attestor.MemberViaRelay.FromStorage(string! memberId, Affiant.Abstractions.Models.AttestationRelay! relay) -> Affiant.Abstractions.Models.Attestor.MemberViaRelay!
+static Affiant.Abstractions.Models.Attestor.MemberViaRelay.Of(Affiant.Abstractions.Models.Principal.Service! principal) -> Affiant.Abstractions.Models.Attestor.MemberViaRelay?
 static Affiant.Abstractions.Models.Attestor.MemberViaRelay.operator !=(Affiant.Abstractions.Models.Attestor.MemberViaRelay? left, Affiant.Abstractions.Models.Attestor.MemberViaRelay? right) -> bool
 static Affiant.Abstractions.Models.Attestor.MemberViaRelay.operator ==(Affiant.Abstractions.Models.Attestor.MemberViaRelay? left, Affiant.Abstractions.Models.Attestor.MemberViaRelay? right) -> bool
+static Affiant.Abstractions.Models.Attestor.StandingOrder.FromStorage(string! policyId, string! version) -> Affiant.Abstractions.Models.Attestor.StandingOrder!
+static Affiant.Abstractions.Models.Attestor.StandingOrder.Of(string! policyId, string? version) -> Affiant.Abstractions.Models.Attestor.StandingOrder!
 static Affiant.Abstractions.Models.Attestor.StandingOrder.operator !=(Affiant.Abstractions.Models.Attestor.StandingOrder? left, Affiant.Abstractions.Models.Attestor.StandingOrder? right) -> bool
 static Affiant.Abstractions.Models.Attestor.StandingOrder.operator ==(Affiant.Abstractions.Models.Attestor.StandingOrder? left, Affiant.Abstractions.Models.Attestor.StandingOrder? right) -> bool
 static Affiant.Abstractions.Models.Attestor.operator !=(Affiant.Abstractions.Models.Attestor? left, Affiant.Abstractions.Models.Attestor? right) -> bool
@@ -938,6 +1065,8 @@ static Affiant.Abstractions.Models.ComputationConstantRef.operator !=(Affiant.Ab
 static Affiant.Abstractions.Models.ComputationConstantRef.operator ==(Affiant.Abstractions.Models.ComputationConstantRef? left, Affiant.Abstractions.Models.ComputationConstantRef? right) -> bool
 static Affiant.Abstractions.Models.ComputationRuleRef.operator !=(Affiant.Abstractions.Models.ComputationRuleRef? left, Affiant.Abstractions.Models.ComputationRuleRef? right) -> bool
 static Affiant.Abstractions.Models.ComputationRuleRef.operator ==(Affiant.Abstractions.Models.ComputationRuleRef? left, Affiant.Abstractions.Models.ComputationRuleRef? right) -> bool
+static Affiant.Abstractions.Models.DecisionContext.operator !=(Affiant.Abstractions.Models.DecisionContext? left, Affiant.Abstractions.Models.DecisionContext? right) -> bool
+static Affiant.Abstractions.Models.DecisionContext.operator ==(Affiant.Abstractions.Models.DecisionContext? left, Affiant.Abstractions.Models.DecisionContext? right) -> bool
 static Affiant.Abstractions.Models.DecisionRecord.operator !=(Affiant.Abstractions.Models.DecisionRecord? left, Affiant.Abstractions.Models.DecisionRecord? right) -> bool
 static Affiant.Abstractions.Models.DecisionRecord.operator ==(Affiant.Abstractions.Models.DecisionRecord? left, Affiant.Abstractions.Models.DecisionRecord? right) -> bool
 static Affiant.Abstractions.Models.ExternalRecordRef.operator !=(Affiant.Abstractions.Models.ExternalRecordRef? left, Affiant.Abstractions.Models.ExternalRecordRef? right) -> bool
@@ -949,6 +1078,12 @@ static Affiant.Abstractions.Models.Lineage.operator ==(Affiant.Abstractions.Mode
 static Affiant.Abstractions.Models.Operation.IsUpdateShaped(string? operationType) -> bool
 static Affiant.Abstractions.Models.PreservedAmendments.operator !=(Affiant.Abstractions.Models.PreservedAmendments? left, Affiant.Abstractions.Models.PreservedAmendments? right) -> bool
 static Affiant.Abstractions.Models.PreservedAmendments.operator ==(Affiant.Abstractions.Models.PreservedAmendments? left, Affiant.Abstractions.Models.PreservedAmendments? right) -> bool
+static Affiant.Abstractions.Models.Principal.Member.operator !=(Affiant.Abstractions.Models.Principal.Member? left, Affiant.Abstractions.Models.Principal.Member? right) -> bool
+static Affiant.Abstractions.Models.Principal.Member.operator ==(Affiant.Abstractions.Models.Principal.Member? left, Affiant.Abstractions.Models.Principal.Member? right) -> bool
+static Affiant.Abstractions.Models.Principal.Service.operator !=(Affiant.Abstractions.Models.Principal.Service? left, Affiant.Abstractions.Models.Principal.Service? right) -> bool
+static Affiant.Abstractions.Models.Principal.Service.operator ==(Affiant.Abstractions.Models.Principal.Service? left, Affiant.Abstractions.Models.Principal.Service? right) -> bool
+static Affiant.Abstractions.Models.Principal.operator !=(Affiant.Abstractions.Models.Principal? left, Affiant.Abstractions.Models.Principal? right) -> bool
+static Affiant.Abstractions.Models.Principal.operator ==(Affiant.Abstractions.Models.Principal? left, Affiant.Abstractions.Models.Principal? right) -> bool
 static Affiant.Abstractions.Models.ProvenanceBinding.ComputationRef.operator !=(Affiant.Abstractions.Models.ProvenanceBinding.ComputationRef? left, Affiant.Abstractions.Models.ProvenanceBinding.ComputationRef? right) -> bool
 static Affiant.Abstractions.Models.ProvenanceBinding.ComputationRef.operator ==(Affiant.Abstractions.Models.ProvenanceBinding.ComputationRef? left, Affiant.Abstractions.Models.ProvenanceBinding.ComputationRef? right) -> bool
 static Affiant.Abstractions.Models.ProvenanceBinding.ExternalRef.operator !=(Affiant.Abstractions.Models.ProvenanceBinding.ExternalRef? left, Affiant.Abstractions.Models.ProvenanceBinding.ExternalRef? right) -> bool
@@ -965,6 +1100,8 @@ static Affiant.Abstractions.Models.ProvenanceBindingKind.All.get -> System.Colle
 static Affiant.Abstractions.Models.ProvenanceTag.FromInference(Affiant.Abstractions.Models.InferenceSource source, string! fieldName, float confidence = 0.6, Affiant.Abstractions.Models.ProvenanceBinding? binding = null) -> Affiant.Abstractions.Models.ProvenanceTag!
 static Affiant.Abstractions.Models.ProvenanceTag.FromUser(string! fieldName, Affiant.Abstractions.Models.ProvenanceBinding? binding) -> Affiant.Abstractions.Models.ProvenanceTag!
 static Affiant.Abstractions.Models.ProvenanceTag.RequiresBinding(Affiant.Abstractions.Models.ProvenanceSource source) -> bool
+static Affiant.Abstractions.Models.RelayAssertion.operator !=(Affiant.Abstractions.Models.RelayAssertion? left, Affiant.Abstractions.Models.RelayAssertion? right) -> bool
+static Affiant.Abstractions.Models.RelayAssertion.operator ==(Affiant.Abstractions.Models.RelayAssertion? left, Affiant.Abstractions.Models.RelayAssertion? right) -> bool
 static Affiant.Abstractions.Models.RelayRef.operator !=(Affiant.Abstractions.Models.RelayRef? left, Affiant.Abstractions.Models.RelayRef? right) -> bool
 static Affiant.Abstractions.Models.RelayRef.operator ==(Affiant.Abstractions.Models.RelayRef? left, Affiant.Abstractions.Models.RelayRef? right) -> bool
 static Affiant.Abstractions.Models.ReviewDeadline.IsUsable(System.TimeSpan timeToLive, System.DateTimeOffset now, out string? reason) -> bool
@@ -1007,6 +1144,9 @@ virtual Affiant.Abstractions.Models.Attestor.PrintMembers(System.Text.StringBuil
 virtual Affiant.Abstractions.Models.BlockedMarker.EqualityContract.get -> System.Type!
 virtual Affiant.Abstractions.Models.BlockedMarker.Equals(Affiant.Abstractions.Models.BlockedMarker? other) -> bool
 virtual Affiant.Abstractions.Models.BlockedMarker.PrintMembers(System.Text.StringBuilder! builder) -> bool
+virtual Affiant.Abstractions.Models.Principal.EqualityContract.get -> System.Type!
+virtual Affiant.Abstractions.Models.Principal.Equals(Affiant.Abstractions.Models.Principal? other) -> bool
+virtual Affiant.Abstractions.Models.Principal.PrintMembers(System.Text.StringBuilder! builder) -> bool
 virtual Affiant.Abstractions.Models.ProvenanceBinding.EqualityContract.get -> System.Type!
 virtual Affiant.Abstractions.Models.ProvenanceBinding.Equals(Affiant.Abstractions.Models.ProvenanceBinding? other) -> bool
 virtual Affiant.Abstractions.Models.ProvenanceBinding.PrintMembers(System.Text.StringBuilder! builder) -> bool

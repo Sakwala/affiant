@@ -133,6 +133,7 @@ public sealed class PoliciesBuilder
 /// </summary>
 internal sealed class DefaultReviewerConfirmationPolicy : IApprovalPolicy
 {
-    public Task<ApprovalVerdict?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
+    public Task<ApprovalVerdict?> EvaluateAsync(
+        Affidavit affidavit, ConversationIdentity identity, CancellationToken cancellationToken = default)
         => Task.FromResult<ApprovalVerdict?>(ReviewRequirement.ReviewerConfirmation);
 }

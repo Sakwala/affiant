@@ -99,7 +99,7 @@ public class ServiceCollectionExtensionsTests
         var policy = Assert.Single(sp.GetServices<IApprovalPolicy>());
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => policy.EvaluateAsync(EmptyAffidavit()));
+            () => policy.EvaluateAsync(EmptyAffidavit(), TestIdentities.Anyone));
 
         Assert.Contains(nameof(ThresholdStandingOrder), ex.Message);
         Assert.Contains("SetRiskScoreCalculator<T>()", ex.Message);
@@ -150,8 +150,8 @@ public class ServiceCollectionExtensionsTests
             .AddStandingOrder<ThresholdStandingOrder>()
             .SetRiskScoreCalculator<CustomRiskCalculator>());
 
-        Assert.Equal(ReviewRequirement.StandingOrder, (await scorerFirst.EvaluateAsync(EmptyAffidavit()))!.Requirement);
-        Assert.Equal(ReviewRequirement.StandingOrder, (await orderFirst.EvaluateAsync(EmptyAffidavit()))!.Requirement);
+        Assert.Equal(ReviewRequirement.StandingOrder, (await scorerFirst.EvaluateAsync(EmptyAffidavit(), TestIdentities.Anyone))!.Requirement);
+        Assert.Equal(ReviewRequirement.StandingOrder, (await orderFirst.EvaluateAsync(EmptyAffidavit(), TestIdentities.Anyone))!.Requirement);
     }
 
     [Fact]

@@ -20,7 +20,8 @@ public sealed class ReviewGate(
     IApprovalPolicyEvaluator evaluator,
     AffiantCoreOptions options,
     ILogger<ReviewGate> logger,
-    TimeProvider? timeProvider = null)
+    TimeProvider? timeProvider = null,
+    IDecisionAuthorizationPolicy? decisionAuthorization = null)
 {
     /// <summary>
     /// The gate's only clock. Every instant it stamps (<c>DocketEntry.CreatedAt</c>,
@@ -30,6 +31,20 @@ public sealed class ReviewGate(
     /// as the DI default, so a host that does nothing sees no change.
     /// </summary>
     private readonly TimeProvider _time = timeProvider ?? TimeProvider.System;
+
+    /// <summary>
+    /// Who may decide, report on or resubmit an entry (AZ-2).
+    /// </summary>
+    /// <remarks>
+    /// <b>The fallback denies.</b> A host that registered no
+    /// <see cref="IDecisionAuthorizationPolicy"/> gets <see cref="DenyAllDecisionAuthorization"/>,
+    /// so there is no window — not even the one before startup validation runs — in which the gate
+    /// admits a decision nobody vouched for. <c>AffiantWireUpValidator</c> refuses at startup when
+    /// this application declares a write-capable tool and no policy is registered, so a host does
+    /// not silently run on the deny-all; it is the safe floor, not a configuration to ship.
+    /// </remarks>
+    private readonly IDecisionAuthorizationPolicy authorization =
+        decisionAuthorization ?? DenyAllDecisionAuthorization.Instance;
 
     /// <summary>
     /// Non-blocking half of filing a review (framework enabler for host issue
@@ -154,47 +169,68 @@ public sealed class ReviewGate(
             throw;
         }
 
-        // Process the reviewer's decision.
-        if (response.Decision == ApprovalDecision.Rejected)
-        {
-            var rejectedRows = await docketStore.UpdateReviewStatusAsync(
-                entryId, ReviewStatus.Rejected, cancellationToken);
-            RecordTransitionIfWon(
-                rejectedRows, entryId, context.SessionId, ReviewStatus.Rejected,
-                decisionKind: "reject");
-            return new ReviewOutcome.Rejected(entryId, response.Reason ?? "No reason provided");
-        }
+        // Process the reviewer's decision. The attestation came with it (AZ-1): a decision this
+        // path could not attribute is one HandleDecisionAsync already refused, so there is no case
+        // in which a row is written here with nobody on it.
+        var attestation = response.Attestation;
+        var accepted = response.Decision == ApprovalDecision.Approved && response.Amendments is { Count: > 0 }
+            ? response.Amendments
+            : null;
 
-        // Approved: optimistic update — 0 rows means the entry was already transitioned.
-        var rowsAffected = await docketStore.UpdateReviewStatusAsync(
-            entryId, ReviewStatus.Approved, cancellationToken);
-        if (rowsAffected == 0)
+        var amendedAffidavit = accepted is null
+            ? null
+            : FoldAmendments(
+                context.Affidavit, accepted, entryId,
+                attestation?.By.Subject ?? ReviewerOf(context));
+
+        var patch = new DocketTransitionPatch(
+            Status: response.Decision == ApprovalDecision.Approved
+                ? ReviewStatus.Approved
+                : ReviewStatus.Rejected,
+            Decision: new DecisionRecord(
+                response.Decision == ApprovalDecision.Approved ? DecisionKind.Approve : DecisionKind.Reject,
+                response.Reason,
+                attestation?.At ?? _time.GetUtcNow()),
+            Amendments: accepted,
+            AmendedAffidavit: amendedAffidavit,
+            Attestation: attestation,
+            DecidedAt: attestation?.At ?? _time.GetUtcNow());
+
+        var transition = await docketStore.TransitionAsync(
+            entryId, new DocketScope(context.TenantId), ReviewStatus.Pending, patch, cancellationToken);
+
+        if (transition is not DocketTransitionResult.Transitioned settled)
         {
+            // Somebody else moved the row first — report what it actually landed in rather than
+            // what this call was about to write.
             var finalEntry = await docketStore.GetDocketEntryAsync(entryId, cancellationToken);
             return finalEntry is null
                 ? new ReviewOutcome.Expired(entryId)
                 : finalEntry.Status.ToReviewOutcome(entryId);
         }
 
-        // This call won the approval race — persist the reviewer's amendments (if any) onto
-        // the entry it just transitioned. See EvidenceCardResponse.Amendments.
-        Affidavit? amendedAffidavit = null;
-        var amended = response.Amendments is { Count: > 0 };
-        if (amended)
-        {
-            await docketStore.UpdateAmendmentsAsync(entryId, response.Amendments!, cancellationToken);
-#pragma warning disable AFFIANT0001 // the routing hint until the attestation names the reviewer
-            amendedAffidavit = FoldAmendments(
-                context.Affidavit, response.Amendments!, entryId, context.ReviewerUserId);
-#pragma warning restore AFFIANT0001
-        }
+        AffiantTelemetry.RecordDocketTransition(
+            entryId,
+            context.SessionId,
+            DocketStateName(ReviewStatus.Pending),
+            DocketStateName(settled.Entry.Status),
+            amended: accepted is not null,
+            execution: ExecutionStateName(settled.Entry.Execution),
+            decisionKind: response.Decision == ApprovalDecision.Approved ? "approve" : "reject",
+            attestationKind: attestation?.By.Kind);
 
-        RecordTransitionIfWon(
-            rowsAffected, entryId, context.SessionId, ReviewStatus.Approved,
-            decisionKind: "approve", amended: amended);
-
-        return new ReviewOutcome.Approved(entryId, amendedAffidavit);
+        return response.Decision == ApprovalDecision.Approved
+            ? new ReviewOutcome.Approved(entryId, settled.Entry.AmendedAffidavit ?? amendedAffidavit)
+            : new ReviewOutcome.Rejected(entryId, response.Reason ?? "No reason provided");
     }
+
+    /// <summary>
+    /// Who an amendment is attributed to when the decision carried no attestation — the routing
+    /// hint the filing context had. Reachable only from a transport that delivered a response the
+    /// gate did not build, which is a host substituting its own; the framework's own path always
+    /// carries the attestation.
+    /// </summary>
+    private static string ReviewerOf(ReviewContext context) => context.ReviewerUserId;
 
     /// <summary>
     /// Resubmits an expired review for a fresh reviewer round (framework half of repo issue #9):
@@ -205,16 +241,26 @@ public sealed class ReviewGate(
     /// the reviewer sees what was already agreed before the window lapsed.
     /// </summary>
     /// <param name="expiredEntryId">The <see cref="DocketEntry.EntryId"/> of the expired entry to resubmit.</param>
+    /// <param name="context">Who is resubmitting, and in which tenant.</param>
     /// <param name="cancellationToken">Caller cancellation.</param>
-    /// <returns>The <see cref="ReviewFilingResult"/> for the fresh entry — see <see cref="FileForReviewAsync"/>.</returns>
+    /// <returns>
+    /// The <see cref="ReviewFilingResult"/> for the fresh entry — see <see cref="FileForReviewAsync"/>
+    /// — or <see cref="ReviewFilingResult.Decided"/> carrying a
+    /// <see cref="ReviewOutcome.Refused"/> when the caller may not resubmit this entry.
+    /// </returns>
     /// <exception cref="InvalidOperationException">
-    /// <paramref name="expiredEntryId"/> does not identify an existing entry, the entry's
-    /// <see cref="DocketEntry.Status"/> is not <see cref="ReviewStatus.Expired"/>, or a concurrent
-    /// <see cref="ResubmitAsync"/> call already claimed it (see remarks). An entry whose deadline
-    /// has passed reads as <see cref="ReviewStatus.Expired"/> whether or not the sweep has reached
-    /// it, so a resubmission never has to wait for a sweep tick.
+    /// The entry's <see cref="DocketEntry.Status"/> is not <see cref="ReviewStatus.Expired"/>, or a
+    /// concurrent <see cref="ResubmitAsync"/> call already claimed it (see remarks). An entry whose
+    /// deadline has passed reads as <see cref="ReviewStatus.Expired"/> whether or not the sweep has
+    /// reached it, so a resubmission never has to wait for a sweep tick.
     /// </exception>
     /// <remarks>
+    /// <para>
+    /// <b>The same authorization checks a decision runs</b> (AZ-2): an unresolved principal is
+    /// refused before the Docket is read, an entry outside the caller's tenant is <em>not found</em>,
+    /// and the host's authorization port has the last word. A resubmission re-opens a review window
+    /// on somebody's behalf; a caller that could not have decided the entry cannot re-open it either.
+    /// </para>
     /// <para>
     /// <b>Lineage and the race guard (Area-5 Decision 2, affiant#31):</b> <see cref="DocketEntry.ResubmittedTo"/>
     /// on the <paramref name="expiredEntryId"/> entry is both the atomic guard that stops two
@@ -246,14 +292,23 @@ public sealed class ReviewGate(
     /// </remarks>
     public async Task<ReviewFilingResult> ResubmitAsync(
         Guid expiredEntryId,
+        DecisionContext context,
         CancellationToken cancellationToken = default)
     {
-        var entry = await docketStore.GetDocketEntryAsync(expiredEntryId, cancellationToken);
+        ArgumentNullException.ThrowIfNull(context);
+
+        if (RequirePrincipal(context, expiredEntryId, ResubmitPath) is not { } principal)
+            return new ReviewFilingResult.Decided(Unauthorized(expiredEntryId, AuthorizationRule));
+
+        var entry = await RequireEntryAsync(expiredEntryId, context, ResubmitPath, cancellationToken);
         if (entry is null)
         {
-            throw new InvalidOperationException(
-                $"ResubmitAsync: DocketEntry {expiredEntryId} was not found.");
+            return new ReviewFilingResult.Decided(
+                new ReviewOutcome.Refused(expiredEntryId, DocketRefusalCodes.EntryNotFound));
         }
+
+        if (!await IsAuthorizedAsync(principal, entry, context, ResubmitPath, cancellationToken))
+            return new ReviewFilingResult.Decided(Unauthorized(expiredEntryId, AuthorizationRule));
 
         if (entry.Status != ReviewStatus.Expired)
         {
@@ -284,11 +339,19 @@ public sealed class ReviewGate(
         // accepted. A resubmission prefills from the first when it exists, because that is the
         // reviewer's own uncommitted correction, and falls back to the second for a row whose
         // corrections were recorded before the two were told apart.
-        var prefill = entry.PreservedAmendments?.Amendments ?? entry.Amendments;
+        //
+        // Read back TYPED, both of them. A row that has been through a store carries every field
+        // value and every amendment as raw JSON, and a resubmission is the one path that always
+        // reads the record back out: a host risk scorer that pattern-matches on a value's type would
+        // otherwise see an unrecognised type for every field and fall through to its default branch,
+        // so the same content would score one way when first filed and another way when resubmitted.
+        var prefill = AffidavitFieldValues.Typed(
+            entry.PreservedAmendments?.Amendments ?? entry.Amendments);
         var priorAmendments = prefill is { Count: > 0 } ? prefill : null;
+        var sworn = AffidavitFieldValues.Typed(entry.Envelope);
 
-        var proposal = new WriteProposal(entry.ToolName, _time.GetUtcNow(), entry.Envelope);
-        var context = new ReviewContext(
+        var proposal = new WriteProposal(entry.ToolName, _time.GetUtcNow(), sworn);
+        var filing = new ReviewContext(
             SessionId: entry.SessionId,
             TenantId: entry.TenantId,
             UserId: entry.UserId,
@@ -298,18 +361,19 @@ public sealed class ReviewGate(
 #pragma warning disable AFFIANT0001 // superseded by the attestation; still the routing hint until then
             ReviewerUserId: entry.ReviewerUserId ?? entry.UserId,
 #pragma warning restore AFFIANT0001
-            Affidavit: entry.Envelope,
+            Affidavit: sworn,
             EntryId: newEntryId,
             Amendments: priorAmendments,
+            Channel: context.Channel,
             // The other half of the lineage. The successor link was written on the superseded row
             // above; this is what the new row records about where it came from, so the history reads
             // forward from either end without a reverse lookup.
             Supersedes: expiredEntryId);
 
-        ReviewFilingResult filing;
+        ReviewFilingResult result;
         try
         {
-            filing = await FileForReviewCoreAsync(proposal, context, cancellationToken);
+            result = await FileForReviewCoreAsync(proposal, filing, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -330,9 +394,9 @@ public sealed class ReviewGate(
         logger.LogInformation(
             "ResubmitAsync: resubmitted expired DocketEntry {ExpiredEntryId} as fresh DocketEntry " +
             "{NewEntryId} ({FilingResultType})",
-            expiredEntryId, newEntryId, filing.GetType().Name);
+            expiredEntryId, newEntryId, result.GetType().Name);
 
-        return filing;
+        return result;
     }
 
     /// <summary>
@@ -474,7 +538,8 @@ public sealed class ReviewGate(
             //    policies in registration order, takes the first non-null verdict, applies the GT-5
             //    and PV-4 checks to it, and defaults to ReviewerConfirmation when none speaks. A
             //    policy that names an unusable window or throws refuses here with nothing filed.
-            var verdict = await evaluator.EvaluateAsync(context.Affidavit, cancellationToken);
+            var verdict = await evaluator.EvaluateAsync(
+                context.Affidavit, IdentityOf(context, now), cancellationToken);
             var requirement = verdict.Requirement;
 
             // 3. The deadline, stamped from the policy result and only now (GT-4): the verdict's own
@@ -522,13 +587,43 @@ public sealed class ReviewGate(
                 created: true,
                 requirement: requirement.ToString());
 
-            // 5a. StandingOrder: auto-approve without client interaction.
+            // 5a. StandingOrder: auto-approve without client interaction — and attest it (AZ-1).
+            //
+            // The attestation is written in the SAME operation that files the entry approved, so
+            // there is no window in which an approved write has no attribution. Nobody decided, so
+            // there is no decision record and no person to name: what the row records is the policy
+            // that fired and the version of it that fired, which is the honest answer to "who
+            // approved this" for a write approved with no person present.
             if (requirement == ReviewRequirement.StandingOrder)
             {
-                var approvedRows = await docketStore.UpdateReviewStatusAsync(
-                    entryId, ReviewStatus.Approved, cancellationToken);
-                RecordTransitionIfWon(approvedRows, entryId, context.SessionId, ReviewStatus.Approved);
-                logger.LogInformation("StandingOrder auto-approved DocketEntry {EntryId}", entryId);
+                var attestation = new Attestation(
+                    Attestor.StandingOrder.Of(
+                        verdict.PolicyId ?? UnnamedStandingOrderPolicy, verdict.PolicyVersion),
+                    now,
+                    entryId);
+
+                var approved = await docketStore.TransitionAsync(
+                    entryId,
+                    new DocketScope(context.TenantId),
+                    ReviewStatus.Pending,
+                    new DocketTransitionPatch(
+                        ReviewStatus.Approved, Attestation: attestation, DecidedAt: now),
+                    cancellationToken);
+
+                if (approved is DocketTransitionResult.Transitioned transitioned)
+                {
+                    AffiantTelemetry.RecordDocketTransition(
+                        entryId,
+                        context.SessionId,
+                        DocketStateName(ReviewStatus.Pending),
+                        DocketStateName(ReviewStatus.Approved),
+                        execution: ExecutionStateName(transitioned.Entry.Execution),
+                        attestationKind: attestation.By.Kind);
+                }
+
+                logger.LogInformation(
+                    "StandingOrder {PolicyId} auto-approved DocketEntry {EntryId}",
+                    attestation.By.Subject, entryId);
                 return new ReviewFilingResult.Decided(new ReviewOutcome.Approved(entryId));
             }
 
@@ -695,143 +790,157 @@ public sealed class ReviewGate(
         }
     }
 
-    /// <summary>
-    /// Routes a human decision that names nobody — the shape every release before the decision
-    /// record existed had.
-    /// </summary>
-    /// <remarks>
-    /// Equivalent to passing <see cref="DecisionAct.Unattributed"/>: no tenant is compared, no reason
-    /// is recorded, and a late decision's amendments are not preserved because the row would have
-    /// nobody to attribute the correction to. Prefer the overload that takes a
-    /// <see cref="DecisionAct"/>; this one exists so hosts on the previous release keep compiling.
-    /// </remarks>
-    /// <param name="entryId">The entry being decided.</param>
-    /// <param name="decision">Approve or reject.</param>
-    /// <param name="amendments">Fields the reviewer changed. Ignored on rejection.</param>
-    /// <param name="cancellationToken">Caller cancellation.</param>
-    public Task<(ReviewOutcome? Outcome, DateTimeOffset? EntryCreatedAt)> HandleDecisionAsync(
-        Guid entryId,
-        ApprovalDecision decision,
-        IReadOnlyDictionary<string, object?>? amendments,
-        CancellationToken cancellationToken)
-        => HandleDecisionAsync(entryId, decision, DecisionAct.Unattributed, amendments, cancellationToken);
-
-    /// <inheritdoc cref="HandleDecisionAsync(Guid, ApprovalDecision, IReadOnlyDictionary{string, object?}?, CancellationToken)"/>
-    /// <param name="entryId">The entry being decided.</param>
-    /// <param name="decision">Approve or reject.</param>
-    /// <param name="amendments">Fields the reviewer changed. Ignored on rejection.</param>
-    public Task<(ReviewOutcome? Outcome, DateTimeOffset? EntryCreatedAt)> HandleDecisionAsync(
-        Guid entryId,
-        ApprovalDecision decision,
-        IReadOnlyDictionary<string, object?>? amendments)
-        => HandleDecisionAsync(entryId, decision, DecisionAct.Unattributed, amendments, CancellationToken.None);
-
-    /// <inheritdoc cref="HandleDecisionAsync(Guid, ApprovalDecision, IReadOnlyDictionary{string, object?}?, CancellationToken)"/>
-    /// <param name="entryId">The entry being decided.</param>
-    /// <param name="decision">Approve or reject.</param>
-    public Task<(ReviewOutcome? Outcome, DateTimeOffset? EntryCreatedAt)> HandleDecisionAsync(
-        Guid entryId,
-        ApprovalDecision decision)
-        => HandleDecisionAsync(entryId, decision, DecisionAct.Unattributed, null, CancellationToken.None);
+    // ── The decision surface (AZ-1, AZ-2, AZ-3, AZ-5, AZ-6, AZ-7) ─────────────────────────────
+    //
+    // Three entry points move a filed row: a decision, the host's execution report, and a
+    // resubmission. Each takes a DecisionContext and each runs the SAME four checks against it,
+    // in the same order, before it touches anything:
+    //
+    //   1. No resolved principal → refused, BEFORE the store is read. "Identity unknown" is never
+    //      "allow", and a read that happened before the refusal is a read an attacker can time.
+    //   2. The row is read inside the caller's tenant AND the row's own tenant is compared here.
+    //      A scoped read alone is a check the STORE performs; a host store with a scope bug then
+    //      fails open and the gate does not notice. Two independent enforcements of one rule is
+    //      what "fail closed" is worth. A row in another tenant is entry-not-found, exactly as an
+    //      id that never existed — never "not authorized", which would confirm the id exists.
+    //   3. The host's own authorization port. False refuses; a throw refuses. A callback that fell
+    //      over has not said yes.
+    //   4. Only then the state machine's own checks — blocked, not pending, expired, lost race.
+    //
+    // None of this is conditional on a model, a transport or any other port being available: there
+    // is no degraded path that skips a check (AZ-6).
+    //
+    // There is no `execute` here and no executor port on this class. The only path to
+    // execution: executed is MarkExecutedAsync — the host's own executor saying what it did
+    // against a row that already carries an attestation (AZ-5, AZ-7).
 
     /// <summary>
-    /// Routes a human decision to the appropriate handling path.
+    /// Approve, amend or reject the entry <paramref name="entryId"/> names, as
+    /// <c>context.Principal</c> (DK-1, AZ-1, AZ-2, AZ-3).
     /// </summary>
     /// <remarks>
     /// <para>
     /// If a <see cref="FileReviewAsync"/> (or <see cref="FileForReviewAsync"/>) task is currently
-    /// awaiting a response for <paramref name="entryId"/>, the decision is delivered directly and this
-    /// method returns <c>(null, null)</c> — the awaiting caller owns the outcome and completion. If no
-    /// waiter exists (the host restarted, or the review was filed through the non-blocking path and
-    /// never awaited), the decision is replayed through the Docket under a guarded compare-and-set.
+    /// awaiting a response for <paramref name="entryId"/>, the decision is delivered directly and
+    /// this method returns <c>(null, null)</c> — the awaiting caller owns the outcome and its
+    /// completion. If no waiter exists (the host restarted, or the review was filed through the
+    /// non-blocking path and never awaited), the decision is replayed through the Docket under a
+    /// guarded compare-and-set.
     /// </para>
     /// <para>
-    /// <b>Four refusals, four answers.</b> A decision on an entry that is not pending, a decision that
-    /// lost a race to a concurrent one, a decision that arrived after the deadline and a decision on a
-    /// blocked entry are four different things, and each is reported as its own
-    /// <see cref="ReviewOutcome.Refused"/> code rather than all four as an expiry. A late decision
-    /// from a caller who identified themselves also has its amendments preserved on the row for a
-    /// resubmission — see <paramref name="act"/>.
+    /// <b>The refusals are distinct answers, not one.</b> An unresolved principal, a row in another
+    /// tenant, a principal the host declined, a blocked entry, an entry that is no longer pending, a
+    /// decision that lost a race and a decision that arrived after the deadline are seven different
+    /// things, and each is reported as its own <see cref="ReviewOutcome.Refused"/> code. A late
+    /// decision from a principal who <em>could</em> have decided also has its amendments preserved on
+    /// the row for a resubmission; one from a principal who could not leaves nothing behind, because
+    /// a resubmission prefills preserved values as a person's own correction and a machine may not
+    /// put words in a person's mouth.
+    /// </para>
+    /// <para>
+    /// <b>Who is written onto the row.</b> The attestation is built from the principal and
+    /// <em>only</em> from the principal: there is no parameter through which a caller can name whose
+    /// signature this is. A member principal attests <c>member</c>; a service principal that names
+    /// both the person it speaks for and the relay that carried them attests
+    /// <c>member-via-relay</c>; a service principal with nothing to relay is refused with
+    /// <c>decision-unauthorized</c> — a machine cannot agree to a write in a person's name (AZ-3).
     /// </para>
     /// </remarks>
     /// <param name="entryId">The entry being decided.</param>
     /// <param name="decision">Approve or reject.</param>
-    /// <param name="act">Who decided, in which tenant, and why.</param>
+    /// <param name="context">Who is deciding, in which tenant, on which channel, and why.</param>
     /// <param name="amendments">
-    /// Fields the reviewer changed while acting on the Evidence Card. Ignored on rejection. Carried by
-    /// a refused late decision, they are preserved on the row as a separate fact from what an approval
-    /// accepted.
+    /// Fields the reviewer changed while acting on the Evidence Card. Ignored on rejection. On an
+    /// approval they are recorded as what the approval <em>accepted</em>, and the accepted state they
+    /// produce is written beside the proposal (AF-4, PV-2). Carried by a refused late decision, they
+    /// are preserved on the row as a different fact from what an approval accepted.
     /// </param>
     /// <param name="cancellationToken">Caller cancellation.</param>
     public async Task<(ReviewOutcome? Outcome, DateTimeOffset? EntryCreatedAt)> HandleDecisionAsync(
         Guid entryId,
         ApprovalDecision decision,
-        DecisionAct act,
-        IReadOnlyDictionary<string, object?>? amendments,
-        CancellationToken cancellationToken)
+        DecisionContext context,
+        IReadOnlyDictionary<string, object?>? amendments = null,
+        CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(act);
+        ArgumentNullException.ThrowIfNull(context);
 
-        // Live path: a FileReviewAsync call is awaiting — deliver and let it own the outcome.
-        if (transport.TryDeliverResponse(entryId, new EvidenceCardResponse(entryId, decision, Amendments: amendments)))
+        // (i) AZ-2, fail closed — before any store call at all.
+        if (RequirePrincipal(context, entryId, DecidePath) is not { } principal)
+            return (Unauthorized(entryId, AuthorizationRule), null);
+
+        // (v) Who is being held to this (AZ-1, AZ-3). Checked here, before the live-waiter path and
+        // before the store, because a caller that can attest nothing must not be able to complete a
+        // review through the awaiting-caller shortcut either.
+        if (Attestor.For(principal) is not { } attestor)
+        {
+            AffiantTelemetry.RecordDecisionUnauthorized(
+                entryId, context.ConversationId, MachineAttestationReason, DecidePath, principal.Kind);
+            logger.LogWarning(
+                "HandleDecisionAsync: DocketEntry {EntryId} was decided by a machine caller with " +
+                "nothing to relay — a service principal decides only on behalf of a person it names, " +
+                "over a relay it names, and the result attests member-via-relay",
+                entryId);
+            return (Unauthorized(entryId, AttestationRule), null);
+        }
+
+        // Live path: a FileReviewAsync call is awaiting — deliver and let it own the outcome. The
+        // attestation travels with the response so the row that call writes names who agreed, exactly
+        // as the row this call would have written does (AZ-1): the awaiting caller holds the filing
+        // context, and this one holds the identity, and neither is allowed to guess the other's half.
+        var handOff = new EvidenceCardResponse(entryId, decision, context.Reason, amendments)
+        {
+            Attestation = new Attestation(attestor, context.At ?? _time.GetUtcNow(), entryId),
+        };
+        if (transport.TryDeliverResponse(entryId, handOff))
             return (null, null);
 
-        // Restart path: no live waiter — replay through the Docket.
-        var entry = await docketStore.GetDocketEntryAsync(entryId, cancellationToken);
+        // (ii) The tenant is the boundary, and a miss is a miss (AZ-2).
+        var entry = await RequireEntryAsync(entryId, context, DecidePath, cancellationToken);
         if (entry is null)
-        {
-            AffiantTelemetry.RecordDecisionUnauthorized(entryId, null, "entry-not-found", DecidePath);
             return (new ReviewOutcome.Refused(entryId, DocketRefusalCodes.EntryNotFound), null);
-        }
 
-        // An entry outside the caller's tenant is NOT FOUND, never "forbidden": telling a caller that
-        // an id they may not touch exists is the leak the tenant check is for. Until the decision path
-        // takes a resolved principal, the tenant is what the caller states; a caller that states none
-        // is trusted with the row's own, which is the behaviour every release before this one had.
-        if (act.TenantId is { } statedTenant && !string.Equals(statedTenant, entry.TenantId, StringComparison.Ordinal))
-        {
-            logger.LogWarning(
-                "HandleDecisionAsync: DocketEntry {EntryId} is outside the caller's tenant", entryId);
-            AffiantTelemetry.RecordDecisionUnauthorized(
-                entryId, entry.SessionId, "tenant-mismatch", DecidePath);
-            return (new ReviewOutcome.Refused(entryId, DocketRefusalCodes.EntryNotFound), null);
-        }
+        // (iii) The host's own answer.
+        if (!await IsAuthorizedAsync(principal, entry, context, DecidePath, cancellationToken))
+            return (Unauthorized(entryId, AuthorizationRule), entry.CreatedAt);
 
         var scope = new DocketScope(entry.TenantId);
         var createdAt = entry.CreatedAt;
         var now = _time.GetUtcNow();
+        var decidedAt = context.At ?? now;
 
-        // A blocked entry refuses every decision, and says which code blocked it. Checked before the
-        // store so the refusal carries the marker's own context, which a bare transition result cannot.
+        // (iv) A blocked entry refuses every decision, and says which code blocked it. Checked before
+        // the store so the refusal carries the marker's own context, which a bare transition result
+        // cannot (AZ-4).
         if (entry.Blocked is not null)
         {
             AffiantTelemetry.RecordDecisionUnauthorized(
-                entryId, entry.SessionId, "decision-not-pending", DecidePath);
+                entryId, context.ConversationId, DocketRefusalCodes.DecisionNotPending, DecidePath,
+                principal.Kind);
             return (RefuseBlocked(entryId, entry.Blocked), createdAt);
         }
 
-        var decidedAt = act.At ?? now;
+        var accepted = decision == ApprovalDecision.Approved && amendments is { Count: > 0 }
+            ? amendments
+            : null;
+
         var patch = new DocketTransitionPatch(
             Status: decision == ApprovalDecision.Approved ? ReviewStatus.Approved : ReviewStatus.Rejected,
             Decision: new DecisionRecord(
                 decision == ApprovalDecision.Approved ? DecisionKind.Approve : DecisionKind.Reject,
-                act.Reason,
+                context.Reason,
                 decidedAt),
             // What an approval ACCEPTS. A rejection accepts nothing, so it records nothing here —
             // a refused or rejected caller's edits are a different fact from an approval's.
-            Amendments: decision == ApprovalDecision.Approved && amendments is { Count: > 0 }
-                ? amendments
-                : null,
+            Amendments: accepted,
             // The accepted state those amendments produce — the Affidavit recomputed with the
             // reviewer's values, their act on each amended field's provenance chain, and all three
-            // confidence numbers recomputed (AF-4, PV-2). Written BESIDE the proposal, never over
-            // it: the row keeps what the agent swore to on Envelope and gains what the reviewer
-            // accepted here, so a reader can see both. A map naming a field the Affidavit does not
-            // propose is a host defect: it is logged and no amended record is produced, and the
-            // decision itself still stands (see FoldAmendments).
-            AmendedAffidavit: decision == ApprovalDecision.Approved && amendments is { Count: > 0 }
-                ? FoldAmendments(entry.Envelope, amendments, entryId, DeciderOf(entry, act))
-                : null,
+            // confidence numbers recomputed (AF-4, PV-2). Written BESIDE the proposal, never over it.
+            AmendedAffidavit: accepted is null
+                ? null
+                : FoldAmendments(entry.Envelope, accepted, entryId, attestor.Subject),
+            // Built from the principal and only from the principal (AZ-1).
+            Attestation: new Attestation(attestor, decidedAt, entryId),
             DecidedAt: decidedAt);
 
         var result = await docketStore.TransitionAsync(
@@ -841,7 +950,8 @@ public sealed class ReviewGate(
         {
             case DocketTransitionResult.Transitioned transitioned:
                 logger.LogInformation(
-                    "HandleDecisionAsync: DocketEntry {EntryId} {Decision} (restart path)", entryId, decision);
+                    "HandleDecisionAsync: DocketEntry {EntryId} {Decision} (restart path), attested {Attestation}",
+                    entryId, decision, attestor.Kind);
 
                 // TL-1 `docket.transition`, emitted by the caller whose own compare-and-set won it.
                 AffiantTelemetry.RecordDocketTransition(
@@ -850,22 +960,23 @@ public sealed class ReviewGate(
                     DocketStateName(ReviewStatus.Pending),
                     DocketStateName(transitioned.Entry.Status),
                     amended: transitioned.Entry.Amendments is { Count: > 0 },
-                    execution: transitioned.Entry.Execution?.ToString().ToLowerInvariant(),
+                    execution: ExecutionStateName(transitioned.Entry.Execution),
                     decisionKind: decision == ApprovalDecision.Approved ? "approve" : "reject",
-                    attestationKind: transitioned.Entry.Attestation?.By.Kind);
+                    attestationKind: transitioned.Entry.Attestation?.By.Kind ?? attestor.Kind);
 
                 return (transitioned.Entry.Status == ReviewStatus.Approved
                     ? new ReviewOutcome.Approved(entryId, transitioned.Entry.AmendedAffidavit)
-                    : new ReviewOutcome.Rejected(entryId, act.Reason ?? "No reason provided"),
+                    : new ReviewOutcome.Rejected(entryId, context.Reason ?? "No reason provided"),
                     createdAt);
 
             case DocketTransitionResult.NotFound:
                 AffiantTelemetry.RecordDecisionUnauthorized(
-                    entryId, entry.SessionId, "entry-not-found", DecidePath);
+                    entryId, entry.SessionId, DocketRefusalCodes.EntryNotFound, DecidePath, principal.Kind);
                 return (new ReviewOutcome.Refused(entryId, DocketRefusalCodes.EntryNotFound), createdAt);
 
             case DocketTransitionResult.Expired:
-                return (await HandleLateDecisionAsync(entryId, scope, act, amendments, decidedAt, cancellationToken),
+                return (await HandleLateDecisionAsync(
+                    entryId, scope, context, principal, amendments, decidedAt, cancellationToken),
                     createdAt);
 
             case DocketTransitionResult.AlreadyDecided:
@@ -879,12 +990,132 @@ public sealed class ReviewGate(
                     : DocketRefusalCodes.DecisionNotPending;
                 logger.LogWarning(
                     "HandleDecisionAsync: DocketEntry {EntryId} refused with {Code}", entryId, code);
-                AffiantTelemetry.RecordDecisionUnauthorized(entryId, entry.SessionId, code, DecidePath);
+                AffiantTelemetry.RecordDecisionUnauthorized(
+                    entryId, entry.SessionId, code, DecidePath, principal.Kind);
                 return (new ReviewOutcome.Refused(entryId, code), createdAt);
 
             default:
                 throw new InvalidOperationException(
                     $"Unknown transition result {result.GetType().Name} for DocketEntry {entryId}.");
+        }
+    }
+
+    /// <summary>
+    /// Record what the host's executor did with an approved write — the only path to
+    /// <see cref="ExecutionOutcome.Executed"/> (DK-1, AZ-5, AZ-7).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The framework never performs the write.</b> There is no executor port on this class and no
+    /// method here calls one: a host reads its approved-and-unexecuted rows
+    /// (<see cref="DocketRehydration"/>), does the write itself against the attested row, and says
+    /// what happened. An executor is reachable only through a Docket entry that carries an
+    /// attestation — nothing replayed from a client's history, a chat transcript or a framework
+    /// checkpoint stands in for that row, and a host's outbox is a retry of an already-attested
+    /// write, never a second authorization path.
+    /// </para>
+    /// <para>
+    /// <b><see cref="ReviewStatus.Approved"/> stays.</b> The approval happened and is not undone by a
+    /// failed write; only the execution outcome and its detail move. An approved-but-failed write and
+    /// an approved-and-committed one must stay distinguishable on the row.
+    /// </para>
+    /// <para>
+    /// <b>Reported once.</b> The execution transition is a guarded compare-and-set out of
+    /// <see cref="ExecutionOutcome.Unexecuted"/>, like every other transition on a row: a second
+    /// report is refused with <c>execution-already-recorded</c> and the first stands. Overwriting
+    /// would let an approved-and-committed row later read failed — an edit in place of a recorded
+    /// fact, and the loss of exactly the distinction the row exists to keep. A host that retries a
+    /// write reports <b>once</b>, when it knows the outcome: the retries are the host's business, the
+    /// outcome is the Docket's.
+    /// </para>
+    /// <para>
+    /// <b>A machine caller is admitted here and refused as a decider</b> (AZ-3). The asymmetry is the
+    /// point: reporting an outcome is a statement of fact about work the host performed, which a
+    /// machine is the right party to make, while a decision is an act of authority a machine may
+    /// never make in a person's name. The tenant check and the host's authorization port still apply,
+    /// so "which service may report on this entry" is still the host's answer and not an open door.
+    /// </para>
+    /// </remarks>
+    /// <param name="entryId">The approved entry the executor acted on.</param>
+    /// <param name="outcome">
+    /// <see cref="ExecutionOutcome.Executed"/> or <see cref="ExecutionOutcome.Failed"/>.
+    /// <see cref="ExecutionOutcome.Unexecuted"/> is the state a row is <em>filed</em> in, never a
+    /// report — an executor with nothing to say says nothing.
+    /// </param>
+    /// <param name="detail">What the executor reported — an id, an error — or <c>null</c>.</param>
+    /// <param name="context">Who is reporting, in which tenant.</param>
+    /// <param name="cancellationToken">Caller cancellation.</param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="outcome"/> is <see cref="ExecutionOutcome.Unexecuted"/>.
+    /// </exception>
+    public async Task<ReviewOutcome> MarkExecutedAsync(
+        Guid entryId,
+        ExecutionOutcome outcome,
+        string? detail,
+        DecisionContext context,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        if (outcome == ExecutionOutcome.Unexecuted)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(outcome),
+                "AZ-5: `unexecuted` is the state an approved row is filed in, not an outcome an " +
+                "executor reports. Report `executed` or `failed`, once, when the write's fate is known.");
+        }
+
+        if (RequirePrincipal(context, entryId, MarkExecutedPath) is not { } principal)
+            return Unauthorized(entryId, AuthorizationRule);
+
+        var entry = await RequireEntryAsync(entryId, context, MarkExecutedPath, cancellationToken);
+        if (entry is null)
+            return new ReviewOutcome.Refused(entryId, DocketRefusalCodes.EntryNotFound);
+
+        if (!await IsAuthorizedAsync(principal, entry, context, MarkExecutedPath, cancellationToken))
+            return Unauthorized(entryId, AuthorizationRule);
+
+        var scope = new DocketScope(entry.TenantId);
+        var result = await docketStore.RecordExecutionAsync(
+            entryId, scope, outcome, detail, ExecutionOutcome.Unexecuted, cancellationToken);
+
+        switch (result)
+        {
+            case RecordExecutionResult.Recorded recorded:
+                logger.LogInformation(
+                    "MarkExecutedAsync: DocketEntry {EntryId} reported {Outcome}", entryId, outcome);
+                AffiantTelemetry.RecordDocketTransition(
+                    entryId,
+                    entry.SessionId,
+                    DocketStateName(ReviewStatus.Approved),
+                    DocketStateName(recorded.Entry.Status),
+                    amended: recorded.Entry.Amendments is { Count: > 0 },
+                    execution: ExecutionStateName(recorded.Entry.Execution),
+                    attestationKind: recorded.Entry.Attestation?.By.Kind);
+                return new ReviewOutcome.Approved(entryId, recorded.Entry.AmendedAffidavit);
+
+            case RecordExecutionResult.NotFound:
+                AffiantTelemetry.RecordDecisionUnauthorized(
+                    entryId, entry.SessionId, DocketRefusalCodes.EntryNotFound, MarkExecutedPath,
+                    principal.Kind);
+                return new ReviewOutcome.Refused(entryId, DocketRefusalCodes.EntryNotFound);
+
+            case RecordExecutionResult.NotApproved:
+                logger.LogWarning(
+                    "MarkExecutedAsync: DocketEntry {EntryId} is {Status}, so there is no authorised " +
+                    "write for an executor to have performed",
+                    entryId, entry.Status);
+                return new ReviewOutcome.Refused(entryId, DocketRefusalCodes.DecisionNotPending);
+
+            case RecordExecutionResult.ExecutionAlreadyRecorded:
+                logger.LogWarning(
+                    "MarkExecutedAsync: DocketEntry {EntryId} already carries an execution outcome; " +
+                    "this report is refused rather than written over it",
+                    entryId);
+                return new ReviewOutcome.Refused(entryId, DocketRefusalCodes.ExecutionAlreadyRecorded);
+
+            default:
+                throw new InvalidOperationException(
+                    $"Unknown execution result {result.GetType().Name} for DocketEntry {entryId}.");
         }
     }
 
@@ -902,14 +1133,15 @@ public sealed class ReviewGate(
     /// The amendments are preserved with the decision's <b>own</b> instant and principal, not the
     /// store's clock and not the row's deadline: a resubmission prefills them as that person's
     /// correction, and dating them to the sweep would place the correction at a moment nobody typed
-    /// anything. A caller that identified nobody has nothing to attribute the correction to, so
-    /// nothing is preserved — the alternative is a record that cannot say whose correction it is.
+    /// anything. Preserved only for a principal who could have decided — the caller has already been
+    /// through the attestation check, so what is written names a person.
     /// </para>
     /// </remarks>
     private async Task<ReviewOutcome> HandleLateDecisionAsync(
         Guid entryId,
         DocketScope scope,
-        DecisionAct act,
+        DecisionContext context,
+        Principal principal,
         IReadOnlyDictionary<string, object?>? amendments,
         DateTimeOffset decidedAt,
         CancellationToken cancellationToken)
@@ -917,13 +1149,14 @@ public sealed class ReviewGate(
         logger.LogWarning(
             "HandleDecisionAsync: DocketEntry {EntryId} TTL lapsed before this decision arrived", entryId);
 
-        AffiantTelemetry.RecordDecisionUnauthorized(entryId, null, "decision-expired", DecidePath);
+        AffiantTelemetry.RecordDecisionUnauthorized(
+            entryId, context.ConversationId, DocketRefusalCodes.DecisionExpired, DecidePath, principal.Kind);
 
         var preserved = false;
-        if (amendments is { Count: > 0 } && act.DecidedBy is { Length: > 0 } principal)
+        if (amendments is { Count: > 0 } && Attestor.For(principal) is { } attestor)
         {
             var outcome = await docketStore.PreserveAmendmentsAsync(
-                entryId, scope, amendments, new PreservedAct(decidedAt, principal), cancellationToken);
+                entryId, scope, amendments, new PreservedAct(decidedAt, attestor.Subject), cancellationToken);
             preserved = outcome is PreserveAmendmentsResult.Preserved;
             if (preserved)
             {
@@ -954,6 +1187,144 @@ public sealed class ReviewGate(
             preserved ? "amendments-preserved" : null);
     }
 
+    // ── The four checks, in the order every entry point runs them (AZ-2) ──────────────────────
+
+    /// <summary>
+    /// The principal on <paramref name="context"/>, or <c>null</c> having already emitted the
+    /// refusal. Called before every store access on every entry point here.
+    /// </summary>
+    /// <remarks>
+    /// A <c>null</c> principal means the host has not resolved an identity, which is not the same as
+    /// anonymous and is never treated as permission. The refusal happens before the Docket is read:
+    /// the rule is not only about the answer, it is about not doing any work on an entry for a caller
+    /// who has not been identified.
+    /// </remarks>
+    private Principal? RequirePrincipal(DecisionContext context, Guid entryId, string path)
+    {
+        if (context.Principal is { } principal) return principal;
+
+        AffiantTelemetry.RecordDecisionUnauthorized(
+            entryId, context.ConversationId, IdentityUnresolvedReason, path, "unresolved");
+        logger.LogWarning(
+            "{Path}: DocketEntry {EntryId} was acted on with no resolved principal — the gate fails " +
+            "closed here, before it reads the Docket",
+            path, entryId);
+        return null;
+    }
+
+    /// <summary>
+    /// The entry inside the caller's tenant, or <c>null</c> having already emitted the refusal —
+    /// never an oracle (AZ-2).
+    /// </summary>
+    /// <remarks>
+    /// The row's own tenant is compared here, after the read, whatever the store returned. A check
+    /// that consists solely of passing a tenant id to the store is a check the <em>store</em>
+    /// performs, and a host store with a scope bug then fails open with the gate none the wiser. The
+    /// caller is told only that there is no such entry, which is also the answer a caller in another
+    /// tenant gets; the host's telemetry separates the two reasons, because a scoped read that
+    /// answered with another tenant's row is a bug in that store and the one thing this second check
+    /// exists to surface.
+    /// </remarks>
+    private async Task<DocketEntry?> RequireEntryAsync(
+        Guid entryId, DecisionContext context, string path, CancellationToken cancellationToken)
+    {
+        var entry = await docketStore.GetDocketEntryAsync(entryId, cancellationToken);
+        if (entry is not null && string.Equals(entry.TenantId, context.TenantId, StringComparison.Ordinal))
+            return entry;
+
+        AffiantTelemetry.RecordDecisionUnauthorized(
+            entryId,
+            context.ConversationId,
+            entry is null ? DocketRefusalCodes.EntryNotFound : TenantMismatchReason,
+            path,
+            context.Principal?.Kind ?? "unresolved");
+
+        if (entry is not null)
+        {
+            logger.LogWarning(
+                "{Path}: DocketEntry {EntryId} is outside the caller's tenant; reported as not found",
+                path, entryId);
+        }
+
+        return null;
+    }
+
+    /// <summary>The host's own answer to "may this principal act on this entry" (AZ-2).</summary>
+    /// <remarks>
+    /// A port that throws is a refusal, never an approval: an authorization callback that fell over
+    /// has not said yes. Cancellation is not a fault and propagates.
+    /// </remarks>
+    private async Task<bool> IsAuthorizedAsync(
+        Principal principal,
+        DocketEntry entry,
+        DecisionContext context,
+        string path,
+        CancellationToken cancellationToken)
+    {
+        bool admitted;
+        try
+        {
+            admitted = await authorization.MayDecideAsync(principal, entry, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex,
+                "{Path}: the host's IDecisionAuthorizationPolicy threw for DocketEntry {EntryId}; a " +
+                "port that throws is a refusal, never an approval",
+                path, entry.EntryId);
+            admitted = false;
+        }
+
+        if (admitted) return true;
+
+        AffiantTelemetry.RecordDecisionUnauthorized(
+            entry.EntryId, entry.SessionId, NotAuthorizedReason, path, principal.Kind);
+        logger.LogWarning(
+            "{Path}: the host's authorization port did not admit this principal for DocketEntry {EntryId}",
+            path, entry.EntryId);
+        return false;
+    }
+
+    /// <summary>
+    /// The one refusal every authorization failure answers with, naming the rule that refused and
+    /// not the fact that tripped it.
+    /// </summary>
+    /// <remarks>
+    /// A caller learns <em>that</em> it may not act, and which rule says so — never which check
+    /// inside that rule fired, and never anything about the row. The host's own
+    /// <c>decision.unauthorized</c> event carries the four reasons separately; a caller and an
+    /// operator are different audiences.
+    /// </remarks>
+    private static ReviewOutcome.Refused Unauthorized(Guid entryId, string rule) =>
+        new(entryId, DocketRefusalCodes.DecisionUnauthorized, rule);
+
+    /// <summary>The rule that refuses an unresolved principal, a wrong tenant or a declining host port.</summary>
+    private const string AuthorizationRule = "AZ-2";
+
+    /// <summary>The rule that refuses a machine caller trying to attest a decision.</summary>
+    private const string AttestationRule = "AZ-3";
+
+    /// <summary>The `reason` attribute on a `decision.unauthorized` event: no principal was resolved.</summary>
+    private const string IdentityUnresolvedReason = "identity-unresolved";
+
+    /// <summary>…the host's port declined, or threw.</summary>
+    private const string NotAuthorizedReason = "not-authorized";
+
+    /// <summary>…a machine caller with nothing to relay tried to attest a decision.</summary>
+    private const string MachineAttestationReason = "machine-attestation";
+
+    /// <summary>
+    /// …a scoped read answered with a row from another tenant. Distinguished from
+    /// <c>entry-not-found</c> for the host alone: the caller gets one answer, the operator gets the
+    /// one that says a store has a scope bug.
+    /// </summary>
+    private const string TenantMismatchReason = "tenant-mismatch";
+
+
     /// <summary>The refusal a blocked entry answers every act with, carrying the marker's own context.</summary>
     private static ReviewOutcome.Refused RefuseBlocked(Guid entryId, BlockedMarker marker) => marker switch
     {
@@ -963,19 +1334,6 @@ public sealed class ReviewGate(
             new ReviewOutcome.Refused(entryId, DocketRefusalCodes.CoverageRefused, c.ToolName),
         _ => new ReviewOutcome.Refused(entryId, marker.Code)
     };
-
-    /// <summary>
-    /// Whose correction an accepted amendment records: the act's own principal when the caller named
-    /// one, else the entry's reviewer, else the proposer. A record that cannot say whose correction
-    /// it is would be worse than one that names the routing hint it had.
-    /// </summary>
-    private static string DeciderOf(DocketEntry entry, DecisionAct act)
-    {
-        if (act.DecidedBy is { Length: > 0 } decidedBy) return decidedBy;
-#pragma warning disable AFFIANT0001 // the routing hint, until the attestation names the person
-        return entry.ReviewerUserId ?? entry.UserId;
-#pragma warning restore AFFIANT0001
-    }
 
     /// <summary>
     /// Folds an accepted amendment into the filed proposal, returning the amended
@@ -1066,11 +1424,57 @@ public sealed class ReviewGate(
     // ── The telemetry-key registry (TL-1) ────────────────────────────────────────────────────
 
     /// <summary>
-    /// The <c>path</c> attribute value for a refusal raised by <see cref="HandleDecisionAsync(Guid, ApprovalDecision, DecisionAct, IReadOnlyDictionary{string, object?}?, CancellationToken)"/>.
-    /// The registry's other two paths — <c>mark-executed</c> and <c>resubmit</c> — arrive with the
-    /// execution report and the authorization checks.
+    /// The three <c>path</c> attribute values a <c>decision.unauthorized</c> event carries — one per
+    /// entry point on the decision surface, so an operator can tell a refused decision from a refused
+    /// execution report from a refused resubmission without reading a stack trace.
     /// </summary>
     private const string DecidePath = "decide";
+
+    /// <inheritdoc cref="DecidePath"/>
+    private const string MarkExecutedPath = "mark-executed";
+
+    /// <inheritdoc cref="DecidePath"/>
+    private const string ResubmitPath = "resubmit";
+
+    /// <summary>
+    /// What a Standing Order attestation records when the chain could not name the policy that
+    /// fired. Unreachable through the shipped evaluator, which stamps the policy's own type name on
+    /// every verdict it returns; present because AZ-1 admits no attestation with a blank attributor,
+    /// and a stated placeholder is a better record than an empty string.
+    /// </summary>
+    private const string UnnamedStandingOrderPolicy = "unnamed-standing-order";
+
+    /// <summary>
+    /// The rulebook's name for an execution outcome (<c>unexecuted</c>, <c>executed</c>,
+    /// <c>failed</c>), or <c>null</c> for a row that has none — a rejected or expired one, which was
+    /// never authorised and so has no write to have an outcome.
+    /// </summary>
+    private static string? ExecutionStateName(ExecutionOutcome? execution) => execution switch
+    {
+        null => null,
+        ExecutionOutcome.Unexecuted => "unexecuted",
+        ExecutionOutcome.Executed => "executed",
+        ExecutionOutcome.Failed => "failed",
+        _ => execution.Value.ToString().ToLowerInvariant(),
+    };
+
+    /// <summary>
+    /// Where this proposal came from, as the approval-policy chain is given it: the conversation, the
+    /// person whose turn produced it, the tenant and the channel.
+    /// </summary>
+    /// <remarks>
+    /// <c>StartedAt</c> is the conversation's own start when the host supplied one on the
+    /// <see cref="ReviewContext"/> and this filing's instant otherwise — the gate does not know when
+    /// a conversation began and will not guess an earlier time than the one it can vouch for.
+    /// </remarks>
+    private static ConversationIdentity IdentityOf(ReviewContext context, DateTimeOffset now) =>
+        new(
+            SessionId: context.SessionId,
+            UserId: context.UserId,
+            StartedAt: context.ConversationStartedAt ?? now,
+            HostAppName: null,
+            TenantId: context.TenantId,
+            Channel: context.Channel);
 
     /// <summary>
     /// Emits <c>docket.transition</c> for a guarded write that affected a row, and nothing at all
@@ -1115,42 +1519,4 @@ public sealed class ReviewGate(
         ReviewStatus.Deferred => "deferred",
         _ => status.ToString().ToLowerInvariant(),
     };
-}
-
-/// <summary>
-/// Who decided a Docket entry, in which tenant, when and why.
-/// </summary>
-/// <remarks>
-/// <para>
-/// Bundled into one record rather than added as four parameters so the decision path can grow the
-/// facts it carries — a resolved principal, the relay that asserted it, the channel the decision
-/// arrived on — without a source break at every host call site each time. The authorization change
-/// that follows this one extends this record; it does not re-shape
-/// <see cref="ReviewGate.HandleDecisionAsync(Guid, ApprovalDecision, DecisionAct, IReadOnlyDictionary{string, object?}?, CancellationToken)"/>.
-/// </para>
-/// <para>
-/// Every member is optional and an empty act behaves exactly as every release before this one did:
-/// the tenant is not compared, the reason is not recorded, and a late decision's amendments are not
-/// preserved because there is nobody to attribute them to.
-/// </para>
-/// </remarks>
-/// <param name="DecidedBy">
-/// Who the host says decided. Required for a late decision's amendments to be preserved: the
-/// preserved record names whose correction it is, and a correction with no author is not one.
-/// </param>
-/// <param name="TenantId">
-/// The tenant the caller is acting in. When given, an entry in another tenant is <em>not found</em>
-/// rather than forbidden. When omitted, no comparison is made — the seam the authorization change
-/// closes by resolving the principal's tenant itself instead of taking the caller's word.
-/// </param>
-/// <param name="Reason">The reviewer's stated reason, recorded on the row.</param>
-/// <param name="At">When the decision was made. Defaults to the gate's clock.</param>
-public sealed record DecisionAct(
-    string? DecidedBy = null,
-    string? TenantId = null,
-    string? Reason = null,
-    DateTimeOffset? At = null)
-{
-    /// <summary>An act that states nothing — the behaviour of every release before the decision record existed.</summary>
-    public static DecisionAct Unattributed { get; } = new();
 }

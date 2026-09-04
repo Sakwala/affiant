@@ -16,7 +16,7 @@ public class StandingOrderCheckOrderTests
     [Fact]
     public async Task AByTheBookOrder_Fires_WithNoScorerAnywhere()
     {
-        var verdict = await new ByTheBookOrder().EvaluateAsync(Substantive());
+        var verdict = await new ByTheBookOrder().EvaluateAsync(Substantive(), TestIdentities.Anyone);
 
         Assert.Equal(ReviewRequirement.StandingOrder, verdict!.Requirement);
         Assert.Null(verdict.BlockedReason);
@@ -28,7 +28,7 @@ public class StandingOrderCheckOrderTests
         var scorer = new CountingCalculator();
         var order = new ScoredOrder(scorer);
 
-        var verdict = await order.EvaluateAsync(WithEmptyMandatoryField());
+        var verdict = await order.EvaluateAsync(WithEmptyMandatoryField(), TestIdentities.Anyone);
 
         Assert.Equal(ReviewRequirement.ReviewerConfirmation, verdict!.Requirement);
         Assert.Equal(StandingOrderBlockedReasons.MandatoryFieldEmpty, verdict.BlockedReason);
@@ -41,7 +41,7 @@ public class StandingOrderCheckOrderTests
         var scorer = new CountingCalculator();
         var order = new ExternalPredicatingOrder(scorer);
 
-        var verdict = await order.EvaluateAsync(WithUnboundExternal());
+        var verdict = await order.EvaluateAsync(WithUnboundExternal(), TestIdentities.Anyone);
 
         Assert.Equal(ReviewRequirement.ReviewerConfirmation, verdict!.Requirement);
         Assert.Equal(StandingOrderBlockedReasons.UnboundDeclaredInput, verdict.BlockedReason);
@@ -54,7 +54,7 @@ public class StandingOrderCheckOrderTests
         var scorer = new CountingCalculator((int)RiskLevel.High);
         var order = new ScoredOrder(scorer);
 
-        var verdict = await order.EvaluateAsync(Substantive());
+        var verdict = await order.EvaluateAsync(Substantive(), TestIdentities.Anyone);
 
         Assert.Equal(ReviewRequirement.ReviewerConfirmation, verdict!.Requirement);
         Assert.Equal(StandingOrderBlockedReasons.RiskAboveThreshold, verdict.BlockedReason);
@@ -65,7 +65,7 @@ public class StandingOrderCheckOrderTests
     public async Task AScoreAtOrUnderTheCeiling_Fires()
     {
         var verdict = await new ScoredOrder(new CountingCalculator((int)RiskLevel.Low))
-            .EvaluateAsync(Substantive());
+            .EvaluateAsync(Substantive(), TestIdentities.Anyone);
 
         Assert.Equal(ReviewRequirement.StandingOrder, verdict!.Requirement);
     }
@@ -77,7 +77,7 @@ public class StandingOrderCheckOrderTests
     [Fact]
     public async Task ADegradedOrder_KeepsItsOwnReviewWindow()
     {
-        var verdict = await new WindowedOrder().EvaluateAsync(WithEmptyMandatoryField());
+        var verdict = await new WindowedOrder().EvaluateAsync(WithEmptyMandatoryField(), TestIdentities.Anyone);
 
         Assert.Equal(ReviewRequirement.ReviewerConfirmation, verdict!.Requirement);
         Assert.Equal(TimeSpan.FromMinutes(9), verdict.TimeToLive);

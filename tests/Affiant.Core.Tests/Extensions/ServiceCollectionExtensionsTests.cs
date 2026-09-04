@@ -208,7 +208,7 @@ public class ServiceCollectionExtensionsTests
                 EmptyFieldCount: 0,
                 Warnings: [],
                 RequiresConfirmation: true);
-            var requirement = await evaluator.EvaluateAsync(affidavit);
+            var requirement = await evaluator.EvaluateAsync(affidavit, TestIdentities.Anyone);
             Assert.Equal(ReviewRequirement.StandingOrder, requirement!.Requirement);
         }
 
@@ -235,7 +235,8 @@ public class ServiceCollectionExtensionsTests
     {
         public StubScopedPolicyDependency Dependency => dependency;
 
-        public Task<ApprovalVerdict?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default) =>
+        public Task<ApprovalVerdict?> EvaluateAsync(
+        Affidavit affidavit, ConversationIdentity identity, CancellationToken cancellationToken = default) =>
             Task.FromResult<ApprovalVerdict?>(ReviewRequirement.StandingOrder);
     }
 
@@ -347,7 +348,8 @@ public class ServiceCollectionExtensionsTests
 
     private sealed class StubApprovalPolicy : IApprovalPolicy
     {
-        public Task<ApprovalVerdict?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default) =>
+        public Task<ApprovalVerdict?> EvaluateAsync(
+        Affidavit affidavit, ConversationIdentity identity, CancellationToken cancellationToken = default) =>
             Task.FromResult<ApprovalVerdict?>(null);
     }
 }

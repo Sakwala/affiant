@@ -10,6 +10,7 @@ using System.Diagnostics;
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
 using Affiant.Abstractions.Transport;
+using Affiant.Core.Tests.Gate;
 using Affiant.Core.Extensions;
 using Affiant.Core.Observability;
 using Affiant.Core.Services;
@@ -30,6 +31,8 @@ public class ReviewGateTests
     private sealed class FakeStreamingTransport : IStreamingTransport
     {
         private readonly Queue<EvidenceCardResponse> _responses = new();
+        private readonly TaskCompletionSource<EvidenceCardResponse> _delivered =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
         private bool _simulateTimeout;
         private bool _hangUntilCancelled;
         private Func<Task>? _beforeTimeoutThrow;
@@ -75,6 +78,13 @@ public class ReviewGateTests
         public bool TryDeliverResponse(Guid docketId, EvidenceCardResponse response)
         {
             DeliveredResponses.Add(response);
+
+            // A live waiter is one that actually receives the response — including whatever the
+            // gate attached to it on the way through, which is how the awaiting call learns who
+            // the deciding call held the decision to.
+            if (HasLiveWaiter)
+                _delivered.TrySetResult(response);
+
             return HasLiveWaiter;
         }
 
@@ -125,6 +135,10 @@ public class ReviewGateTests
             if (_responses.TryDequeue(out var response))
                 return response;
 
+            // No queued script: wait for a real TryDeliverResponse, the way a live waiter does.
+            if (HasLiveWaiter)
+                return await _delivered.Task.WaitAsync(ct);
+
             throw new InvalidOperationException("FakeStreamingTransport: no queued EvidenceCardResponse");
         }
     }
@@ -133,7 +147,8 @@ public class ReviewGateTests
 
     private sealed class FakeApprovalPolicyEvaluator(ReviewRequirement requirement) : IApprovalPolicyEvaluator
     {
-        public Task<ApprovalVerdict> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
+        public Task<ApprovalVerdict> EvaluateAsync(
+        Affidavit affidavit, ConversationIdentity identity, CancellationToken cancellationToken = default)
             => Task.FromResult<ApprovalVerdict>(requirement);
     }
 
@@ -257,16 +272,36 @@ public class ReviewGateTests
         CreateGate(
             ReviewRequirement reviewRequirement = ReviewRequirement.ReviewerConfirmation,
             AffiantCoreOptions? options = null,
-            TimeProvider? timeProvider = null)
+            TimeProvider? timeProvider = null,
+            IDecisionAuthorizationPolicy? authorization = null)
     {
         var transport = new FakeStreamingTransport();
         var store = new InMemoryDocketStore(timeProvider);
         var evaluator = new FakeApprovalPolicyEvaluator(reviewRequirement);
         var gate = new ReviewGate(
             transport, store, evaluator, options ?? new AffiantCoreOptions(),
-            NullLogger<ReviewGate>.Instance, timeProvider);
+            NullLogger<ReviewGate>.Instance, timeProvider,
+            authorization ?? new AllowAllDecisionAuthorization());
         return (gate, transport, store);
     }
+
+    /// <summary>
+    /// The decision context a test that is not about authorization passes: a resolved member
+    /// principal in the entries' own tenant. There is no unattributed context to fall back on —
+    /// every entry point on the decision surface requires a principal and a tenant (AZ-2).
+    /// </summary>
+    private static DecisionContext Ctx(
+        Principal? principal = null,
+        string tenantId = TenantId,
+        DateTimeOffset? at = null,
+        string? reason = null)
+        => new(
+            principal ?? new Principal.Member("reviewer-456"),
+            tenantId,
+            ConversationId: "session-test",
+            Channel: "test",
+            Reason: reason,
+            At: at);
 
     private static (WriteProposal proposal, ReviewContext context) CreateTestInput(Guid? entryId = null)
     {
@@ -377,11 +412,11 @@ public class ReviewGateTests
         await gate.HandleDecisionAsync(
             lapsedEntry.EntryId,
             ApprovalDecision.Approved,
-            new DecisionAct(DecidedBy: "reviewer-456"),
+            Ctx(),
             corrections,
             CancellationToken.None);
 
-        var filing = await gate.ResubmitAsync(lapsedEntry.EntryId);
+        var filing = await gate.ResubmitAsync(lapsedEntry.EntryId, Ctx());
 
         var requiresReview = Assert.IsType<ReviewFilingResult.RequiresReview>(filing);
         Assert.NotEqual(lapsedEntry.EntryId, requiresReview.EntryId);
@@ -413,10 +448,10 @@ public class ReviewGateTests
         var lapsedEntry = CreateLapsedEntry(context);
         await store.FileDocketEntryAsync(lapsedEntry, default);
 
-        await gate.ResubmitAsync(lapsedEntry.EntryId);
+        await gate.ResubmitAsync(lapsedEntry.EntryId, Ctx());
 
         // The claim is one-shot: the successor link is the race guard as well as the lineage.
-        await Assert.ThrowsAsync<InvalidOperationException>(() => gate.ResubmitAsync(lapsedEntry.EntryId));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => gate.ResubmitAsync(lapsedEntry.EntryId, Ctx()));
     }
 
 
@@ -431,6 +466,34 @@ public class ReviewGateTests
 
         Assert.IsType<ReviewOutcome.Approved>(outcome);
         Assert.Single(transport.SentEvents, e => e.EventType == TransportEvent.EvidenceCardRequest);
+    }
+
+    /// <summary>
+    /// AZ-1: the awaiting call writes the row, and the deciding call holds the identity — so the
+    /// attestation travels with the response and the row names who agreed either way. A decision
+    /// this path could not attribute is one HandleDecisionAsync already refused.
+    /// </summary>
+    [Fact]
+    public async Task FileReviewAsync_ApprovalDeliveredByADecision_WritesTheDecidersAttestation()
+    {
+        var (gate, transport, store) = CreateGate(ReviewRequirement.ReviewerConfirmation);
+        var (proposal, context) = CreateTestInput(Guid.NewGuid());
+        var entryId = context.EntryId!.Value;
+
+        // The awaiting half: FileReviewAsync blocks on the transport until a decision arrives.
+        transport.HasLiveWaiter = true;
+        var awaiting = gate.FileReviewAsync(proposal, context);
+
+        // The deciding half: a real decision, through the gate, from a resolved member principal.
+        await gate.HandleDecisionAsync(entryId, ApprovalDecision.Approved, Ctx());
+
+        Assert.IsType<ReviewOutcome.Approved>(await awaiting);
+
+        var row = await store.GetDocketEntryAsync(entryId, default);
+        Assert.Equal(ReviewStatus.Approved, row!.Status);
+        Assert.Equal("reviewer-456", Assert.IsType<Attestor.Member>(row.Attestation!.By).Id);
+        Assert.Equal(entryId, row.Attestation.EntryId);
+        Assert.Equal(DecisionKind.Approve, row.Decision!.Kind);
     }
 
     [Fact]
@@ -532,7 +595,7 @@ public class ReviewGateTests
         await gate.FileForReviewAsync(proposal, context);
 
         var (outcome, _) = await gate.HandleDecisionAsync(
-            context.EntryId!.Value, ApprovalDecision.Approved);
+            context.EntryId!.Value, ApprovalDecision.Approved, Ctx());
 
         // A blocked entry never accepts a decision, and the refusal names the code that blocked it
         // rather than a bare "not pending" a host cannot act on.
@@ -691,6 +754,7 @@ public class ReviewGateTests
         var (outcome, _) = await gate.HandleDecisionAsync(
             entryId,
             ApprovalDecision.Approved,
+            Ctx(),
             new Dictionary<string, object?> { ["title"] = "Reviewer-Edited Title" });
 
         var approved = Assert.IsType<ReviewOutcome.Approved>(outcome);
@@ -747,7 +811,8 @@ public class ReviewGateTests
         var amendments = new Dictionary<string, object?> { ["title"] = "Reviewer-Edited Title" };
 
         var (outcome, createdAt) = await gate.HandleDecisionAsync(
-            entryId, ApprovalDecision.Approved, amendments);
+            entryId, ApprovalDecision.Approved, Ctx(),
+            amendments);
 
         // Live path: the awaiting FileReviewAsync call owns the outcome — this method returns nulls.
         Assert.Null(outcome);
@@ -783,7 +848,8 @@ public class ReviewGateTests
 
         var amendments = new Dictionary<string, object?> { ["title"] = "Restart-Path Edit" };
         var (outcome, createdAt) = await gate.HandleDecisionAsync(
-            entry.EntryId, ApprovalDecision.Approved, amendments);
+            entry.EntryId, ApprovalDecision.Approved, Ctx(),
+            amendments);
 
         Assert.IsType<ReviewOutcome.Approved>(outcome);
         Assert.Equal(entry.CreatedAt, createdAt);
@@ -818,7 +884,8 @@ public class ReviewGateTests
 
         var amendments = new Dictionary<string, object?> { ["title"] = "Should Not Persist" };
         var (outcome, _) = await gate.HandleDecisionAsync(
-            entry.EntryId, ApprovalDecision.Rejected, amendments);
+            entry.EntryId, ApprovalDecision.Rejected, Ctx(),
+            amendments);
 
         Assert.IsType<ReviewOutcome.Rejected>(outcome);
 
@@ -896,7 +963,8 @@ public class ReviewGateTests
         // long before any FileReviewAsync-style blocking await could exist.
         var amendments = new Dictionary<string, object?> { ["title"] = "A1 regression edit" };
         var (outcome, createdAt) = await gate.HandleDecisionAsync(
-            requiresReview.EntryId, ApprovalDecision.Approved, amendments);
+            requiresReview.EntryId, ApprovalDecision.Approved, Ctx(),
+            amendments);
 
         Assert.IsType<ReviewOutcome.Approved>(outcome);
         Assert.NotNull(createdAt);
@@ -953,7 +1021,7 @@ public class ReviewGateTests
         var (outcome, createdAt) = await gate.HandleDecisionAsync(
             expiredEntry.EntryId,
             ApprovalDecision.Approved,
-            new DecisionAct(DecidedBy: "reviewer-456", At: actAt),
+            Ctx(at: actAt),
             lateAmendments,
             CancellationToken.None);
 
@@ -982,7 +1050,8 @@ public class ReviewGateTests
         transport.HasLiveWaiter = false;
 
         var (outcome, createdAt) = await gate.HandleDecisionAsync(
-            Guid.NewGuid(), ApprovalDecision.Approved, new Dictionary<string, object?> { ["x"] = 1 });
+            Guid.NewGuid(), ApprovalDecision.Approved, Ctx(),
+            new Dictionary<string, object?> { ["x"] = 1 });
 
         // Not "expired": nothing ran out of time, the entry does not exist. Reporting the two the
         // same way told a host a deadline had passed on a row it had never filed.
@@ -1003,9 +1072,7 @@ public class ReviewGateTests
         var (outcome, _) = await gate.HandleDecisionAsync(
             context.EntryId!.Value,
             ApprovalDecision.Approved,
-            new DecisionAct(TenantId: "some-other-tenant"),
-            null,
-            CancellationToken.None);
+            Ctx(tenantId: "some-other-tenant"));
 
         // Telling a caller that an id they may not touch exists is the leak the tenant check closes.
         var refused = Assert.IsType<ReviewOutcome.Refused>(outcome);
@@ -1024,10 +1091,12 @@ public class ReviewGateTests
         var (proposal, context) = CreateTestInput(Guid.NewGuid());
         await gate.FileForReviewAsync(proposal, context);
 
-        var (first, _) = await gate.HandleDecisionAsync(context.EntryId!.Value, ApprovalDecision.Approved);
+        var (first, _) = await gate.HandleDecisionAsync(
+            context.EntryId!.Value, ApprovalDecision.Approved, Ctx());
         Assert.IsType<ReviewOutcome.Approved>(first);
 
-        var (second, _) = await gate.HandleDecisionAsync(context.EntryId!.Value, ApprovalDecision.Rejected);
+        var (second, _) = await gate.HandleDecisionAsync(
+            context.EntryId!.Value, ApprovalDecision.Rejected, Ctx());
 
         // The row is already decided, so the second decision is refused rather than applied on top —
         // and it is told which of the two "not pending" refusals it got.
@@ -1068,7 +1137,7 @@ public class ReviewGateTests
         await store.FileDocketEntryAsync(lapsedEntry, default);
 
         var (outcome, createdAt) = await gate.HandleDecisionAsync(
-            lapsedEntry.EntryId, ApprovalDecision.Approved);
+            lapsedEntry.EntryId, ApprovalDecision.Approved, Ctx());
 
         var refused = Assert.IsType<ReviewOutcome.Refused>(outcome);
         Assert.Equal(DocketRefusalCodes.DecisionExpired, refused.Code);
@@ -1095,10 +1164,11 @@ public class ReviewGateTests
         var lapsedEntry = CreateLapsedEntry(context);
         await store.FileDocketEntryAsync(lapsedEntry, default);
 
-        await gate.HandleDecisionAsync(lapsedEntry.EntryId, ApprovalDecision.Rejected);
+        await gate.HandleDecisionAsync(
+            lapsedEntry.EntryId, ApprovalDecision.Rejected, Ctx());
 
         // No DocketExpiryService sweep runs in this test — ResubmitAsync must not need one.
-        var filing = await gate.ResubmitAsync(lapsedEntry.EntryId);
+        var filing = await gate.ResubmitAsync(lapsedEntry.EntryId, Ctx());
 
         var requiresReview = Assert.IsType<ReviewFilingResult.RequiresReview>(filing);
         Assert.NotEqual(lapsedEntry.EntryId, requiresReview.EntryId);
@@ -1114,8 +1184,10 @@ public class ReviewGateTests
         var lapsedEntry = CreateLapsedEntry(context);
         await store.FileDocketEntryAsync(lapsedEntry, default);
 
-        var (firstOutcome, _) = await gate.HandleDecisionAsync(lapsedEntry.EntryId, ApprovalDecision.Approved);
-        var (secondOutcome, _) = await gate.HandleDecisionAsync(lapsedEntry.EntryId, ApprovalDecision.Approved);
+        var (firstOutcome, _) = await gate.HandleDecisionAsync(
+            lapsedEntry.EntryId, ApprovalDecision.Approved, Ctx());
+        var (secondOutcome, _) = await gate.HandleDecisionAsync(
+            lapsedEntry.EntryId, ApprovalDecision.Approved, Ctx());
 
         Assert.Equal(
             DocketRefusalCodes.DecisionExpired,
@@ -1147,7 +1219,7 @@ public class ReviewGateTests
         var (outcome, _) = await gate.HandleDecisionAsync(
             lapsedEntry.EntryId,
             ApprovalDecision.Approved,
-            new DecisionAct(DecidedBy: "reviewer-456"),
+            Ctx(),
             amendments,
             CancellationToken.None);
 
@@ -1162,8 +1234,14 @@ public class ReviewGateTests
         Assert.Equal("Late reviewer edit", updated.PreservedAmendments!.Amendments["title"]);
     }
 
+    /// <summary>
+    /// AZ-3, PV-3: a machine caller with nothing to relay cannot attest a decision, so it cannot
+    /// leave a correction on a row either — a resubmission prefills preserved values as a
+    /// <em>person's</em> correction, and a record that cannot say whose correction it is would put
+    /// words in a person's mouth. The refusal comes before the row is read at all.
+    /// </summary>
     [Fact]
-    public async Task HandleDecisionAsync_LateDecisionFromAnAnonymousCaller_PreservesNothing()
+    public async Task HandleDecisionAsync_LateDecisionFromAMachineCaller_PreservesNothing()
     {
         var (gate, transport, store) = CreateGate();
         transport.HasLiveWaiter = false;
@@ -1174,14 +1252,13 @@ public class ReviewGateTests
 
         var amendments = new Dictionary<string, object?> { ["title"] = "Late reviewer edit" };
         var (outcome, _) = await gate.HandleDecisionAsync(
-            lapsedEntry.EntryId, ApprovalDecision.Approved, amendments);
+            lapsedEntry.EntryId,
+            ApprovalDecision.Approved,
+            Ctx(principal: new Principal.Service("batch-runner")),
+            amendments);
 
-        // A resubmission prefills preserved values as a PERSON'S correction. A caller that named
-        // nobody leaves the row nothing to attribute the correction to, so nothing is preserved
-        // rather than a record that cannot say whose correction it is.
         var refused = Assert.IsType<ReviewOutcome.Refused>(outcome);
-        Assert.Equal(DocketRefusalCodes.DecisionExpired, refused.Code);
-        Assert.Null(refused.Detail);
+        Assert.Equal(DocketRefusalCodes.DecisionUnauthorized, refused.Code);
 
         var updated = await store.GetDocketEntryAsync(lapsedEntry.EntryId, default);
         Assert.Null(updated!.PreservedAmendments);
@@ -1297,7 +1374,7 @@ public class ReviewGateTests
             Amendments: priorAmendments);
         await store.FileDocketEntryAsync(expiredEntry, default);
 
-        var filing = await gate.ResubmitAsync(expiredEntry.EntryId);
+        var filing = await gate.ResubmitAsync(expiredEntry.EntryId, Ctx());
 
         var requiresReview = Assert.IsType<ReviewFilingResult.RequiresReview>(filing);
         Assert.NotEqual(expiredEntry.EntryId, requiresReview.EntryId); // fresh id
@@ -1325,7 +1402,9 @@ public class ReviewGateTests
         var capturingLogger = new CapturingLogger<ReviewGate>();
         using var cts = new CancellationTokenSource();
         var store = new CancelOnResubmitConsumeDocketStore(innerStore, cts);
-        var gate = new ReviewGate(transport, store, evaluator, new AffiantCoreOptions(), capturingLogger);
+        var gate = new ReviewGate(
+            transport, store, evaluator, new AffiantCoreOptions(), capturingLogger,
+            timeProvider: null, new AllowAllDecisionAuthorization());
 
         var expiredEntry = new DocketEntry(
             EntryId: Guid.NewGuid(),
@@ -1342,7 +1421,7 @@ public class ReviewGateTests
         await innerStore.FileDocketEntryAsync(expiredEntry, default);
 
         await Assert.ThrowsAsync<OperationCanceledException>(
-            () => gate.ResubmitAsync(expiredEntry.EntryId, cts.Token));
+            () => gate.ResubmitAsync(expiredEntry.EntryId, Ctx(), cts.Token));
 
         // The consume already won and committed ResubmittedTo before cancellation landed — the
         // documented orphaned-pointer trade-off (see ResubmitAsync's remarks).
@@ -1373,16 +1452,20 @@ public class ReviewGateTests
         await store.FileDocketEntryAsync(pendingEntry, default);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => gate.ResubmitAsync(pendingEntry.EntryId));
+            () => gate.ResubmitAsync(pendingEntry.EntryId, Ctx()));
     }
 
     [Fact]
-    public async Task ResubmitAsync_UnknownEntry_ThrowsInvalidOperationException()
+    public async Task ResubmitAsync_UnknownEntry_IsRefusedAsNotFound()
     {
         var (gate, _, _) = CreateGate();
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => gate.ResubmitAsync(Guid.NewGuid()));
+        var filing = await gate.ResubmitAsync(Guid.NewGuid(), Ctx());
+
+        // The same answer a caller in another tenant gets, and for the same reason (AZ-2).
+        var decided = Assert.IsType<ReviewFilingResult.Decided>(filing);
+        var refused = Assert.IsType<ReviewOutcome.Refused>(decided.Outcome);
+        Assert.Equal(DocketRefusalCodes.EntryNotFound, refused.Code);
     }
 
     // ── D2: double-resubmit race guard (affiant#31) ───────────────────────────
@@ -1407,7 +1490,7 @@ public class ReviewGateTests
 
         async Task<ReviewFilingResult?> TryResubmitAsync()
         {
-            try { return await gate.ResubmitAsync(expiredEntry.EntryId); }
+            try { return await gate.ResubmitAsync(expiredEntry.EntryId, Ctx()); }
             catch (InvalidOperationException) { return null; }
         }
 
@@ -1512,7 +1595,7 @@ public class ReviewGateTests
             Amendments: priorAmendments);
         await store.FileDocketEntryAsync(expiredEntry, default);
 
-        var filing = await gate.ResubmitAsync(expiredEntry.EntryId);
+        var filing = await gate.ResubmitAsync(expiredEntry.EntryId, Ctx());
         var newEntryId = Assert.IsType<ReviewFilingResult.RequiresReview>(filing).EntryId;
         transport.SentEvents.Clear();
 
@@ -1566,7 +1649,8 @@ public class ReviewGateTests
         // Land the decision on the deadline itself — DK-1's boundary is inclusive, so this is late.
         clock.Advance(ttl);
 
-        var (outcome, _) = await gate.HandleDecisionAsync(context.EntryId!.Value, ApprovalDecision.Approved);
+        var (outcome, _) = await gate.HandleDecisionAsync(
+            context.EntryId!.Value, ApprovalDecision.Approved, Ctx());
 
         Assert.Equal(
             DocketRefusalCodes.DecisionExpired,
@@ -1592,7 +1676,8 @@ public class ReviewGateTests
 
         clock.Advance(ttl - TimeSpan.FromMilliseconds(1));
 
-        var (outcome, _) = await gate.HandleDecisionAsync(context.EntryId!.Value, ApprovalDecision.Approved);
+        var (outcome, _) = await gate.HandleDecisionAsync(
+            context.EntryId!.Value, ApprovalDecision.Approved, Ctx());
 
         Assert.IsType<ReviewOutcome.Approved>(outcome);
         var entry = await store.GetDocketEntryAsync(context.EntryId!.Value, default);
@@ -1667,7 +1752,7 @@ public class ReviewGateTests
 
         // No sweep, and no late decision either — the read-time expiry state is the only thing
         // saying this entry is resubmittable.
-        var filing = await gate.ResubmitAsync(entryId);
+        var filing = await gate.ResubmitAsync(entryId, Ctx());
 
         var requiresReview = Assert.IsType<ReviewFilingResult.RequiresReview>(filing);
         Assert.NotEqual(entryId, requiresReview.EntryId);

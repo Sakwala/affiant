@@ -324,7 +324,11 @@ ships a bundled or reusable web component for it as of this release (each render
 this Quickstart gets you to is the point where that payload exists and is on the wire, which is
 everything the framework itself is responsible for. From there, `EvidenceCardResponse` (the
 reviewer's decision, including any field amendments) travels back the same transport and
-`ReviewGate.HandleDecisionAsync` picks it up.
+`ReviewGate.HandleDecisionAsync` picks it up — with a `DecisionContext` naming the principal the host
+authenticated and the tenant they are acting in, which is what the gate holds them to and what the
+row records as the attestation. Who may decide a given entry is the host's own answer, supplied once
+through `services.AddDecisionAuthorization<TPolicy>()`; without one the gate refuses every decision
+and the application is refused at startup.
 
 Install:
 

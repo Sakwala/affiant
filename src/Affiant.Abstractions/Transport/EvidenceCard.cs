@@ -61,4 +61,28 @@ public record EvidenceCardResponse(
     Guid DocketId,
     ApprovalDecision Decision,
     string? Reason = null,
-    IReadOnlyDictionary<string, object?>? Amendments = null);
+    IReadOnlyDictionary<string, object?>? Amendments = null)
+{
+    /// <summary>
+    /// Who the gate held this decision to, carried in-process from the call that received it to the
+    /// call that writes the row (AZ-1). Never on the wire, and never something a client supplies.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A reviewer's client sends a decision, not an identity — a client that could name whose
+    /// signature a decision is would be the whole problem. The gate resolves the principal itself,
+    /// builds the attestation from it and from nothing else, and puts it here on its way to
+    /// whichever call performs the transition: the awaiting <c>ReviewGate.FileReviewAsync</c> when
+    /// one is holding the entry open, and the deciding call otherwise. Either way the row that gets
+    /// written carries the attestation, because a decided row that cannot name who agreed is not a
+    /// record.
+    /// </para>
+    /// <para>
+    /// <see cref="System.Text.Json.Serialization.JsonIgnoreAttribute"/> is the enforcement: this
+    /// property is a hand-off inside one process and is neither serialized to a client nor read from
+    /// one, so an attestation can only ever be the one the gate computed.
+    /// </para>
+    /// </remarks>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Attestation? Attestation { get; init; }
+}

@@ -307,7 +307,8 @@ public class ReviewGatePipelineOrderTests
         };
         return new ReviewGate(
             transport ?? new RecordingTransport(), store, evaluator, options,
-            NullLogger<ReviewGate>.Instance);
+            NullLogger<ReviewGate>.Instance, timeProvider: null,
+            new AllowAllDecisionAuthorization());
     }
 
     /// <summary>

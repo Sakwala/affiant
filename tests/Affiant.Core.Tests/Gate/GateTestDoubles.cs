@@ -73,9 +73,35 @@ internal sealed class RecordingDocketStore : IDocketStore
     // Explicit implementations that refuse: this double exists for a test that never reaches the
     // Docket's decision surface, and a stub that quietly answered would let such a test pass
     // against behaviour nobody wrote.
+    /// <summary>
+    /// The guarded compare-and-set, over this double's own list. Implemented rather than refused
+    /// because the filing path reaches it: a Standing Order's approval and its attestation are one
+    /// write, so a double that threw here would make an auto-approving test fail at the filing.
+    /// </summary>
     Task<DocketTransitionResult> IDocketStore.TransitionAsync(
         Guid entryId, DocketScope scope, ReviewStatus expected, DocketTransitionPatch patch, CancellationToken ct)
-        => throw new NotSupportedException();
+    {
+        var idx = Filed.FindIndex(e => e.EntryId == entryId);
+        if (idx < 0)
+            return Task.FromResult<DocketTransitionResult>(new DocketTransitionResult.NotFound());
+        if (Filed[idx].Status != expected)
+            return Task.FromResult<DocketTransitionResult>(new DocketTransitionResult.AlreadyDecided());
+
+        Filed[idx] = Filed[idx] with
+        {
+            Status = patch.Status,
+            Execution = patch.Status == ReviewStatus.Approved
+                ? patch.Execution ?? ExecutionOutcome.Unexecuted
+                : null,
+            Decision = patch.Decision,
+            Amendments = patch.Amendments ?? Filed[idx].Amendments,
+            AmendedAffidavit = patch.AmendedAffidavit ?? Filed[idx].AmendedAffidavit,
+            Attestation = patch.Attestation ?? Filed[idx].Attestation,
+            DecidedAt = patch.DecidedAt ?? Filed[idx].DecidedAt,
+        };
+        return Task.FromResult<DocketTransitionResult>(
+            new DocketTransitionResult.Transitioned(Filed[idx]));
+    }
 
     Task<PreserveAmendmentsResult> IDocketStore.PreserveAmendmentsAsync(
         Guid entryId, DocketScope scope, IReadOnlyDictionary<string, object?> amendments,
@@ -149,7 +175,8 @@ internal sealed class ScriptedPolicy(
     IReadOnlyCollection<ProvenanceSource>? declaredInputs = null,
     TimeSpan? defaultTimeToLive = null) : IApprovalPolicy
 {
-    public Task<ApprovalVerdict?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
+    public Task<ApprovalVerdict?> EvaluateAsync(
+        Affidavit affidavit, ConversationIdentity identity, CancellationToken cancellationToken = default)
     {
         onEvaluate?.Invoke();
         return Task.FromResult(verdict);
@@ -163,7 +190,8 @@ internal sealed class ScriptedPolicy(
 /// <summary>A policy whose evaluation throws — the CV-1 fault no wire-up check can see.</summary>
 internal sealed class ThrowingPolicy(Exception? toThrow = null) : IApprovalPolicy
 {
-    public Task<ApprovalVerdict?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
+    public Task<ApprovalVerdict?> EvaluateAsync(
+        Affidavit affidavit, ConversationIdentity identity, CancellationToken cancellationToken = default)
         => throw toThrow ?? new InvalidOperationException("the host's policy is broken");
 }
 

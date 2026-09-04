@@ -10,6 +10,14 @@ using Affiant.Abstractions.Models;
 /// </summary>
 public sealed class ReviewerConfirmationPolicy : IApprovalPolicy
 {
-    public Task<ApprovalVerdict?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
+    /// <inheritdoc />
+    /// <remarks>
+    /// <paramref name="identity"/> is ignored, and that is the honest answer for this policy: it
+    /// asks a person about everything, so there is nothing for it to bind to.
+    /// </remarks>
+    public Task<ApprovalVerdict?> EvaluateAsync(
+        Affidavit affidavit,
+        ConversationIdentity identity,
+        CancellationToken cancellationToken = default)
         => Task.FromResult<ApprovalVerdict?>(new ApprovalVerdict(ReviewRequirement.ReviewerConfirmation));
 }

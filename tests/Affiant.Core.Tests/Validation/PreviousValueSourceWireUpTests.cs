@@ -1,5 +1,6 @@
 namespace Affiant.Core.Tests.Validation;
 
+using Affiant.Core.Tests.Gate;
 using Affiant.Abstractions.Exceptions;
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
@@ -102,6 +103,7 @@ public sealed class PreviousValueSourceWireUpTests
         services.AddSingleton<IStreamingTransport, UnusedStreamingTransport>();
         services.AddSingleton<IDocketStore, UnusedDocketStore>();
         services.AddSingleton<IReviewContextProvider, UnusedReviewContextProvider>();
+        services.AddDecisionAuthorization<AllowAllDecisionAuthorization>();
         wiring(services);
 
         var provider = services.BuildServiceProvider();

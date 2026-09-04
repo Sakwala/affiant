@@ -560,7 +560,14 @@ public interface IApprovalPolicy
 {
     // null = "this rule has no opinion here"; the chain continues. The first non-null verdict wins;
     // a chain that produces none falls back to ReviewerConfirmation — the safe default is a person.
-    Task<ApprovalVerdict?> EvaluateAsync(Affidavit affidavit, CancellationToken ct = default);
+    //
+    // `identity` — the conversation, the person whose turn produced the proposal, the tenant and the
+    // channel — is supplied so a policy can BIND: "only for this member", "only inside this tenant",
+    // "only on our own web UI". It is never a statement about who may APPROVE. Authorizing the actor
+    // is the framework's job, enforced through IDecisionAuthorizationPolicy before any transition,
+    // and never delegated to a policy (AZ-2).
+    Task<ApprovalVerdict?> EvaluateAsync(
+        Affidavit affidavit, ConversationIdentity identity, CancellationToken ct = default);
 
     // The provenance sources this policy predicates on. Before a StandingOrder verdict is honoured,
     // every proposed field whose tag in force names one of these AND is graded above Conversation
@@ -572,6 +579,12 @@ public interface IApprovalPolicy
     // This policy's own review window when its verdict names none. null falls through to
     // AffiantCoreOptions.DefaultDocketTtl.
     TimeSpan? DefaultTimeToLive => null;
+
+    // This policy's identity and version, on the `policy.id`/`policy.version` telemetry attributes
+    // and — when it approves a write with no person present — in the attestation the row carries
+    // (AZ-1). Defaults to the concrete type's full name and to no version.
+    string PolicyId => GetType().FullName ?? GetType().Name;
+    string? PolicyVersion => null;
 }
 
 public sealed record ApprovalVerdict(
@@ -579,7 +592,9 @@ public sealed record ApprovalVerdict(
     TimeSpan? TimeToLive = null,        // This write's window; stamped after the chain
     string? Reason = null,              // One line for the reviewer's card
     string? BlockedReason = null,       // Why a Standing Order was held back, as a stable code
-    ReviewRequirement? DegradedFrom = null);
+    ReviewRequirement? DegradedFrom = null,
+    string? PolicyId = null,            // Which policy spoke — stamped by the chain, not the policy
+    string? PolicyVersion = null);      // …and the version it fired under, for the attestation
 
 public enum ReviewRequirement { StandingOrder, ReviewerConfirmation, ReferralRequired, MultiParty }
 
@@ -641,15 +656,73 @@ public interface IFieldMapper<TDomainModel>
 
 ### 3.6 Write Execution (Host-Implemented)
 
+**The framework never performs the write, and there is nowhere in it for one to happen** (AZ-7). No
+package holds, takes, returns or implements this port — the host resolves its own executor and calls
+it. The path is: the gate hands back an approved `ReviewOutcome` carrying the attested Docket entry;
+the host writes; the host reports what happened through `ReviewGate.MarkExecutedAsync`, **once**
+(AZ-5, DK-1). An executor is reachable only through a row that carries an attestation — nothing
+replayed from a client's history, a chat transcript or a framework checkpoint stands in for it, and a
+host's outbox is a retry of an already-attested write rather than a second authorization path.
+
 ```csharp
-// The actual mutation — only called after the ReviewGate receives approval
+// The actual mutation — host code the host runs, against an attested Docket entry
 public interface IWriteExecutor
 {
     Task<WriteResult> ExecuteAsync(Affidavit approvedAffidavit, ConversationIdentity identity, CancellationToken ct);
 }
 
 public sealed record WriteResult(bool Success, string? EntityId, string? ErrorMessage);
+
+// The only path to execution: "executed". The status stays Approved — the approval happened and is
+// not undone by a failed write; only the execution outcome moves, and it moves once.
+Task<ReviewOutcome> ReviewGate.MarkExecutedAsync(
+    Guid entryId, ExecutionOutcome outcome, string? detail, DecisionContext context, CancellationToken ct = default);
 ```
+
+### 3.6a Decision Authorization (Host-Implemented)
+
+```csharp
+// Who may decide, report on, or resubmit a Docket entry. Registered with
+// services.AddDecisionAuthorization<TPolicy>(); required whenever the host declares a write-capable
+// tool, and refused at startup when it is missing (AZ-2, CV-1).
+public interface IDecisionAuthorizationPolicy
+{
+    Task<bool> MayDecideAsync(Principal principal, DocketEntry entry, CancellationToken ct = default);
+}
+
+// Who is acting, and where from. Passed at the call site, never resolved from ambient state.
+public abstract record Principal
+{
+    public sealed record Member(string Id) : Principal;                          // human-verified session
+    public sealed record Service(                                                // machine caller
+        string Id, RelayAssertion? Relay = null, string? AssertedMember = null) : Principal;
+}
+
+public sealed record DecisionContext(
+    Principal? Principal,        // null = unresolved, which is refused — never treated as permission
+    string TenantId,             // the framework compares the row's tenant with this itself
+    string? ConversationId = null,
+    string? Channel = null,
+    string? Reason = null,
+    DateTimeOffset? At = null);
+```
+
+**The framework does three of the four checks and delegates one.** In order, before any transition:
+an unresolved principal is refused with `decision-unauthorized` **before the store is read**; an
+entry outside the caller's tenant is `entry-not-found` — the framework compares the row's own tenant
+rather than trusting a store's scope, so a store with a scope bug does not make the gate fall open;
+the host's port has the last word, and a port that returns `false` **or throws** refuses. Only then
+do the state-machine checks run. A host that registers no port gets `DenyAllDecisionAuthorization`,
+which refuses everything: nothing is ever fail-open, and the startup validator refuses a host that
+declares a write-capable tool without one.
+
+**What identity may attest what** (AZ-1, AZ-3). A `Member` principal attests `member`. A `Service`
+principal that names both the person it speaks for and the relay assertion that carried them attests
+`member-via-relay`, naming both; one with neither is refused — a machine cannot agree to a write in a
+person's name. A Standing Order attests `standing-order`, naming the policy and the version it fired
+under, written in the same operation that files the entry approved. The rule is structural: every
+attestor kind's constructor is private, and the only factory that produces a `member` attestation
+takes a `Principal.Member`, so there is no expression through which a machine caller reaches one.
 
 ### 3.7 UI Guidance
 
@@ -1725,9 +1798,9 @@ The nine v0.1 keys, and the seam each is emitted from:
 | `affidavit.filed` | `ReviewGate.FileForReviewCoreAsync`, after the entry is filed | `gen_ai.tool.name`, `gen_ai.conversation.id`, `entry.id`, `docket.status`, `affidavit.field_count`, `created` |
 | `affidavit.refused.substance` | `SchemaDrivenAffidavitProjection`, on the hollow-Affidavit detection (GT-3) | `gen_ai.conversation.id`, `affidavit.field_count`, `reason` |
 | `coverage.refused` | `HostedToolAudit` in `Affiant.AgentFramework` and `Affiant.Extensions.AI`, at wire-up (CV-4) | `gen_ai.tool.name`, `coverage.category`, `phase` |
-| `docket.transition` | `ReviewGate`, per guarded write that affected a row (DK-1) | `entry.id`, `gen_ai.conversation.id`, `from`, `to`, `decision.kind`, `amended` |
+| `docket.transition` | `ReviewGate`, per guarded write that affected a row (DK-1) | `entry.id`, `gen_ai.conversation.id`, `from`, `to`, `decision.kind`, `amended`, `execution`, `attestation.kind` |
 | `docket.expired` | `DocketExpiryService`, per entry the sweep's own write expired (DK-3) | `entry.id` |
-| `decision.unauthorized` | `ReviewGate.HandleDecisionAsync`, on every refusal path (AZ-2) | `entry.id`, `gen_ai.conversation.id`, `reason`, `path` |
+| `decision.unauthorized` | `ReviewGate`, on every refusal path of every decision-surface entry point (AZ-2, AZ-3) | `entry.id`, `gen_ai.conversation.id`, `reason`, `path`, `principal.kind` |
 | `standing-order.fired` | `StandingOrderBase.EvaluateAsync`, when the order approves (AZ-1) | `policy.id`, `policy.version`, `risk.score` |
 | `standing-order.blocked` | `StandingOrderBase.EvaluateAsync`, when the verdict is not honoured (GT-5) | `policy.id`, `policy.version`, `blocked.reason`, `reason`, `risk.score`, `risk.threshold` |
 | `policy.invalid` | `ApprovalPolicyEvaluator` (an evaluate that threw) and `AffiantWireUpValidator` (an unusable deadline) — GT-4, CV-1 | `policy.id`, `option`, `reason` |
