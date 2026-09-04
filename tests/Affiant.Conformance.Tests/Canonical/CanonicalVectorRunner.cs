@@ -21,10 +21,11 @@ namespace Affiant.Conformance.Tests.Canonical;
 /// <item>whether the rule's text, implemented independently, reproduces the pinned bytes and
 /// digest — a disagreement there is a finding about the rule or the vector, not about .NET;</item>
 /// <item>whether the .NET <c>Affidavit</c> model can <b>hold</b> the shape the vector pins at all.
-/// It cannot hold <c>populatedConfidence</c> or <c>emptyFieldCount</c> (the record has neither), and
-/// it cannot hold a provenance tag's binding, timestamp or note (a tag is source, confidence,
-/// evidence and conversation turn, and nothing else). A vector whose form needs any of those
-/// fails, and the diff names the property.</item>
+/// It cannot: the record has no <c>protocolVersion</c>, no <c>populatedConfidence</c>, no
+/// <c>emptyFieldCount</c>, no <c>conversationTurn</c> and no <c>createdAt</c>, and a provenance tag
+/// has no <c>note</c>, no <c>at</c> and no <c>binding</c> (a tag is source, confidence, evidence and
+/// conversation turn, and nothing else). A vector whose form needs any of those fails, and the diff
+/// names the property.</item>
 /// </list>
 /// </remarks>
 internal static class CanonicalVectorRunner
@@ -84,8 +85,11 @@ internal static class CanonicalVectorRunner
     /// <summary>Names every property of the vector's shape the .NET model has nowhere to put.</summary>
     private static void CheckModelCanHold(JsonObject input, List<Mismatch> diff)
     {
-        // The two pure-canonicalisation vectors are arbitrary JSON documents, not Affidavits: there
-        // is no model for them to be held by, and they are about key order and number forms alone.
+        // A vector that is not Affidavit-shaped has no model to be held by, so there is nothing to
+        // check. From the rulebook's v0.1.1 all seven are Affidavits — the two that stress key order
+        // and number forms carry their cases inside a field's value — so this guard no longer fires;
+        // it stays because what a vector may contain is the rulebook's call, not this driver's, and
+        // a runner that assumed otherwise would crash on the first vector that changed shape.
         if (input["fields"] is not JsonArray fields || input["operationType"] is null)
         {
             return;

@@ -27,12 +27,24 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
   3 of 63 pass; the parity report at `conformance/parity/dotnet-v0.1.json` names every one of the
   60 that do not, the rule it is about and what is being done, and
   `conformance/results/ORACLE-RUN-1.0.0-beta.1.md` reads the run against the rulebook's negative
-  oracle. Nothing in `src/` changed: this release is measured, not modified. The pin is the
-  rulebook's [`v0.1.0`](https://github.com/Sakwala/affiant-protocol/releases/tag/v0.1.0) tag; the
-  60 rows are 50 `planned` — 49 for `1.0.0-beta.3` and one for `1.0.0-beta.1.1` — and 10 `fenced`.
-  None is `fixed`: that value names a release a reader can **install**, and the risk-floor
-  correction behind `gate/standing-order-by-the-book` is green on a branch (#53) in a release that
-  has not shipped.
+  oracle. Nothing in `src/` changed: this release is measured, not modified.
+
+  The pin is the rulebook's
+  [`v0.1.1`](https://github.com/Sakwala/affiant-protocol/releases/tag/v0.1.1) tag, and at that tag
+  the reading is **0 of 63**. Three canonical vectors that passed at `v0.1.0` now fail, and no code
+  changed on either side: at `v0.1.0` the vectors' inputs described a *seed-shaped* record the
+  Affidavit schema refuses, so `canonical/wire-evidence-card-request` was measured against a shape
+  this release happens to hold, and `canonical/key-order-stress` and `canonical/number-forms` were
+  bare JSON documents with no record in them to hold at all. The rulebook regenerated all seven
+  from v0.1-shaped inputs, and the honest reading of `1.0.0-beta.1` against the shape it will
+  actually be asked to carry is that it holds none of them. The driver's own canonicaliser still
+  reproduces the pinned bytes and digest for six of the seven at the first attempt, unchanged —
+  what fails is the model, which is the same `1.0.0-beta.3` gap the rest of the report names.
+
+  The 63 rows are 53 `planned` — 52 for `1.0.0-beta.3` and one for `1.0.0-beta.1.1` — and 10
+  `fenced`. None is `fixed`: that value names a release a reader can **install**, and the
+  risk-floor correction behind `gate/standing-order-by-the-book` is green on a branch (#53) in a
+  release that has not shipped.
 
 ## [1.0.0-beta.1.1] — unreleased
 

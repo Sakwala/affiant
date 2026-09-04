@@ -200,7 +200,8 @@ CAUSES = {
         "planned",
         "The canonical form is reproduced byte for byte by a canonicaliser written out from the "
         "rule, but the .NET model cannot hold the shape the vector pins: the Affidavit record has "
-        "no populated-confidence and no empty-field count, and a provenance tag has no binding. "
+        "no protocol version, no populated-confidence, no empty-field count, no conversation turn "
+        "and no created-at instant, and a provenance tag has no note, no timestamp and no binding. "
         "The release also exports no canonical-hash helper, so there is nothing to compare against.",
         {},
     ),
@@ -250,6 +251,9 @@ OVERRIDES = {
     "sequence-a/interleaved-conversations": "AF-3-projection",
     "canonical/create-shaped": "SR-1-model",
     "canonical/update-shaped": "SR-1-model",
+    "canonical/wire-evidence-card-request": "SR-1-model",
+    "canonical/key-order-stress": "SR-1-model",
+    "canonical/number-forms": "SR-1-model",
     "canonical/money-and-escapes": "SR-1-model",
     "canonical/wire-evidence-card-request-amended": "SR-1-canonical",
 }
@@ -364,7 +368,8 @@ CHECKED_INSTEAD = {
 }
 
 NOTES = (
-    "First run of the .NET conformance driver, against the shipped packages at 1.0.0-beta.1. "
+    "The .NET conformance driver against the shipped packages at 1.0.0-beta.1, read at the "
+    "rulebook's v0.1.1. "
     "Four things a reader of this document alone should know. "
     "(1) Most rows carry disposition \"planned\" with plannedFor 1.0.0-beta.3: the gap is measured, "
     "written down and scheduled for that release. One further row is planned for 1.0.0-beta.1.1, "
@@ -382,12 +387,21 @@ NOTES = (
     "(3) The seven canonical byte vectors are run against a canonicaliser written out from SR-1 "
     "inside the driver's own test project -- the second canonicaliser the rulebook asks for, not a "
     "claim about the framework, which exports no canonical-hash helper at all. That canonicaliser "
-    "reproduces the pinned bytes and the pinned digest for six of the seven; the seventh, "
+    "reproduces the pinned bytes and the pinned digest for six of the seven, at the first attempt "
+    "and with no change to it, over vectors the rulebook regenerated at v0.1.1; the seventh, "
     "canonical/wire-evidence-card-request-amended, needs the accepted amendments folded into the "
-    "Affidavit and this release never folds them. Three of the four failing vectors therefore fail "
-    "because the .NET model cannot HOLD the shape the vector pins -- the Affidavit record has no "
-    "populated-confidence and no empty-field count, and a provenance tag has no binding -- which is "
-    "a different thing from canonicalising it wrongly. "
+    "Affidavit and this release never folds them. All seven nonetheless fail, and six of them fail "
+    "ONLY because the .NET model cannot HOLD the shape the vector pins -- the Affidavit record has "
+    "no protocol version, no populated-confidence, no empty-field count, no conversation turn and "
+    "no created-at instant, and a provenance tag has no note, no timestamp and no binding -- which "
+    "is a different thing from canonicalising it wrongly. Three of those six passed at v0.1.0 and "
+    "fail here, and no code changed: at v0.1.0 the vectors' inputs described a seed-shaped record "
+    "the Affidavit schema refuses, so canonical/wire-evidence-card-request was measured against a "
+    "shape this release happens to hold, and canonical/key-order-stress and canonical/number-forms "
+    "were bare JSON documents with no record in them to hold at all. The rulebook regenerated them "
+    "from v0.1-shaped inputs, and the honest reading of this release against the shape it will "
+    "actually be asked to carry is that it holds none of the seven. The gap is the model, and it "
+    "is the same 1.0.0-beta.3 gap the rest of this manifest names. "
     "(4) The framework emits telemetry under names that share nothing with the rulebook's registry "
     "-- it emits affidavit.projected, inference.completed and affiant.review.broadcast_failed where "
     "the registry names affidavit.filed, docket.transition and standing-order.fired -- so every "

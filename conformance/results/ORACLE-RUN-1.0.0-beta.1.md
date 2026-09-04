@@ -22,8 +22,17 @@ make anything fail.
   re-promoted to state the card's rendering hints where v0.1 keeps them, on the envelope's
   `presentation` rather than on each field. It is a fixture this release fails either way, and it
   is not one the oracle lists.
-- Whole suite: **3 passed, 60 failed, 0 errored, 0 skipped** of 63
-- Oracle fixtures: **19 listed, 19 failed, 0 passed**
+- Re-run at the **`v0.1.1` tag**, produced 2026-09-04T05:09:41.883Z — same outcome for all 19 oracle fixtures,
+  and for all 56 declarative fixtures. What changed is the canonical vectors: the rulebook
+  regenerated all seven from v0.1-shaped inputs, because the ones published at `v0.1.0` described a
+  seed-shaped record `schemas/0.1.0/affidavit.schema.json` refuses. Three that passed at `v0.1.0`
+  fail here with no code changed on either side — `canonical/wire-evidence-card-request` had been
+  measured against a shape this release happens to hold, and `canonical/key-order-stress` and
+  `canonical/number-forms` had been bare JSON documents with no record in them to hold. None is an
+  oracle fixture, so nothing in the table below moves.
+- Whole suite at `v0.1.0`: **3 passed, 60 failed, 0 errored, 0 skipped** of 63
+- Whole suite at `v0.1.1`: **0 passed, 63 failed, 0 errored, 0 skipped** of 63
+- Oracle fixtures: **19 listed, 19 failed, 0 passed** — the same at both tags
 
 Read `conformance/parity/dotnet-v0.1.json` beside this: it is the published claim, and this is part of
 the evidence for it.

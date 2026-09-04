@@ -2,8 +2,8 @@
   "schemaVersion": "0.1.0",
   "implementation": "dotnet",
   "version": "1.0.0-beta.1",
-  "protocolTag": "v0.1.0",
-  "producedAt": "2026-09-04T03:43:56.377Z",
+  "protocolTag": "v0.1.1",
+  "producedAt": "2026-09-04T05:07:59.788Z",
   "runLog": "conformance/results/dotnet-1.0.0-beta.1.json (Sakwala/affiant)",
   "failing": [
     {
@@ -611,7 +611,7 @@
         "AF-3"
       ],
       "disposition": "planned",
-      "detail": "The canonical form is reproduced byte for byte by a canonicaliser written out from the rule, but the .NET model cannot hold the shape the vector pins: the Affidavit record has no populated-confidence and no empty-field count, and a provenance tag has no binding. The release also exports no canonical-hash helper, so there is nothing to compare against.",
+      "detail": "The canonical form is reproduced byte for byte by a canonicaliser written out from the rule, but the .NET model cannot hold the shape the vector pins: the Affidavit record has no protocol version, no populated-confidence, no empty-field count, no conversation turn and no created-at instant, and a provenance tag has no note, no timestamp and no binding. The release also exports no canonical-hash helper, so there is nothing to compare against.",
       "plannedFor": "1.0.0-beta.3"
     },
     {
@@ -622,7 +622,17 @@
         "PV-1"
       ],
       "disposition": "planned",
-      "detail": "The canonical form is reproduced byte for byte by a canonicaliser written out from the rule, but the .NET model cannot hold the shape the vector pins: the Affidavit record has no populated-confidence and no empty-field count, and a provenance tag has no binding. The release also exports no canonical-hash helper, so there is nothing to compare against.",
+      "detail": "The canonical form is reproduced byte for byte by a canonicaliser written out from the rule, but the .NET model cannot hold the shape the vector pins: the Affidavit record has no protocol version, no populated-confidence, no empty-field count, no conversation turn and no created-at instant, and a provenance tag has no note, no timestamp and no binding. The release also exports no canonical-hash helper, so there is nothing to compare against.",
+      "plannedFor": "1.0.0-beta.3"
+    },
+    {
+      "id": "canonical/wire-evidence-card-request",
+      "rules": [
+        "SR-1",
+        "SR-3"
+      ],
+      "disposition": "planned",
+      "detail": "The canonical form is reproduced byte for byte by a canonicaliser written out from the rule, but the .NET model cannot hold the shape the vector pins: the Affidavit record has no protocol version, no populated-confidence, no empty-field count, no conversation turn and no created-at instant, and a provenance tag has no note, no timestamp and no binding. The release also exports no canonical-hash helper, so there is nothing to compare against.",
       "plannedFor": "1.0.0-beta.3"
     },
     {
@@ -640,13 +650,31 @@
       "plannedFor": "1.0.0-beta.3"
     },
     {
+      "id": "canonical/key-order-stress",
+      "rules": [
+        "SR-1"
+      ],
+      "disposition": "planned",
+      "detail": "The canonical form is reproduced byte for byte by a canonicaliser written out from the rule, but the .NET model cannot hold the shape the vector pins: the Affidavit record has no protocol version, no populated-confidence, no empty-field count, no conversation turn and no created-at instant, and a provenance tag has no note, no timestamp and no binding. The release also exports no canonical-hash helper, so there is nothing to compare against.",
+      "plannedFor": "1.0.0-beta.3"
+    },
+    {
+      "id": "canonical/number-forms",
+      "rules": [
+        "SR-1"
+      ],
+      "disposition": "planned",
+      "detail": "The canonical form is reproduced byte for byte by a canonicaliser written out from the rule, but the .NET model cannot hold the shape the vector pins: the Affidavit record has no protocol version, no populated-confidence, no empty-field count, no conversation turn and no created-at instant, and a provenance tag has no note, no timestamp and no binding. The release also exports no canonical-hash helper, so there is nothing to compare against.",
+      "plannedFor": "1.0.0-beta.3"
+    },
+    {
       "id": "canonical/money-and-escapes",
       "rules": [
         "SR-1",
         "SR-2"
       ],
       "disposition": "planned",
-      "detail": "The canonical form is reproduced byte for byte by a canonicaliser written out from the rule, but the .NET model cannot hold the shape the vector pins: the Affidavit record has no populated-confidence and no empty-field count, and a provenance tag has no binding. The release also exports no canonical-hash helper, so there is nothing to compare against.",
+      "detail": "The canonical form is reproduced byte for byte by a canonicaliser written out from the rule, but the .NET model cannot hold the shape the vector pins: the Affidavit record has no protocol version, no populated-confidence, no empty-field count, no conversation turn and no created-at instant, and a provenance tag has no note, no timestamp and no binding. The release also exports no canonical-hash helper, so there is nothing to compare against.",
       "plannedFor": "1.0.0-beta.3"
     }
   ],
@@ -725,5 +753,5 @@
       "checkedInstead": "no substitute: the framework's telemetry attribute names are not checked against the published standards"
     }
   ],
-  "notes": "First run of the .NET conformance driver, against the shipped packages at 1.0.0-beta.1. Four things a reader of this document alone should know. (1) Most rows carry disposition \"planned\" with plannedFor 1.0.0-beta.3: the gap is measured, written down and scheduled for that release. One further row is planned for 1.0.0-beta.1.1, whose fix is written and green on a branch but unreleased; no row is \"fixed\", because that value names a release a reader can install. The ten fenced rows name a host-side workaround that contains the gap today AND the 1.0.0-beta.3 release, because a fence is the honest disposition now, not the end of the work. (2) There is no injectable clock in this release: ReviewGate reads DateTimeOffset.UtcNow at four sites and the expiry sweep at a fifth, none of them injectable, and there is no TimeProvider seam anywhere in the packages. Four fixtures -- decide/expired-amendments-preserved, decide/resubmit-prefills, sequence-a/expiry-then-resubmit and sequence-a/late-amendments-preserved -- fail on that alone: a fixture that moves its own clock cannot move the framework's. It also keeps sequence-a/sweep-pages from driving an entry past its deadline, so the paging gap that fixture is about is read off the API rather than exercised. (3) The seven canonical byte vectors are run against a canonicaliser written out from SR-1 inside the driver's own test project -- the second canonicaliser the rulebook asks for, not a claim about the framework, which exports no canonical-hash helper at all. That canonicaliser reproduces the pinned bytes and the pinned digest for six of the seven; the seventh, canonical/wire-evidence-card-request-amended, needs the accepted amendments folded into the Affidavit and this release never folds them. Three of the four failing vectors therefore fail because the .NET model cannot HOLD the shape the vector pins -- the Affidavit record has no populated-confidence and no empty-field count, and a provenance tag has no binding -- which is a different thing from canonicalising it wrongly. (4) The framework emits telemetry under names that share nothing with the rulebook's registry -- it emits affidavit.projected, inference.completed and affiant.review.broadcast_failed where the registry names affidavit.filed, docket.transition and standing-order.fired -- so every telemetry clause in the suite fails and every telemetryAbsent clause holds. That is a true statement about this release; no name was translated to make a clause pass."
+  "notes": "The .NET conformance driver against the shipped packages at 1.0.0-beta.1, read at the rulebook's v0.1.1. Four things a reader of this document alone should know. (1) Most rows carry disposition \"planned\" with plannedFor 1.0.0-beta.3: the gap is measured, written down and scheduled for that release. One further row is planned for 1.0.0-beta.1.1, whose fix is written and green on a branch but unreleased; no row is \"fixed\", because that value names a release a reader can install. The ten fenced rows name a host-side workaround that contains the gap today AND the 1.0.0-beta.3 release, because a fence is the honest disposition now, not the end of the work. (2) There is no injectable clock in this release: ReviewGate reads DateTimeOffset.UtcNow at four sites and the expiry sweep at a fifth, none of them injectable, and there is no TimeProvider seam anywhere in the packages. Four fixtures -- decide/expired-amendments-preserved, decide/resubmit-prefills, sequence-a/expiry-then-resubmit and sequence-a/late-amendments-preserved -- fail on that alone: a fixture that moves its own clock cannot move the framework's. It also keeps sequence-a/sweep-pages from driving an entry past its deadline, so the paging gap that fixture is about is read off the API rather than exercised. (3) The seven canonical byte vectors are run against a canonicaliser written out from SR-1 inside the driver's own test project -- the second canonicaliser the rulebook asks for, not a claim about the framework, which exports no canonical-hash helper at all. That canonicaliser reproduces the pinned bytes and the pinned digest for six of the seven, at the first attempt and with no change to it, over vectors the rulebook regenerated at v0.1.1; the seventh, canonical/wire-evidence-card-request-amended, needs the accepted amendments folded into the Affidavit and this release never folds them. All seven nonetheless fail, and six of them fail ONLY because the .NET model cannot HOLD the shape the vector pins -- the Affidavit record has no protocol version, no populated-confidence, no empty-field count, no conversation turn and no created-at instant, and a provenance tag has no note, no timestamp and no binding -- which is a different thing from canonicalising it wrongly. Three of those six passed at v0.1.0 and fail here, and no code changed: at v0.1.0 the vectors' inputs described a seed-shaped record the Affidavit schema refuses, so canonical/wire-evidence-card-request was measured against a shape this release happens to hold, and canonical/key-order-stress and canonical/number-forms were bare JSON documents with no record in them to hold at all. The rulebook regenerated them from v0.1-shaped inputs, and the honest reading of this release against the shape it will actually be asked to carry is that it holds none of the seven. The gap is the model, and it is the same 1.0.0-beta.3 gap the rest of this manifest names. (4) The framework emits telemetry under names that share nothing with the rulebook's registry -- it emits affidavit.projected, inference.completed and affiant.review.broadcast_failed where the registry names affidavit.filed, docket.transition and standing-order.fired -- so every telemetry clause in the suite fails and every telemetryAbsent clause holds. That is a true statement about this release; no name was translated to make a clause pass."
 }
