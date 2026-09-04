@@ -34,6 +34,12 @@ public static class DevSeamEndpoints
     /// <summary>The configuration key that must be true, in Development, for the seam to answer.</summary>
     public const string EnabledKey = "DevSeam:Enabled";
 
+    /// <summary>
+    /// The default field values a <em>create</em> is filed with, so one bare POST puts a complete
+    /// card on the page. It is never used on the update path: an update states only what the caller
+    /// asked to change, and every other field is read off the row by the projection — see
+    /// <see cref="ProposeAsync"/>.
+    /// </summary>
     private static readonly IReadOnlyDictionary<string, string> CannedProposal =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -77,15 +83,25 @@ public static class DevSeamEndpoints
             ? $"dev-seam-{Guid.NewGuid():N}"
             : request.SessionId;
 
-        var stated = new Dictionary<string, string>(CannedProposal, StringComparer.Ordinal);
+        // What the caller actually stated, and nothing else. On a create that starts from the
+        // canned defaults, which exist to make one bare POST produce a complete card. On an update
+        // it starts empty: the row already holds a value for every field, the projection reads them
+        // and tags them External, and merging the canned defaults in would swear a caller had
+        // stated five values they never mentioned — including replacing the row's real Reason. Only
+        // the caller's own overrides are UserStated.
+        var stated = request?.EntityId is null
+            ? new Dictionary<string, string>(CannedProposal, StringComparer.Ordinal)
+            : new Dictionary<string, string>(StringComparer.Ordinal);
+
         if (request?.Overrides is { Count: > 0 } overrides)
         {
             foreach (var (name, value) in overrides)
                 stated[name] = value;
         }
 
-        // A blank value is not a stated value. Dropping it here is what lets the projection tag the
-        // field ProvenanceSource.Empty — Rule 7 — instead of swearing a user said "".
+        // A blank value is not a stated value. Dropping it here is what lets the projection fall
+        // back to the row's own value on an update, and tag the field ProvenanceSource.Empty on a
+        // create — Rule 7 (nothing is omitted) — instead of swearing a user said "".
         var nonBlank = stated
             .Where(pair => !string.IsNullOrWhiteSpace(pair.Value))
             .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
@@ -104,19 +120,29 @@ public static class DevSeamEndpoints
             : AmendLeavePlugin.FunctionName;
 
         var gate = request?.TtlSeconds is { } ttlSeconds && ttlSeconds > 0
-            // The docket TTL is a host-wide option, so a per-request deadline needs a gate carrying
-            // its own options. This is the same ReviewGate type on the same stores and transport —
-            // the filing path under test is not stubbed, only its clock is shortened, which is what
-            // makes the expiry behaviour testable in under a minute instead of half an hour.
+            // A workaround for a shipped gap, not a design. INVARIANTS.md GT-4 says a deadline is
+            // computed after the approval policy runs, from the verdict's time-to-live; the shipped
+            // ReviewGate stamps one host-wide default before the policy chain
+            // (src/Affiant.Core/Services/ReviewGate.cs, FileForReviewCoreAsync). Because that
+            // default is host-wide, a per-request deadline has nowhere to travel except a second
+            // gate carrying its own options. It is the same ReviewGate type on the same stores and
+            // transport — the filing path is not stubbed, only its clock is shortened, which is
+            // what makes the expiry behaviour testable in under a minute instead of half an hour.
+            // When time-to-live becomes a policy input, this second gate goes away.
             ? new ReviewGate(
                 streamingTransport,
                 docketStore,
                 evaluator,
+                // Every property of the host's options, with one changed. Copied field by field
+                // because AffiantCoreOptions is a class, not a record: there is no `with`, and a
+                // property left out here would silently revert to its default for this filing.
                 new AffiantCoreOptions
                 {
                     DefaultDocketTtl = TimeSpan.FromSeconds(ttlSeconds),
                     DocketExpiryWarningWindow = coreOptions.DocketExpiryWarningWindow,
                     EnableObservability = coreOptions.EnableObservability,
+                    SystemPrompt = coreOptions.SystemPrompt,
+                    AcknowledgeMissingReviewWiring = coreOptions.AcknowledgeMissingReviewWiring,
                 },
                 loggerFactory.CreateLogger<ReviewGate>())
             : reviewGate;
@@ -148,6 +174,15 @@ public static class DevSeamEndpoints
     /// Reads one entry's server-side state straight from the docket store, independent of whatever
     /// a browser is currently showing. That independence is the point: it is how a test can assert
     /// "the store already says this" before the client has caught up.
+    ///
+    /// <para>
+    /// <b>Status is what the store holds, not what the clock implies.</b> An entry past its deadline
+    /// still reads <c>Pending</c> here until the framework's 30-second sweep writes <c>Expired</c>.
+    /// INVARIANTS.md DK-1 requires expiry to be queryable state — an entry past its deadline reads
+    /// as expired whether or not a sweep has run — and the shipped .NET docket stores do not yet
+    /// compute it on read. That gap is inherited, not introduced here; it is why the deck's expiry
+    /// specs wait out a sweep tick rather than the deadline.
+    /// </para>
     /// </summary>
     private static async Task<IResult> GetDocketAsync(
         Guid id, IDocketStore docketStore, CancellationToken cancellationToken)
@@ -186,8 +221,10 @@ public sealed class DevSeamGateFilter(IHostEnvironment environment, IConfigurati
 /// the id the page is already joined to if you want to see the card.
 /// </param>
 /// <param name="Overrides">
-/// Affidavit field name to replacement value, e.g. <c>{"Employee": "Amara Silva"}</c>. A blank
-/// value clears the field, which leaves it tagged with no provenance.
+/// Affidavit field name to stated value, e.g. <c>{"Employee": "Amara Silva"}</c>. On a create these
+/// override the canned defaults, and a blank value clears the field, leaving it tagged with no
+/// provenance. On an update these are the <em>only</em> stated values: every other field is read off
+/// the row and tagged <c>External</c>, and a blank value here means "leave the row's value alone".
 /// </param>
 /// <param name="TtlSeconds">
 /// How long the filed entry stays pending. Defaults to the host's own docket TTL. Set it low to
@@ -195,7 +232,9 @@ public sealed class DevSeamGateFilter(IHostEnvironment environment, IConfigurati
 /// </param>
 /// <param name="EntityId">
 /// The id of an existing leave request. Supplying it makes the proposal update-shaped: the card
-/// carries the entity's id and each field's current database value.
+/// carries the entity's id and each field's current database value, the fields named in
+/// <c>Overrides</c> are the only ones sworn <c>UserStated</c>, and every other field is the row's
+/// own value tagged <c>External</c>.
 /// </param>
 public sealed record DevProposeRequest(
     string? SessionId,

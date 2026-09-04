@@ -7,6 +7,12 @@ only exists because somebody approved it.
 It is about 900 lines of C# and one HTML page. Everything in it is either from the Quickstart or
 explained in a comment saying why it is there.
 
+Comments in this sample cite numbered framework rules — Rule 2 (dual-audience tool returns),
+Rule 3 (write tools never write), Rule 6 (UI guidance is a registration, never a DOM inspection)
+and Rule 7 (nothing is omitted; a field with no known provenance is tagged `Empty`). They are
+defined in [`docs/affiant-framework-specification.md`](../../docs/affiant-framework-specification.md)
+§6.
+
 ```bash
 dotnet run --project samples/quickstart-host          # then open the URL it prints
 ```
@@ -44,8 +50,8 @@ files it and ends the turn, and the same card appears. `OPENAI_MODEL` picks the 
 
 **All seven review behaviours at once.** The Playwright deck in `e2e/` drives approve, reject,
 typed fields, a picker fed from an API, the mandatory-field gate, expiry, and resubmission with
-preserved amendments — through the real framework, with no model key. See
-[Running the deck](#running-the-deck).
+preserved amendments — through the real framework, with no model key — plus the page's handling of
+a re-broadcast card. See [Running the deck](#running-the-deck).
 
 ## What the sample is showing
 
@@ -79,9 +85,19 @@ not — and each field says whether it came from the caller or from the record.
 ### Nothing is skipped when there is no source
 
 Every field on the card carries a provenance tag. A field the caller stated is `UserStated`; a
-field read from the record is `External`; a field with nothing behind it is `Empty` — stated, not
-omitted. The seam's canned proposal leaves the employee blank on purpose so you can see what an
-unsourced field looks like, and what the reviewer has to do about it.
+field read from the record is `External`, and the tag says which record it read; a field with
+nothing behind it is `Empty` — stated, not omitted. The seam's canned proposal leaves the employee
+blank on purpose so you can see what an unsourced field looks like, and what the reviewer has to do
+about it.
+
+The number under the card follows from that. `aggregateConfidence` here is the **minimum** over
+every proposed field, an unsourced field counting 0.0 — so the card in front of you reads 0.00
+while the employee is blank, and only rises once every field has a source. The framework's default
+projection averages the fields that do have a source, which reports 1.00 on that same card; that is
+the second reason this sample supplies its own projection. The two numbers that belong beside the
+aggregate — the minimum across the populated fields, and how many fields have no source — have
+nowhere to live on the `Affidavit` record at `1.0.0-beta.1`, so the projection states them as a
+warning line, which is where the card renders them.
 
 ## The development seam
 
@@ -100,10 +116,10 @@ Anything else is a plain `404`, indistinguishable from an entry that does not ex
 {
   "sessionId": "…",        // the session (SignalR group) to file into; omitted -> a fresh,
                            // unobserved "dev-seam-<guid>" one
-  "overrides": {           // affidavit field name -> value; blank clears the field
-    "Employee": "Amara Silva",
-    "Reason": "…"
-  },
+  "overrides": {           // affidavit field name -> the value the caller states. On a create
+    "Employee": "Amara Silva",   // these override the canned defaults and a blank clears the
+    "Reason": "…"                // field; on an update they are the only stated values and a
+  },                             // blank leaves the row's own value alone.
   "ttlSeconds": 45,        // how long the entry stays pending; defaults to the host's docket TTL
   "entityId": 7            // supply it and the proposal is update-shaped against that row
 }
@@ -116,12 +132,31 @@ Response: `{ "sessionId": "…", "docketId": "<guid>" }`.
 `status` is the framework's own review status — there is no "expiring" value; "Expiring soon" on
 the page is derived from a still-pending entry's deadline.
 
+`status` is what the store holds, not what the clock implies: an entry past its deadline still
+reads `Pending` until the 30-second sweep writes `Expired`. INVARIANTS.md DK-1 requires expiry to be
+queryable state — an entry past its deadline reads as expired whether or not a sweep has run — and
+the shipped .NET docket stores do not yet compute it on read. The sample inherits that gap; it is
+why the deck's expiry specs wait out a sweep tick rather than the deadline.
+
+**A create and an update state different things.** A bare `POST` files a create from a canned set of
+defaults, so one request produces a complete card. An update states only what `overrides` names: the
+row already holds a value for every field, and the projection reads the rest off it and tags each
+one `External`, naming the record it came from. Merging the canned defaults into an update would
+swear a caller had stated five values they never mentioned — including replacing the row's real
+reason with the canned one — and the External/UserStated contrast the sample exists to show would
+disappear.
+
 **What the seam does not skip.** It builds the affidavit with the same `LeaveProposalBuilder` and
 the same projection a real tool call uses, and files it through the framework's real `ReviewGate` —
 policy evaluation, docket entry, Evidence Card broadcast. The one step it skips is a model deciding
-to call a write tool, which is the one step none of the review behaviours depend on. A `ttlSeconds`
-request builds a second `ReviewGate` carrying its own docket TTL, because that TTL is a host-wide
-option; same type, same stores, same transport, shorter clock.
+to call a write tool, which is the one step none of the review behaviours depend on.
+
+A `ttlSeconds` request builds a second `ReviewGate` carrying its own docket TTL — same type, same
+stores, same transport, shorter clock. That second gate is a workaround for a shipped gap, not a
+design: INVARIANTS.md GT-4 says a deadline is computed after the approval policy runs, from the
+verdict's time-to-live, and the shipped `ReviewGate` stamps one host-wide default before the policy
+chain. Because that default is host-wide, a per-request deadline has nowhere to travel except a
+second gate. When time-to-live becomes a policy input, this goes away.
 
 ## The page
 
@@ -136,7 +171,9 @@ how to refresh them:
   Vendored because the package is not on npm yet; when it publishes, this directory becomes a
   dependency.
 - `wwwroot/lib/signalr.min.js` — `@microsoft/signalr` 10.0.11, the UMD build, so a plain
-  `<script>` tag is the whole install.
+  `<script>` tag is the whole install. MIT, Copyright (c) .NET Foundation and Contributors;
+  minification strips the source's own banner, so the notice travels beside the file as
+  `wwwroot/lib/signalr.LICENSE.txt` and the repository `NOTICE` names the bundled copy.
 
 **Redelivery is not a redraw.** The framework re-broadcasts every pending entry's card on each
 30-second sweep and again on reconnect — at-least-once, because a broadcast to a session with
@@ -145,7 +182,12 @@ idempotent. Handing the element the payload again would satisfy that in the lett
 practice: setting `request` re-renders, and re-rendering discards any amendment the reviewer has
 typed and not yet submitted, so a reviewer who paused mid-edit for thirty seconds would silently
 lose their work. This page ignores repeats for a card it is already showing. The
-`late amendments` spec in the deck is what caught it.
+`late amendments` spec in the deck is what caught it; the `redelivery is not a redraw` spec is what
+pins it, by forcing a re-broadcast rather than waiting out a sweep — a second client joining the
+same session makes the server resend every pending card to the whole group. Because absorbing a
+repeat is invisible by design, the page counts absorbed repeats on the cards container as
+`data-repeats`, so that spec can tell "the repeat arrived and was ignored" from "no repeat ever
+arrived".
 
 **Which parts are the element's and which are the host's.** The element renders the evidence and
 owns amendments. The status badge, the mandatory-field gate, the employee picker and the Resubmit
@@ -163,7 +205,7 @@ selectors pierce an open shadow root, so a test scopes to an `entry` and reaches
 
 ## The deck
 
-`e2e/lifecycle.spec.ts`, seven specs, one per behaviour:
+`e2e/lifecycle.spec.ts`, eight specs — seven review behaviours and one page behaviour:
 
 | Spec | What it locks |
 |---|---|
@@ -174,6 +216,7 @@ selectors pierce an open shadow root, so a test scopes to an `entry` and reaches
 | mandatory-field gate | Approve stays disabled while a required field is empty and enables the moment it is filled — driven by `AffidavitField.IsMandatory`. |
 | expiry lifecycle | An unreviewed entry is state, not a timeout: `Pending` → `Expiring soon` → `Expired` on the framework's own sweep, and only then does Resubmit appear. |
 | late amendments | A decision arriving after the deadline is answered `expired` and writes nothing, but the reviewer's edits are kept on the entry and prefill the fresh card Resubmit produces. |
+| redelivery is not a redraw | A card re-broadcast for an entry already on screen is absorbed rather than re-rendered, so an amendment the reviewer has typed and not yet submitted survives it — and is still what gets written on Approve. |
 
 Two of them wait on the framework's expiry sweep, which ticks every 30 seconds on a phase the test
 cannot see. Their deadlines are set past a full tick and their timeouts sized for the worst case, so
@@ -207,6 +250,10 @@ gate that must be fast and never flaky on an unrelated change. The sample's `dot
 which covers the projection, the seam's filing path, the expiry transition and the gate — runs on
 every push.
 
+GitHub offers `workflow_dispatch` only for workflow files that already exist on the default branch,
+so the deck job cannot be dispatched from a branch that is adding it. Its first CI run is therefore
+a post-merge step; before that, the deck's evidence is a local run.
+
 ## The unit tests
 
 `tests/QuickstartHost.Tests/`, run by `dotnet test Affiant.slnx` along with everything else:
@@ -215,10 +262,38 @@ every push.
   on create;
 - field metadata (`kind`, `allowedValues`, `pattern`, `isMandatory`) comes off the schema, and a
   field with nothing behind it is tagged `Empty` and warned about;
+- `aggregateConfidence` is the minimum, so one unsourced mandatory field takes it to 0.00 while a
+  fully sourced card reads 1.00;
 - the seam files a `Pending` entry the framework owns, and the framework's sweep — not the seam —
   moves it to `Expired`;
 - an update-shaped proposal carries the entity id and previous values end to end;
+- an update swears only the fields the caller named and reads the rest off the row as `External`,
+  so the row's own reason is not overwritten by the seam's canned one;
 - the seam is a `404` outside Development, and inside Development with the flag off.
+
+## Which rules this sample meets
+
+Affiant's cross-implementation rules live in
+[`INVARIANTS.md`](https://github.com/Sakwala/affiant-protocol/blob/v0.1.0/INVARIANTS.md) in the
+protocol repository. Four of them bear directly on what this sample does, and the honest answer
+differs per rule:
+
+- **AF-3 — an update names its entity and carries a previous value per field.** Met, by this host's
+  own projection. It is the behaviour the sample exists to show.
+- **AF-2 — `aggregateConfidence` is the minimum over every proposed field, `Empty` counting 0.0.**
+  Met, by this host's own projection. The shipped packages' default projection averages the fields
+  that have a source instead; a later release fixes that. The two companion numbers the rule asks
+  for beside the aggregate cannot travel on the `Affidavit` record at `1.0.0-beta.1`, so this
+  projection states them as a warning line, which is where the card renders them.
+- **GT-4 — time-to-live is computed after the approval policy runs.** Not met, and inherited: the
+  shipped `ReviewGate` stamps one host-wide default before the policy chain. The seam's second
+  `ReviewGate` is the workaround that follows from it, and is labelled as such where it is built.
+- **DK-1 — expiry is queryable state.** Not met, and inherited: an entry past its deadline reads
+  `Pending` from the shipped .NET docket stores until the 30-second sweep writes `Expired`. It is
+  why the deck's expiry specs wait out a sweep tick rather than the deadline.
+
+The two gaps are the framework's, not the sample's, and neither is hidden behind sample code: the
+sample runs on the shipped packages as published.
 
 ## What is deliberately simple
 

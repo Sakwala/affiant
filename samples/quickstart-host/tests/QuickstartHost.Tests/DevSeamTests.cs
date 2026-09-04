@@ -12,8 +12,9 @@ using Xunit;
 
 /// <summary>
 /// The development seam: that it files through the real review gate rather than fabricating a
-/// docket row, that the entry it files is state the framework's own sweep moves to Expired, and
-/// that it is unreachable anywhere but local development.
+/// docket row, that the entry it files is state the framework's own sweep moves to Expired, that an
+/// update swears only what the caller stated, and that it is unreachable anywhere but local
+/// development.
 /// </summary>
 public sealed class DevSeamTests
 {
@@ -89,15 +90,98 @@ public sealed class DevSeamTests
         using var host = Host("Development", seamEnabled: true);
         using var client = host.CreateClient();
 
+        var store = host.Services.GetRequiredService<IDocketStore>();
+
         // Approve a create first so there is a row to amend.
-        var created = await client.PostAsJsonAsync(
+        var recordId = await WriteALeaveRequestAsync(
+            host, client, store, new Dictionary<string, string> { ["Employee"] = "Devon Park" });
+
+        var updated = await client.PostAsJsonAsync(
             "/api/dev/propose",
-            new { sessionId = "update-test", overrides = new Dictionary<string, string> { ["Employee"] = "Devon Park" } });
+            new { sessionId = "update-test", entityId = recordId });
+        updated.EnsureSuccessStatusCode();
+        var updatedEntry = await updated.Content.ReadFromJsonAsync<ProposeResponse>(Json);
+        Assert.NotNull(updatedEntry);
+
+        var updateEntry = await store.GetDocketEntryAsync(updatedEntry.DocketId, CancellationToken.None);
+        Assert.NotNull(updateEntry);
+        Assert.Equal("amend_leave", updateEntry.OperationType);
+        Assert.Equal(
+            recordId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            updateEntry.Envelope.EntityId);
+        Assert.All(updateEntry.Envelope.Fields, field => Assert.NotNull(field.PreviousValue));
+        Assert.Equal("Devon Park", updateEntry.Envelope.Fields.Single(f => f.Name == "Employee").PreviousValue);
+    }
+
+    [Fact]
+    public async Task An_update_swears_only_what_the_caller_stated_and_reads_the_rest_off_the_row()
+    {
+        using var host = Host("Development", seamEnabled: true);
+        using var client = host.CreateClient();
+        var store = host.Services.GetRequiredService<IDocketStore>();
+
+        // A reason nothing like the seam's canned one, so "the update left the row alone" and "the
+        // update re-stated the canned default" cannot be mistaken for each other.
+        const string rowReason = "Original reason, stated when the row was created.";
+        var recordId = await WriteALeaveRequestAsync(
+            host,
+            client,
+            store,
+            new Dictionary<string, string> { ["Employee"] = "Devon Park", ["Reason"] = rowReason });
+
+        var updated = await client.PostAsJsonAsync(
+            "/api/dev/propose",
+            new
+            {
+                sessionId = "update-provenance",
+                entityId = recordId,
+                overrides = new Dictionary<string, string> { ["EndDate"] = "2026-12-25" },
+            });
+        updated.EnsureSuccessStatusCode();
+        var filed = await updated.Content.ReadFromJsonAsync<ProposeResponse>(Json);
+        Assert.NotNull(filed);
+
+        var entry = await store.GetDocketEntryAsync(filed.DocketId, CancellationToken.None);
+        Assert.NotNull(entry);
+
+        // The one field the caller named is the one field sworn UserStated.
+        var endDate = entry.Envelope.Fields.Single(f => f.Name == "EndDate");
+        Assert.Equal("2026-12-25", endDate.Value);
+        Assert.Equal("2026-11-06", endDate.PreviousValue);
+        Assert.Equal(ProvenanceSource.UserStated, endDate.Provenance.Current.Source);
+
+        // Every other field is still proposed — an affidavit states the whole row — but it names
+        // the database as its source, and says which record it read.
+        foreach (var field in entry.Envelope.Fields.Where(f => f.Name != "EndDate"))
+        {
+            Assert.Equal(ProvenanceSource.External, field.Provenance.Current.Source);
+            Assert.Equal(field.PreviousValue, field.Value);
+            Assert.Contains(
+                "external-ref",
+                field.Provenance.Current.Evidence ?? string.Empty,
+                StringComparison.Ordinal);
+        }
+
+        // Reason in particular: the canned create default is not written over the row's own text.
+        Assert.Equal(rowReason, entry.Envelope.Fields.Single(f => f.Name == "Reason").Value);
+    }
+
+    /// <summary>
+    /// Files a create through the seam and executes it, so a real row exists to update. Returns the
+    /// row's id.
+    /// </summary>
+    private static async Task<int> WriteALeaveRequestAsync(
+        QuickstartHostFactory host,
+        HttpClient client,
+        IDocketStore store,
+        Dictionary<string, string> overrides)
+    {
+        var created = await client.PostAsJsonAsync(
+            "/api/dev/propose", new { sessionId = "seed", overrides });
         created.EnsureSuccessStatusCode();
         var createdEntry = await created.Content.ReadFromJsonAsync<ProposeResponse>(Json);
         Assert.NotNull(createdEntry);
 
-        var store = host.Services.GetRequiredService<IDocketStore>();
         var entry = await store.GetDocketEntryAsync(createdEntry.DocketId, CancellationToken.None);
         Assert.NotNull(entry);
 
@@ -107,19 +191,7 @@ public sealed class DevSeamTests
             entry.Envelope, entry.Amendments, CancellationToken.None);
         Assert.NotNull(recordId);
 
-        var updated = await client.PostAsJsonAsync(
-            "/api/dev/propose",
-            new { sessionId = "update-test", entityId = int.Parse(recordId, System.Globalization.CultureInfo.InvariantCulture) });
-        updated.EnsureSuccessStatusCode();
-        var updatedEntry = await updated.Content.ReadFromJsonAsync<ProposeResponse>(Json);
-        Assert.NotNull(updatedEntry);
-
-        var updateEntry = await store.GetDocketEntryAsync(updatedEntry.DocketId, CancellationToken.None);
-        Assert.NotNull(updateEntry);
-        Assert.Equal("amend_leave", updateEntry.OperationType);
-        Assert.Equal(recordId, updateEntry.Envelope.EntityId);
-        Assert.All(updateEntry.Envelope.Fields, field => Assert.NotNull(field.PreviousValue));
-        Assert.Equal("Devon Park", updateEntry.Envelope.Fields.Single(f => f.Name == "Employee").PreviousValue);
+        return int.Parse(recordId, System.Globalization.CultureInfo.InvariantCulture);
     }
 
     [Theory]

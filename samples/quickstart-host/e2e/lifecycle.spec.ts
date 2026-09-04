@@ -1,7 +1,8 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
 
 /**
- * The review lifecycle, seven behaviours, in a browser, with no model key.
+ * The review lifecycle, seven behaviours, in a browser, with no model key — plus one page
+ * behaviour, redelivery, which is the framework's at-least-once broadcast seen from the client.
  *
  * Every card here is filed through the host's development seam (`POST /api/dev/propose`) rather
  * than by a model turn. The seam skips exactly one step — a model deciding to call a write tool —
@@ -24,7 +25,7 @@ import { test, expect, type Locator, type Page } from "@playwright/test";
  *   prior-amendments                               the resubmission note, when there is one
  *
  * Everything else is the host's own: entry, entry-status, employee-picker,
- * resubmit-action-button, record, notice.
+ * resubmit-action-button, record, notice, and the cards container's data-repeats counter.
  */
 
 const CARD_ARRIVED = 15_000;
@@ -310,6 +311,10 @@ test.describe("review lifecycle", () => {
     // Amend while the entry is still genuinely pending.
     await amend(entry, "EndDate", amendedEndDate);
 
+    // This amendment also has to survive at least one 30-second re-broadcast, which the wait below
+    // guarantees. That is a second thing this spec locks, and it is locked here only incidentally —
+    // the "redelivery is not a redraw" spec below asserts on it directly and in a second.
+
     // Wait until the deadline has passed. The gate reads the wall clock itself, so a decision is
     // late the moment the deadline passes — independent of whether the sweep has ticked. The
     // window between "late server-side" and "the sweep has reaped it" is the race this locks.
@@ -349,5 +354,55 @@ test.describe("review lifecycle", () => {
     await expect(resubmitted.getByTestId("entry-status")).toHaveText("Pending");
     await expect(resubmitted.getByTestId("prior-amendments")).toContainText("EndDate");
     await expect(resubmitted.getByTestId("prior-amendments")).toContainText(amendedEndDate);
+  });
+
+  test("redelivery is not a redraw: a repeated card is absorbed, and a typed amendment survives it", async ({
+    page,
+  }) => {
+    const sessionId = await openAndJoin(page);
+    const reason = uniqueReason("redeliver");
+    const amendedEndDate = "2026-11-20";
+
+    const { docketId } = await propose(page, sessionId, {
+      Employee: "Amara Silva",
+      Reason: reason,
+    });
+
+    const entry = newestEntry(page);
+    await expect(entry).toHaveAttribute("data-docket-id", docketId, { timeout: CARD_ARRIVED });
+
+    // A reviewer part-way through an edit, not yet submitted.
+    await amend(entry, "EndDate", amendedEndDate);
+
+    // Force a redelivery rather than waiting out a 30-second sweep tick: a second client joining
+    // the same session makes the server re-broadcast every still-pending card to the whole group,
+    // this page included. It is the same broadcast the sweep sends, on the same path.
+    const second = await page.context().newPage();
+    await openAndJoin(second);
+    await expect(second.getByTestId("entry").first()).toHaveAttribute(
+      "data-docket-id",
+      docketId,
+      { timeout: CARD_ARRIVED },
+    );
+
+    // The repeat reached this page and was absorbed — not rendered a second time, and not handed
+    // back to the element. Without the counter, "absorbed" and "never arrived" look identical.
+    await expect(page.getByTestId("cards")).toHaveAttribute("data-repeats", "1", {
+      timeout: CARD_ARRIVED,
+    });
+    await expect(page.getByTestId("entry")).toHaveCount(1);
+
+    // The point of absorbing it: the reviewer's unsubmitted edit is still on screen.
+    await expect(entry.getByTestId("amend-field-EndDate")).toHaveValue(amendedEndDate);
+
+    // And it is still the value that gets decided on.
+    await entry.getByTestId("approve-action-button").click();
+    await expect(entry.getByTestId("entry-status")).toHaveText("Approved", { timeout: 15_000 });
+
+    const written = await leaveRequests(page, reason);
+    expect(written).toHaveLength(1);
+    expect(written[0].endDate).toContain(amendedEndDate);
+
+    await second.close();
   });
 });
