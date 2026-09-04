@@ -1,0 +1,7 @@
+# Local run artefacts — the databases are recreated on start, the Node tree on `npm ci`.
+*.db
+*.db-shm
+*.db-wal
+node_modules/
+test-results/
+playwright-report/

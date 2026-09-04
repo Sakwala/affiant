@@ -502,85 +502,9 @@ write through when it could not do them at all.
    wire-up check can see it. This is stated, not fixed: the framework guarantees only that such a tool
    cannot commit *through* it.
 
-## [1.0.0-beta.1.1] — unreleased
+### One clock, and the Docket row as the rules define it
 
-### Fixed
-
-- **A Standing Order written to the documented contract could never auto-approve.**
-  `StandingOrderBase` defaulted its `RiskThreshold` to `RiskLevel.Low` (1) and auto-approved only
-  when the computed score was at or below it, while the risk formula `AddAffiantPolicies()`
-  registered for every host returned `Medium` (2) or `High` (3) on every path — over-50 `Value`
-  field → High, any other `Value` → Medium, no `Value` field → Medium. Nothing scored `Low`, so a
-  subclass that implemented `MatchesAsync` and changed nothing else always fell through to reviewer
-  confirmation.
-- **New semantics.** `RiskThreshold` is now `int?` and defaults to `null`, meaning *no risk
-  ceiling*: matching the conditions is the whole test, and such a Standing Order needs no risk
-  calculator at all. Declaring a threshold opts into scoring — the framework still owns the
-  `score <= threshold` comparison, the host owns the score.
-- **Fail closed on misconfiguration.** A Standing Order that declares a `RiskThreshold` with no
-  `RiskScoreCalculatorBase` registered now throws `InvalidOperationException` naming
-  `SetRiskScoreCalculator<T>()`. It fails on the policy's first evaluation, before any write is
-  auto-approved, never silently — rather than deferring every write it was written to approve.
-
-### Added
-
-- `AffiantPolicies.ValidateStandingOrders(IServiceProvider)` — an optional boot-time check. It
-  resolves every registered `IApprovalPolicy` in a throwaway scope and runs each Standing Order's
-  risk-configuration check, turning a misconfiguration into a startup failure rather than a
-  first-request one. It evaluates no Affidavit and approves nothing.
-
-### Changed
-
-- `RiskScoreCalculatorBase.ComputeAsync` is **abstract**. There is no framework scoring formula:
-  what counts as risk is a property of the host's domain. `ClassifyScore` and the `RiskLevel` enum
-  are unchanged.
-- `AddAffiantPolicies()` registers an internal placeholder `RiskScoreCalculatorBase` when the host
-  registers none. It carries no formula and no risk floor — every call to it throws, naming
-  `SetRiskScoreCalculator<T>()`. It exists so that a Standing Order whose constructor takes
-  `RiskScoreCalculatorBase` as a *required* dependency — the shape every `1.0.0-beta.1` order that
-  declared a `RiskThreshold` was forced into — still resolves, and so sees the actionable message
-  rather than the container's own "Unable to resolve service for type 'RiskScoreCalculatorBase'".
-  It is registered with `TryAdd`, so a calculator the host registers always wins.
-- `StandingOrderBase`'s risk calculator is an optional constructor dependency
-  (`RiskScoreCalculatorBase? riskScorer = null`), and the protected `RiskScorer` field is nullable.
-- `StandingOrderBase.RiskThreshold` is `int?` (was `int`).
-
-### Removed
-
-- `DefaultRiskScoreCalculator`, and its automatic registration inside `AddAffiantPolicies()`.
-  `AddAffiantPolicies()` no longer registers any scoring formula — only the throwing placeholder
-  described above.
-
-### Upgrade note
-
-- A host that relied on the stock formula — over-50 `Value` field → High, otherwise Medium —
-  registers its own calculator: subclass `RiskScoreCalculatorBase`, implement `ComputeAsync`, and
-  pass it to `SetRiskScoreCalculator<T>()` inside `AddAffiantPolicies(...)`.
-- A host with a Standing Order that overrides `RiskThreshold` must register a calculator, or that
-  policy throws on its first evaluation, before any write is auto-approved, naming
-  `SetRiskScoreCalculator<T>()`. Call `AffiantPolicies.ValidateStandingOrders(app.Services)` after
-  `Build()` to hit the same failure at startup instead. Changing the override's type from `int` to
-  `int?` is required to compile — and it is required at runtime too, not merely convenient:
-  a subclass compiled against `1.0.0-beta.1` and dropped in as a binary without recompiling still
-  overrides a property whose signature the base class no longer declares, so the CLR fails at type
-  load with a `TypeLoadException` (or a `MissingMethodException` at the call site), not a graceful
-  fallback to the old behaviour.
-- The configuration check — is a calculator registered wherever a `RiskThreshold` is declared —
-  runs before `MatchesAsync`, on every evaluation. A misconfigured Standing Order therefore halts
-  *every* evaluation of that policy, not only the writes it would actually have matched: intended,
-  since the point is to fail loudly and closed rather than silently approve or refuse on an
-  unscored guess.
-- An order that took the calculator as a required constructor parameter — the shape beta.1's base
-  constructor forced — keeps working unchanged: it resolves against the placeholder and, if it
-  declares a `RiskThreshold`, reports the missing registration itself. Widening the parameter to
-  `RiskScoreCalculatorBase? scorer = null` is optional.
-- A host whose Standing Orders never overrode `RiskThreshold` needs no calculator and no code
-  change — but note the behaviour change: those orders now auto-approve on the match, which is what
-  they were always written to do.
-- These are declared breaking changes against `1.0.0-beta.1`, permitted by the prerelease-stability
-  policy, and recorded in `src/Affiant.Policies/CompatibilitySuppressions.xml`.
-- `StandingOrderBase.RiskScorer` is now nullable (`RiskScoreCalculatorBase?`). Binary-compatible; source-breaking for a subclass that dereferences it under nullable reference types with warnings as errors — add a null check or declare no threshold.
-### Added
+#### Added
 
 - **One injectable time seam.** Every framework component that needs the current instant now takes a
   `System.TimeProvider` and reads it there — `ReviewGate` (a filing's `CreatedAt`/`ExpiresAt`, the
@@ -633,7 +557,7 @@ write through when it could not do them at all.
   **`AffiantDocketOptions.SweepScope`** (default the whole store) — the second bound on a sweep
   tick, and the scope a partitioned deployment narrows it to.
 
-### Changed
+#### Changed
 
 - **`ReviewGate` follows the rules the row now carries.** Filing writes the tool name and the
   protocol tag. An idempotent re-file returns the existing entry and re-broadcasts its card with the
@@ -664,7 +588,7 @@ write through when it could not do them at all.
   first resubmission of an entry whose deadline has passed but whose sweep has not run succeeds
   instead of failing its own guard.
 
-### Fixed
+#### Fixed
 
 - **Expiry reads as a state, at the store boundary.** A Docket entry whose `ExpiresAt` has passed is
   reported `Expired` by `GetDocketEntryAsync` — and is absent from `ListPendingBySessionAsync` and
@@ -675,7 +599,7 @@ write through when it could not do them at all.
   reconnecting session no longer replays a card that has run out of time. **Breaking** for a host
   with its own `IDocketStore`: apply the same projection at your read boundary.
 
-### Breaking changes and how to upgrade
+#### Breaking changes and how to upgrade
 
 Pre-1.0 breaking changes are permitted by this repository's own stability policy and are declared
 here. Nothing below changes what a conforming host already does; each is a change to a contract.
@@ -721,7 +645,7 @@ here. Nothing below changes what a conforming host already does; each is a chang
 8. **`ReviewGate.HandleDecisionAsync`'s optional parameters are now explicit overloads.** Existing
    call sites keep compiling; a call that relied on named arguments past `amendments` does not.
 
-### Migrations
+#### Migrations
 
 One migration per provider, both idempotent and both safe to run against a beta.1 database.
 
@@ -866,6 +790,120 @@ discriminator, together, because they are one subject seen from four angles.
     of values than the ones it shows.
 7. **`ProvenanceTag` gains a sixth positional parameter (`At`, defaulted `null`).** Existing
     construction sites compile unchanged; a positional deconstruction of five elements does not.
+
+### The conformance driver
+
+#### Added
+
+- **`tests/Affiant.Conformance.Tests` — the conformance driver.** Runs the
+  [`Sakwala/affiant-protocol`](https://github.com/Sakwala/affiant-protocol) rulebook's promoted
+  fixture suite (56 declarative fixtures and 7 canonical byte vectors) against the shipped packages
+  and publishes what it finds. The suite is vendored from the ref `conformance/PROTOCOL_PIN` names
+  and verified against checksums, so the driver builds offline and an edited fixture cannot pass
+  unnoticed (`conformance/sync.sh`). The run emits a machine-readable log
+  (`conformance/results/dotnet-1.0.0-beta.1.json`), and CI asserts that the set of fixtures that
+  fail is **exactly** the set the parity manifest declares — in either direction, so a gap that
+  closes has to be published rather than quietly disappearing. First run against `1.0.0-beta.1`:
+  3 of 63 pass; the parity report at `conformance/parity/dotnet-v0.1.json` names every one of the
+  60 that do not, the rule it is about and what is being done, and
+  `conformance/results/ORACLE-RUN-1.0.0-beta.1.md` reads the run against the rulebook's negative
+  oracle. Nothing in `src/` changed: this release is measured, not modified.
+
+  The pin is the rulebook's
+  [`v0.1.1`](https://github.com/Sakwala/affiant-protocol/releases/tag/v0.1.1) tag, and at that tag
+  the reading is **0 of 63**. Three canonical vectors that passed at `v0.1.0` now fail, and no code
+  changed on either side: at `v0.1.0` the vectors' inputs described a *seed-shaped* record the
+  Affidavit schema refuses, so `canonical/wire-evidence-card-request` was measured against a shape
+  this release happens to hold, and `canonical/key-order-stress` and `canonical/number-forms` were
+  bare JSON documents with no record in them to hold at all. The rulebook regenerated all seven
+  from v0.1-shaped inputs, and the honest reading of `1.0.0-beta.1` against the shape it will
+  actually be asked to carry is that it holds none of them. The driver's own canonicaliser still
+  reproduces the pinned bytes and digest for six of the seven at the first attempt, unchanged —
+  what fails is the model, which is the same `1.0.0-beta.3` gap the rest of the report names.
+
+  The 63 rows are 53 `planned` — 52 for `1.0.0-beta.3` and one for `1.0.0-beta.1.1` — and 10
+  `fenced`. None is `fixed`: that value names a release a reader can **install**, and the
+  risk-floor correction behind `gate/standing-order-by-the-book` is green on a branch (#53) in a
+  release that has not shipped.
+
+## [1.0.0-beta.1.1] — unreleased
+
+### Fixed
+
+- **A Standing Order written to the documented contract could never auto-approve.**
+  `StandingOrderBase` defaulted its `RiskThreshold` to `RiskLevel.Low` (1) and auto-approved only
+  when the computed score was at or below it, while the risk formula `AddAffiantPolicies()`
+  registered for every host returned `Medium` (2) or `High` (3) on every path — over-50 `Value`
+  field → High, any other `Value` → Medium, no `Value` field → Medium. Nothing scored `Low`, so a
+  subclass that implemented `MatchesAsync` and changed nothing else always fell through to reviewer
+  confirmation.
+- **New semantics.** `RiskThreshold` is now `int?` and defaults to `null`, meaning *no risk
+  ceiling*: matching the conditions is the whole test, and such a Standing Order needs no risk
+  calculator at all. Declaring a threshold opts into scoring — the framework still owns the
+  `score <= threshold` comparison, the host owns the score.
+- **Fail closed on misconfiguration.** A Standing Order that declares a `RiskThreshold` with no
+  `RiskScoreCalculatorBase` registered now throws `InvalidOperationException` naming
+  `SetRiskScoreCalculator<T>()`. It fails on the policy's first evaluation, before any write is
+  auto-approved, never silently — rather than deferring every write it was written to approve.
+
+### Added
+
+- `AffiantPolicies.ValidateStandingOrders(IServiceProvider)` — an optional boot-time check. It
+  resolves every registered `IApprovalPolicy` in a throwaway scope and runs each Standing Order's
+  risk-configuration check, turning a misconfiguration into a startup failure rather than a
+  first-request one. It evaluates no Affidavit and approves nothing.
+
+### Changed
+
+- `RiskScoreCalculatorBase.ComputeAsync` is **abstract**. There is no framework scoring formula:
+  what counts as risk is a property of the host's domain. `ClassifyScore` and the `RiskLevel` enum
+  are unchanged.
+- `AddAffiantPolicies()` registers an internal placeholder `RiskScoreCalculatorBase` when the host
+  registers none. It carries no formula and no risk floor — every call to it throws, naming
+  `SetRiskScoreCalculator<T>()`. It exists so that a Standing Order whose constructor takes
+  `RiskScoreCalculatorBase` as a *required* dependency — the shape every `1.0.0-beta.1` order that
+  declared a `RiskThreshold` was forced into — still resolves, and so sees the actionable message
+  rather than the container's own "Unable to resolve service for type 'RiskScoreCalculatorBase'".
+  It is registered with `TryAdd`, so a calculator the host registers always wins.
+- `StandingOrderBase`'s risk calculator is an optional constructor dependency
+  (`RiskScoreCalculatorBase? riskScorer = null`), and the protected `RiskScorer` field is nullable.
+- `StandingOrderBase.RiskThreshold` is `int?` (was `int`).
+
+### Removed
+
+- `DefaultRiskScoreCalculator`, and its automatic registration inside `AddAffiantPolicies()`.
+  `AddAffiantPolicies()` no longer registers any scoring formula — only the throwing placeholder
+  described above.
+
+### Upgrade note
+
+- A host that relied on the stock formula — over-50 `Value` field → High, otherwise Medium —
+  registers its own calculator: subclass `RiskScoreCalculatorBase`, implement `ComputeAsync`, and
+  pass it to `SetRiskScoreCalculator<T>()` inside `AddAffiantPolicies(...)`.
+- A host with a Standing Order that overrides `RiskThreshold` must register a calculator, or that
+  policy throws on its first evaluation, before any write is auto-approved, naming
+  `SetRiskScoreCalculator<T>()`. Call `AffiantPolicies.ValidateStandingOrders(app.Services)` after
+  `Build()` to hit the same failure at startup instead. Changing the override's type from `int` to
+  `int?` is required to compile — and it is required at runtime too, not merely convenient:
+  a subclass compiled against `1.0.0-beta.1` and dropped in as a binary without recompiling still
+  overrides a property whose signature the base class no longer declares, so the CLR fails at type
+  load with a `TypeLoadException` (or a `MissingMethodException` at the call site), not a graceful
+  fallback to the old behaviour.
+- The configuration check — is a calculator registered wherever a `RiskThreshold` is declared —
+  runs before `MatchesAsync`, on every evaluation. A misconfigured Standing Order therefore halts
+  *every* evaluation of that policy, not only the writes it would actually have matched: intended,
+  since the point is to fail loudly and closed rather than silently approve or refuse on an
+  unscored guess.
+- An order that took the calculator as a required constructor parameter — the shape beta.1's base
+  constructor forced — keeps working unchanged: it resolves against the placeholder and, if it
+  declares a `RiskThreshold`, reports the missing registration itself. Widening the parameter to
+  `RiskScoreCalculatorBase? scorer = null` is optional.
+- A host whose Standing Orders never overrode `RiskThreshold` needs no calculator and no code
+  change — but note the behaviour change: those orders now auto-approve on the match, which is what
+  they were always written to do.
+- These are declared breaking changes against `1.0.0-beta.1`, permitted by the prerelease-stability
+  policy, and recorded in `src/Affiant.Policies/CompatibilitySuppressions.xml`.
+- `StandingOrderBase.RiskScorer` is now nullable (`RiskScoreCalculatorBase?`). Binary-compatible; source-breaking for a subclass that dereferences it under nullable reference types with warnings as errors — add a null check or declare no threshold.
 
 ## [1.0.0-beta.1] — 2026-08-23
 

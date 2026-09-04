@@ -1,0 +1,10 @@
+{
+  "kind": "read",
+  "result": {
+    "id": "invoice-1",
+    "total": {
+      "amount": "4000.10",
+      "currency": "GBP"
+    }
+  }
+}

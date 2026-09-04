@@ -1,0 +1,70 @@
+{
+  "id": "gate/ttl-from-policy-default",
+  "rules": ["GT-4"],
+  "title": "A verdict that names no deadline falls back to the policy's own default, not to the gate's.",
+  "given": {
+    "clock": "2026-09-04T09:00:00.000Z",
+    "store": "memory",
+    "gate": {
+      "defaultTtlMs": 1800000,
+      "authorization": {
+        "allow": ["*"]
+      },
+      "policies": [
+        {
+          "id": "policy-1",
+          "version": "1.0.0",
+          "declaredInputs": [],
+          "defaultTtlMs": 900000,
+          "verdict": {
+            "requirement": "ReviewerConfirmation"
+          }
+        }
+      ]
+    },
+    "ctx": {
+      "tenantId": "tenant-a",
+      "conversationId": "conv-1",
+      "channel": "chat",
+      "principal": {
+        "kind": "member",
+        "id": "member-1"
+      },
+      "utterance": "Set the invoice status to Active",
+      "messageId": "msg-1"
+    },
+    "prior": [],
+    "step": {
+      "kind": "file",
+      "toolName": "relay_capture",
+      "operation": {
+        "kind": "update",
+        "entityType": "Invoice",
+        "entityId": "invoice-1",
+        "fields": ["status"]
+      },
+      "preparedFields": [
+        {
+          "name": "status",
+          "kind": "text",
+          "value": "Active",
+          "provenance": {
+            "source": "Conversation",
+            "confidence": 0.9
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "entry": {
+      "status": "pending",
+      "requirement": "ReviewerConfirmation",
+      "execution": null,
+      "blocked": null,
+      "expiresAtOffsetMs": 900000,
+      "attestation": null,
+      "toolName": "relay_capture"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+@microsoft/signalr 10.0.11
+
+Licence: MIT, Copyright (c) .NET Foundation and Contributors. Minification strips the source's own
+banner, so the notice MIT requires travels beside the file instead: the full text is in
+signalr.LICENSE.txt in this directory, and the repository NOTICE names the bundled copy.
+Upstream: https://github.com/dotnet/aspnetcore/blob/main/LICENSE.txt
+
+signalr.min.js is that package's dist/browser/signalr.min.js, copied verbatim with its
+sourceMappingURL comment removed. It is the UMD build: loading it with a plain <script> tag
+defines the global `signalR`, with no bundler and no network access at page load.
+
+Vendored so the sample runs from a clone with no package manager involved. A host with a build
+step should `npm install @microsoft/signalr` instead.
+
+To refresh:
+  npm pack @microsoft/signalr --pack-destination <tmp>
+  tar -xzf <tmp>/microsoft-signalr-<version>.tgz -C <tmp>
+  cp <tmp>/package/dist/browser/signalr.min.js wwwroot/lib/
+  cp <tmp>/package/LICENSE.txt wwwroot/lib/signalr.LICENSE.txt

@@ -1,0 +1,61 @@
+{
+  "$note": "Rules exempt from the coverage lint's fixture requirement (INVARIANTS.md, 'Coverage lint'). Each entry names the rule, the version the exemption holds for, and the reason. The lint that reads this file arrives with the v0.1 conformance suite.",
+  "protocolVersion": "0.1.0",
+  "exemptions": [
+    {
+      "rule": "SR-5",
+      "until": "always",
+      "reason": "exempt by construction: the transport is not the protocol; the negative case is the set of host-shaped seed examples no rule cites as a check"
+    },
+    {
+      "rule": "CV-2",
+      "until": "0.2.0",
+      "reason": "text complete at v0.1; the call-site fixtures arrive with the first adapter"
+    },
+    {
+      "rule": "CV-3",
+      "until": "0.2.0",
+      "reason": "text complete at v0.1; the delegation fixtures arrive with the first adapter"
+    },
+    {
+      "rule": "CV-5",
+      "until": "0.2.0",
+      "reason": "text complete at v0.1; an adapter documentation lint arrives with the first adapter"
+    },
+    {
+      "rule": "AF-5",
+      "until": "always",
+      "reason": "a schema-level rule: checked by the schema lint over the tool-result fixtures and a type-level suite, not by a declarative gate fixture"
+    },
+    {
+      "rule": "SR-3",
+      "until": "always",
+      "reason": "a schema-level rule: checked by the schema lint over every fixture"
+    },
+    {
+      "rule": "RT-1",
+      "until": "always",
+      "reason": "a runtime rule: checked by the three-runtime CI matrix and a no-Node-types type-check of the core sources"
+    },
+    {
+      "rule": "RT-2",
+      "until": "always",
+      "reason": "a runtime rule: checked by a budget suite on the implementation's own CI"
+    },
+    {
+      "rule": "RT-3",
+      "until": "always",
+      "reason": "a runtime rule: checked by a source lint that fails the build"
+    },
+    {
+      "rule": "TL-1",
+      "until": "always",
+      "reason": "a registry rule: checked by the registry-integrity suite and by every fixture that asserts telemetry"
+    },
+    {
+      "rule": "TL-2",
+      "until": "always",
+      "reason": "a registry rule: checked by the attribute-name suite against the published standards"
+    }
+  ]
+}

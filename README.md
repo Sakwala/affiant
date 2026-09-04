@@ -586,6 +586,11 @@ convention — depend only on what you need.
 The strongest argument for field-level provenance is a mistake this framework's own history
 records.
 
+The review lifecycle this trust rests on — approve, reject, amend, expire, resubmit — is not just
+asserted in the abstract: [`samples/meridian-f0-deck/`](samples/meridian-f0-deck/) is a runnable,
+seven-behaviour Playwright deck that drives it through the framework's real `ReviewGate` and hub
+handlers, no LLM key required.
+
 On 30 April 2026, during the extraction of the framework out of its first host application, a
 refactoring commit (`b72c1fa`) began shipping **empty Affidavits** — every proposed write
 carried fields tagged `ProvenanceSource.Empty` and no real values. The entire test suite —
@@ -599,6 +604,25 @@ can be 100% green and 0% truthful if it asserts structure, not meaning.** `Affia
 exists so that provenance-substance is a CI gate — an unpaired or shape-only write strategy
 fails the build, in your project as well as ours. This is why the seventh rule ("every field
 carries provenance, no exceptions") is a hard invariant and not a guideline.
+
+### What Affiant does not claim
+
+Affiant swears to the field. Every value an agent proposes carries where it came from and how
+confident the proposer was, and before the host writes, a decision is recorded — by a person,
+or by a Standing Order the host declared, on the record either way. It does not sign or
+hash-chain the log: the Docket is a durable record of proposals and decisions, not a
+tamper-evident ledger — if you need cryptographic integrity over the history, keep the Docket
+in a store that provides it. (A signed, portable export is on the roadmap; it will sign a
+document, not chain the log.)
+
+### Where approval lives
+
+Approval lives in the Docket, not in the conversation. A write is executed only after its
+Docket entry is Approved — a durable row the host reads, never a message replayed from a
+client's history, a chat transcript or a framework checkpoint. beta.1 records the decision;
+recording who or what decided on the row itself (the attestation record) belongs to the
+conformance release on the roadmap — the one that makes the .NET packages pass the shared
+fixture suite.
 
 ---
 
@@ -688,6 +712,17 @@ yet reached 1.0 GA. Adopt on this basis:
 - **All ten packages ship together.** `Affiant.AgentFramework` and `Affiant.Extensions.AI` are in
   the co-versioned publish set like every other package — install with `--prerelease`.
 - **Where this is going.** By status rather than by date: [ROADMAP.md](ROADMAP.md).
+
+---
+
+## Contributing
+
+Ideas and questions go to [GitHub Discussions](https://github.com/Sakwala/affiant/discussions);
+bugs and scoped feature proposals go through the
+[issue templates](https://github.com/Sakwala/affiant/issues/new/choose). See
+[CONTRIBUTING.md](CONTRIBUTING.md) for how to build, test, and send a pull request, and
+[SECURITY.md](SECURITY.md) to report a vulnerability privately. To influence direction, open or
+upvote an [open `roadmap` issue](https://github.com/Sakwala/affiant/issues?q=is%3Aissue+state%3Aopen+label%3Aroadmap).
 
 ---
 

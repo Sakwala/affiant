@@ -1,0 +1,75 @@
+{
+  "id": "gate/create-null-previous-values",
+  "rules": ["AF-3"],
+  "title": "A create names no entity and every previousValue is null, whatever the projection port would have said.",
+  "given": {
+    "clock": "2026-09-04T09:00:00.000Z",
+    "store": "memory",
+    "gate": {
+      "defaultTtlMs": 1800000,
+      "authorization": {
+        "allow": ["*"]
+      }
+    },
+    "ctx": {
+      "tenantId": "tenant-a",
+      "conversationId": "conv-1",
+      "channel": "chat",
+      "principal": {
+        "kind": "member",
+        "id": "member-1"
+      },
+      "utterance": "Set the invoice status to Active",
+      "messageId": "msg-1"
+    },
+    "prior": [],
+    "step": {
+      "kind": "file",
+      "toolName": "relay_capture",
+      "operation": {
+        "kind": "create",
+        "entityType": "Invoice",
+        "entityId": null,
+        "fields": ["status"]
+      },
+      "preparedFields": [
+        {
+          "name": "status",
+          "kind": "text",
+          "value": "Active",
+          "provenance": {
+            "source": "Conversation",
+            "confidence": 0.9
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "entry": {
+      "status": "pending",
+      "requirement": "ReviewerConfirmation",
+      "execution": null,
+      "blocked": null,
+      "expiresAtOffsetMs": 1800000,
+      "attestation": null,
+      "toolName": "relay_capture",
+      "affidavit": {
+        "operationType": "create",
+        "entityId": null,
+        "aggregateConfidence": 0.9,
+        "populatedConfidence": 0.9,
+        "emptyFieldCount": 0,
+        "fields": [
+          {
+            "name": "status",
+            "value": "Active",
+            "previousValue": null,
+            "source": "Conversation",
+            "bound": false
+          }
+        ]
+      }
+    }
+  }
+}

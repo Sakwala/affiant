@@ -1,0 +1,92 @@
+{
+  "id": "sequence-c/unbound-external-asks-a-person",
+  "rules": ["PV-4", "PV-5"],
+  "title": "The same capture with nothing behind its External tag. A grade any caller can assert, pointing at no record anyone can re-derive, must not be what keys an approval with no person present: the policy predicates on External, the tag is unbound, and the Standing Order is not honoured. The write is not refused - it is moved toward a person, which is the only direction this degradation ever goes - and the card says why.",
+  "given": {
+    "clock": "2026-09-04T09:00:00.000Z",
+    "store": "memory",
+    "gate": {
+      "defaultTtlMs": 1800000,
+      "authorization": {
+        "allow": ["*"]
+      },
+      "policies": [
+        {
+          "id": "relay-capture",
+          "version": "1.0.0",
+          "declaredInputs": ["External"],
+          "verdict": {
+            "requirement": "StandingOrder"
+          }
+        }
+      ]
+    },
+    "ctx": {
+      "tenantId": "tenant-a",
+      "conversationId": "wa-1",
+      "channel": "mcp",
+      "principal": {
+        "kind": "service",
+        "id": "whatsapp-relay",
+        "assertedMember": "ana",
+        "relay": {
+          "channelIdentity": "+94770000000",
+          "messageId": "wamid-1"
+        }
+      },
+      "utterance": "Active",
+      "messageId": "wamid-1"
+    },
+    "prior": [],
+    "step": {
+      "kind": "file",
+      "at": "2026-09-04T09:00:00.000Z",
+      "toolName": "relay_capture",
+      "operation": {
+        "kind": "create",
+        "entityType": "Reading",
+        "entityId": null,
+        "fields": ["status"]
+      },
+      "preparedFields": [
+        {
+          "name": "status",
+          "kind": "text",
+          "value": "Active",
+          "isMandatory": true,
+          "provenance": {
+            "source": "External",
+            "confidence": 1,
+            "note": "Captured from the relay message",
+            "binding": null
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "entry": {
+      "status": "pending",
+      "requirement": "ReviewerConfirmation",
+      "execution": null,
+      "attestation": null,
+      "blocked": null,
+      "affidavit": {
+        "fields": [
+          {
+            "name": "status",
+            "value": "Active",
+            "source": "External",
+            "bound": false
+          }
+        ]
+      }
+    },
+    "card": {
+      "requiresConfirmation": true,
+      "warningsContain": ["PV-4"]
+    },
+    "telemetry": ["standing-order.blocked"],
+    "telemetryAbsent": ["standing-order.fired"]
+  }
+}

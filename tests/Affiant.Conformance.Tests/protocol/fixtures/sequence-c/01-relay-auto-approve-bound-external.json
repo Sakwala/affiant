@@ -1,0 +1,116 @@
+{
+  "id": "sequence-c/relay-auto-approve-bound-external",
+  "rules": ["PV-4", "AZ-1", "PV-2", "GT-1"],
+  "title": "A capture arrives over a trusted relay's own surface, already carrying its provenance: the value is External and its binding names the relay, the channel identity the message came from and the relay's id for that message. The policy predicates on External and every declared input is bound, so the Standing Order is honoured: the row is filed approved, unexecuted and attested to the policy that fired, in one write. No transport code is involved - the relay is an identity and a binding, not a protocol this package speaks.",
+  "given": {
+    "clock": "2026-09-04T09:00:00.000Z",
+    "store": "memory",
+    "gate": {
+      "defaultTtlMs": 1800000,
+      "authorization": {
+        "allow": ["*"]
+      },
+      "policies": [
+        {
+          "id": "relay-capture",
+          "version": "1.0.0",
+          "declaredInputs": ["External"],
+          "verdict": {
+            "requirement": "StandingOrder"
+          }
+        }
+      ]
+    },
+    "ctx": {
+      "tenantId": "tenant-a",
+      "conversationId": "wa-1",
+      "channel": "mcp",
+      "principal": {
+        "kind": "service",
+        "id": "whatsapp-relay",
+        "assertedMember": "ana",
+        "relay": {
+          "channelIdentity": "+94770000000",
+          "messageId": "wamid-1"
+        }
+      },
+      "utterance": "Active",
+      "messageId": "wamid-1"
+    },
+    "prior": [],
+    "step": {
+      "kind": "file",
+      "at": "2026-09-04T09:00:00.000Z",
+      "toolName": "relay_capture",
+      "operation": {
+        "kind": "create",
+        "entityType": "Reading",
+        "entityId": null,
+        "fields": ["status"]
+      },
+      "preparedFields": [
+        {
+          "name": "status",
+          "kind": "text",
+          "value": "Active",
+          "isMandatory": true,
+          "provenance": {
+            "source": "External",
+            "confidence": 1,
+            "note": "Captured from the relay message",
+            "binding": {
+              "kind": "external-ref",
+              "ref": {
+                "system": "whatsapp-relay",
+                "recordId": "wamid-1",
+                "relay": {
+                  "principal": "whatsapp-relay",
+                  "channelIdentity": "+94770000000",
+                  "messageId": "wamid-1"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "entry": {
+      "status": "approved",
+      "execution": "unexecuted",
+      "requirement": "StandingOrder",
+      "blocked": null,
+      "channel": "mcp",
+      "toolName": "relay_capture",
+      "attestation": {
+        "kind": "standing-order",
+        "policyId": "relay-capture",
+        "version": "1.0.0"
+      },
+      "decision": null,
+      "affidavit": {
+        "operationType": "create",
+        "entityType": "Reading",
+        "entityId": null,
+        "aggregateConfidence": 1,
+        "populatedConfidence": 1,
+        "emptyFieldCount": 0,
+        "fields": [
+          {
+            "name": "status",
+            "value": "Active",
+            "previousValue": null,
+            "source": "External",
+            "bound": true,
+            "bindingKind": "external-ref"
+          }
+        ]
+      }
+    },
+    "card": {
+      "requiresConfirmation": false
+    },
+    "telemetry": ["standing-order.fired", "affidavit.filed"]
+  }
+}

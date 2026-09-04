@@ -1,0 +1,5 @@
+{
+  "kind": "error",
+  "code": "gate-refused",
+  "message": "GT-3: this proposal swears to nothing — field \"status\" carries a value with Empty provenance. It is not filed, not counted and not broadcast."
+}

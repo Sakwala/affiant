@@ -1,0 +1,100 @@
+{
+  "kind": "write",
+  "entryId": "8369aad4-b5ac-86d4-b6b7-504f90659f87",
+  "status": "pending",
+  "card": {
+    "protocolVersion": "0.1.0",
+    "docketId": "8369aad4-b5ac-86d4-b6b7-504f90659f87",
+    "affidavit": {
+      "protocolVersion": "0.1.0",
+      "operationType": "update",
+      "entityType": "Invoice",
+      "entityId": "invoice-1",
+      "fields": [
+        {
+          "name": "status",
+          "kind": "enum",
+          "value": "Active",
+          "previousValue": null,
+          "provenance": {
+            "current": {
+              "source": "Conversation",
+              "confidence": 0.9,
+              "note": "Literally present in the turn: status",
+              "at": "2026-09-04T09:00:00.000Z",
+              "conversationTurn": null,
+              "binding": null
+            },
+            "prior": []
+          },
+          "isMandatory": true
+        },
+        {
+          "name": "amount",
+          "kind": "number",
+          "value": 40,
+          "previousValue": null,
+          "provenance": {
+            "current": {
+              "source": "Conversation",
+              "confidence": 0.8,
+              "note": "Literally present in the turn: amount",
+              "at": "2026-09-04T09:00:00.000Z",
+              "conversationTurn": null,
+              "binding": null
+            },
+            "prior": []
+          },
+          "isMandatory": true
+        },
+        {
+          "name": "dueOn",
+          "kind": "date",
+          "value": "2026-10-01",
+          "previousValue": null,
+          "provenance": {
+            "current": {
+              "source": "Inferred",
+              "confidence": 0.6,
+              "note": "Inferred from the turn: dueOn",
+              "at": "2026-09-04T09:00:00.000Z",
+              "conversationTurn": null,
+              "binding": null
+            },
+            "prior": []
+          },
+          "isMandatory": false
+        },
+        {
+          "name": "note",
+          "kind": "text",
+          "value": "raised in chat",
+          "previousValue": null,
+          "provenance": {
+            "current": {
+              "source": "Inferred",
+              "confidence": 0.7,
+              "note": "Inferred from the turn: note",
+              "at": "2026-09-04T09:00:00.000Z",
+              "conversationTurn": null,
+              "binding": null
+            },
+            "prior": []
+          },
+          "isMandatory": false
+        }
+      ],
+      "aggregateConfidence": 0.6,
+      "populatedConfidence": 0.6,
+      "emptyFieldCount": 0,
+      "conversationTurn": null,
+      "createdAt": "2026-09-04T09:00:00.000Z"
+    },
+    "requiredBy": "2026-09-04T09:30:00.000Z",
+    "priorAmendments": null,
+    "populatedConfidence": 0.6,
+    "emptyFieldCount": 0,
+    "blocked": null,
+    "requiresConfirmation": true
+  }
+}

@@ -1,0 +1,59 @@
+name: Feature request
+description: Propose a concrete, scoped change to Affiant.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For an open-ended idea or something you'd like to discuss before it's concrete,
+        please start a [Discussion](https://github.com/Sakwala/affiant/discussions/categories/ideas)
+        instead — it's a better fit for back-and-forth than an issue form. Use this template
+        once the proposal is scoped enough to describe a specific problem and change.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What can't you do today, and why does it matter? Reference the relevant
+        normative rule or doc section if one applies.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: The specific change you're proposing — an API shape, a new filter, a
+        behavior change. Sketch it, don't just describe it.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: package
+    attributes:
+      label: Which package
+      description: Which package would this change land in?
+      options:
+        - Affiant.Abstractions
+        - Affiant.Core
+        - Affiant.SemanticKernel
+        - Affiant.AgentFramework
+        - Affiant.Extensions.AI
+        - Affiant.Docket
+        - Affiant.EntityFramework
+        - Affiant.Policies
+        - Affiant.Transport.SignalR
+        - Affiant.Testing.ComplianceHarness
+        - Not sure / spans multiple packages
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Alternatives considered, related issues or discussions, links to prior
+        art.
+    validations:
+      required: false

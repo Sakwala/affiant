@@ -1,0 +1,59 @@
+{
+  "id": "gate/ttl-from-gate-default",
+  "rules": ["GT-4"],
+  "title": "With no verdict and no policy default, the gate's required defaultTtlMs applies. Every filed entry carries a deadline (GT-4).",
+  "given": {
+    "clock": "2026-09-04T09:00:00.000Z",
+    "store": "memory",
+    "gate": {
+      "defaultTtlMs": 1800000,
+      "authorization": {
+        "allow": ["*"]
+      }
+    },
+    "ctx": {
+      "tenantId": "tenant-a",
+      "conversationId": "conv-1",
+      "channel": "chat",
+      "principal": {
+        "kind": "member",
+        "id": "member-1"
+      },
+      "utterance": "Set the invoice status to Active",
+      "messageId": "msg-1"
+    },
+    "prior": [],
+    "step": {
+      "kind": "file",
+      "toolName": "relay_capture",
+      "operation": {
+        "kind": "update",
+        "entityType": "Invoice",
+        "entityId": "invoice-1",
+        "fields": ["status"]
+      },
+      "preparedFields": [
+        {
+          "name": "status",
+          "kind": "text",
+          "value": "Active",
+          "provenance": {
+            "source": "Conversation",
+            "confidence": 0.9
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "entry": {
+      "status": "pending",
+      "requirement": "ReviewerConfirmation",
+      "execution": null,
+      "blocked": null,
+      "expiresAtOffsetMs": 1800000,
+      "attestation": null,
+      "toolName": "relay_capture"
+    }
+  }
+}

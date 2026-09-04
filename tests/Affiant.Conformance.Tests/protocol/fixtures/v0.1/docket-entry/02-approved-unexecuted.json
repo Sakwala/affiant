@@ -1,0 +1,104 @@
+{
+  "protocolVersion": "0.1.0",
+  "entryId": "4f3f031b-a7c4-867c-9b1f-be0de416040d",
+  "tenantId": "tenant-a",
+  "conversationId": "conv-1",
+  "channel": "chat",
+  "toolName": "update_invoice",
+  "affidavit": {
+    "protocolVersion": "0.1.0",
+    "operationType": "update",
+    "entityType": "Invoice",
+    "entityId": "invoice-1",
+    "fields": [
+      {
+        "name": "status",
+        "kind": "text",
+        "value": "Active",
+        "previousValue": null,
+        "provenance": {
+          "current": {
+            "source": "Conversation",
+            "confidence": 0.9,
+            "note": null,
+            "at": "2026-09-04T09:00:00.000Z",
+            "conversationTurn": null,
+            "binding": null
+          },
+          "prior": []
+        },
+        "isMandatory": false
+      },
+      {
+        "name": "amount",
+        "kind": "text",
+        "value": "40",
+        "previousValue": null,
+        "provenance": {
+          "current": {
+            "source": "Conversation",
+            "confidence": 0.9,
+            "note": null,
+            "at": "2026-09-04T09:00:00.000Z",
+            "conversationTurn": null,
+            "binding": null
+          },
+          "prior": []
+        },
+        "isMandatory": false
+      },
+      {
+        "name": "note",
+        "kind": "text",
+        "value": "kept",
+        "previousValue": null,
+        "provenance": {
+          "current": {
+            "source": "Conversation",
+            "confidence": 0.9,
+            "note": null,
+            "at": "2026-09-04T09:00:00.000Z",
+            "conversationTurn": null,
+            "binding": null
+          },
+          "prior": []
+        },
+        "isMandatory": false
+      }
+    ],
+    "aggregateConfidence": 0.9,
+    "populatedConfidence": 0.9,
+    "emptyFieldCount": 0,
+    "conversationTurn": null,
+    "createdAt": "2026-09-04T09:00:00.000Z"
+  },
+  "amendedAffidavit": null,
+  "requirement": "ReviewerConfirmation",
+  "status": "approved",
+  "execution": "unexecuted",
+  "blocked": null,
+  "compositeRef": null,
+  "attestation": {
+    "by": {
+      "kind": "member",
+      "id": "ana"
+    },
+    "at": "2026-09-04T09:00:00.000Z",
+    "entryId": "4f3f031b-a7c4-867c-9b1f-be0de416040d"
+  },
+  "amendments": null,
+  "preservedAmendments": null,
+  "decision": {
+    "kind": "approve",
+    "reason": "checked against the purchase order",
+    "at": "2026-09-04T09:00:00.000Z"
+  },
+  "lineage": {
+    "supersedes": null,
+    "supersededBy": null
+  },
+  "filedAt": "2026-09-04T09:00:00.000Z",
+  "expiresAt": "2026-09-04T09:30:00.000Z",
+  "decidedAt": "2026-09-04T09:00:00.000Z",
+  "executionDetail": null
+}

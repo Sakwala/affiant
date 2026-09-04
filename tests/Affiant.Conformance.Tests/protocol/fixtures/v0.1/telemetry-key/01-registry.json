@@ -1,0 +1,114 @@
+{
+  "protocolVersion": "0.1.0",
+  "registryVersion": "0.1.0-alpha.0",
+  "keys": [
+    {
+      "key": "affidavit.filed",
+      "since": "0.1.0-alpha.0",
+      "description": "An Affidavit was filed as a Docket entry.",
+      "attributes": [
+        "gen_ai.tool.name",
+        "gen_ai.conversation.id",
+        "entry.id",
+        "docket.requirement",
+        "docket.status",
+        "affidavit.field_count",
+        "created"
+      ]
+    },
+    {
+      "key": "affidavit.refused.substance",
+      "since": "0.1.0-alpha.0",
+      "description": "A proposal was refused before filing because it swore to nothing (GT-3).",
+      "attributes": [
+        "gen_ai.tool.name",
+        "gen_ai.conversation.id",
+        "affidavit.field_count",
+        "reason"
+      ]
+    },
+    {
+      "key": "coverage.refused",
+      "since": "0.1.0-alpha.0",
+      "description": "A tool the gate must cover could not be intercepted, or a tool the host declared uncovered produced a proposal (CV-4).",
+      "attributes": [
+        "gen_ai.tool.name",
+        "coverage.category",
+        "phase"
+      ]
+    },
+    {
+      "key": "docket.transition",
+      "since": "0.1.0-alpha.0",
+      "description": "A Docket entry changed state (DK-1).",
+      "attributes": [
+        "entry.id",
+        "gen_ai.conversation.id",
+        "from",
+        "to",
+        "execution",
+        "decision.kind",
+        "attestation.kind",
+        "amended"
+      ]
+    },
+    {
+      "key": "docket.expired",
+      "since": "0.1.0-alpha.0",
+      "description": "A pending Docket entry passed its expiry (DK-3).",
+      "attributes": [
+        "entry.id"
+      ]
+    },
+    {
+      "key": "decision.unauthorized",
+      "since": "0.1.0-alpha.0",
+      "description": "A decision was refused on identity grounds: no resolved principal, another tenant, or the host's authorization port said no (AZ-2).",
+      "attributes": [
+        "entry.id",
+        "gen_ai.conversation.id",
+        "reason",
+        "principal.kind",
+        "path"
+      ]
+    },
+    {
+      "key": "standing-order.fired",
+      "since": "0.1.0-alpha.0",
+      "description": "A Standing Order policy approved a write with no person present (AZ-1).",
+      "attributes": [
+        "policy.id",
+        "policy.version",
+        "entry.id",
+        "risk.score"
+      ]
+    },
+    {
+      "key": "standing-order.blocked",
+      "since": "0.1.0-alpha.0",
+      "description": "A Standing Order verdict was not honoured: a proposed field the entity requires had no known value (GT-5), an unbound provenance input (PV-4), or a risk score above the policy's threshold (GT-5). `blocked.reason` is the stable code to alert on - `mandatory-field-empty`, `unbound-declared-input` or `risk-above-threshold`; `reason` is the sentence the reviewer sees on the card and is free to be rephrased.",
+      "attributes": [
+        "policy.id",
+        "policy.version",
+        "blocked.reason",
+        "reason",
+        "provenance.field",
+        "provenance.source",
+        "affidavit.empty_mandatory_fields",
+        "risk.score",
+        "risk.threshold"
+      ]
+    },
+    {
+      "key": "policy.invalid",
+      "since": "0.1.0-alpha.0",
+      "description": "A host's approval policy broke its own contract: an unusable deadline, or an evaluate that threw (GT-4, CV-1).",
+      "attributes": [
+        "policy.id",
+        "policy.version",
+        "option",
+        "reason"
+      ]
+    }
+  ]
+}

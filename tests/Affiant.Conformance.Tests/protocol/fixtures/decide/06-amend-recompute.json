@@ -1,0 +1,161 @@
+{
+  "id": "decide/amend-recompute",
+  "rules": ["AF-1", "AF-4", "DK-2", "DK-4", "PV-2", "SR-1"],
+  "title": "An approval carrying an amendment map sets the named values and leaves a field the map does not name untouched. The row keeps the Affidavit as the agent proposed it - unedited, so a reader can still see what the machine said - and gains the accepted state beside it (DK-4). In that accepted state a set field's provenance is the reviewer's act with a reviewer-act binding, and a cleared optional field is off the record entirely, because a field the write no longer proposes is absent rather than present with nothing in it (AF-1) - and because writing the reviewer's confidence of 1 over an emptied field would let a reviewer wipe an Affidavit and leave it reporting perfect confidence over nothing (AF-2). The three numbers are recomputed over what is left. The canonical form follows the accepted state, so a grant minted over the proposal cannot validate the amendment (SR-1).",
+  "given": {
+    "clock": "2026-09-04T09:00:00.000Z",
+    "store": "memory",
+    "gate": {
+      "defaultTtlMs": 1800000,
+      "authorization": {
+        "allow": ["*"]
+      }
+    },
+    "ctx": {
+      "tenantId": "tenant-a",
+      "conversationId": "conv-1",
+      "channel": "chat",
+      "principal": {
+        "kind": "member",
+        "id": "filer"
+      },
+      "utterance": "Set the invoice status to Active and the amount to 40",
+      "messageId": "msg-1"
+    },
+    "prior": [
+      {
+        "kind": "file",
+        "as": "filed",
+        "at": "2026-09-04T09:00:00.000Z",
+        "principal": {
+          "kind": "member",
+          "id": "filer"
+        },
+        "toolName": "update_invoice",
+        "operation": {
+          "kind": "update",
+          "entityType": "Invoice",
+          "entityId": "invoice-1",
+          "fields": ["status", "amount", "note"]
+        },
+        "preparedFields": [
+          {
+            "name": "status",
+            "kind": "text",
+            "value": "Active",
+            "provenance": {
+              "source": "Conversation",
+              "confidence": 0.9
+            }
+          },
+          {
+            "name": "amount",
+            "kind": "text",
+            "value": "40",
+            "provenance": {
+              "source": "Conversation",
+              "confidence": 0.9
+            }
+          },
+          {
+            "name": "note",
+            "kind": "text",
+            "value": "kept",
+            "provenance": {
+              "source": "Conversation",
+              "confidence": 0.9
+            }
+          }
+        ]
+      }
+    ],
+    "step": {
+      "kind": "decide",
+      "at": "2026-09-04T09:00:00.000Z",
+      "principal": {
+        "kind": "member",
+        "id": "ana"
+      },
+      "decision": {
+        "kind": "approve",
+        "amendments": {
+          "amount": "4000",
+          "note": null
+        }
+      }
+    }
+  },
+  "expect": {
+    "entry": {
+      "status": "approved",
+      "execution": "unexecuted",
+      "requirement": "ReviewerConfirmation",
+      "blocked": null,
+      "attestation": {
+        "kind": "member",
+        "id": "ana"
+      },
+      "amendments": {
+        "amount": "4000",
+        "note": null
+      },
+      "decision": {
+        "kind": "approve",
+        "reason": null
+      },
+      "affidavit": {
+        "aggregateConfidence": 0.9,
+        "populatedConfidence": 0.9,
+        "emptyFieldCount": 0,
+        "fields": [
+          {
+            "name": "status",
+            "value": "Active",
+            "source": "Conversation",
+            "bound": false
+          },
+          {
+            "name": "amount",
+            "value": "40",
+            "source": "Conversation",
+            "bound": false
+          },
+          {
+            "name": "note",
+            "value": "kept",
+            "source": "Conversation",
+            "bound": false
+          }
+        ]
+      },
+      "lineage": {
+        "supersededBy": null
+      },
+      "amendedAffidavit": {
+        "aggregateConfidence": 0.9,
+        "populatedConfidence": 0.9,
+        "emptyFieldCount": 0,
+        "fields": [
+          {
+            "name": "status",
+            "value": "Active",
+            "source": "Conversation",
+            "bound": false
+          },
+          {
+            "name": "amount",
+            "value": "4000",
+            "source": "UserStated",
+            "bound": true,
+            "bindingKind": "reviewer-act",
+            "confidence": 1,
+            "priorSources": ["Conversation"]
+          }
+        ]
+      },
+      "preservedAmendments": null,
+      "canonicalDiffersFromProposal": true
+    },
+    "canonicalHash": "8d1579d7c6e7463ae44e36adfc4db166066cf0ae4ddd3e3ea04b52f394ecff6a"
+  }
+}

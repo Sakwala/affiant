@@ -1,0 +1,33 @@
+{
+  "name": "owner",
+  "kind": "text",
+  "value": "user-77",
+  "previousValue": null,
+  "provenance": {
+    "current": {
+      "source": "External",
+      "confidence": 1,
+      "note": "Chosen from the owner picker",
+      "at": "2026-09-04T09:00:00.000Z",
+      "conversationTurn": null,
+      "binding": {
+        "kind": "external-ref",
+        "ref": {
+          "system": "directory",
+          "recordId": "user-77"
+        }
+      }
+    },
+    "prior": [
+      {
+        "source": "Inferred",
+        "confidence": 0.9,
+        "note": "Inferred from the turn: owner",
+        "at": "2026-09-04T09:00:00.000Z",
+        "conversationTurn": null,
+        "binding": null
+      }
+    ]
+  },
+  "isMandatory": true
+}

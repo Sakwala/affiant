@@ -1,0 +1,98 @@
+{
+  "id": "sequence-a/replay-keeps-the-deadline",
+  "rules": ["GT-4", "DK-1"],
+  "title": "An agent retried the same tool call twenty minutes later. The entry id is derived from the tenant, the conversation, the tool and the call's arguments, so the retry is the same entry: one row, its original deadline, and the card the model gets back is the card the reviewer is already looking at. A fresh identifier would file a second row and start a second clock, which is how a retrying agent holds a review window open indefinitely.",
+  "given": {
+    "clock": "2026-09-04T09:00:00.000Z",
+    "store": "memory",
+    "gate": {
+      "defaultTtlMs": 1800000,
+      "authorization": {
+        "allow": ["*"]
+      },
+      "inference": {
+        "status": {
+          "value": "Active",
+          "confidence": 0.9,
+          "presence": "literal",
+          "utteranceSpan": {
+            "start": 21,
+            "end": 27
+          }
+        }
+      }
+    },
+    "ctx": {
+      "tenantId": "tenant-a",
+      "conversationId": "conv-1",
+      "channel": "chat",
+      "principal": {
+        "kind": "member",
+        "id": "ana"
+      },
+      "utterance": "Set invoice INV-2 to Active",
+      "messageId": "msg-1"
+    },
+    "prior": [
+      {
+        "kind": "wrap-execute",
+        "as": "filed",
+        "at": "2026-09-04T09:00:00.000Z",
+        "tool": {
+          "name": "update_invoice",
+          "description": "Update an invoice",
+          "entityType": "Invoice",
+          "entityId": "invoice-1",
+          "writeCapable": true,
+          "fields": [
+            {
+              "name": "status",
+              "kind": "enum",
+              "description": "The invoice status",
+              "required": true,
+              "allowedValues": ["Draft", "Active", "Retired"],
+              "pattern": null
+            }
+          ]
+        },
+        "args": {
+          "status": "Draft"
+        }
+      }
+    ],
+    "step": {
+      "kind": "wrap-execute",
+      "at": "2026-09-04T09:20:00.000Z",
+      "tool": {
+        "name": "update_invoice",
+        "description": "Update an invoice",
+        "entityType": "Invoice",
+        "entityId": "invoice-1",
+        "writeCapable": true,
+        "fields": [
+          {
+            "name": "status",
+            "kind": "enum",
+            "description": "The invoice status",
+            "required": true,
+            "allowedValues": ["Draft", "Active", "Retired"],
+            "pattern": null
+          }
+        ]
+      },
+      "args": {
+        "status": "Draft"
+      }
+    }
+  },
+  "expect": {
+    "entry": {
+      "status": "pending",
+      "expiresAtOffsetMs": 1800000
+    },
+    "store": {
+      "count": 1,
+      "pending": 1
+    }
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "reason": "Back-fill of 4,102 invoices imported from the legacy ledger on cut-over.",
+  "recordedBy": "ops/migration-2026-09",
+  "at": "2026-09-04T02:15:00.000Z"
+}

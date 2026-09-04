@@ -124,9 +124,22 @@ public sealed class DocketDepthInstrument : IHostedService, IDisposable
     }
 
     /// <summary>Stops sampling. An in-flight refresh is cancelled, never awaited.</summary>
+    /// <remarks>
+    /// A host may dispose its services before it stops them — the ASP.NET Core test host does — so
+    /// a second stop, or one after <see cref="Dispose"/>, is a no-op rather than a throw. A
+    /// telemetry instrument must never be the reason a shutdown fails.
+    /// </remarks>
     public Task StopAsync(CancellationToken cancellationToken)
     {
-        _stopping.Cancel();
+        try
+        {
+            _stopping.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Already disposed: sampling is stopped by definition.
+        }
+
         return Task.CompletedTask;
     }
 

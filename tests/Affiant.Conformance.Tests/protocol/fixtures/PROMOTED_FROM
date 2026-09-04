@@ -1,0 +1,65 @@
+The 56 declarative fixtures under gate/, decide/, sequence-a/ and sequence-c/ and the
+seven canonical byte vectors under canonical/ were promoted — copied unchanged in id,
+file name and content — from the TypeScript reference implementation.
+
+  repository  Sakwala/affiant-ts   https://github.com/Sakwala/affiant-ts
+  commit      f041cdd3af13a0c11bd5253159281c5cf2d98023
+  package     @affiant/core 0.1.0-alpha.0
+  path        packages/core/test/fixtures/{gate,decide,sequence-a,sequence-c,canonical}
+  runner      packages/core/src/testing.ts, published as @affiant/core/testing
+  promoted    2026-09-04
+
+The seven canonical byte vectors were re-promoted at v0.1.1, from `aed3bfb` to the commit
+above. At v0.1.0 every one of them described a SEED-SHAPED record: `operationType`
+"WriteUpdate" where v0.1 says `create` or `update`; `allowedValues` and `pattern` on the
+fields and `warnings` and `requiresConfirmation` on the record, all four of which v0.1
+puts on the card envelope because nothing swears to them; `evidence` where a tag now says
+`note`, and no `at` and no `binding` on a tag at all; and no `protocolVersion`, no
+`conversationTurn`, no `createdAt`. `schemas/0.1.0/affidavit.schema.json` refuses all
+seven. They were promoted in that shape because they came from the reference
+implementation before it was aligned to the v0.1 wire, and nothing here checked them
+afterwards.
+
+SR-1 defines the canonical form over the accepted state of the Affidavit *as the schema
+defines it*, so a vector whose input is not that record pins the bytes of a document this
+protocol does not have. The reference implementation's generator now builds each vector's
+input through its aligned model, every byte and every digest moved, and
+`conformance/lint/lint.mjs` validates every vector's `input` — and its `amendedInput`,
+the accepted state an amended vector's bytes are taken over — against the Affidavit
+schema on every push. The two vectors that were bare JSON values are now Affidavits
+carrying the same key-ordering and number-form cases inside a field's value, so every
+vector is a record the schema can be held against.
+
+The 56 declarative fixtures did not move: they are byte-identical at `aed3bfb` and at the
+commit above.
+
+One document was re-promoted before v0.1.0 was tagged, from `c4591ea` to `aed3bfb`:
+`sequence-a/typed-inputs-on-the-card`. Its `expect.card.fields[]` stated `allowedValues` and
+`pattern`, which is where the reference implementation carried them before it was aligned to
+this version's wire; v0.1 puts both on the card envelope, in `presentation`, so the fixture
+named keys a v0.1 card does not have and every driver had to map them. It now states
+`expect.card.presentation[]`, and `conformance/RUNNER.md` §4.2 and
+`conformance/fixture.schema.json` were changed with it. That was possible only because no
+version tag existed yet: a parity manifest cites a fixture by id, so one produced against one
+set of bytes says nothing about another. Every run published under conformance/results/ names
+on its own record the ref it was produced against, which is how a reader tells which set of
+bytes a given claim is about.
+
+Byte-identical, and deliberately so. A parity manifest cites a fixture by its id, so a
+rename silently changes what a published document refers to; and a fixture edited on
+the way in would no longer be the document the reference implementation is green
+against, which is the only thing that makes "this implementation passes it and that one
+does not" a comparison rather than an opinion.
+
+The format these documents are written in is conformance/RUNNER.md; the schema they are
+checked against is conformance/fixture.schema.json; the index that says which rules each
+one checks and which of them must fail against a release known to be broken is
+conformance/fixtures/MANIFEST.json, section "conformance".
+
+To verify the promotion, from a checkout of both repositories:
+
+  diff -r <affiant-ts>/packages/core/test/fixtures/gate       conformance/fixtures/gate
+  diff -r <affiant-ts>/packages/core/test/fixtures/decide     conformance/fixtures/decide
+  diff -r <affiant-ts>/packages/core/test/fixtures/sequence-a conformance/fixtures/sequence-a
+  diff -r <affiant-ts>/packages/core/test/fixtures/sequence-c conformance/fixtures/sequence-c
+  diff -r <affiant-ts>/packages/core/test/fixtures/canonical  conformance/fixtures/canonical

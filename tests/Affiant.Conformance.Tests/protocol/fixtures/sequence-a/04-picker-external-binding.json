@@ -1,0 +1,121 @@
+{
+  "id": "sequence-a/picker-external-binding",
+  "rules": ["PV-1", "PV-2", "PV-3", "GT-1"],
+  "title": "A picker: the person chose an owner from a list the host resolved, so a deterministic interceptor sets the field from the system of record with an external-ref binding naming the record it came from. The interceptor runs before any model is asked (GT-1 step 2), its External tag beats the model's Conversation tag on the ladder, and the model's tag is kept in the chain so a card can show that the two disagreed. An interceptor cannot claim the person said it - PV-3 is in the type, not in a check.",
+  "given": {
+    "clock": "2026-09-04T09:00:00.000Z",
+    "store": "memory",
+    "gate": {
+      "defaultTtlMs": 1800000,
+      "authorization": {
+        "allow": ["*"]
+      },
+      "inference": {
+        "status": {
+          "value": "Active",
+          "confidence": 0.9,
+          "presence": "literal",
+          "utteranceSpan": null
+        },
+        "owner": {
+          "value": "someone in support",
+          "confidence": 0.9,
+          "presence": "inferred",
+          "utteranceSpan": null
+        }
+      },
+      "interceptors": [
+        {
+          "name": "owner-picker",
+          "fields": {
+            "owner": {
+              "value": "user-77",
+              "source": "External",
+              "confidence": 1,
+              "evidence": "Chosen from the owner picker",
+              "binding": {
+                "kind": "external-ref",
+                "ref": {
+                  "system": "directory",
+                  "recordId": "user-77"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "ctx": {
+      "tenantId": "tenant-a",
+      "conversationId": "conv-1",
+      "channel": "chat",
+      "principal": {
+        "kind": "member",
+        "id": "ana"
+      },
+      "utterance": "Set invoice INV-2 to Active and give it to the person I picked",
+      "messageId": "msg-1"
+    },
+    "prior": [],
+    "step": {
+      "kind": "wrap-execute",
+      "at": "2026-09-04T09:00:00.000Z",
+      "tool": {
+        "name": "update_invoice",
+        "description": "Update an invoice",
+        "entityType": "Invoice",
+        "entityId": "invoice-1",
+        "writeCapable": true,
+        "fields": [
+          {
+            "name": "status",
+            "kind": "enum",
+            "description": "The invoice status",
+            "required": true,
+            "allowedValues": ["Draft", "Active", "Retired"],
+            "pattern": null
+          },
+          {
+            "name": "owner",
+            "kind": "text",
+            "description": "Who owns it",
+            "required": true,
+            "allowedValues": null,
+            "pattern": null
+          }
+        ]
+      },
+      "args": {
+        "status": "Draft",
+        "owner": null
+      }
+    }
+  },
+  "expect": {
+    "entry": {
+      "status": "pending",
+      "affidavit": {
+        "aggregateConfidence": 0.9,
+        "populatedConfidence": 0.9,
+        "emptyFieldCount": 0,
+        "fields": [
+          {
+            "name": "status",
+            "value": "Active",
+            "source": "Conversation",
+            "bound": false
+          },
+          {
+            "name": "owner",
+            "value": "user-77",
+            "source": "External",
+            "bound": true,
+            "bindingKind": "external-ref",
+            "confidence": 1,
+            "priorSources": ["Inferred"]
+          }
+        ]
+      }
+    }
+  }
+}
