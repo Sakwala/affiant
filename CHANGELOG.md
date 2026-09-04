@@ -908,34 +908,39 @@ delivered its own `EvidenceCardResponse` unblocked the waiter and the row was wr
 
 - **`tests/Affiant.Conformance.Tests` — the conformance driver.** Runs the
   [`Sakwala/affiant-protocol`](https://github.com/Sakwala/affiant-protocol) rulebook's promoted
-  fixture suite (56 declarative fixtures and 7 canonical byte vectors) against the shipped packages
-  and publishes what it finds. The suite is vendored from the ref `conformance/PROTOCOL_PIN` names
-  and verified against checksums, so the driver builds offline and an edited fixture cannot pass
-  unnoticed (`conformance/sync.sh`). The run emits a machine-readable log
-  (`conformance/results/dotnet-1.0.0-beta.1.json`), and CI asserts that the set of fixtures that
-  fail is **exactly** the set the parity manifest declares — in either direction, so a gap that
-  closes has to be published rather than quietly disappearing. First run against `1.0.0-beta.1`:
-  3 of 63 pass; the parity report at `conformance/parity/dotnet-v0.1.json` names every one of the
-  60 that do not, the rule it is about and what is being done, and
-  `conformance/results/ORACLE-RUN-1.0.0-beta.1.md` reads the run against the rulebook's negative
-  oracle. Nothing in `src/` changed: this release is measured, not modified.
+  fixture suite (56 declarative fixtures and 7 canonical byte vectors) against the packages this
+  repository builds, and publishes what it finds. The suite is vendored from the ref
+  `conformance/PROTOCOL_PIN` names and verified against checksums, so the driver builds offline and
+  an edited fixture cannot pass unnoticed (`conformance/sync.sh`). The run emits a machine-readable
+  log at `conformance/results/dotnet-<version>.json`, named for the version the built
+  `Affiant.Core` assembly reports, and CI asserts that the set of fixtures that fail is **exactly**
+  the set the parity manifest declares — in either direction, so a gap that closes has to be
+  published rather than quietly disappearing.
 
-  The pin is the rulebook's
-  [`v0.1.1`](https://github.com/Sakwala/affiant-protocol/releases/tag/v0.1.1) tag, and at that tag
-  the reading is **0 of 63**. Three canonical vectors that passed at `v0.1.0` now fail, and no code
-  changed on either side: at `v0.1.0` the vectors' inputs described a *seed-shaped* record the
-  Affidavit schema refuses, so `canonical/wire-evidence-card-request` was measured against a shape
-  this release happens to hold, and `canonical/key-order-stress` and `canonical/number-forms` were
-  bare JSON documents with no record in them to hold at all. The rulebook regenerated all seven
-  from v0.1-shaped inputs, and the honest reading of `1.0.0-beta.1` against the shape it will
-  actually be asked to carry is that it holds none of them. The driver's own canonicaliser still
-  reproduces the pinned bytes and digest for six of the seven at the first attempt, unchanged —
-  what fails is the model, which is the same `1.0.0-beta.3` gap the rest of the report names.
+  Each of the eight step kinds is bound to a shipped entry point (`tests/Affiant.Conformance.Tests`
+  `README.md` names the binding for each), and `wrap-execute` runs the tool-wrapping pipeline
+  itself — the argument capture filter, the inference step, the schema-driven projection — rather
+  than a restatement of what they do, so a fixture cannot be passed by a driver that supplies its
+  own answer. Two invariants are checked on every fixture whether or not it asks for them: an
+  attestation names the entry it attests to, and a filing's Evidence Card agrees with the row it
+  was broadcast for.
 
-  The 63 rows are 53 `planned` — 52 for `1.0.0-beta.3` and one for `1.0.0-beta.1.1` — and 10
-  `fenced`. None is `fixed`: that value names a release a reader can **install**, and the
-  risk-floor correction behind `gate/standing-order-by-the-book` is green on a branch (#53) in a
-  release that has not shipped.
+  **Reading against the rulebook's `v0.1.1` pin on this candidate: 46 of 63 pass.** The parity
+  manifest at `conformance/parity/dotnet-v0.1.json` names every one of the 17 that do not, the rule
+  it is about, and what is being done: 15 `planned` for `1.0.0-beta.3` and 2 `fenced` behind a
+  host-side workaround that is also planned for it. None is `fixed`, which names a release a reader
+  can install. The details are written from the run's own diffs and the manifest regenerates byte
+  for byte from the run log committed beside it (`conformance/regenerate-parity.py`).
+
+  What is left is four things and their consequences: the Affidavit record cannot carry the
+  protocol version, conversation turn and created-at instant the canonical form pins (every
+  canonical vector, and both fixtures that pin a content hash); a tool argument the model wrote is
+  graded the same as a value the member said, so the model's argument stands on the card; a
+  resubmission does not prefill from the correction preserved on the row it supersedes; and
+  coverage has no runtime concept in the core, so a declared-uncovered tool is filed and approved
+  like any other. `conformance/results/ORACLE-RUN-1.0.0-beta.1.md` reads the shipped release's own
+  run against the rulebook's negative oracle, and
+  `conformance/results/dotnet-1.0.0-beta.1.json` is that release's record, kept as it was published.
 
 ## [1.0.0-beta.1.1] — unreleased
 
