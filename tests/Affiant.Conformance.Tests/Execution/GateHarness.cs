@@ -110,6 +110,12 @@ internal sealed class GateHarness : IDisposable
         // asked" where the truth was "the driver never offered".
         services.AddSingleton<IDecisionAuthorizationPolicy>(sp => sp.GetRequiredService<FixtureAuthorization>());
         services.AddSingleton<TelemetrySink>();
+
+        // The tool registry the shipped ToolArgumentCaptureFilter consults: it tags a model's
+        // arguments only for tools the framework tracks, so a driver that ran the filter over an
+        // unregistered tool would exercise the "not ours" branch and prove nothing.
+        services.AddSingleton<IAffiantToolRegistry, AffiantToolRegistry>();
+        services.AddScoped<Affiant.Core.Filters.ToolArgumentCaptureFilter>();
         services.AddSingleton<IObservabilityEventStream<AffidavitEmittedEvent>, InMemoryObservabilityEventStream<AffidavitEmittedEvent>>();
         services.AddSingleton<IInferenceCompletionPort>(new ScriptedInference(gate.Inference));
 

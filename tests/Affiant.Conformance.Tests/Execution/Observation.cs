@@ -95,29 +95,56 @@ internal static class Observation
     /// The attestation record's <b>attestor</b> — the shape <c>RUNNER.md</c> §4.1 defines — or
     /// <c>null</c> for none.
     /// </summary>
-    public static JsonObject? Attestation(Attestation? attestation) => attestation?.By switch
+    public static JsonObject? Attestation(Attestation? attestation)
     {
-        null => null,
-        Attestor.Member m => new JsonObject { ["kind"] = "member", ["id"] = m.Id },
-        Attestor.MemberViaRelay r => new JsonObject
+        if (attestation is null) return null;
+
+        var attestor = attestation.By switch
         {
-            ["kind"] = "member-via-relay",
-            ["memberId"] = r.MemberId,
-            ["relay"] = new JsonObject
+            Attestor.Member m => new JsonObject { ["kind"] = "member", ["id"] = m.Id },
+            Attestor.MemberViaRelay r => new JsonObject
             {
-                ["principal"] = r.Relay.Principal,
-                ["channelIdentity"] = r.Relay.ChannelIdentity,
-                ["messageId"] = r.Relay.MessageId,
+                ["kind"] = "member-via-relay",
+                ["memberId"] = r.MemberId,
+                ["relay"] = new JsonObject
+                {
+                    ["principal"] = r.Relay.Principal,
+                    ["channelIdentity"] = r.Relay.ChannelIdentity,
+                    ["messageId"] = r.Relay.MessageId,
+                },
             },
-        },
-        Attestor.StandingOrder s => new JsonObject
+            Attestor.StandingOrder s => new JsonObject
+            {
+                ["kind"] = "standing-order",
+                ["policyId"] = s.PolicyId,
+                ["version"] = s.Version,
+            },
+            _ => new JsonObject { ["kind"] = "(unknown)" },
+        };
+
+        return attestor;
+    }
+
+    /// <summary>
+    /// RUNNER.md §4.1's mandatory extra check on every attestation a fixture states: the record
+    /// names the entry it attests to (AZ-1).
+    /// </summary>
+    /// <remarks>
+    /// Not a clause a fixture writes — a clause the runner performs whenever a fixture states a
+    /// non-null attestation. A record that cannot name its own subject is not evidence, and an
+    /// implementation that stamped the wrong id would otherwise pass every AZ-1 fixture in the
+    /// suite.
+    /// </remarks>
+    public static void AttestationNamesItsSubject(string at, DocketEntry entry, List<Mismatch> into)
+    {
+        if (entry.Attestation is not { } attestation) return;
+
+        if (attestation.EntryId != entry.EntryId)
         {
-            ["kind"] = "standing-order",
-            ["policyId"] = s.PolicyId,
-            ["version"] = s.Version,
-        },
-        _ => new JsonObject { ["kind"] = "(unknown)" },
-    };
+            into.Add(Mismatch.Said(
+                $"{at}.attestation.entryId", entry.EntryId.ToString(), attestation.EntryId.ToString()));
+        }
+    }
 
     /// <summary>The blocked marker, as the fixture states it.</summary>
     public static JsonObject? Blocked(BlockedMarker? marker) => marker switch
@@ -295,11 +322,18 @@ internal static class Observation
                 card.EmptyFieldCount.ToString()));
         }
 
-        // AZ-4/CV-4: a blocked row says so on the card, and never asks for a confirmation no
-        // decision path will accept.
-        if (entry.Blocked is not null && card.Blocked is null)
+        // AZ-4/CV-4: a blocked row says so on the card — with the row's OWN marker, compared whole
+        // rather than merely present — and never asks for a confirmation no decision path will
+        // accept. A card carrying a different marker from its row reports a different reason for the
+        // same refusal.
+        var rowMarker = Blocked(entry.Blocked);
+        var cardMarker = Blocked(card.Blocked);
+        if (!JsonNode.DeepEquals(rowMarker, cardMarker))
         {
-            into.Add(Mismatch.Said("card.blocked", entry.Blocked.Code, "(absent) — the card does not say the row is blocked"));
+            into.Add(Mismatch.Said(
+                "card.blocked",
+                rowMarker?.ToJsonString() ?? "null",
+                cardMarker?.ToJsonString() ?? "(absent) — the card does not say the row is blocked"));
         }
 
         if (entry.Blocked is not null && card.RequiresConfirmation)

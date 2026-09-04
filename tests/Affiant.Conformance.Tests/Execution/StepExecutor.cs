@@ -49,6 +49,14 @@ internal sealed class StepExecutor(GateHarness harness, GivenSpec given)
 
         public bool? Found { get; init; }
 
+        /// <summary>
+        /// Whether this step was a <b>filing</b> — a <c>file</c>, a <c>wrap-execute</c> or a
+        /// <c>resubmit</c>. The card invariants of <c>RUNNER.md</c> §4.2 are checked on every one,
+        /// whether or not the fixture mentions them, and "no card was broadcast" is one of the
+        /// answers they can give.
+        /// </summary>
+        public bool IsFiling { get; init; }
+
         /// <summary>Set when the step kind has no counterpart in this release: the fixture fails, and this says why.</summary>
         public string? NotImplemented { get; init; }
     }
@@ -106,19 +114,38 @@ internal sealed class StepExecutor(GateHarness harness, GivenSpec given)
 
         if (isWrap)
         {
-            // What ToolArgumentCaptureFilter does to a model's arguments, verbatim: one
-            // Conversation tag at 0.9 per named argument, evidence naming the tool.
-            foreach (var (name, value) in step.Args!)
+            // DRIVER.md §3 binds `wrap-execute` to the wrapped-tool surface. What turns a model's
+            // tool arguments into sworn provenance is the framework's own ToolArgumentCaptureFilter,
+            // so the driver RUNS it — over a ToolInvocationContext shaped the way an adapter's
+            // pipeline hands one over — rather than restating what it does. A driver that restated
+            // it would supply the answer the fixture is asking for: the shipped filter could grade
+            // every argument Inferred at 0.05 and every Sequence A fixture would stay green.
+            var registry = services.GetRequiredService<IAffiantToolRegistry>();
+            if (registry.Find(toolName) is null)
             {
-                // What ToolArgumentCaptureFilter does to a model's arguments, verbatim: one
-                // Conversation tag at 0.9 per argument that CARRIES A VALUE. An argument passed as
-                // null is a field with nothing behind it and is left untagged, so the projection
-                // swears it Empty at confidence 0 (AF-1).
-                if (Values.ToClr(value) is not { } clr)
-                    continue;
+                registry.Register(new AffiantToolDescriptor(
+                    toolName,
+                    PluginName: null,
+                    Operation: operationType == "WriteUpdate" ? Operation.WriteUpdate : Operation.WriteCreate,
+                    EntityType: strategy.EntityName,
+                    InferenceStrategy: null));
+            }
 
-                fabric.SetFieldChain(name, ProvenanceChain.From(ProvenanceTag.FromTool(toolName, 0.9f)));
-                values[name] = clr;
+            var invocation = new ToolInvocationContext
+            {
+                FunctionName = toolName,
+                PluginName = string.Empty,
+                Arguments = step.Args!.ToDictionary(
+                    kv => kv.Key, kv => Values.ToClr(kv.Value), StringComparer.Ordinal),
+                Services = services,
+            };
+
+            await services.GetRequiredService<Affiant.Core.Filters.ToolArgumentCaptureFilter>()
+                .OnToolInvocationAsync(invocation, _ => Task.CompletedTask, ct);
+
+            foreach (var (name, value) in invocation.Arguments)
+            {
+                if (value is { } clr) values[name] = clr;
             }
         }
         else
@@ -201,7 +228,7 @@ internal sealed class StepExecutor(GateHarness harness, GivenSpec given)
             .Select(b => (EvidenceCardRequest)b.Payload)
             .LastOrDefault();
 
-        return new StepResult(null) { EntryId = entryId, Card = card };
+        return new StepResult(null) { EntryId = entryId, Card = card, IsFiling = true };
     }
 
     private async Task<StepResult> DecideAsync(StepSpec step, string conversationId, CancellationToken ct)
@@ -267,7 +294,7 @@ internal sealed class StepExecutor(GateHarness harness, GivenSpec given)
 
         _lastFiled = newId;
         Remember(step, newId);
-        return new StepResult(null) { EntryId = newId, Card = harness.Transport.CardFor(newId) };
+        return new StepResult(null) { EntryId = newId, Card = harness.Transport.CardFor(newId), IsFiling = true };
     }
 
     private async Task<StepResult> GetAsync(StepSpec step, CancellationToken ct)

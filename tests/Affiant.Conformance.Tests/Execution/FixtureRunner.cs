@@ -84,10 +84,19 @@ internal sealed class FixtureRunner
 
             // The card invariants of RUNNER.md §4.2 hold for every card the gate ever produces and
             // are checked on every filing, whether or not the fixture mentions them.
-            if (under.EntryId is { } id && under.Card is not null)
+            if (under.EntryId is { } id && await harness.Store.GetDocketEntryAsync(id, ct) is { } entry)
             {
-                var entry = await harness.Store.GetDocketEntryAsync(id, ct);
-                if (entry is not null)
+                // RUNNER.md §4.1: whenever a row carries an attestation, the runner also checks that
+                // it names the entry it attests to. A record that cannot name its own subject is not
+                // evidence (AZ-1).
+                Observation.AttestationNamesItsSubject("entry", entry, diff);
+
+                // DRIVER.md §3: "The card invariants of RUNNER.md §4.2 are checked on EVERY filing,
+                // whether or not the fixture mentions them." Not guarded on a card having been
+                // broadcast: a filing that broadcast none is precisely what that check is for — the
+                // gate produces a card for every filing, including a Standing Order approval and a
+                // blocked row (SR-4, AZ-4).
+                if (under.IsFiling)
                 {
                     Observation.CardInvariants(entry, under.Card, diff);
                 }
