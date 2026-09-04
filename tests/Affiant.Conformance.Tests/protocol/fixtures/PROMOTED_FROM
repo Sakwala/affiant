@@ -1,0 +1,29 @@
+The 56 declarative fixtures under gate/, decide/, sequence-a/ and sequence-c/ and the
+seven canonical byte vectors under canonical/ were promoted — copied unchanged in id,
+file name and content — from the TypeScript reference implementation.
+
+  repository  Sakwala/affiant-ts   https://github.com/Sakwala/affiant-ts
+  commit      c4591eaf332483e2a5a47e161410feaed718aa29
+  package     @affiant/core 0.1.0-alpha.0
+  path        packages/core/test/fixtures/{gate,decide,sequence-a,sequence-c,canonical}
+  runner      packages/core/src/testing.ts, published as @affiant/core/testing
+  promoted    2026-09-04
+
+Byte-identical, and deliberately so. A parity manifest cites a fixture by its id, so a
+rename silently changes what a published document refers to; and a fixture edited on
+the way in would no longer be the document the reference implementation is green
+against, which is the only thing that makes "this implementation passes it and that one
+does not" a comparison rather than an opinion.
+
+The format these documents are written in is conformance/RUNNER.md; the schema they are
+checked against is conformance/fixture.schema.json; the index that says which rules each
+one checks and which of them must fail against a release known to be broken is
+conformance/fixtures/MANIFEST.json, section "conformance".
+
+To verify the promotion, from a checkout of both repositories:
+
+  diff -r <affiant-ts>/packages/core/test/fixtures/gate       conformance/fixtures/gate
+  diff -r <affiant-ts>/packages/core/test/fixtures/decide     conformance/fixtures/decide
+  diff -r <affiant-ts>/packages/core/test/fixtures/sequence-a conformance/fixtures/sequence-a
+  diff -r <affiant-ts>/packages/core/test/fixtures/sequence-c conformance/fixtures/sequence-c
+  diff -r <affiant-ts>/packages/core/test/fixtures/canonical  conformance/fixtures/canonical

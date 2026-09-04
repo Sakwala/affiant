@@ -1,0 +1,14 @@
+{
+  "protocolVersion": "0.1.0",
+  "docketId": "4f3f031b-a7c4-867c-9b1f-be0de416040d",
+  "outcome": "approved",
+  "attestation": {
+    "by": {
+      "kind": "member",
+      "id": "ana"
+    },
+    "at": "2026-09-04T09:00:00.000Z",
+    "entryId": "4f3f031b-a7c4-867c-9b1f-be0de416040d"
+  },
+  "execution": "executed"
+}

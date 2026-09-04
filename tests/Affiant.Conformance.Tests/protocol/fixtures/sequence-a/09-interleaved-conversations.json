@@ -1,0 +1,109 @@
+{
+  "id": "sequence-a/interleaved-conversations",
+  "rules": ["GT-2"],
+  "title": "Two conversations run through one gate in one isolate, each proposing a write to a different entity. Neither observes the other: two rows are filed, each carrying its own conversation and its own sworn fields, and nothing from the first turn leaks into the second. The turn context is a parameter of every entry point, so there is no ambient state for a second conversation to inherit.",
+  "given": {
+    "clock": "2026-09-04T09:00:00.000Z",
+    "store": "memory",
+    "gate": {
+      "defaultTtlMs": 1800000,
+      "authorization": {
+        "allow": ["*"]
+      },
+      "inference": {
+        "status": {
+          "value": "Active",
+          "confidence": 0.9,
+          "presence": "literal",
+          "utteranceSpan": {
+            "start": 21,
+            "end": 27
+          }
+        }
+      }
+    },
+    "ctx": {
+      "tenantId": "tenant-a",
+      "conversationId": "conv-1",
+      "channel": "chat",
+      "principal": {
+        "kind": "member",
+        "id": "ana"
+      },
+      "utterance": "Set invoice INV-2 to Active",
+      "messageId": "msg-1"
+    },
+    "prior": [
+      {
+        "kind": "wrap-execute",
+        "as": "first",
+        "at": "2026-09-04T09:00:00.000Z",
+        "conversationId": "conv-1",
+        "tool": {
+          "name": "update_invoice",
+          "description": "Update an invoice",
+          "entityType": "Invoice",
+          "entityId": "invoice-1",
+          "writeCapable": true,
+          "fields": [
+            {
+              "name": "status",
+              "kind": "enum",
+              "description": "The invoice status",
+              "required": true,
+              "allowedValues": ["Draft", "Active", "Retired"],
+              "pattern": null
+            }
+          ]
+        },
+        "args": {
+          "status": "Draft"
+        }
+      }
+    ],
+    "step": {
+      "kind": "wrap-execute",
+      "at": "2026-09-04T09:00:00.000Z",
+      "conversationId": "conv-2",
+      "tool": {
+        "name": "update_invoice",
+        "description": "Update an invoice",
+        "entityType": "Invoice",
+        "entityId": "invoice-2",
+        "writeCapable": true,
+        "fields": [
+          {
+            "name": "status",
+            "kind": "enum",
+            "description": "The invoice status",
+            "required": true,
+            "allowedValues": ["Draft", "Active", "Retired"],
+            "pattern": null
+          }
+        ]
+      },
+      "args": {
+        "status": "Draft"
+      }
+    }
+  },
+  "expect": {
+    "entry": {
+      "conversationId": "conv-2",
+      "affidavit": {
+        "entityId": "invoice-2",
+        "fields": [
+          {
+            "name": "status",
+            "value": "Active",
+            "source": "Conversation"
+          }
+        ]
+      }
+    },
+    "store": {
+      "count": 2,
+      "pending": 2
+    }
+  }
+}

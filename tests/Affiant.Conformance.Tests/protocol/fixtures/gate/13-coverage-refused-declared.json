@@ -1,0 +1,82 @@
+{
+  "id": "gate/coverage-refused-declared",
+  "rules": ["CV-4", "AZ-4"],
+  "title": "A tool the host declared it cannot cover: the proposal is filed pending and blocked with the tool and the category on the row, never silently allowed. The Standing Order the policy returned does not rescue it.",
+  "given": {
+    "clock": "2026-09-04T09:00:00.000Z",
+    "store": "memory",
+    "gate": {
+      "defaultTtlMs": 1800000,
+      "authorization": {
+        "allow": ["*"]
+      },
+      "policies": [
+        {
+          "id": "policy-1",
+          "version": "1.0.0",
+          "declaredInputs": [],
+          "verdict": {
+            "requirement": "StandingOrder"
+          }
+        }
+      ],
+      "uncovered": [
+        {
+          "tool": "relay_capture",
+          "category": "provider-executed"
+        }
+      ]
+    },
+    "ctx": {
+      "tenantId": "tenant-a",
+      "conversationId": "conv-1",
+      "channel": "chat",
+      "principal": {
+        "kind": "member",
+        "id": "member-1"
+      },
+      "utterance": "Set the invoice status to Active",
+      "messageId": "msg-1"
+    },
+    "prior": [],
+    "step": {
+      "kind": "file",
+      "toolName": "relay_capture",
+      "operation": {
+        "kind": "update",
+        "entityType": "Invoice",
+        "entityId": "invoice-1",
+        "fields": ["status"]
+      },
+      "preparedFields": [
+        {
+          "name": "status",
+          "kind": "text",
+          "value": "Active",
+          "provenance": {
+            "source": "Conversation",
+            "confidence": 0.9
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "entry": {
+      "status": "pending",
+      "requirement": "StandingOrder",
+      "execution": null,
+      "blocked": {
+        "code": "coverage-refused",
+        "category": "provider-executed",
+        "toolName": "relay_capture"
+      },
+      "expiresAtOffsetMs": 1800000,
+      "attestation": null,
+      "toolName": "relay_capture"
+    },
+    "card": {
+      "warningsContain": ["declared uncovered"]
+    }
+  }
+}

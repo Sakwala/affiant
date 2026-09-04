@@ -1,0 +1,161 @@
+{
+  "id": "decide/execution-second-report-refused",
+  "rules": ["DK-1", "DK-4", "AZ-5"],
+  "title": "The guard runs in both directions: a write reported failed cannot later be reported executed either. A host that retries a write reports once, when it knows the outcome - the retries are the host's business, and the Docket carries the one fact about what happened, not the last thing anybody said.",
+  "given": {
+    "clock": "2026-09-04T09:00:00.000Z",
+    "store": "memory",
+    "gate": {
+      "defaultTtlMs": 1800000,
+      "authorization": {
+        "allow": ["*"]
+      }
+    },
+    "ctx": {
+      "tenantId": "tenant-a",
+      "conversationId": "conv-1",
+      "channel": "chat",
+      "principal": {
+        "kind": "member",
+        "id": "filer"
+      },
+      "utterance": "Set the invoice status to Active and the amount to 40",
+      "messageId": "msg-1"
+    },
+    "prior": [
+      {
+        "kind": "file",
+        "as": "filed",
+        "at": "2026-09-04T09:00:00.000Z",
+        "principal": {
+          "kind": "member",
+          "id": "filer"
+        },
+        "toolName": "update_invoice",
+        "operation": {
+          "kind": "update",
+          "entityType": "Invoice",
+          "entityId": "invoice-1",
+          "fields": ["status", "amount", "note"]
+        },
+        "preparedFields": [
+          {
+            "name": "status",
+            "kind": "text",
+            "value": "Active",
+            "provenance": {
+              "source": "Conversation",
+              "confidence": 0.9
+            }
+          },
+          {
+            "name": "amount",
+            "kind": "text",
+            "value": "40",
+            "provenance": {
+              "source": "Conversation",
+              "confidence": 0.9
+            }
+          },
+          {
+            "name": "note",
+            "kind": "text",
+            "value": "kept",
+            "provenance": {
+              "source": "Conversation",
+              "confidence": 0.9
+            }
+          }
+        ]
+      },
+      {
+        "kind": "decide",
+        "at": "2026-09-04T09:00:00.000Z",
+        "principal": {
+          "kind": "member",
+          "id": "ana"
+        },
+        "decision": {
+          "kind": "approve"
+        },
+        "refusal": null
+      },
+      {
+        "kind": "markExecuted",
+        "at": "2026-09-04T09:01:00.000Z",
+        "principal": {
+          "kind": "member",
+          "id": "ana"
+        },
+        "outcome": "failed",
+        "detail": "unique constraint on invoice_no",
+        "refusal": null
+      }
+    ],
+    "step": {
+      "kind": "markExecuted",
+      "at": "2026-09-04T09:02:00.000Z",
+      "principal": {
+        "kind": "member",
+        "id": "ana"
+      },
+      "outcome": "executed",
+      "detail": "retried and it worked"
+    }
+  },
+  "expect": {
+    "error": {
+      "code": "execution-already-recorded",
+      "messageContains": "reports once"
+    },
+    "entry": {
+      "status": "approved",
+      "execution": "failed",
+      "executionDetail": "unique constraint on invoice_no",
+      "requirement": "ReviewerConfirmation",
+      "blocked": null,
+      "attestation": {
+        "kind": "member",
+        "id": "ana"
+      },
+      "amendments": null,
+      "decision": {
+        "kind": "approve",
+        "reason": null
+      },
+      "affidavit": {
+        "aggregateConfidence": 0.9,
+        "populatedConfidence": 0.9,
+        "emptyFieldCount": 0,
+        "fields": [
+          {
+            "name": "status",
+            "value": "Active",
+            "source": "Conversation",
+            "bound": false
+          },
+          {
+            "name": "amount",
+            "value": "40",
+            "source": "Conversation",
+            "bound": false
+          },
+          {
+            "name": "note",
+            "value": "kept",
+            "source": "Conversation",
+            "bound": false
+          }
+        ]
+      },
+      "amendedAffidavit": null,
+      "lineage": {
+        "supersededBy": null
+      }
+    },
+    "store": {
+      "count": 1,
+      "approvedUnexecuted": 0
+    }
+  }
+}

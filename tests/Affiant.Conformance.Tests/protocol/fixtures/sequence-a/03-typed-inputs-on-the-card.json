@@ -1,0 +1,186 @@
+{
+  "id": "sequence-a/typed-inputs-on-the-card",
+  "rules": ["AF-1", "SR-4", "AF-2"],
+  "title": "A tool whose fields are typed - an enum with its closed set, a number with the pattern a reviewer's input is constrained by, a date, a free text - produces a card carrying every one of those shapes. The reviewer surface renders the control the field deserves rather than four text boxes, and the gate carries the constraint without ever validating a value against it: the pattern is presentation, not sworn substance.",
+  "given": {
+    "clock": "2026-09-04T09:00:00.000Z",
+    "store": "memory",
+    "gate": {
+      "defaultTtlMs": 1800000,
+      "authorization": {
+        "allow": ["*"]
+      },
+      "inference": {
+        "status": {
+          "value": "Active",
+          "confidence": 0.9,
+          "presence": "literal",
+          "utteranceSpan": null
+        },
+        "amount": {
+          "value": 40,
+          "confidence": 0.8,
+          "presence": "literal",
+          "utteranceSpan": null
+        },
+        "dueOn": {
+          "value": "2026-10-01",
+          "confidence": 0.6,
+          "presence": "inferred",
+          "utteranceSpan": null
+        },
+        "note": {
+          "value": "raised in chat",
+          "confidence": 0.7,
+          "presence": "inferred",
+          "utteranceSpan": null
+        }
+      }
+    },
+    "ctx": {
+      "tenantId": "tenant-a",
+      "conversationId": "conv-1",
+      "channel": "chat",
+      "principal": {
+        "kind": "member",
+        "id": "ana"
+      },
+      "utterance": "Set invoice INV-2 to Active for 40, due on the first of October",
+      "messageId": "msg-1"
+    },
+    "prior": [],
+    "step": {
+      "kind": "wrap-execute",
+      "at": "2026-09-04T09:00:00.000Z",
+      "tool": {
+        "name": "update_invoice",
+        "description": "Update an invoice",
+        "entityType": "Invoice",
+        "entityId": "invoice-1",
+        "writeCapable": true,
+        "fields": [
+          {
+            "name": "status",
+            "kind": "enum",
+            "description": "The invoice status",
+            "required": true,
+            "allowedValues": ["Draft", "Active", "Retired"],
+            "pattern": null
+          },
+          {
+            "name": "amount",
+            "kind": "number",
+            "description": "The invoice total",
+            "required": true,
+            "allowedValues": null,
+            "pattern": "^\\d+(\\.\\d{1,2})?$"
+          },
+          {
+            "name": "dueOn",
+            "kind": "date",
+            "description": "When payment is due",
+            "required": false,
+            "allowedValues": null,
+            "pattern": null
+          },
+          {
+            "name": "note",
+            "kind": "text",
+            "description": null,
+            "required": false,
+            "allowedValues": null,
+            "pattern": null
+          }
+        ]
+      },
+      "args": {
+        "status": "Draft",
+        "amount": 0,
+        "dueOn": null,
+        "note": null
+      }
+    }
+  },
+  "expect": {
+    "entry": {
+      "status": "pending",
+      "requirement": "ReviewerConfirmation",
+      "toolName": "update_invoice",
+      "affidavit": {
+        "aggregateConfidence": 0.6,
+        "populatedConfidence": 0.6,
+        "emptyFieldCount": 0,
+        "fields": [
+          {
+            "name": "status",
+            "kind": "enum",
+            "value": "Active",
+            "isMandatory": true,
+            "source": "Conversation"
+          },
+          {
+            "name": "amount",
+            "kind": "number",
+            "value": 40,
+            "isMandatory": true,
+            "source": "Conversation"
+          },
+          {
+            "name": "dueOn",
+            "kind": "date",
+            "value": "2026-10-01",
+            "isMandatory": false,
+            "source": "Inferred"
+          },
+          {
+            "name": "note",
+            "kind": "text",
+            "value": "raised in chat",
+            "isMandatory": false,
+            "source": "Inferred"
+          }
+        ]
+      }
+    },
+    "card": {
+      "requiresConfirmation": true,
+      "aggregateConfidence": 0.6,
+      "populatedConfidence": 0.6,
+      "emptyFieldCount": 0,
+      "fields": [
+        {
+          "name": "status",
+          "kind": "enum",
+          "value": "Active",
+          "allowedValues": ["Draft", "Active", "Retired"],
+          "pattern": null,
+          "isMandatory": true
+        },
+        {
+          "name": "amount",
+          "kind": "number",
+          "value": 40,
+          "allowedValues": null,
+          "pattern": "^\\d+(\\.\\d{1,2})?$",
+          "isMandatory": true
+        },
+        {
+          "name": "dueOn",
+          "kind": "date",
+          "value": "2026-10-01",
+          "allowedValues": null,
+          "pattern": null,
+          "isMandatory": false
+        },
+        {
+          "name": "note",
+          "kind": "text",
+          "value": "raised in chat",
+          "allowedValues": null,
+          "pattern": null,
+          "isMandatory": false
+        }
+      ]
+    }
+  }
+}

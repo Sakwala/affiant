@@ -1,0 +1,19 @@
+# The affiant-protocol ref this repository's conformance driver is pinned to.
+#
+# Versions of the rulebook (https://github.com/Sakwala/affiant-protocol) are git tags.
+# The v0.1.0 tag has not been cut yet, so the pin is the COMMIT that carries the v0.1
+# conformance suite. When v0.1.0 is tagged on that commit, `tag` below becomes v0.1.0
+# and `commit` stays as the thing it points at — the pin does not otherwise move.
+#
+# Changing this file is a reviewable diff in this repository's own history: a format
+# change arrives as a pull request, never as a silent upstream shift under a build.
+#
+# `conformance/sync.sh` reads this file. `conformance/sync.sh --verify` re-checks the
+# vendored copy under tests/Affiant.Conformance.Tests/protocol/ against SHA256SUMS,
+# which is what CI runs, so a local edit to a vendored fixture cannot pass unnoticed.
+
+repository=https://github.com/Sakwala/affiant-protocol
+commit=f0d4ad0b5f0010676a96719682ea3920f0b1baf3
+tag=
+tag_note=v0.1.0 is not cut yet; this pin becomes that tag when it is.
+vendored=tests/Affiant.Conformance.Tests/protocol

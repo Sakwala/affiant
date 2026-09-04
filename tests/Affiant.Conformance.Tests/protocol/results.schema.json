@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://affiant.dev/conformance/0.1.0/results.schema.json",
+  "title": "ConformanceRunResult",
+  "description": "What one conformance run reports: which implementation was under test, which protocol tag it was run against, and what every fixture in the manifest did. A driver emits this document (conformance/DRIVER.md); the parity manifest (conformance/PARITY.md) is derived from it and CI asserts the two agree. The document is machine-readable on purpose — a run that only printed to a terminal could tell a reader that something failed; it could not produce the list of everything an implementation does not yet pass, which is the document the driver exists to publish.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "implementation", "protocolTag", "producedAt", "summary", "results"],
+  "properties": {
+    "schemaVersion": {
+      "description": "The version of THIS result format, so a consumer can tell a v0.1 run from a later one.",
+      "type": "string",
+      "const": "0.1.0"
+    },
+    "implementation": {
+      "description": "What was under test.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": {
+          "description": "The implementation's identifier, matching the parity manifest's — \"dotnet\", \"typescript\".",
+          "type": "string",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+        },
+        "version": {
+          "description": "The version of the implementation the run exercised — a package version, a release tag, or a commit.",
+          "type": "string"
+        },
+        "commit": { "description": "The commit the run was built from, when there is one.", "type": "string" },
+        "runtime": {
+          "description": "Where it ran, when an implementation runs on more than one runtime (RT-1): \"node\", \"bun\", \"workerd\", \"net8.0\". A run per runtime, each its own document.",
+          "type": "string"
+        }
+      }
+    },
+    "protocolTag": {
+      "description": "The affiant-protocol tag the fixtures were taken from — the tag the driver pins (DRIVER.md). A result whose tag is not the one the parity manifest names is not a comparison.",
+      "type": "string"
+    },
+    "producedAt": { "type": "string", "format": "date-time" },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "passed", "failed", "errored", "skipped"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "errored": { "type": "integer", "minimum": 0 },
+        "skipped": { "type": "integer", "minimum": 0 },
+        "durationMs": { "type": "number", "minimum": 0 }
+      }
+    },
+    "results": {
+      "description": "One entry per fixture in conformance/fixtures/MANIFEST.json, section \"conformance\" — every one of them, including the ones that passed. A run that reported only failures could not be checked for completeness.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "outcome"],
+        "properties": {
+          "id": {
+            "description": "The fixture's id, exactly as the manifest spells it.",
+            "type": "string"
+          },
+          "outcome": {
+            "description": "pass — every stated fact held. fail — at least one did not; `diff` says which. error — the driver could not run the fixture at all (a port it cannot supply, a step kind it has not bound, a crash); an error is NOT a pass and NOT a silent skip. skipped — deliberately not run, and only for a reason the parity manifest declares (an exemption inherited from the rulebook, or a runtime claim the implementation does not make).",
+            "type": "string",
+            "enum": ["pass", "fail", "error", "skipped"]
+          },
+          "diff": {
+            "description": "Every stated fact that did not hold, each with the path it was found at and the two values. Present on `fail`; on `error` it may carry the one entry describing what went wrong. A driver that stopped at the first mismatch could tell you a fixture failed; it could not produce the list a parity manifest is derived from.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["at"],
+              "properties": {
+                "at": {
+                  "description": "A dotted path into the expectation — \"entry.status\", \"card.fields[1].kind\".",
+                  "type": "string"
+                },
+                "expected": { "description": "What the fixture said." },
+                "actual": { "description": "What the implementation did." }
+              }
+            }
+          },
+          "durationMs": { "type": "number", "minimum": 0 },
+          "reason": {
+            "description": "Why a `skipped` fixture was skipped, or what an `error` was. Free text for a person.",
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

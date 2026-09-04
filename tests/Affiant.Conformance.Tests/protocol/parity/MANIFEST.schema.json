@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://affiant.dev/conformance/0.1.0/parity-manifest.schema.json",
+  "title": "ParityManifest",
+  "description": "One implementation's published, CI-asserted statement of exactly which conformance fixtures it does not pass, and why. The point is that a gap is a published fact with a name, not something a reader has to discover by running the suite. The implementation's CI asserts that the set of failing ids from its own run equals `failing[].id` here EXACTLY — a fixture that starts passing and a fixture that starts failing both fail the build, in either direction, because a manifest that only caught regressions would let a fix rot unrecorded. See conformance/PARITY.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "implementation", "version", "protocolTag", "producedAt", "failing", "runtimes", "exemptions"],
+  "properties": {
+    "schemaVersion": {
+      "description": "The version of THIS manifest format.",
+      "type": "string",
+      "const": "0.1.0"
+    },
+    "implementation": {
+      "description": "The implementation this manifest is about — \"dotnet\", \"typescript\". One manifest per implementation, named parity/<implementation>-v<protocol minor>.json.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "version": {
+      "description": "The version of that implementation the run exercised — the package version a reader can install and reproduce this against.",
+      "type": "string"
+    },
+    "protocolTag": {
+      "description": "The affiant-protocol tag the fixtures came from. A manifest produced against one tag says nothing about another; a driver bumps its pin and its manifest in the same pull request.",
+      "type": "string"
+    },
+    "producedAt": { "type": "string", "format": "date-time" },
+    "runLog": {
+      "description": "Where the run that produced this manifest can be read — a path in this repository, or a URL to a CI run. The manifest is the claim; the log is the evidence.",
+      "type": "string"
+    },
+    "failing": {
+      "description": "Every fixture the implementation does not pass, by id. EXACTLY these and no others: an empty array is the strongest possible statement and is what a conformant implementation publishes.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "rules", "disposition", "detail"],
+        "properties": {
+          "id": {
+            "description": "The fixture id, exactly as conformance/fixtures/MANIFEST.json spells it.",
+            "type": "string"
+          },
+          "rules": {
+            "description": "The rulebook ids the fixture checks — copied from the fixture, so a reader sees which rule is unmet without opening it.",
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "pattern": "^(AF|PV|GT|DK|AZ|SR|RT|CV|TL)-[0-9]+$" }
+          },
+          "disposition": {
+            "description": "What is being done about it. \"fixed\" — corrected in a named later release, which `fixedIn` must name; this row exists because the release under test still fails it. \"fenced\" — the implementation does not do this, and a specific host-side workaround makes it safe, which `fence` must describe. \"ignored\" — nothing is being done, and `detail` must say why in a sentence a reader can disagree with. There is no fourth value: a failure with no disposition is a failure nobody has looked at.",
+            "type": "string",
+            "enum": ["fixed", "fenced", "ignored"]
+          },
+          "detail": {
+            "description": "What the implementation does instead, and why it matters — one or two sentences, written for somebody deciding whether to adopt it. Not a stack trace.",
+            "type": "string",
+            "minLength": 1
+          },
+          "fixedIn": {
+            "description": "The release that corrects it. Required when disposition is \"fixed\".",
+            "type": "string"
+          },
+          "fence": {
+            "description": "The host-side workaround that contains the gap, named specifically enough to be applied. Required when disposition is \"fenced\".",
+            "type": "string"
+          },
+          "issue": {
+            "description": "Where the gap is recorded in the implementation's own issues.",
+            "type": "string"
+          },
+          "oracle": {
+            "description": "True when this fixture is on the negative-oracle list (conformance/ORACLE.md) for the release under test — that is, it was EXPECTED to fail here, and its failing is the evidence the fixture is a real test rather than a formality.",
+            "type": "boolean"
+          }
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "disposition": { "const": "fixed" } }, "required": ["disposition"] },
+            "then": { "required": ["fixedIn"] }
+          },
+          {
+            "if": { "properties": { "disposition": { "const": "fenced" } }, "required": ["disposition"] },
+            "then": { "required": ["fence"] }
+          }
+        ]
+      }
+    },
+    "runtimes": {
+      "description": "The runtimes this manifest holds for (RT-1). The suite is run on each one and the failing set must be the same on all of them; a fixture that fails on one runtime only is a failing fixture, recorded once, with the runtime named in its detail.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "claimed"],
+        "properties": {
+          "name": {
+            "description": "The runtime — \"node\", \"bun\", \"workerd\", \"net8.0\".",
+            "type": "string"
+          },
+          "version": { "type": "string" },
+          "claimed": {
+            "description": "Whether the implementation CLAIMS this runtime. A runtime it does not claim is not a gap; a runtime it claims and does not run the suite on is.",
+            "type": "boolean"
+          },
+          "note": { "type": "string" }
+        }
+      }
+    },
+    "exemptions": {
+      "description": "The rulebook exemptions this implementation inherits — the rules conformance/lint/coverage-exemptions.json excuses from carrying a fixture, restated here so a reader of this document alone knows which rules no fixture in the run covers. Copied, never invented: an implementation cannot exempt itself from a rule.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rule", "reason"],
+        "properties": {
+          "rule": { "type": "string", "pattern": "^(AF|PV|GT|DK|AZ|SR|RT|CV|TL)-[0-9]+$" },
+          "until": {
+            "description": "The protocol version the exemption holds until, or \"always\".",
+            "type": "string"
+          },
+          "reason": { "type": "string", "minLength": 1 },
+          "checkedInstead": {
+            "description": "What this implementation checks in the fixture's place — the suite, lint or guard that stands in for it.",
+            "type": "string"
+          }
+        }
+      }
+    },
+    "notes": {
+      "description": "Anything a reader of this document alone would otherwise have to ask about.",
+      "type": "string"
+    }
+  }
+}

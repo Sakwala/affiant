@@ -1,0 +1,123 @@
+{
+  "id": "decide/unresolved-identity",
+  "rules": ["AZ-2", "AZ-6"],
+  "title": "A turn context with no resolved principal refuses the decision: identity unknown is never allow. This filing ran with prepared fields and no policy chain, which is the degraded wiring a host falls back to with no model available, and a degraded wiring does not relax an authorization rule.",
+  "given": {
+    "clock": "2026-09-04T09:00:00.000Z",
+    "store": "memory",
+    "gate": {
+      "defaultTtlMs": 1800000,
+      "authorization": {
+        "allow": ["*"]
+      }
+    },
+    "ctx": {
+      "tenantId": "tenant-a",
+      "conversationId": "conv-1",
+      "channel": "chat",
+      "principal": {
+        "kind": "member",
+        "id": "filer"
+      },
+      "utterance": "Set the invoice status to Active and the amount to 40",
+      "messageId": "msg-1"
+    },
+    "prior": [
+      {
+        "kind": "file",
+        "as": "filed",
+        "at": "2026-09-04T09:00:00.000Z",
+        "principal": {
+          "kind": "member",
+          "id": "filer"
+        },
+        "toolName": "update_invoice",
+        "operation": {
+          "kind": "update",
+          "entityType": "Invoice",
+          "entityId": "invoice-1",
+          "fields": ["status", "amount", "note"]
+        },
+        "preparedFields": [
+          {
+            "name": "status",
+            "kind": "text",
+            "value": "Active",
+            "provenance": {
+              "source": "Conversation",
+              "confidence": 0.9
+            }
+          },
+          {
+            "name": "amount",
+            "kind": "text",
+            "value": "40",
+            "provenance": {
+              "source": "Conversation",
+              "confidence": 0.9
+            }
+          },
+          {
+            "name": "note",
+            "kind": "text",
+            "value": "kept",
+            "provenance": {
+              "source": "Conversation",
+              "confidence": 0.9
+            }
+          }
+        ]
+      }
+    ],
+    "step": {
+      "kind": "decide",
+      "at": "2026-09-04T09:00:00.000Z",
+      "principal": null,
+      "decision": {
+        "kind": "approve"
+      }
+    }
+  },
+  "expect": {
+    "error": {
+      "code": "decision-unauthorized"
+    },
+    "entry": {
+      "status": "pending",
+      "execution": null,
+      "requirement": "ReviewerConfirmation",
+      "blocked": null,
+      "attestation": null,
+      "amendments": null,
+      "decision": null,
+      "affidavit": {
+        "aggregateConfidence": 0.9,
+        "populatedConfidence": 0.9,
+        "emptyFieldCount": 0,
+        "fields": [
+          {
+            "name": "status",
+            "value": "Active",
+            "source": "Conversation",
+            "bound": false
+          },
+          {
+            "name": "amount",
+            "value": "40",
+            "source": "Conversation",
+            "bound": false
+          },
+          {
+            "name": "note",
+            "value": "kept",
+            "source": "Conversation",
+            "bound": false
+          }
+        ]
+      },
+      "lineage": {
+        "supersededBy": null
+      }
+    }
+  }
+}

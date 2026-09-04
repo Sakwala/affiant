@@ -1,0 +1,64 @@
+{
+  "id": "canonical/create-shaped",
+  "rules": [
+    "SR-1",
+    "AF-1",
+    "AF-3"
+  ],
+  "note": "A create-shaped Affidavit: entityId null, previousValue null on every field (AF-3), one field tagged Empty to show that unknown provenance is present rather than omitted (AF-1). The canonical bytes sort every key by code point at every level, so `aggregateConfidence` precedes `entityId` precedes `entityType` precedes `fields` regardless of the order the host built the object in.",
+  "input": {
+    "operationType": "WriteCreate",
+    "entityType": "Widget",
+    "entityId": null,
+    "fields": [
+      {
+        "name": "Status",
+        "value": "Active",
+        "previousValue": null,
+        "provenance": {
+          "current": {
+            "source": "Conversation",
+            "confidence": 0.9,
+            "evidence": "Extracted from the turn",
+            "conversationTurn": 1
+          },
+          "prior": []
+        },
+        "isMandatory": true,
+        "kind": "enum",
+        "allowedValues": [
+          "Active",
+          "Retired"
+        ],
+        "pattern": null
+      },
+      {
+        "name": "Owner",
+        "value": null,
+        "previousValue": null,
+        "provenance": {
+          "current": {
+            "source": "Empty",
+            "confidence": 0,
+            "evidence": null,
+            "conversationTurn": null
+          },
+          "prior": []
+        },
+        "isMandatory": false,
+        "kind": "text",
+        "allowedValues": null,
+        "pattern": null
+      }
+    ],
+    "aggregateConfidence": 0,
+    "populatedConfidence": 0.9,
+    "emptyFieldCount": 1,
+    "warnings": [],
+    "requiresConfirmation": true
+  },
+  "amendments": null,
+  "reviewerAct": null,
+  "expectedBytesUtf8": "{\"aggregateConfidence\":0,\"emptyFieldCount\":1,\"entityId\":null,\"entityType\":\"Widget\",\"fields\":[{\"allowedValues\":[\"Active\",\"Retired\"],\"isMandatory\":true,\"kind\":\"enum\",\"name\":\"Status\",\"pattern\":null,\"previousValue\":null,\"provenance\":{\"current\":{\"confidence\":0.9,\"conversationTurn\":1,\"evidence\":\"Extracted from the turn\",\"source\":\"Conversation\"},\"prior\":[]},\"value\":\"Active\"},{\"allowedValues\":null,\"isMandatory\":false,\"kind\":\"text\",\"name\":\"Owner\",\"pattern\":null,\"previousValue\":null,\"provenance\":{\"current\":{\"confidence\":0,\"conversationTurn\":null,\"evidence\":null,\"source\":\"Empty\"},\"prior\":[]},\"value\":null}],\"operationType\":\"WriteCreate\",\"populatedConfidence\":0.9,\"requiresConfirmation\":true,\"warnings\":[]}",
+  "expectedSha256": "4f4f83330f99ae64e36b54439efcf9556e1b7a46054d750a9485bc41a992b48f"
+}

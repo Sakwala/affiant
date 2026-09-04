@@ -1,0 +1,65 @@
+{
+  "protocolVersion": "0.1.0",
+  "entryId": "e0c4b14c-dde4-8948-b2d8-b56921b18241",
+  "tenantId": "tenant-a",
+  "conversationId": "conv-1",
+  "channel": "chat",
+  "toolName": "relay_capture",
+  "affidavit": {
+    "protocolVersion": "0.1.0",
+    "operationType": "update",
+    "entityType": "Invoice",
+    "entityId": "invoice-1",
+    "fields": [
+      {
+        "name": "status",
+        "kind": "text",
+        "value": "Active",
+        "previousValue": null,
+        "provenance": {
+          "current": {
+            "source": "Conversation",
+            "confidence": 0.9,
+            "note": null,
+            "at": "2026-09-04T09:00:00.000Z",
+            "conversationTurn": null,
+            "binding": null
+          },
+          "prior": []
+        },
+        "isMandatory": false
+      }
+    ],
+    "aggregateConfidence": 0.9,
+    "populatedConfidence": 0.9,
+    "emptyFieldCount": 0,
+    "conversationTurn": null,
+    "createdAt": "2026-09-04T09:00:00.000Z"
+  },
+  "amendedAffidavit": null,
+  "requirement": "StandingOrder",
+  "status": "approved",
+  "execution": "unexecuted",
+  "blocked": null,
+  "compositeRef": null,
+  "attestation": {
+    "by": {
+      "kind": "standing-order",
+      "policyId": "auto-approve",
+      "version": "2.1.0"
+    },
+    "at": "2026-09-04T09:00:00.000Z",
+    "entryId": "e0c4b14c-dde4-8948-b2d8-b56921b18241"
+  },
+  "amendments": null,
+  "preservedAmendments": null,
+  "decision": null,
+  "lineage": {
+    "supersedes": null,
+    "supersededBy": null
+  },
+  "filedAt": "2026-09-04T09:00:00.000Z",
+  "expiresAt": "2026-09-04T09:30:00.000Z",
+  "decidedAt": "2026-09-04T09:00:00.000Z",
+  "executionDetail": null
+}
