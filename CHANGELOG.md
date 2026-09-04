@@ -144,6 +144,69 @@ update at all.
    Affidavit the gate returns on `ReviewOutcome.Approved.AmendedAffidavit`, or call
    `AffidavitAmendments.Apply` — one fold, one answer.
 
+### Added
+
+- **The telemetry-key registry** (`Affiant.Abstractions.Telemetry.TelemetryKeys`, plus an embedded
+  `telemetry-keys.json` conforming to the Affiant protocol's `telemetry-key.schema.json`). Every
+  event the gate emits is now named in one versioned place, with the attribute names each event
+  carries. Operators build alerts on these names, so **a key is never renamed and never removed —
+  only deprecated**; a test enforces that against a snapshot list, and a second test asserts every
+  emitted name and attribute is in the registry.
+- **The nine v0.1 keys, emitted at the seams that exist today:**
+  - `affidavit.filed` — `ReviewGate` files a Docket entry (`created: false` on an idempotent replay).
+  - `affidavit.refused.substance` — an Affidavit that swears to nothing, detected by
+    `SchemaDrivenAffidavitProjection`. This release *reports*; the runtime refusal follows.
+  - `coverage.refused` — a tool the gate cannot intercept, refused at wire-up by `HostedToolAudit`
+    in `Affiant.AgentFramework` and `Affiant.Extensions.AI`.
+  - `docket.transition` — a Docket entry changed state, emitted only by the caller whose own guarded
+    write affected the row, with `from`, `to`, `decision.kind` and `amended`.
+  - `docket.expired` — the sweep expired a pending entry.
+  - `decision.unauthorized` — a decision `ReviewGate.HandleDecisionAsync` refused, with the reason
+    (`entry-not-found`, `decision-not-pending`, `decision-expired`, `decision-lost-race`).
+  - `standing-order.fired` / `standing-order.blocked` — a Standing Order approved a write with no
+    person present, or was not honoured (`blocked.reason: risk-above-threshold` today).
+  - `policy.invalid` — a host policy whose `EvaluateAsync` threw, or an unusable review deadline.
+
+  Attributes carry field **names**, never field values, and use OpenTelemetry's `gen_ai.tool.name`,
+  `gen_ai.conversation.id` and `gen_ai.operation.name` where a standard name exists. An attribute
+  this release cannot yet know is absent rather than guessed.
+- **`affiant.docket.pending`** — an observable gauge reporting Docket entries awaiting review, by
+  tenant, registered by `AddAffiantCore` when `EnableObservability` is set. A metrics scrape never
+  reads the store: the gauge returns its last sample and refreshes in the background at most once
+  every 15 seconds, and reports at most 100 tenant series with the tail summed into `__other__`.
+  Closes the gap where the first symptom of an unbounded review queue was database load, because
+  nothing on a dashboard could be alerted on.
+- **`AffidavitSubstance.DescribeFailure`** in `Affiant.Abstractions.Models` — the substance rule
+  (GT-3) as one shared predicate: no fields, no field carrying provenance other than `Empty`, or a
+  value asserted under `Empty` provenance. One copy for the projection's telemetry, the compliance
+  harness's test-time check, and the runtime refusal to come.
+- **`StandingOrderBase.PolicyId` / `PolicyVersion`** — overridable, so a host that names or versions
+  its policies gets those names on `standing-order.fired` and `standing-order.blocked` instead of
+  the type name.
+
+### Changed
+
+- **`AffiantWireUpValidator` now refuses an unusable review deadline.** An
+  `AffiantCoreOptions.DefaultDocketTtl` under one millisecond, or large enough to overflow the
+  `ExpiresAt` stamp, throws `AffiantStartupException` at startup and emits `policy.invalid`. It
+  previously started normally and filed every entry already past its deadline, so every review
+  "timed out" with no error anywhere. There is no acknowledgment switch for this one: a host can
+  knowingly run without a review loop, but no host means a deadline of zero.
+- **A host approval policy whose `EvaluateAsync` throws now emits `policy.invalid` before the
+  exception propagates.** The throw is not swallowed — the chain still fails closed.
+
+### Deprecated
+
+- **`affidavit.projected`** — superseded by `affidavit.filed`, emitted by `ReviewGate` when the
+  Affidavit becomes a Docket entry, and by `affidavit.refused.substance` for the hollow-Affidavit
+  case at the same projection seam. It is still emitted alongside for this release so an existing
+  alert does not go dark on upgrade, and is removed in the release after `1.0.0-beta.3`. The
+  constant is `Affiant.Core.Observability.DeprecatedTelemetryKeys.AffidavitProjected`, marked
+  `[Obsolete]` with the replacement named. The framework's other event names —
+  `affiant.tool_error`, `affiant.review.filing_failed`, `affiant.review.broadcast_failed`,
+  `affiant.extractor.failed` and the `inference.*` family — are **not** deprecated: they name things
+  the registry does not cover, and they keep their names.
+
 ## [1.0.0-beta.1.1] — unreleased
 
 ### Fixed

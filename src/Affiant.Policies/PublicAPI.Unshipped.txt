@@ -10,4 +10,6 @@ Affiant.Policies.StandingOrders.StandingOrderBase.StandingOrderBase(Affiant.Poli
 abstract Affiant.Policies.Services.RiskScoreCalculatorBase.ComputeAsync(Affiant.Abstractions.Models.Affidavit! affidavit, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<int>!
 readonly Affiant.Policies.StandingOrders.StandingOrderBase.RiskScorer -> Affiant.Policies.Services.RiskScoreCalculatorBase?
 static Affiant.Policies.AffiantPolicies.ValidateStandingOrders(System.IServiceProvider! serviceProvider) -> void
+virtual Affiant.Policies.StandingOrders.StandingOrderBase.PolicyId.get -> string!
+virtual Affiant.Policies.StandingOrders.StandingOrderBase.PolicyVersion.get -> string?
 virtual Affiant.Policies.StandingOrders.StandingOrderBase.RiskThreshold.get -> int?
