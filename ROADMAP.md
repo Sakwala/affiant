@@ -75,9 +75,10 @@ No dates, ever: a solo-maintained project cannot promise a delivery date without
   in progress. Links: issue: to be filed;
   [affiant-protocol](https://github.com/Sakwala/affiant-protocol),
   [affiant-ts](https://github.com/Sakwala/affiant-ts).
-- **Path to 1.0: stabilise the beta API** `[stability]` — Two releases come before `1.0`:
-  a narrow point release, `1.0.0-beta.1.1`, then `1.0.0-beta.2`; `1.0.0` follows once the
-  list below is clear. What "stable" will mean is already defined in
+- **Path to 1.0: stabilise the beta API** `[stability]` — Three releases come before `1.0`:
+  a narrow point release, `1.0.0-beta.1.1`; `1.0.0-beta.2`, the stabilisation scope listed
+  below; and `1.0.0-beta.3`, the conformance release described in the TypeScript item above,
+  after which the parity manifest is empty; `1.0.0` follows once the list below is clear. What "stable" will mean is already defined in
   [Versioning & compatibility](README.md#versioning--compatibility). `1.0.0-beta.1.1`
   raises one floor and nothing else: with the stock defaults, a [Standing
   Order](https://affiant.dev/concepts/review-gate-and-write-executors/) written by the
