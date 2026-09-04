@@ -106,13 +106,16 @@ public sealed class ConformanceDriverTests(ITestOutputHelper output)
         Assert.NotNull(manifest);
 
         // A failure with no disposition is a failure nobody has looked at, which is why the format
-        // has no way to express one.
+        // has no way to express one. The four the rulebook allows: "fixed" (a SHIPPED release
+        // corrects it), "planned" (scheduled for a named release), "fenced" (a host-side workaround
+        // contains it today) and "ignored" (nothing is being done and nothing is scheduled).
         var undisposed = manifest!.Rows
-            .Where(r => r["disposition"]?.GetValue<string>() is not ("fixed" or "fenced" or "ignored"))
+            .Where(r => r["disposition"]?.GetValue<string>() is not ("fixed" or "planned" or "fenced" or "ignored"))
             .Select(r => r["id"]!.GetValue<string>())
             .ToArray();
 
         Assert.True(undisposed.Length == 0, $"No disposition on: {Join(undisposed)}");
+
     }
 
     [Fact]

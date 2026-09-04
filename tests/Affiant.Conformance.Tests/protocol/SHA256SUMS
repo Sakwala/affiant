@@ -1,7 +1,7 @@
-1f5e3d80d62c261da22772167df51dc0180b1c45949f7f268329a7ffcab5d520  ./README.md
+a5c8f56dfb2e1c0bd5f63958e76ce3f3e1183b4949f6ddaab073c6643e9fd888  ./README.md
 fa60abf67184b10bd794009f81eec5b6000bf475c36e00a49f252c40cb81e138  ./canonical-vector.schema.json
 bd2985e9962133acc0779f1cf3dec237d9877addacd2288befe70baa82338be6  ./fixture.schema.json
-909e6c6e74f0208a067e3b8713e7f36723a540aac3e45a91ae5962c3a368d9ed  ./fixtures/MANIFEST.json
+80c332e58c6633b42038d98436a697a6738aa5761a287f284bc48586840f1934  ./fixtures/MANIFEST.json
 949a7bd66908e41c36f63d0cca2a4a1fa1ef6c115c0dde995ae5414205b29c37  ./fixtures/PROMOTED_FROM
 96a518587c83c9d89654f66a0f69877e3c2fe10216e5914f8f5d69df2398f607  ./fixtures/canonical/01-create-shaped.json
 7080c894938943bc85e7d3455fd3973df52d299f8ef85088ad7fedfc14d8644a  ./fixtures/canonical/02-update-shaped.json
@@ -144,5 +144,5 @@ ae6abd8e0d5e25a3a82c84f4c8b325dbf3d9523fd2db4bb565618a91e2dd3c86  ./fixtures/wir
 de50501c546a809f8646175912368e556560fa6f6b72b1a39a4d4389fc22a47e  ./fixtures/wire/session-rehydrated.json
 4fb391fab218ece90fbb69e5c2fcdced8491732a265a3c6c80242b8f8faa577f  ./fixtures/wire/system-notification.json
 3c119a82d6a1a15e957e4efd7faff4966799d702a8fb538acbae48b74dfd07d5  ./lint/coverage-exemptions.json
-98d09231d0efd5486712bee66e3f89390349650d8e7c885e5f2fc80214d935bd  ./parity/MANIFEST.schema.json
+6e8e0321a0918c294be4f1aed31b385437af0f14f24075c050824c4b81816012  ./parity/MANIFEST.schema.json
 0df9309f82234450fa7dfe007087b6740e70639973c036af630ed0382fb3c0ea  ./results.schema.json

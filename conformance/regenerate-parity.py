@@ -11,7 +11,10 @@ reads the diff and decides whether the claim it now makes is one this project st
 
 Every failing fixture is attributed to ONE root cause, chosen by the most fundamental unmet rule
 among its diffs. The cause carries the disposition and the sentence a reader deciding whether to
-adopt this framework needs -- what it does instead, and why that matters.
+adopt this framework needs -- what it does instead, and why that matters. The dispositions are the
+rulebook's four: `fixed` (a SHIPPED release corrects it, named in `fixedIn`), `planned` (scheduled
+for a named release, in `plannedFor`), `fenced` (a host-side workaround contains it now, and the fix
+is still scheduled) and `ignored` (nothing is being done). Nothing here is `ignored`.
 """
 import json
 import pathlib
@@ -24,51 +27,47 @@ MANIFEST = HERE / "parity" / "dotnet-v0.1.json"
 FIXTURE_INDEX = HERE.parent / "tests" / "Affiant.Conformance.Tests" / "protocol" / "fixtures" / "MANIFEST.json"
 EXEMPTIONS = HERE.parent / "tests" / "Affiant.Conformance.Tests" / "protocol" / "lint" / "coverage-exemptions.json"
 
-UNDECIDED = (
-    "Undecided -- this row awaits the framework maintainer's ruling on when, or whether, it is "
-    "closed. "
-)
+# The release every open gap below is scheduled for. A row that names it carries disposition
+# "planned": the gap is measured, written down and on the schedule for a named release. That is a
+# different statement from "ignored" (nothing is being done) and the rulebook's parity format has a
+# value for each -- see affiant-protocol conformance/PARITY.md.
+PLANNED_FOR = "1.0.0-beta.3"
 
 # disposition, detail, and the extra key that disposition requires.
 CAUSES = {
     "AZ-1-attestation": (
-        "ignored",
-        UNDECIDED
-        + "Nothing on a Docket row says who or what approved the write. DocketEntry has twelve "
+        "planned",
+        "Nothing on a Docket row says who or what approved the write. DocketEntry has twelve "
         "properties and an attestation is not among them, so an approved row carries no "
         "attributable record of who is answerable for it; a Standing Order's approver id is "
         "computed by StandingOrderBase and only written to the log.",
         {},
     ),
     "DK-1-execution": (
-        "ignored",
-        UNDECIDED
-        + "There is no execution state. Nothing records whether an approved write actually ran, so "
+        "planned",
+        "There is no execution state. Nothing records whether an approved write actually ran, so "
         "an approved-but-failed write is indistinguishable on the record from an "
         "approved-and-committed one, and there is no entry point for a host to report either.",
         {},
     ),
     "DK-1-decision": (
-        "ignored",
-        UNDECIDED
-        + "A decision leaves a status and, on approval, a dictionary of amendments. There is no "
+        "planned",
+        "A decision leaves a status and, on approval, a dictionary of amendments. There is no "
         "record of what was chosen and why, no timestamped preserved-amendments record, and an "
         "accepted amendment is never folded into an amended Affidavit -- so a later reader cannot "
         "see the state the approval accepted.",
         {},
     ),
     "AZ-4-blocked": (
-        "ignored",
-        UNDECIDED
-        + "A row has no blocked marker, and a MultiParty verdict is routed to the same "
+        "planned",
+        "A row has no blocked marker, and a MultiParty verdict is routed to the same "
         "single-card branch as ReviewerConfirmation -- one approval satisfies a joint requirement. "
         "A referral is recorded as Deferred with nothing a card can show.",
         {},
     ),
     "GT-3-substance": (
-        "ignored",
-        UNDECIDED
-        + "Substance is checked by the compliance harness at test time only. At run time the gate "
+        "planned",
+        "Substance is checked by the compliance harness at test time only. At run time the gate "
         "files whatever Affidavit it is handed, including one whose every field is tagged Empty -- "
         "a proposal that swears to nothing reaches a reviewer as though it swore to something.",
         {},
@@ -100,43 +99,38 @@ CAUSES = {
         },
     ),
     "AZ-3-relay": (
-        "ignored",
-        UNDECIDED
-        + "There is no identity model for a machine caller speaking for a person. A decision "
+        "planned",
+        "There is no identity model for a machine caller speaking for a person. A decision "
         "carries a single UserId string, so a relay asserting a member's identity and a member's "
         "own authenticated session are the same thing on the record.",
         {},
     ),
     "GT-4-ttl": (
-        "ignored",
-        UNDECIDED
-        + "The deadline is stamped from one global default before the policy chain runs, and a "
+        "planned",
+        "The deadline is stamped from one global default before the policy chain runs, and a "
         "policy's verdict is a bare enum that cannot name one. A re-file with the same id "
         "broadcasts a card carrying a freshly computed deadline while the row keeps its original, "
         "so a reviewer can be shown a deadline the record does not hold.",
         {},
     ),
     "GT-5-standing-order": (
-        "ignored",
-        UNDECIDED
-        + "A policy cannot declare a risk ceiling or the provenance sources it predicates on: "
+        "planned",
+        "A policy cannot declare a risk ceiling or the provenance sources it predicates on: "
         "IApprovalPolicy returns a bare requirement and nothing else. A Standing Order that should "
         "be held back -- over its threshold, on an unbound input, or with a mandatory field left "
         "empty -- fires anyway, and approves with no person present.",
         {},
     ),
     "CV-1-wireup": (
-        "ignored",
-        UNDECIDED
-        + "A wiring the gate should refuse is accepted. A policy cannot declare a threshold, so "
+        "planned",
+        "A wiring the gate should refuse is accepted. A policy cannot declare a threshold, so "
         "there is no declaration for the gate to notice is unbacked by a risk scorer, and the "
         "silent non-fire that follows is indistinguishable from a policy that had no opinion.",
         {},
     ),
     "DK-1-clock": (
-        "ignored",
-        UNDECIDED
-        + "There is no clock seam anywhere in the release: ReviewGate reads DateTimeOffset.UtcNow "
+        "planned",
+        "There is no clock seam anywhere in the release: ReviewGate reads DateTimeOffset.UtcNow "
         "at four sites and the expiry sweep at a fifth, none of them injectable. A row past its "
         "deadline reads pending until a background sweep happens to run, and a decision that "
         "arrives late is accepted rather than refused.",
@@ -156,84 +150,81 @@ CAUSES = {
         },
     ),
     "AF-2-confidence": (
-        "ignored",
-        UNDECIDED
-        + "The Affidavit carries one confidence number and it is the mean over the non-Empty "
+        "planned",
+        "The Affidavit carries one confidence number and it is the mean over the non-Empty "
         "fields, so a mostly-empty Affidavit can report a high one. The record has no "
         "populatedConfidence and no empty-field count at all, so a reader cannot tell a confident "
         "record from a sparse one.",
         {},
     ),
     "PV-1-inference": (
-        "ignored",
-        UNDECIDED
-        + "A value the host's inference reports is always tagged Inferred, whatever the port said "
+        "planned",
+        "A value the host's inference reports is always tagged Inferred, whatever the port said "
         "about how it was found, and the merge is confidence-first with a source-ordinal "
         "tie-break. A value read literally out of the turn therefore loses to the model's own "
         "argument at equal confidence, and the argument is what gets filed.",
         {},
     ),
     "PV-2-binding": (
-        "ignored",
-        UNDECIDED
-        + "A provenance tag carries a source, a confidence, an evidence string and a conversation "
+        "planned",
+        "A provenance tag carries a source, a confidence, an evidence string and a conversation "
         "turn, and nothing that points at a record an auditor could re-fetch. No value is ever "
         "bound, so nothing can tell a value checked against a system of record from one a model "
         "asserted.",
         {},
     ),
     "DK-3-sweep": (
-        "ignored",
-        UNDECIDED
-        + "The expiry sweep loads every pending entry on every instance and reports nothing: it "
+        "planned",
+        "The expiry sweep loads every pending entry on every instance and reports nothing: it "
         "takes no limit, no cursor and no scope, and returns void. A docket large enough to matter "
         "is swept in one unbounded read.",
         {},
     ),
     "DK-5-rehydrate": (
-        "ignored",
-        UNDECIDED
-        + "The rehydration surface re-broadcasts a session's pending cards and returns void. There "
+        "planned",
+        "The rehydration surface re-broadcasts a session's pending cards and returns void. There "
         "is no page, no cursor, no more flag and no order a reconnecting client can read, so a "
         "client cannot tell a complete rehydration from a partial one.",
         {},
     ),
     "SR-1-canonical": (
-        "ignored",
-        UNDECIDED
-        + "There is no canonical serialization and no content hash in the release. Nothing can "
+        "planned",
+        "There is no canonical serialization and no content hash in the release. Nothing can "
         "bind an execution grant to the exact Affidavit a reviewer accepted, which is the "
         "substitution the rule exists to prevent.",
         {},
     ),
     "SR-1-model": (
-        "ignored",
-        UNDECIDED
-        + "The canonical form is reproduced byte for byte by a canonicaliser written out from the "
+        "planned",
+        "The canonical form is reproduced byte for byte by a canonicaliser written out from the "
         "rule, but the .NET model cannot hold the shape the vector pins: the Affidavit record has "
         "no populated-confidence and no empty-field count, and a provenance tag has no binding. "
         "The release also exports no canonical-hash helper, so there is nothing to compare against.",
         {},
     ),
     "SR-4-card": (
-        "ignored",
-        UNDECIDED
-        + "The Evidence Card carries a docket id, an Affidavit, a deadline and prior amendments -- "
+        "planned",
+        "The Evidence Card carries a docket id, an Affidavit, a deadline and prior amendments -- "
         "and no protocol version. A consumer cannot tell which version of the envelope it "
         "received, which is checked on every filing and so fails on every filing.",
         {},
     ),
 }
 
-# The one row with a named release behind it.
+# The one row a SHIPPED release already corrects. `fixedIn` names a release that exists; a release
+# still to come is `plannedFor` on a "planned" or "fenced" row instead.
 FIXED = {
     "gate/standing-order-by-the-book": (
         "1.0.0-beta.1.1",
         "The shipped default risk scorer never returns the grade the default Standing Order "
-        "threshold demands, so a by-the-book Standing Order can never fire -- corrected by the "
-        "risk-floor change in 1.0.0-beta.1.1 (Sakwala/affiant#53). This row remains open at "
-        "1.0.0-beta.1 for a second reason that release does not close: the row the Standing Order "
-        "approves still carries no attestation and no execution state.",
+        "threshold demands, so a by-the-book Standing Order can never fire. The risk-floor change "
+        "in 1.0.0-beta.1.1 (Sakwala/affiant#53) closes that. The row still fails at 1.0.0-beta.1 "
+        "for what that release does not carry either way: the row a Standing Order approves has no "
+        "attestation record and no execution state, and both are planned for 1.0.0-beta.3. No "
+        "declarative fixture reaches the risk floor itself -- a fixture's declared policy binds to "
+        "IApprovalPolicy, and the floor is in StandingOrderBase with the default scorer -- so what "
+        "refutes it is the framework's own RiskConfigurationTests, which arrive with that change "
+        "(Affiant.Policies.Tests, Sakwala/affiant#53).",
     ),
 }
 
@@ -316,6 +307,10 @@ def main():
             row["disposition"] = disposition
             row["detail"] = detail
             row.update(extra)
+            # A fence is the honest disposition today; the fix behind it is still scheduled, so a
+            # fenced row names the release too. A planned row must.
+            if disposition in ("planned", "fenced"):
+                row["plannedFor"] = PLANNED_FOR
 
         if fixture.get("oracle"):
             row["oracle"] = True
@@ -365,13 +360,28 @@ CHECKED_INSTEAD = {
 
 NOTES = (
     "First run of the .NET conformance driver, against the shipped packages at 1.0.0-beta.1. "
-    "Two things a reader of this document alone should know. "
-    "(1) Most rows carry disposition \"ignored\" with a detail beginning \"Undecided\": the format "
-    "has three dispositions and no fourth, and these gaps have been measured and written down but "
-    "not yet ruled on by the framework's maintainer. They are listed for decision in the pull "
-    "request that produced this manifest; \"ignored\" here means \"nothing is being done YET\", not "
-    "\"nothing will be\". "
-    "(2) The framework emits telemetry under names that share nothing with the rulebook's registry "
+    "Four things a reader of this document alone should know. "
+    "(1) Most rows carry disposition \"planned\" with plannedFor 1.0.0-beta.3: the gap is measured, "
+    "written down and scheduled for that release. The ten fenced rows name a host-side workaround "
+    "that contains the gap today AND the same release, because a fence is the honest disposition "
+    "now, not the end of the work. "
+    "(2) There is no injectable clock in this release: ReviewGate reads DateTimeOffset.UtcNow at "
+    "four sites and the expiry sweep at a fifth, none of them injectable, and there is no "
+    "TimeProvider seam anywhere in the packages. Four fixtures -- decide/expired-amendments-preserved, "
+    "decide/resubmit-prefills, sequence-a/expiry-then-resubmit and sequence-a/late-amendments-preserved "
+    "-- fail on that alone: a fixture that moves its own clock cannot move the framework's. It also "
+    "keeps sequence-a/sweep-pages from driving an entry past its deadline, so the paging gap that "
+    "fixture is about is read off the API rather than exercised. "
+    "(3) The seven canonical byte vectors are run against a canonicaliser written out from SR-1 "
+    "inside the driver's own test project -- the second canonicaliser the rulebook asks for, not a "
+    "claim about the framework, which exports no canonical-hash helper at all. That canonicaliser "
+    "reproduces the pinned bytes and the pinned digest for six of the seven; the seventh, "
+    "canonical/wire-evidence-card-request-amended, needs the accepted amendments folded into the "
+    "Affidavit and this release never folds them. Three of the four failing vectors therefore fail "
+    "because the .NET model cannot HOLD the shape the vector pins -- the Affidavit record has no "
+    "populated-confidence and no empty-field count, and a provenance tag has no binding -- which is "
+    "a different thing from canonicalising it wrongly. "
+    "(4) The framework emits telemetry under names that share nothing with the rulebook's registry "
     "-- it emits affidavit.projected, inference.completed and affiant.review.broadcast_failed where "
     "the registry names affidavit.filed, docket.transition and standing-order.fired -- so every "
     "telemetry clause in the suite fails and every telemetryAbsent clause holds. That is a true "

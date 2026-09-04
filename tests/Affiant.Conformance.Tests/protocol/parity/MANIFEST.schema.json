@@ -49,9 +49,9 @@
             "items": { "type": "string", "pattern": "^(AF|PV|GT|DK|AZ|SR|RT|CV|TL)-[0-9]+$" }
           },
           "disposition": {
-            "description": "What is being done about it. \"fixed\" — corrected in a named later release, which `fixedIn` must name; this row exists because the release under test still fails it. \"fenced\" — the implementation does not do this, and a specific host-side workaround makes it safe, which `fence` must describe. \"ignored\" — nothing is being done, and `detail` must say why in a sentence a reader can disagree with. There is no fourth value: a failure with no disposition is a failure nobody has looked at.",
+            "description": "What is being done about it. \"fixed\" — corrected in a release that has SHIPPED, which `fixedIn` must name; this row exists because the release under test still fails it. \"planned\" — scheduled for a named release that has not shipped, which `plannedFor` must name. \"fenced\" — the implementation does not do this, and a specific host-side workaround makes it safe, which `fence` must describe; a fence is what is true today, so a fenced row MAY also name the release the fix is scheduled for in `plannedFor`. \"ignored\" — nothing is being done and nothing is scheduled, and `detail` must say why in a sentence a reader can disagree with. There is no fifth value: a failure with no disposition is a failure nobody has looked at, and a schedule that names no release is not a plan.",
             "type": "string",
-            "enum": ["fixed", "fenced", "ignored"]
+            "enum": ["fixed", "planned", "fenced", "ignored"]
           },
           "detail": {
             "description": "What the implementation does instead, and why it matters — one or two sentences, written for somebody deciding whether to adopt it. Not a stack trace.",
@@ -59,7 +59,11 @@
             "minLength": 1
           },
           "fixedIn": {
-            "description": "The release that corrects it. Required when disposition is \"fixed\".",
+            "description": "The release that corrects it, which must be one that has SHIPPED — a version a reader can install. Required when disposition is \"fixed\", and legal on no other disposition: a correction still to come is `plannedFor`.",
+            "type": "string"
+          },
+          "plannedFor": {
+            "description": "The release the fix is scheduled for — a version string, not a date and not \"soon\". Required when disposition is \"planned\". Optional when it is \"fenced\", because a fence describes what is true today and the fix behind it may still be scheduled. Legal on no other disposition: a shipped correction is `fixedIn`, and an \"ignored\" row is by definition scheduled for nothing.",
             "type": "string"
           },
           "fence": {
@@ -81,8 +85,26 @@
             "then": { "required": ["fixedIn"] }
           },
           {
+            "if": { "properties": { "disposition": { "const": "planned" } }, "required": ["disposition"] },
+            "then": { "required": ["plannedFor"] }
+          },
+          {
             "if": { "properties": { "disposition": { "const": "fenced" } }, "required": ["disposition"] },
             "then": { "required": ["fence"] }
+          },
+          {
+            "if": {
+              "properties": { "disposition": { "enum": ["fixed", "ignored"] } },
+              "required": ["disposition"]
+            },
+            "then": { "not": { "required": ["plannedFor"] } }
+          },
+          {
+            "if": {
+              "properties": { "disposition": { "enum": ["planned", "fenced", "ignored"] } },
+              "required": ["disposition"]
+            },
+            "then": { "not": { "required": ["fixedIn"] } }
           }
         ]
       }

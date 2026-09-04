@@ -759,7 +759,7 @@
           "mustFailOn": [
             "dotnet@1.0.0-beta.1"
           ],
-          "defect": "The default risk scorer never returns `Low` while the default threshold is `Low`, so a by-the-book Standing Order never fires (corrected in a later point release; present in beta.1)"
+          "defect": "No attestation record on the row: nothing says who or what approved a write"
         }
       },
       {
@@ -850,7 +850,7 @@
           "mustFailOn": [
             "dotnet@1.0.0-beta.1"
           ],
-          "defect": "The aggregate confidence is a mean over the non-`Empty` fields, so a mostly-empty Affidavit can report high confidence"
+          "defect": "Every Affidavit is create-shaped: `EntityId` and every `PreviousValue` are hard-coded null"
         }
       },
       {
@@ -1220,7 +1220,7 @@
           "mustFailOn": [
             "dotnet@1.0.0-beta.1"
           ],
-          "defect": "Conversation-scope bleed: one process-global context store is shared by every conversation"
+          "defect": "The gate carries no conversation identity; isolation is the host's scoping discipline alone (the shipped adapters resolve the context store from the application's root provider)"
         }
       },
       {

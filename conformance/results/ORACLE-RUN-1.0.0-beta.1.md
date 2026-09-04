@@ -11,13 +11,34 @@ mis-authored or the recorded defect is not what it was said to be. None passed. 
 findings of a different kind: the fixture failed, but not for the reason recorded. Nothing was tuned to
 make anything fail.
 
-- Run: `conformance/results/dotnet-1.0.0-beta.1.json` (produced 2026-09-04T02:15:55.928Z)
-- Protocol ref pinned: `f0d4ad0b5f0010676a96719682ea3920f0b1baf3` (`conformance/PROTOCOL_PIN`)
+- Run: `conformance/results/dotnet-1.0.0-beta.1.json`
+- First read against protocol ref `f0d4ad0b5f0010676a96719682ea3920f0b1baf3`, produced 2026-09-04T02:15:55.928Z.
+  That run is published in the rulebook at
+  [`conformance/results/dotnet-1.0.0-beta.1/`](https://github.com/Sakwala/affiant-protocol/tree/main/conformance/results/dotnet-1.0.0-beta.1).
+- Re-run at protocol ref `19c574726445c312d6f295f8c9e8851910f05836` when this repository bumped its pin,
+  produced 2026-09-04T02:44:52.526Z — same outcome for every one of the 63 fixtures.
 - Whole suite: **3 passed, 60 failed, 0 errored, 0 skipped** of 63
 - Oracle fixtures: **19 listed, 19 failed, 0 passed**
 
 Read `conformance/parity/dotnet-v0.1.json` beside this: it is the published claim, and this is part of
 the evidence for it.
+
+### What changed in the rulebook after this reading
+
+**The body below is the reading as it stood against `f0d4ad0`, unedited.** Its three findings were
+taken up: the rulebook corrected all three rows at `19c574726445c312d6f295f8c9e8851910f05836`, which is
+what this repository is now pinned to. So where a row below quotes "Defect the oracle records", three of
+them quote a sentence the rulebook no longer states, and the "suggested correction" each one offers is
+the wording that was adopted. The current sentences are:
+
+| Fixture | The oracle records, as of `19c5747` |
+|---|---|
+| `gate/standing-order-by-the-book` | No attestation record on the row: nothing says who or what approved a write. (The risk floor left the oracle's table entirely: no declarative fixture can reach it, and it is refuted by the framework's own tests instead.) |
+| `gate/update-previous-values` | Every Affidavit is create-shaped: `EntityId` and every `PreviousValue` are hard-coded null. (Moved off the AF-2 row, which is what this run showed it does not exercise.) |
+| `sequence-a/interleaved-conversations` | The gate carries no conversation identity; isolation is the host's scoping discipline alone (the shipped adapters resolve the context store from the application's root provider). |
+
+Read against those three sentences, all 19 fixtures now fail **as recorded**. Nothing in the run changed
+to make that true — the rulebook changed to match what the run showed.
 
 ## Summary
 
