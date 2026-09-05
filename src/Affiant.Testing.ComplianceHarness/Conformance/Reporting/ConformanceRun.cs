@@ -58,7 +58,7 @@ internal sealed class ConformanceRun
     /// <summary>The result document, valid against <c>results.schema.json</c>.</summary>
     public JsonObject Document { get; }
 
-    /// <summary>Where the document was written, when a repository was found to write it into.</summary>
+    /// <summary>Where the document was written, or null when the caller asked for no file.</summary>
     public string? WrittenTo { get; }
 
     /// <summary>The ids a parity manifest must list: every fixture that failed or errored.</summary>
@@ -66,10 +66,18 @@ internal sealed class ConformanceRun
         Results.Where(r => r.Outcome is "fail" or "error").Select(r => r.Id).ToArray();
 
     /// <summary>
-    /// Runs the suite once, against the rulebook at <paramref name="protocolRoot"/> (null: the copy
-    /// beside the running assembly), writing the run into <paramref name="writeRunTo"/> (null: the
-    /// repository's own conformance/results, when this is running inside one).
+    /// Runs the suite once, against the rulebook at <paramref name="protocolRoot"/> — required, and
+    /// the only place any file a run reads comes from — writing the run into
+    /// <paramref name="writeRunTo"/> when the caller names one, and nowhere otherwise.
     /// </summary>
+    /// <param name="protocolRoot">
+    /// The vendored rulebook's root. Checked before a fixture executes; a root missing a file a run
+    /// reads throws, naming the file and what it is for.
+    /// </param>
+    /// <param name="writeRunTo">
+    /// A directory to write the run document into, or <see langword="null"/> to return it without
+    /// touching the disk. Never a directory this class went looking for.
+    /// </param>
     public static ConformanceRun Execute(string protocolRoot, string? writeRunTo)
     {
         var suite = ProtocolSuite.At(protocolRoot);
