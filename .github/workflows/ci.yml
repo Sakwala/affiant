@@ -226,8 +226,11 @@ jobs:
       - name: Verify the vendored conformance suite against its checksums
         run: ./conformance/sync.sh --verify
 
-      - name: Build the conformance driver
-        run: dotnet build tests/Affiant.Conformance.Tests/Affiant.Conformance.Tests.csproj -c Release
+      # The whole solution, not just the driver project: one of the driver's assertions reads the
+      # metadata of all TEN shipped assemblies — the executor tripwire is the only IWriteExecutor in
+      # any of them (AZ-7) — and five of the ten are not in the driver's own reference graph.
+      - name: Build the shipped packages and the conformance driver
+        run: dotnet build Affiant.slnx -c Release
 
       # Running the suite writes conformance/results/dotnet-<version>.json, named for the version
       # the built packages report: the evidence the parity manifest's claim rests on.
