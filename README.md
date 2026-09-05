@@ -714,8 +714,11 @@ yet reached 1.0 GA. Adopt on this basis:
 
 - **Trust the invariant.** Every Affidavit field carries provenance, no exceptions. That
   contract is stable, it is enforced by the ComplianceHarness, and from `1.0.0-beta.3` the same
-  package runs the protocol's own conformance suite — `ConformanceSuite.Run(...)` — so a host can
-  measure its own wiring against the rulebook with the code the framework's own result comes from.
+  package runs the protocol's own conformance suite — `ConformanceSuite.Run(...)` — against the
+  framework binaries a host is bound to, each fixture's gate built fresh from that fixture's own
+  `given.gate` and read from the host's own vendored, pinned rulebook. It does not exercise the
+  host's own store, transport, executor, policies, authorization or startup wire-up — those are
+  covered today by `AffiantWireUpValidator` at startup and the host's own compliance fixtures.
 - **Expect API evolution between prerelease tags** — see
   ["Versioning & compatibility"](#versioning--compatibility) above for exactly what that does
   and doesn't promise.
