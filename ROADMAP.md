@@ -28,7 +28,7 @@ Items sit in one of four statuses:
 
 To influence it: open or upvote an issue labelled [`roadmap`](https://github.com/Sakwala/affiant/issues?q=is%3Aissue+state%3Aopen+label%3Aroadmap), or join [GitHub Discussions](https://github.com/Sakwala/affiant/discussions), now open. Meridian's public beta is the live feedback source — what it teaches lands here in the next revision.
 
-Where "done" goes: a shipped item moves into [Recently shipped](#recently-shipped) below in the same change that ships it. Fine-grained detail lives in the [CHANGELOG](CHANGELOG.md)'s `[Unreleased]` section as it happens, and in [GitHub releases](https://github.com/Sakwala/affiant/releases) once tagged.
+Where "done" goes: a shipped item moves into [Recently shipped](#recently-shipped) below in the same change that ships it. Fine-grained detail lives in the [CHANGELOG](CHANGELOG.md), under the heading of the release it belongs to, and in [GitHub releases](https://github.com/Sakwala/affiant/releases) once tagged.
 
 No dates, ever: a solo-maintained project cannot promise a delivery date without it becoming a promise the maintainer cannot keep. Status — what is being worked on now — is the honest unit of information this page can offer.
 
@@ -63,24 +63,33 @@ No dates, ever: a solo-maintained project cannot promise a delivery date without
   the runner specification, the driver contract, and the format of the per-implementation
   parity manifest) — versioned by git tags that every implementation pins, so "which rules
   does this build satisfy" has an exact answer.
-  [`affiant-ts`](https://github.com/Sakwala/affiant-ts) is the TypeScript implementation:
-  `@affiant/contract` and the Web Component above are its first artifacts, then
-  `@affiant/core`, built and tested on Node, Cloudflare workerd and Bun from its first
-  commit rather than made portable afterwards. `@affiant/core` goes to npm only once two
-  things are true: a public parity report for the .NET packages exists, and the TypeScript
-  conformance driver is green and merge-blocking in CI. The first is now true: the
-  `1.0.0-beta.3` conformance release (2026-09-05) made the .NET packages pass that same
-  fixture suite — all 63 fixtures at the rulebook's `v0.1.2` tag — and put the attestation
-  record — who or what approved a write — on the Docket entry; the parity manifest is now
-  empty. State: in progress. Links: issue: to be filed;
+  [`affiant-ts`](https://github.com/Sakwala/affiant-ts) is the TypeScript implementation.
+  `@affiant/contract` and the Web Component above were its first artifacts; `@affiant/core`
+  exists alongside them, at `0.1.0-alpha.0` and not published to npm, built and tested on
+  Node, Cloudflare workerd and Bun from its first commit rather than made portable
+  afterwards. The rulebook's fixture suite was promoted out of that package byte for byte —
+  the fixtures every implementation is now measured against are the ones the TypeScript
+  package already ran, and the rulebook records the package version and commit they came
+  from, so a renamed fixture cannot silently change what a published parity manifest refers
+  to. `@affiant/core` goes to npm only once two things are true: a public parity report for
+  the .NET packages exists, and the TypeScript conformance driver is green and
+  merge-blocking in CI. Both are now true. The `1.0.0-beta.3` conformance release
+  (2026-09-05) made the .NET packages pass that same fixture suite — all 63 fixtures at the
+  rulebook's `v0.1.2` tag — and put the attestation record — who or what approved a write —
+  on the Docket entry; its parity manifest declares an empty failing list and eleven rulebook
+  exemptions, itemised under [Recently shipped](#recently-shipped). And `affiant-ts` runs the
+  driver on all three runtimes in a CI job named `conformance`, which is a required status
+  check on `main`: a red run cannot merge. So neither gate stands in the way any more; the
+  package is still unpublished, and publishing it is now a decision rather than a blocker.
+  State: in progress. Links: issue: to be filed;
   [affiant-protocol](https://github.com/Sakwala/affiant-protocol),
   [affiant-ts](https://github.com/Sakwala/affiant-ts).
 - **Path to 1.0: stabilise the beta API** `[stability]` — Two of the three releases that
   come before `1.0` have shipped: `1.0.0-beta.1.1` (2026-09-04), a narrow point release,
   and `1.0.0-beta.3` (2026-09-05), the conformance release described in the TypeScript
-  item above, after which the parity manifest is empty. `1.0.0-beta.2`, the stabilisation
-  scope listed below, is the one release left before `1.0`, which follows once that list
-  is clear. What "stable" will mean is already defined in
+  item above, whose parity manifest declares an empty failing list. `1.0.0-beta.2`, the
+  stabilisation scope listed below, is the one release left before `1.0`, which follows once
+  that list is clear. What "stable" will mean is already defined in
   [Versioning & compatibility](README.md#versioning--compatibility). `1.0.0-beta.1.1`
   raised one floor and nothing else: with the stock defaults, a [Standing
   Order](https://affiant.dev/concepts/review-gate-and-write-executors/) written by the
@@ -91,8 +100,9 @@ No dates, ever: a solo-maintained project cannot promise a delivery date without
   one fix at host wiring, not three per-adapter fixes, because the Microsoft Agent Framework and
   Microsoft.Extensions.AI legs share `FunctionInvokingChatClient` (the Semantic Kernel leg
   is unverified against that fix) — SQLite/PostgreSQL store parity gaps, the
-  review-outcome state machine (a card a reviewer *refers* to someone else can today land
-  in a status no later step acts on), a test-isolation flake, and one removal already
+  review-outcome state machine (a card a reviewer *refers* to someone else today files
+  `Pending` with a blocked marker and refuses every decision on it — referral's own
+  semantics remain roadmap work), a test-isolation flake, and one removal already
   announced in the CHANGELOG — `IDeterministicFieldSource`, `[Obsolete]` today, removed no
   earlier than beta.2. Trust the invariant; expect the API to move until 1.0 — this is
   exactly what is moving. State: in progress. Links:
@@ -102,16 +112,6 @@ No dates, ever: a solo-maintained project cannot promise a delivery date without
   [affiant#37](https://github.com/Sakwala/affiant/issues/37),
   [affiant#17](https://github.com/Sakwala/affiant/issues/17); issues: to be filed (referral
   outcome; the risk floor).
-- **See a rendered Evidence Card in minutes: a minimal sample host and a quickstart that
-  ends at the card** `[on-ramp]` — Today the quickstart ends when the framework has filed
-  the Affidavit and pushed the request onto the transport — correct, but invisible; seeing
-  a rendered card today means wiring up a full host. Planned: one small sample (a single
-  domain, one read tool, one write tool, SQLite, and the Web Component above or a plain
-  page) runnable in a few minutes, a quickstart rewrite that ends at the rendered card,
-  and the missing walkthrough of how a field gets its value. Meridian shows the end state;
-  this shows the path. State: not started. Links: issue: to be filed;
-  [Quickstart](https://affiant.dev/start/quickstart/), [Try it
-  live](https://affiant.dev/start/live-demo/).
 
 ## Next
 
@@ -192,8 +192,9 @@ No dates, ever: a solo-maintained project cannot promise a delivery date without
 - **Observability contract** `[stability]` — Document the `affiant.*` OpenTelemetry
   attributes and activities as a stable, versioned contract. Links: issue: to be filed.
 - **`dotnet new` template** `[on-ramp]` — A project template that scaffolds a wired host —
-  DI, one read tool, one write tool, transport, card — once the sample host in Now has
-  proven the shape. Links: issue: to be filed.
+  DI, one read tool, one write tool, transport, card — so that the shape
+  [`samples/quickstart-host`](samples/quickstart-host/) demonstrates is generated rather than
+  copied by hand. Links: issue: to be filed.
 
 ## Not planned
 
@@ -232,12 +233,36 @@ No dates, ever: a solo-maintained project cannot promise a delivery date without
 - 2026-09-05 — `1.0.0-beta.3`: the conformance release. The .NET packages pass all 63
   fixtures at the rulebook's
   [`v0.1.2`](https://github.com/Sakwala/affiant-protocol/releases/tag/v0.1.2) tag, so the
-  parity manifest is now empty; the release also ships the compliance harness's fixture
-  runner (`Affiant.Testing.ComplianceHarness.ConformanceSuite`), so a host's own
-  compliance tests run the same rulebook suite the framework runs, and puts the
-  attestation record — who or what approved a write — on the Docket entry.
+  parity manifest declares an empty failing list. Eleven rulebook rules are exempted rather
+  than fixture-checked — SR-5, CV-2, CV-3, CV-5, AF-5, SR-3, RT-1, RT-2, RT-3, TL-1 and
+  TL-2 — each recorded in
+  [`conformance/parity/dotnet-v0.1.json`](conformance/parity/dotnet-v0.1.json) with its
+  reason and, where there is one, what is checked in its place; five of the eleven say
+  plainly that no substitute check exists yet. RT-1 is the rule that a core package be
+  runtime-neutral, and the exemption for it says in as many words that this implementation
+  claims one runtime — `net10.0` — and that the manifest names that one. The release also
+  ships the compliance harness's fixture runner
+  (`Affiant.Testing.ComplianceHarness.ConformanceSuite`), so a host's own
+  compliance tests run the same rulebook suite the framework runs, and puts the attestation
+  record — who or what approved a write — on the Docket entry.
   [Release](https://github.com/Sakwala/affiant/releases/tag/v1.0.0-beta.3),
   [CHANGELOG](CHANGELOG.md).
+- 2026-09-05 — The on-ramp shipped: a runnable sample host, and a Quickstart that ends at a
+  rendered card. `1.0.0-beta.3` ships
+  [`samples/quickstart-host`](samples/quickstart-host/) — one domain (leave requests), one
+  read tool, two write tools (request and amend), SQLite behind both the Docket and the
+  domain rows, and the `<affiant-evidence-card>` Web Component served from the host's own
+  `wwwroot/`. Run it, open the URL it prints, and the last thing on screen is the thing the
+  framework exists for: an Evidence Card in a browser tab, one row per field, each row naming
+  where its value came from — approve it, amend a field first, or reject it, and only then
+  does a row appear in the database. A development-only seam files the same proposal with one
+  `curl`, so the whole review lifecycle is reachable with no model key, and a seven-behaviour
+  Playwright deck in the sample's `e2e/` covers approve, reject, typed inputs, a live-data
+  picker, the mandatory-field gate, expiry, and resubmission with preserved amendments. The
+  [Quickstart](https://affiant.dev/start/quickstart/) is that sample's code step by step —
+  including how a field gets its value, from the field schema a domain declares to the
+  host-supplied projection that stamps an update-shaped write with its entity id and each
+  field's current value — and it ends at that card.
 - 2026-09-04 — `1.0.0-beta.1.1`: the risk floor fix. With the stock defaults a Standing
   Order written by the book could never auto-approve, because the default risk
   calculator never returned `Low` while the default threshold was `Low`; the stock
