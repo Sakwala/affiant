@@ -1063,8 +1063,10 @@ delivered its own `EvidenceCardResponse` unblocked the waiter and the row was wr
 
   **Reading against the rulebook's `v0.1.2` pin on this candidate: all 63 pass.** The parity manifest
   at `conformance/parity/dotnet-v0.1.json` therefore declares an empty failing list, which is what
-  this release's acceptance asks for, and it regenerates byte for byte from the run log committed
-  beside it (`conformance/regenerate-parity.py`).
+  this release's acceptance asks for. Running `conformance/regenerate-parity.py` against the run log
+  committed beside it reproduces the committed manifest byte for byte — the two files are one claim
+  and its evidence, and the run log names the git commit of the tree it measured, so a reader can
+  check both against a checkout.
 
   The pin moved from `v0.1.1` to `v0.1.2` in this change. That release states in SR-1 that the
   canonical form is taken over the Affidavit as the schema defines it — protocol version included —

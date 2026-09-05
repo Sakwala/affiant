@@ -201,12 +201,35 @@ internal sealed class ConformanceRun
         return plus < 0 ? informational : informational[..plus];
     }
 
-    private static string Commit() =>
-        Environment.GetEnvironmentVariable("GITHUB_SHA")
-        ?? Assembly.GetExecutingAssembly()
-            .GetCustomAttributes<AssemblyMetadataAttribute>()
-            .FirstOrDefault(a => a.Key == "CommitHash")?.Value
-        ?? ImplementationVersion;
+    /// <summary>
+    /// The git commit of the tree this run measured.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Read off <c>Affiant.Core</c>'s own informational version, whose build-metadata suffix the SDK
+    /// fills with the source revision — the same assembly the version comes from, so the log's two
+    /// facts about the thing measured cannot come from different builds. <c>GITHUB_SHA</c> wins
+    /// where CI sets it, for a build that produced the assembly outside a checkout.
+    /// </para>
+    /// <para>
+    /// It falls back to <c>"unknown"</c> and NEVER to the version. The published record's whole
+    /// purpose is to name the tree it measured; a version string in this field reads like a commit
+    /// and is not one, which is worse than admitting the build did not know.
+    /// </para>
+    /// </remarks>
+    private static string Commit()
+    {
+        if (Environment.GetEnvironmentVariable("GITHUB_SHA") is { Length: > 0 } fromCi)
+        {
+            return fromCi;
+        }
+
+        var informational = typeof(Affiant.Core.Services.ReviewGate).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+
+        var plus = informational?.IndexOf('+', StringComparison.Ordinal) ?? -1;
+        return plus >= 0 ? informational![(plus + 1)..] : "unknown";
+    }
 
     /// <summary>
     /// Writes the run beside the parity manifest it is the evidence for. The manifest is the claim;
