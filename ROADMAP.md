@@ -97,22 +97,28 @@ No delivery dates, ever: a solo-maintained project cannot promise one without it
   Order](https://affiant.dev/concepts/review-gate-and-write-executors/) written by the
   book could never auto-approve, because the default risk calculator never returned `Low`
   while the default threshold was `Low`. The fix removed the stock formula — the risk
-  scorer is now host-supplied, and the framework keeps only the comparison. Still in
-  flight for beta.2: conversation-scope isolation when no `ConversationId` is supplied. All
-  three adapters take the ambient service provider the same way — the application root
-  provider, whether it arrives on the function arguments or off the Kernel — so the scoped
-  conversation state resolves to one process-global instance shared by every conversation, and
-  the degradation is backend-neutral rather than one backend's quirk: the fallback that then
-  keys inference idempotency on that shared object's identity lives in the core, not in any
-  adapter. The fix is per-turn scoping at host wiring — one fix that holds on every backend,
-  not three per-adapter ones — and setting a `ConversationId` per conversation closes the
-  idempotency half of it today. Also in flight for beta.2: SQLite/PostgreSQL store parity
-  gaps, the review-outcome state machine (a card a reviewer *refers* to someone else today
-  files `Pending` with a blocked marker and refuses every decision on it — referral's own
-  semantics remain roadmap work), a test-isolation flake, and one removal already
-  announced in the CHANGELOG — `IDeterministicFieldSource`, `[Obsolete]` today, removed no
-  earlier than beta.2. Trust the invariant; expect the API to move until 1.0 — this is
-  exactly what is moving. State: in progress. Links:
+  scorer is now host-supplied, and the framework keeps only the comparison.
+  Still in flight for beta.2: conversation-scope isolation when no `ConversationId` is
+  supplied. Each adapter hands the neutral pipeline whatever service provider it has at
+  hand: the Semantic Kernel adapter reads it straight off the Kernel, while the Agent
+  Framework and Extensions.AI adapters both read the provider the invoking client attaches
+  to the function-call arguments. In the documented host wirings all three of those are
+  the same object — the application root provider — so all three resolve the scoped
+  conversation state to one process-global instance shared by every conversation, and the
+  degradation is backend-neutral rather than one backend's quirk: the fallback that then
+  keys inference idempotency on that shared object's identity lives in the core, not in
+  any adapter. A Semantic Kernel host that instead resolves its Kernel from a per-request
+  scope gets a per-request fabric, because that adapter's provider comes from the Kernel
+  rather than from the invoking client. The fix is per-turn scoping at host wiring — one
+  fix that holds on every backend, not three per-adapter ones — and setting a
+  `ConversationId` per conversation closes the idempotency half of it today. Also in
+  flight for beta.2: SQLite/PostgreSQL store parity gaps, the review-outcome state machine
+  (a card a reviewer *refers* to someone else today files `Pending` with a blocked marker
+  and refuses every decision on it — referral's own semantics remain roadmap work), a
+  test-isolation flake, and one removal already announced in the CHANGELOG —
+  `IDeterministicFieldSource`, `[Obsolete]` today, removed no earlier than beta.2. Trust
+  the invariant; expect the API to move until 1.0 — this is exactly what is moving. State:
+  in progress. Links:
   [affiant#41](https://github.com/Sakwala/affiant/issues/41),
   [affiant#33](https://github.com/Sakwala/affiant/issues/33),
   [affiant#34](https://github.com/Sakwala/affiant/issues/34),
