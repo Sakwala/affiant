@@ -1,4 +1,6 @@
 using System.Reflection;
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
 using Affiant.Abstractions.Interfaces;
 using System.Text.Json.Nodes;
 using Affiant.Testing.ComplianceHarness.Conformance.Loading;
@@ -28,35 +30,94 @@ namespace Affiant.Conformance.Tests;
 public sealed class ConformanceDriverTests(ITestOutputHelper output)
 {
     /// <summary>
-    /// AZ-7 and GT-6 together: the compliance harness arms a tripwire executor so a fixture can
-    /// assert the gate never reached it, and that tripwire is the ONLY <c>IWriteExecutor</c> in any
-    /// shipped assembly — and it throws. An executor in a shipped package that did anything else
-    /// would be the path AZ-7 says does not exist.
+    /// The framework's own vendored rulebook, by absolute path.
     /// </summary>
     /// <remarks>
-    /// The source-level guard lives in <c>Affiant.Core.Tests</c>
-    /// (<c>ExecutorReachabilityTests</c>), which exempts the harness's runner directory by path;
-    /// this is the other half, held against the compiled assembly, and it is here because this is
-    /// the project that references the harness.
+    /// Stated, not found: the harness reads every file a run needs from the root it is given, and
+    /// has no ambient copy to fall back on. This project's build copies <c>protocol/</c> beside the
+    /// test assembly, and this is the sentence that says so — a consumer's would name its own tree.
+    /// </remarks>
+    private static readonly string ProtocolRoot =
+        Path.Combine(Path.GetDirectoryName(typeof(ConformanceDriverTests).Assembly.Location)!, "protocol");
+
+    /// <summary>The vendored rulebook, loaded once per process.</summary>
+    private static ProtocolSuite Suite => LazySuite.Value;
+
+    private static readonly Lazy<ProtocolSuite> LazySuite =
+        new(() => ProtocolSuite.At(ProtocolRoot), LazyThreadSafetyMode.ExecutionAndPublication);
+
+    /// <summary>
+    /// The one run for this process. Running 63 documents per assertion would say the same thing
+    /// several times over and take several times as long.
+    /// </summary>
+    private static ConformanceRun Run => LazyRun.Value;
+
+    private static readonly Lazy<ConformanceRun> LazyRun =
+        new(() => ConformanceRun.Execute(ProtocolRoot, RepositoryResults()),
+            LazyThreadSafetyMode.ExecutionAndPublication);
+
+    /// <summary>
+    /// Where this repository keeps its run logs — the evidence the parity manifest rests on.
+    /// </summary>
+    /// <remarks>
+    /// The harness writes where a caller says and nowhere else, so finding this repository is this
+    /// project's job: walk up from the assembly for the <c>conformance/</c> directory the pin lives
+    /// in. Null outside a checkout (a packaged run), where the run is returned and not written.
+    /// </remarks>
+    private static string? RepositoryResults()
+    {
+        var directory = new DirectoryInfo(Path.GetDirectoryName(typeof(ConformanceDriverTests).Assembly.Location)!);
+        while (directory is not null)
+        {
+            var conformance = Path.Combine(directory.FullName, "conformance");
+            if (File.Exists(Path.Combine(conformance, "PROTOCOL_PIN")))
+            {
+                return Path.Combine(conformance, "results");
+            }
+
+            directory = directory.Parent;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// AZ-7 and GT-6 together: the compliance harness arms a tripwire executor so a fixture can
+    /// assert the gate never reached it, and that tripwire is the ONLY <c>IWriteExecutor</c> in any
+    /// of the ten shipped assemblies — and it throws. An executor in a shipped package that did
+    /// anything else would be the path AZ-7 says does not exist.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>All ten, loaded on purpose.</b> An enumeration of the assemblies that happen to be loaded
+    /// asserts over whatever this test project referenced — five of the ten — and says nothing about
+    /// the other five, which is exactly the shape of claim that reads as covering everything and
+    /// covers half. The list below is asserted equal to the solution's packable projects, so a new
+    /// package cannot join the release without joining this check.
+    /// </para>
+    /// <para>
+    /// The public-API analyzer is a second guard — RS0016 fails the build on an undeclared public
+    /// type, so a public executor implementation could not be added silently — and the source scan
+    /// in <c>Affiant.Core.Tests.Gate.ExecutorReachabilityTests</c> is a third. This test relies on
+    /// neither: it reads all ten assemblies' own metadata and looks.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void TheOnlyExecutorInAShippedAssembly_IsATripwireThatThrows()
+    public void TheOnlyExecutorInAnyShippedAssembly_IsATripwireThatThrows()
     {
-        var harness = typeof(Affiant.Testing.ComplianceHarness.ConformanceSuite).Assembly;
-
-        var implementations = AppDomain.CurrentDomain
-            .GetAssemblies()
-            .Where(a => a.GetName().Name?.StartsWith("Affiant.", StringComparison.Ordinal) == true)
-            .Where(a => a.GetName().Name?.EndsWith(".Tests", StringComparison.Ordinal) != true)
-            .SelectMany(a => a.GetTypes())
-            .Where(t => t != typeof(IWriteExecutor) && typeof(IWriteExecutor).IsAssignableFrom(t))
+        var implementations = ShippedAssemblies()
+            .SelectMany(ExecutorImplementationsIn)
             .ToArray();
 
         var tripwire = Assert.Single(implementations);
-        Assert.Equal(harness, tripwire.Assembly);
-        Assert.Contains(".Conformance.", tripwire.FullName!, StringComparison.Ordinal);
+        Assert.StartsWith(
+            "Affiant.Testing.ComplianceHarness.Conformance.", tripwire.TypeName, StringComparison.Ordinal);
 
-        var instance = (IWriteExecutor)Activator.CreateInstance(tripwire, nonPublic: true)!;
+        // And it is a tripwire: the type is loaded — this project references the harness — and asked
+        // to execute. It must refuse to be an executor.
+        var type = typeof(Affiant.Testing.ComplianceHarness.ConformanceSuite).Assembly
+            .GetType(tripwire.TypeName, throwOnError: true)!;
+        var instance = (IWriteExecutor)Activator.CreateInstance(type, nonPublic: true)!;
 
         Assert.ThrowsAny<Exception>(() => instance
             .ExecuteAsync(null!, null, CancellationToken.None)
@@ -64,11 +125,125 @@ public sealed class ConformanceDriverTests(ITestOutputHelper output)
             .GetResult());
     }
 
+    /// <summary>
+    /// Every type in <paramref name="assembly"/> that implements <c>IWriteExecutor</c>, read from
+    /// the assembly's own metadata.
+    /// </summary>
+    /// <remarks>
+    /// Metadata rather than reflection: loading an adapter assembly for a look would drag in every
+    /// dependency it declares — Entity Framework, SignalR, the two agent SDKs — and a type that
+    /// failed to load for want of one would silently drop out of the answer. This reads what the
+    /// assembly says about itself, so all ten are examined whatever is installed.
+    /// </remarks>
+    private static IEnumerable<(string Assembly, string TypeName)> ExecutorImplementationsIn(string assemblyPath)
+    {
+        using var stream = File.OpenRead(assemblyPath);
+        using var pe = new PEReader(stream);
+        var reader = pe.GetMetadataReader();
+        var found = new List<(string, string)>();
+
+        foreach (var handle in reader.TypeDefinitions)
+        {
+            var type = reader.GetTypeDefinition(handle);
+
+            foreach (var implementation in type.GetInterfaceImplementations()
+                         .Select(reader.GetInterfaceImplementation))
+            {
+                if (NameOf(reader, implementation.Interface) != nameof(IWriteExecutor)) continue;
+
+                var ns = reader.GetString(type.Namespace);
+                var name = reader.GetString(type.Name);
+                found.Add((Path.GetFileNameWithoutExtension(assemblyPath), ns.Length == 0 ? name : ns + "." + name));
+            }
+        }
+
+        return found;
+
+        static string? NameOf(MetadataReader reader, EntityHandle handle) => handle.Kind switch
+        {
+            HandleKind.TypeReference => reader.GetString(reader.GetTypeReference((TypeReferenceHandle)handle).Name),
+            HandleKind.TypeDefinition => reader.GetString(reader.GetTypeDefinition((TypeDefinitionHandle)handle).Name),
+            _ => null,
+        };
+    }
+
+    /// <summary>
+    /// The ten assemblies this repository ships, by path — and the assertion that the list IS the
+    /// release: every packable project under <c>src/</c> appears here, so a package added later
+    /// cannot quietly fall outside a check that says "any shipped assembly".
+    /// </summary>
+    private static IReadOnlyList<string> ShippedAssemblies()
+    {
+        string[] names =
+        [
+            "Affiant.Abstractions",
+            "Affiant.Core",
+            "Affiant.Docket",
+            "Affiant.EntityFramework",
+            "Affiant.Policies",
+            "Affiant.Transport.SignalR",
+            "Affiant.Extensions.AI",
+            "Affiant.SemanticKernel",
+            "Affiant.AgentFramework",
+            "Affiant.Testing.ComplianceHarness",
+        ];
+
+        var src = Path.Combine(RepositoryRoot(), "src");
+        var packable = Directory
+            .EnumerateFiles(src, "*.csproj", SearchOption.AllDirectories)
+            .Select(Path.GetFileNameWithoutExtension)
+            .Where(name => name is not null)
+            .Select(name => name!)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(names.OrderBy(n => n, StringComparer.Ordinal).ToArray(), packable);
+
+        var beside = Path.GetDirectoryName(typeof(ConformanceDriverTests).Assembly.Location)!;
+        var configuration = new DirectoryInfo(beside).Parent!.Name;
+
+        return
+        [
+            .. names.Select(name =>
+            {
+                // Beside this assembly for the five this project references; from the package's own
+                // build output for the five it does not — a solution build produces all ten, and
+                // referencing five more projects just to look at them would put the whole adapter
+                // surface in the driver's dependency graph to answer a question about none of it.
+                var path = Path.Combine(beside, name + ".dll");
+                if (!File.Exists(path))
+                {
+                    path = Path.Combine(src, name, "bin", configuration, "net10.0", name + ".dll");
+                }
+
+                Assert.True(
+                    File.Exists(path),
+                    $"{name}.dll was not found beside the test assembly or at {path}. "
+                    + "Build the solution before running this suite.");
+
+                return path;
+            }),
+        ];
+    }
+
+    /// <summary>This repository's root, found by walking up for the solution file.</summary>
+    private static string RepositoryRoot()
+    {
+        var directory = new DirectoryInfo(Path.GetDirectoryName(typeof(ConformanceDriverTests).Assembly.Location)!);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "Affiant.slnx"))) return directory.FullName;
+            directory = directory.Parent;
+        }
+
+        throw new DirectoryNotFoundException("No Affiant.slnx above the test assembly.");
+    }
+
     [Fact]
     public void EveryFixtureTheIndexListsWasRun()
     {
-        var run = ConformanceRun.Instance;
-        var expected = ProtocolSuite.Instance.Manifest.Select(m => m.Id).ToArray();
+        var run = Run;
+        var expected = Suite.Manifest.Select(m => m.Id).ToArray();
         var actual = run.Results.Select(r => r.Id).ToArray();
 
         // A driver runs every fixture the manifest lists. Running a subset and reporting a pass is
@@ -78,7 +253,7 @@ public sealed class ConformanceDriverTests(ITestOutputHelper output)
         var summary = run.Document["summary"]!;
         output.WriteLine(
             $"conformance {ConformanceRun.ImplementationName}@{ConformanceRun.ImplementationVersion} " +
-            $"against protocol {ProtocolSuite.ProtocolTag}: " +
+            $"against protocol {Suite.ProtocolTag}: " +
             $"{summary["passed"]} passed, {summary["failed"]} failed, {summary["errored"]} errored, " +
             $"{summary["skipped"]} skipped of {summary["total"]}.");
         if (run.WrittenTo is { } path)
@@ -93,15 +268,15 @@ public sealed class ConformanceDriverTests(ITestOutputHelper output)
         // A skip is legitimate only where the parity manifest declares one, and this driver declares
         // none: a port it cannot supply is an error, not a skip, and it counts against the
         // implementation exactly like a failure.
-        Assert.DoesNotContain(ConformanceRun.Instance.Results, r => r.Outcome == "skipped");
+        Assert.DoesNotContain(Run.Results, r => r.Outcome == "skipped");
     }
 
     [Fact]
     public void TheResultDocumentValidatesAgainstItsSchema()
     {
-        var schema = JsonSchema.FromFile(Path.Combine(ProtocolSuite.Instance.Root, "results.schema.json"));
+        var schema = JsonSchema.FromFile(Path.Combine(Suite.Root, "results.schema.json"));
         var result = schema.Evaluate(
-            ConformanceRun.Instance.Document,
+            Run.Document,
             new EvaluationOptions { OutputFormat = OutputFormat.List, RequireFormatValidation = false });
 
         Assert.True(result.IsValid, Explain(result));
@@ -114,7 +289,7 @@ public sealed class ConformanceDriverTests(ITestOutputHelper output)
         Assert.NotNull(manifest);
 
         var declared = manifest!.FailingIds;
-        var observed = ConformanceRun.Instance.FailingIds;
+        var observed = Run.FailingIds;
 
         var regressed = observed.Except(declared, StringComparer.Ordinal).ToArray();
         var closed = declared.Except(observed, StringComparer.Ordinal).ToArray();
@@ -162,7 +337,7 @@ public sealed class ConformanceDriverTests(ITestOutputHelper output)
         var manifest = ParityManifest.Load();
         Assert.NotNull(manifest);
 
-        var schema = JsonSchema.FromFile(Path.Combine(ProtocolSuite.Instance.Root, "parity", "MANIFEST.schema.json"));
+        var schema = JsonSchema.FromFile(Path.Combine(Suite.Root, "parity", "MANIFEST.schema.json"));
         var result = schema.Evaluate(
             manifest!.Document,
             new EvaluationOptions { OutputFormat = OutputFormat.List, RequireFormatValidation = false });
@@ -179,7 +354,7 @@ public sealed class ConformanceDriverTests(ITestOutputHelper output)
         // An implementation may not invent an exemption: exempting yourself from a rule is not a
         // parity report, it is a press release. The entries are COPIED from the rulebook's own list,
         // and this checks the copy is complete and carries nothing extra.
-        var rulebook = ProtocolSuite.ReadObject(Path.Combine(ProtocolSuite.Instance.Root, "lint", "coverage-exemptions.json"))
+        var rulebook = ProtocolSuite.ReadObject(Path.Combine(Suite.Root, "lint", "coverage-exemptions.json"))
             ["exemptions"]!.AsArray().Select(e => e!["rule"]!.GetValue<string>()).Order(StringComparer.Ordinal).ToArray();
         var declared = manifest!.Document["exemptions"]!.AsArray()
             .Select(e => e!["rule"]!.GetValue<string>()).Order(StringComparer.Ordinal).ToArray();
@@ -207,7 +382,7 @@ public sealed class ConformanceDriverTests(ITestOutputHelper output)
     [Fact]
     public void EveryOracleFixtureFailsOnThisRelease()
     {
-        var oracles = ProtocolSuite.Instance.Manifest
+        var oracles = Suite.Manifest
             .Where(m => m.Oracle is not null)
             .SelectMany(m => m.Oracle!.MustFailOn)
             .Distinct(StringComparer.Ordinal)
@@ -231,8 +406,8 @@ public sealed class ConformanceDriverTests(ITestOutputHelper output)
             return;
         }
 
-        var outcomes = ConformanceRun.Instance.Results.ToDictionary(r => r.Id, r => r.Outcome, StringComparer.Ordinal);
-        var passing = ProtocolSuite.Instance.Manifest
+        var outcomes = Run.Results.ToDictionary(r => r.Id, r => r.Outcome, StringComparer.Ordinal);
+        var passing = Suite.Manifest
             .Where(m => m.Oracle is not null && m.Oracle.MustFailOn.Contains(running, StringComparer.Ordinal))
             .Where(m => outcomes.GetValueOrDefault(m.Id) == "pass")
             .Select(m => $"{m.Id} (defect recorded: {m.Oracle!.Defect})")
@@ -248,7 +423,7 @@ public sealed class ConformanceDriverTests(ITestOutputHelper output)
     [Fact]
     public void TheVendoredSuiteIsTheDocumentThePinNames()
     {
-        var root = ProtocolSuite.Instance.Root;
+        var root = Suite.Root;
         var sums = Path.Combine(root, "SHA256SUMS");
         Assert.True(File.Exists(sums), $"No SHA256SUMS beside the vendored suite at {root}. Run conformance/sync.sh.");
 

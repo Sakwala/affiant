@@ -37,9 +37,6 @@ namespace Affiant.Testing.ComplianceHarness.Conformance.Canonical;
 /// </remarks>
 internal static class CanonicalVectorRunner
 {
-    private static readonly JsonSchema Schema = JsonSchema.FromFile(
-        Path.Combine(ProtocolSuite.Instance.Root, "canonical-vector.schema.json"));
-
     private static readonly EvaluationOptions Options = new()
     {
         OutputFormat = OutputFormat.List,
@@ -47,11 +44,13 @@ internal static class CanonicalVectorRunner
     };
 
     /// <summary>Reproduces one vector, reporting every disagreement it found.</summary>
-    public static (string Verdict, IReadOnlyList<Mismatch> Diff, string? Reason) Run(CanonicalVector vector)
+    public static (string Verdict, IReadOnlyList<Mismatch> Diff, string? Reason) Run(
+        ProtocolSuite suite, CanonicalVector vector)
     {
+        ArgumentNullException.ThrowIfNull(suite);
         ArgumentNullException.ThrowIfNull(vector);
 
-        if (SchemaProblems(vector) is { Count: > 0 } problems)
+        if (SchemaProblems(suite, vector) is { Count: > 0 } problems)
         {
             return (
                 "error",
@@ -121,10 +120,10 @@ internal static class CanonicalVectorRunner
         return map;
     }
 
-    private static IReadOnlyList<string> SchemaProblems(CanonicalVector vector)
+    private static IReadOnlyList<string> SchemaProblems(ProtocolSuite suite, CanonicalVector vector)
     {
         var document = ProtocolSuite.ReadObject(vector.SourcePath);
-        var result = Schema.Evaluate(document, Options);
+        var result = suite.CanonicalVectorSchema.Evaluate(document, Options);
         if (result.IsValid) return [];
 
         return

@@ -34,4 +34,4 @@ static Affiant.Testing.ComplianceHarness.ConformanceOutcome.operator !=(Affiant.
 static Affiant.Testing.ComplianceHarness.ConformanceOutcome.operator ==(Affiant.Testing.ComplianceHarness.ConformanceOutcome? left, Affiant.Testing.ComplianceHarness.ConformanceOutcome? right) -> bool
 static Affiant.Testing.ComplianceHarness.ConformanceReport.operator !=(Affiant.Testing.ComplianceHarness.ConformanceReport? left, Affiant.Testing.ComplianceHarness.ConformanceReport? right) -> bool
 static Affiant.Testing.ComplianceHarness.ConformanceReport.operator ==(Affiant.Testing.ComplianceHarness.ConformanceReport? left, Affiant.Testing.ComplianceHarness.ConformanceReport? right) -> bool
-static Affiant.Testing.ComplianceHarness.ConformanceSuite.Run(string? protocolRoot = null, string? writeRunTo = null) -> Affiant.Testing.ComplianceHarness.ConformanceReport!
+static Affiant.Testing.ComplianceHarness.ConformanceSuite.Run(string! protocolRoot, string? writeRunTo = null) -> Affiant.Testing.ComplianceHarness.ConformanceReport!

@@ -1084,7 +1084,12 @@ refuses it there.
   returns every fixture's outcome, the failing ids and the run document
   `results.schema.json` describes. The rulebook stays vendored by the caller: a suite a run measures
   against has to be a document a reader can check, pinned in a repository rather than fetched at run
-  time. The package gains references to `Affiant.Docket`, `Affiant.Policies` and `JsonSchema.Net` —
+  time. **The root the caller names is the whole of it** — fixtures, both schemas and the telemetry
+  registry come from there and nowhere else, with no copy beside the assembly and no fallback, and a
+  root missing any of them throws before a single fixture runs, naming the file and what it is for.
+  CI's `harness-consumer` job proves it the way an adopter meets it: pack the ten packages to a local
+  feed, restore a project whose only Affiant reference is that package, and run the suite from a
+  rulebook directory that is deliberately not beside the assembly. The package gains references to `Affiant.Docket`, `Affiant.Policies` and `JsonSchema.Net` —
   a compliance run files a proposal through the shipped gate against the shipped store and the
   shipped policy chain, and validates every document against the rulebook's own schema first.
 - **`tests/Affiant.Conformance.Tests` — the framework's invocation of it.** Runs the

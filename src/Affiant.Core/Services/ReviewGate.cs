@@ -234,11 +234,14 @@ public sealed class ReviewGate(
     /// <c>ReviewStatus.Resubmitted</c> — the source entry's <see cref="DocketEntry.Status"/> stays
     /// <see cref="ReviewStatus.Expired"/> forever, matching the client's own shipped decision to
     /// never visually distinguish a resubmitted card from a plain expired one. The new entry's id is
-    /// minted up front (<see cref="Guid.NewGuid"/>) precisely so <see cref="IDocketStore.ConsumeForResubmitAsync"/>
-    /// and the eventual filing both target the same, already-known id.
+    /// DERIVED before the claim (GT-4): the same material as a first filing — the tenant, the
+    /// conversation, the tool and the canonical form of the operation and its arguments — plus the
+    /// id of the row it supersedes, so a resubmission has the same identity in every implementation
+    /// and both <see cref="IDocketStore.RecordSupersessionAsync"/> and the filing that follows
+    /// target the same, already-known id. See <see cref="EntryIdDerivation"/>.
     /// </para>
     /// <para>
-    /// <b>Ordering and its failure mode:</b> the guard runs <i>before</i> filing — <see cref="IDocketStore.ConsumeForResubmitAsync"/>
+    /// <b>Ordering and its failure mode:</b> the guard runs <i>before</i> filing — <see cref="IDocketStore.RecordSupersessionAsync"/>
     /// is the operation two concurrent callers actually race on, not the filing itself. The loser
     /// sees 0 rows affected and throws <see cref="InvalidOperationException"/>, the same shape as
     /// the not-found/not-Expired guards above (mirrored by hosts' existing "already processed or

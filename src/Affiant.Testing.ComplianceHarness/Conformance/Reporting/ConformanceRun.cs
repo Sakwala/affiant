@@ -45,17 +45,12 @@ internal sealed class ConformanceRun
     /// <summary>The implementation's identifier, matching the parity manifest's.</summary>
     public const string ImplementationName = "dotnet";
 
-    private static readonly Lazy<ConformanceRun> Lazy = new(Execute, LazyThreadSafetyMode.ExecutionAndPublication);
-
     private ConformanceRun(IReadOnlyList<FixtureResult> results, JsonObject document, string? writtenTo)
     {
         Results = results;
         Document = document;
         WrittenTo = writtenTo;
     }
-
-    /// <summary>The one run for this process.</summary>
-    public static ConformanceRun Instance => Lazy.Value;
 
     /// <summary>One entry per fixture the index lists, including the ones that passed.</summary>
     public IReadOnlyList<FixtureResult> Results { get; }
@@ -75,7 +70,7 @@ internal sealed class ConformanceRun
     /// beside the running assembly), writing the run into <paramref name="writeRunTo"/> (null: the
     /// repository's own conformance/results, when this is running inside one).
     /// </summary>
-    public static ConformanceRun Execute(string? protocolRoot, string? writeRunTo)
+    public static ConformanceRun Execute(string protocolRoot, string? writeRunTo)
     {
         var suite = ProtocolSuite.At(protocolRoot);
         var results = new List<FixtureResult>();
@@ -88,26 +83,8 @@ internal sealed class ConformanceRun
 
         wall.Stop();
 
-        var document = Compose(results, wall.Elapsed.TotalMilliseconds);
-        var writtenTo = writeRunTo is { Length: > 0 } ? Write(document, writeRunTo) : TryWrite(document);
-        return new ConformanceRun(results, document, writtenTo);
-    }
-
-    private static ConformanceRun Execute()
-    {
-        var suite = ProtocolSuite.Instance;
-        var results = new List<FixtureResult>();
-        var wall = Stopwatch.StartNew();
-
-        foreach (var entry in suite.Manifest)
-        {
-            results.Add(RunOne(suite, entry));
-        }
-
-        wall.Stop();
-
-        var document = Compose(results, wall.Elapsed.TotalMilliseconds);
-        var writtenTo = TryWrite(document);
+        var document = Compose(suite, results, wall.Elapsed.TotalMilliseconds);
+        var writtenTo = writeRunTo is { Length: > 0 } ? Write(document, writeRunTo) : null;
         return new ConformanceRun(results, document, writtenTo);
     }
 
@@ -119,11 +96,11 @@ internal sealed class ConformanceRun
         {
             if (entry.Set == "canonical")
             {
-                var (verdict, diff, reason) = CanonicalVectorRunner.Run(FixtureLoader.LoadVector(path));
+                var (verdict, diff, reason) = CanonicalVectorRunner.Run(suite, FixtureLoader.LoadVector(path));
                 return new FixtureResult(entry.Id, verdict, diff, timer.Elapsed.TotalMilliseconds, reason);
             }
 
-            var fixture = FixtureLoader.Load(path);
+            var fixture = FixtureLoader.Load(suite, path);
             var outcome = FixtureRunner.RunAsync(fixture, CancellationToken.None).GetAwaiter().GetResult();
             return new FixtureResult(entry.Id, outcome.Verdict, outcome.Diff, timer.Elapsed.TotalMilliseconds, outcome.Reason);
         }
@@ -145,7 +122,8 @@ internal sealed class ConformanceRun
         }
     }
 
-    private static JsonObject Compose(IReadOnlyList<FixtureResult> results, double durationMs)
+    private static JsonObject Compose(
+        ProtocolSuite suite, IReadOnlyList<FixtureResult> results, double durationMs)
     {
         var rows = new JsonArray();
         foreach (var result in results)
@@ -191,7 +169,7 @@ internal sealed class ConformanceRun
                 ["commit"] = Commit(),
                 ["runtime"] = "net10.0",
             },
-            ["protocolTag"] = ProtocolSuite.ProtocolTag,
+            ["protocolTag"] = suite.ProtocolTag,
             ["producedAt"] = DateTimeOffset.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture),
             ["summary"] = new JsonObject
             {
@@ -255,11 +233,15 @@ internal sealed class ConformanceRun
     }
 
     /// <summary>
-    /// Writes the run beside the parity manifest it is the evidence for. The manifest is the claim;
-    /// the log is the evidence, and a run that only printed to a terminal could tell a reader that
-    /// something failed without producing the list the manifest is derived from.
+    /// Writes the run into the directory the caller named, as
+    /// <c>&lt;implementation&gt;-&lt;version&gt;.json</c>.
     /// </summary>
-    /// <summary>Writes the run into a directory the caller named.</summary>
+    /// <remarks>
+    /// Only where the caller asked. A package that went looking for somewhere to write would be
+    /// writing into a tree it was never given, and a run that only printed to a terminal could tell
+    /// a reader that something failed without producing the list a parity manifest is derived from —
+    /// so the choice is the caller's, and it is one argument.
+    /// </remarks>
     private static string Write(JsonObject document, string directory)
     {
         Directory.CreateDirectory(directory);
@@ -269,24 +251,4 @@ internal sealed class ConformanceRun
         return path;
     }
 
-    private static string? TryWrite(JsonObject document)
-    {
-        var directory = new DirectoryInfo(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!);
-        while (directory is not null)
-        {
-            var conformance = Path.Combine(directory.FullName, "conformance");
-            if (File.Exists(Path.Combine(conformance, "PROTOCOL_PIN")))
-            {
-                var results = Path.Combine(conformance, "results");
-                Directory.CreateDirectory(results);
-                var path = Path.Combine(results, $"{ImplementationName}-{ImplementationVersion}.json");
-                File.WriteAllText(path, document.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
-                return path;
-            }
-
-            directory = directory.Parent;
-        }
-
-        return null;
-    }
 }

@@ -16,9 +16,6 @@ internal sealed class FixtureDocumentException(string message) : Exception(messa
 /// <summary>Turns a vendored JSON document into the typed model the executor binds to the framework.</summary>
 internal static class FixtureLoader
 {
-    private static readonly JsonSchema Schema = JsonSchema.FromFile(
-        Path.Combine(ProtocolSuite.Instance.Root, "fixture.schema.json"));
-
     private static readonly EvaluationOptions Options = new()
     {
         OutputFormat = OutputFormat.List,
@@ -30,14 +27,16 @@ internal static class FixtureLoader
     /// format refuses — an unknown key anywhere, an expectation that states no fact, a telemetry
     /// clause naming a key the registry does not know.
     /// </summary>
-    public static Fixture Load(string path)
+    public static Fixture Load(ProtocolSuite suite, string path)
     {
+        ArgumentNullException.ThrowIfNull(suite);
+
         var doc = ProtocolSuite.ReadObject(path);
-        Validate(doc, path);
+        Validate(suite, doc, path);
 
         var expect = doc["expect"]!.AsObject();
         RefuseVacuous(expect, path);
-        RefuseUnregisteredTelemetry(expect, path);
+        RefuseUnregisteredTelemetry(suite, expect, path);
 
         var given = doc["given"]!.AsObject();
         return new Fixture(
@@ -59,6 +58,8 @@ internal static class FixtureLoader
     /// </remarks>
     public static CanonicalVector LoadVector(string path)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
         var doc = ProtocolSuite.ReadObject(path);
         return new CanonicalVector(
             doc["id"]!.GetValue<string>(),
@@ -73,9 +74,9 @@ internal static class FixtureLoader
             path);
     }
 
-    private static void Validate(JsonObject doc, string path)
+    private static void Validate(ProtocolSuite suite, JsonObject doc, string path)
     {
-        var result = Schema.Evaluate(doc, Options);
+        var result = suite.FixtureSchema.Evaluate(doc, Options);
         if (result.IsValid)
         {
             return;
@@ -124,7 +125,7 @@ internal static class FixtureLoader
         _ => 1,
     };
 
-    private static void RefuseUnregisteredTelemetry(JsonObject expect, string path)
+    private static void RefuseUnregisteredTelemetry(ProtocolSuite suite, JsonObject expect, string path)
     {
         foreach (var clause in new[] { "telemetry", "telemetryAbsent" })
         {
@@ -135,7 +136,7 @@ internal static class FixtureLoader
 
             foreach (var key in keys.Select(k => k!.GetValue<string>()))
             {
-                if (!ProtocolSuite.Instance.TelemetryRegistry.Contains(key))
+                if (!suite.TelemetryRegistry.Contains(key))
                 {
                     throw new FixtureDocumentException(
                         $"{Path.GetFileName(path)} names telemetry key \"{key}\", which the registry does not know (TL-1).");

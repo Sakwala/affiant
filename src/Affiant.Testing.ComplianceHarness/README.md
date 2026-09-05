@@ -70,20 +70,29 @@ every fixture's outcome, the failing ids, and the run document the rulebook's `r
 describes.
 
 ```csharp
-var report = ConformanceSuite.Run(protocolRoot: "protocol", writeRunTo: "conformance/results");
+var report = ConformanceSuite.Run(
+    protocolRoot: Path.Combine(RepositoryRoot, "protocol"),   // your vendored copy, by path
+    writeRunTo: Path.Combine(RepositoryRoot, "conformance", "results"));   // or null: no file
 
 Assert.True(
     report.Passed,
     "fixtures failing: " + string.Join(", ", report.FailingIds));
 ```
 
-The rulebook is **vendored by the caller**: `protocolRoot` is the directory holding `fixtures/`,
-`fixture.schema.json` and `canonical-vector.schema.json` as
-[`Sakwala/affiant-protocol`](https://github.com/Sakwala/affiant-protocol) publishes them, pinned in
-your own repository rather than fetched at run time — a suite a run measures against has to be a
-document a reader can check. Passing `null` reads a copy the build placed beside the assembly.
+**The root is the whole of it.** The fixtures, the fixture schema, the canonical-vector schema and
+the telemetry registry are read from `protocolRoot` and from nowhere else — no copy beside the
+assembly, no ambient default, no fallback. A root missing any file a run reads throws before a
+single fixture is executed, naming the file and what it is for. `protocolRoot` is the directory
+holding `fixtures/`, `fixture.schema.json` and `canonical-vector.schema.json` as
+[`Sakwala/affiant-protocol`](https://github.com/Sakwala/affiant-protocol) publishes them, vendored
+into your own repository: a suite a run measures against has to be a document a reader can check,
+pinned beside your tests rather than fetched at run time.
 
-Every fixture is validated against the rulebook's schema before it runs, so a malformed document is
+The run document is written only where you ask; `writeRunTo: null` returns it without touching the
+disk. Where a `conformance/PROTOCOL_PIN` sits above your vendored copy, the run names that ref;
+otherwise it says `unpinned`.
+
+Every fixture is validated against your rulebook's schema before it runs, so a malformed document is
 an error and never a pass; an error counts against the implementation exactly like a failure. This
 is the same code the framework's own conformance run goes through, so a claim in the framework's
 release notes and a run in your test suite are the same measurement.

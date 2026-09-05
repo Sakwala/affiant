@@ -24,6 +24,13 @@ namespace Affiant.Testing.ComplianceHarness;
 /// verifies it, are in <c>conformance/</c> of the Affiant repository.
 /// </para>
 /// <para>
+/// <b>The root is the whole of it.</b> The fixtures, both schemas and the telemetry registry are
+/// read from it and from nowhere else: there is no copy beside the assembly, no ambient default and
+/// no fallback. A caller's fixtures held against a different rulebook's schema would be a
+/// measurement nobody could interpret, and the shape that produced one — a package that quietly
+/// read its own copy — is the shape this API exists to make impossible.
+/// </para>
+/// <para>
 /// Every fixture is validated against the rulebook's schema before it runs, so a malformed document
 /// is an error and never a pass; a fixture the run cannot execute at all is an error too, and an
 /// error counts against the implementation exactly like a failure.
@@ -33,15 +40,17 @@ public static class ConformanceSuite
 {
     /// <summary>Runs the suite at <paramref name="protocolRoot"/> and returns the report.</summary>
     /// <param name="protocolRoot">
-    /// The vendored rulebook's root — the directory containing <c>fixtures/</c>. Null reads the copy
-    /// beside the calling assembly, which is where the framework's own test project puts it.
+    /// The vendored rulebook's root — the directory holding <c>fixtures/</c>,
+    /// <c>fixture.schema.json</c> and <c>canonical-vector.schema.json</c>. Every file the run reads
+    /// comes from here and from nowhere else; a root missing one of them throws before a single
+    /// fixture is executed, naming the file and what it is for.
     /// </param>
     /// <param name="writeRunTo">
     /// A directory to write the run document into, named for the version it measured, or null to
     /// return it without writing. A run that only printed to a terminal could tell a reader that
     /// something failed without producing the list a parity manifest is derived from.
     /// </param>
-    public static ConformanceReport Run(string? protocolRoot = null, string? writeRunTo = null)
+    public static ConformanceReport Run(string protocolRoot, string? writeRunTo = null)
     {
         var run = ConformanceRun.Execute(protocolRoot, writeRunTo);
         return new ConformanceReport(

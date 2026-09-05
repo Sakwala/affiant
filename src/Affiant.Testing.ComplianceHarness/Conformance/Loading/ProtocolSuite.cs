@@ -1,21 +1,41 @@
-using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Affiant.Testing.ComplianceHarness.Conformance.Model;
+using Json.Schema;
 
 namespace Affiant.Testing.ComplianceHarness.Conformance.Loading;
 
 /// <summary>
-/// The vendored rulebook on disk: the fixture index, the documents themselves, the schema they are
-/// checked against and the telemetry registry a fixture's telemetry clause may name.
+/// One vendored rulebook on disk: the fixture index, the documents themselves, the two schemas they
+/// are checked against, and the telemetry registry a fixture's telemetry clause may name.
 /// </summary>
 /// <remarks>
-/// The copy under <c>protocol/</c> is vendored from the commit <c>conformance/PROTOCOL_PIN</c>
-/// names and verified against <c>SHA256SUMS</c> by <c>conformance/sync.sh --verify</c>, which CI
-/// runs. The driver therefore builds and runs offline, and an edited fixture cannot pass unnoticed.
+/// <para>
+/// <b>Everything comes from the root the caller named, and nothing from anywhere else.</b> A run is
+/// a measurement against a document set a reader can check; a suite that took its fixtures from one
+/// place and the schema they are validated against from another would be holding a caller's
+/// rulebook to a different rulebook's rules, and neither the caller nor the reader of the report
+/// would be told. There is no ambient copy, no beside-the-assembly fallback and no static instance:
+/// a root is stated, or nothing runs.
+/// </para>
+/// <para>
+/// The framework's own copy is vendored from the commit <c>conformance/PROTOCOL_PIN</c> names and
+/// verified against <c>SHA256SUMS</c> by <c>conformance/sync.sh --verify</c>, which CI runs, so its
+/// driver builds and runs offline and an edited fixture cannot pass unnoticed. A consumer vendors
+/// the same way, in its own repository.
+/// </para>
 /// </remarks>
 internal sealed class ProtocolSuite
 {
+    /// <summary>What a rulebook root must carry, and what each file is for.</summary>
+    private static readonly (string Path, string Purpose)[] Required =
+    [
+        (Path.Combine("fixtures", "MANIFEST.json"), "the index of every conformance document to run"),
+        ("fixture.schema.json", "the schema every declarative fixture is validated against"),
+        ("canonical-vector.schema.json", "the schema every canonical byte vector is validated against"),
+        (Path.Combine("fixtures", "v0.1", "telemetry-key", "01-registry.json"), "the telemetry-key registry (TL-1)"),
+    ];
+
     private ProtocolSuite(string root)
     {
         Root = root;
@@ -24,11 +44,21 @@ internal sealed class ProtocolSuite
     /// <summary>The vendored rulebook's root directory.</summary>
     public string Root { get; }
 
-    /// <summary>The one instance for a run; the suite is read-only and loading it twice is waste.</summary>
-    public static ProtocolSuite Instance { get; } = Locate();
+    /// <summary>The protocol ref this copy came from, as <c>conformance/PROTOCOL_PIN</c> records it.</summary>
+    public string ProtocolTag => _tag ??= ReadPin(Root);
 
-    /// <summary>The protocol ref the vendored copy came from, as <c>conformance/PROTOCOL_PIN</c> records it.</summary>
-    public static string ProtocolTag { get; } = ReadPin();
+    private string? _tag;
+
+    /// <summary>The schema every declarative fixture is held against, from this root.</summary>
+    public JsonSchema FixtureSchema => _fixtureSchema ??= JsonSchema.FromFile(Path.Combine(Root, "fixture.schema.json"));
+
+    private JsonSchema? _fixtureSchema;
+
+    /// <summary>The schema every canonical byte vector is held against, from this root.</summary>
+    public JsonSchema CanonicalVectorSchema =>
+        _vectorSchema ??= JsonSchema.FromFile(Path.Combine(Root, "canonical-vector.schema.json"));
+
+    private JsonSchema? _vectorSchema;
 
     /// <summary>Every conformance document the index lists — the whole set a driver must run.</summary>
     public IReadOnlyList<ManifestEntry> Manifest => _manifest ??= LoadManifest();
@@ -87,50 +117,54 @@ internal sealed class ProtocolSuite
     }
 
     /// <summary>
-    /// The vendored rulebook at <paramref name="root"/>, or the copy beside the running assembly.
+    /// The vendored rulebook at <paramref name="root"/>, checked before anything runs.
     /// </summary>
     /// <remarks>
-    /// A caller states the root when its vendored copy is somewhere of its own choosing — a host
-    /// pinning the suite in its own repository — and leaves it null to read the copy the build put
-    /// beside the assembly, which is what the framework's own test project does.
+    /// Every file a run reads comes from here. A root that is missing one of them fails with one
+    /// exception naming the root, the file and what that file is for — before a single fixture is
+    /// executed, because a run that started and then failed halfway through would leave a caller
+    /// reading a partial report as though it were a measurement.
     /// </remarks>
-    public static ProtocolSuite At(string? root)
+    /// <exception cref="DirectoryNotFoundException">The root does not exist.</exception>
+    /// <exception cref="FileNotFoundException">The root is missing a file a run reads.</exception>
+    public static ProtocolSuite At(string root)
     {
-        if (root is { Length: > 0 })
-        {
-            if (!Directory.Exists(Path.Combine(root, "fixtures")))
-            {
-                throw new DirectoryNotFoundException(
-                    $"No vendored rulebook at {root}: it carries no fixtures/ directory. The root is "
-                    + "the directory holding fixtures/, fixture.schema.json and "
-                    + "canonical-vector.schema.json, as affiant-protocol publishes them.");
-            }
+        ArgumentException.ThrowIfNullOrWhiteSpace(root);
 
-            return new ProtocolSuite(root);
+        var full = Path.GetFullPath(root);
+        if (!Directory.Exists(full))
+        {
+            throw new DirectoryNotFoundException(
+                $"No vendored rulebook at {full}: the directory does not exist. The root is the "
+                + "directory holding fixtures/, fixture.schema.json and canonical-vector.schema.json "
+                + "as Sakwala/affiant-protocol publishes them, vendored into your own repository.");
         }
 
-        return Locate();
-    }
+        var missing = Required
+            .Where(r => !File.Exists(Path.Combine(full, r.Path)))
+            .Select(r => $"  {r.Path} — {r.Purpose}")
+            .ToArray();
 
-    private static ProtocolSuite Locate()
-    {
-        var beside = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!, "protocol");
-        if (Directory.Exists(Path.Combine(beside, "fixtures")))
+        if (missing.Length > 0)
         {
-            return new ProtocolSuite(beside);
+            throw new FileNotFoundException(
+                $"The vendored rulebook at {full} is missing {missing.Length} file(s) a conformance "
+                + $"run reads:{Environment.NewLine}{string.Join(Environment.NewLine, missing)}"
+                + $"{Environment.NewLine}The root is the directory holding fixtures/, "
+                + "fixture.schema.json and canonical-vector.schema.json as Sakwala/affiant-protocol "
+                + "publishes them.");
         }
 
-        throw new DirectoryNotFoundException(
-            $"The vendored rulebook is not beside the running assembly ({beside}). Vendor it — the "
-            + "framework's own copy is made by conformance/sync.sh — or state its root.");
+        return new ProtocolSuite(full);
     }
 
-    private static string ReadPin()
+    private static string ReadPin(string root)
     {
-        // PROTOCOL_PIN travels with the repository, not the build output, so it is found by walking
-        // up from the assembly; when it is not there (a packaged run), the vendored README carries
-        // the same ref and the pin falls back to it rather than reporting a tag nobody pinned.
-        var dir = new DirectoryInfo(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!);
+        // PROTOCOL_PIN travels with the repository that vendored this copy, not with the copy
+        // itself, so it is found by walking up FROM THE ROOT — the caller's own tree, wherever that
+        // is. A caller that vendored without a pin file reports "unpinned" rather than a tag nobody
+        // pinned; the run document says which it was.
+        var dir = new DirectoryInfo(root);
         while (dir is not null)
         {
             var pin = Path.Combine(dir.FullName, "conformance", "PROTOCOL_PIN");

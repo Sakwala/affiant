@@ -128,6 +128,79 @@ jobs:
             samples/quickstart-host/host.log
           retention-days: 7
 
+  # The compliance harness as an ADOPTER gets it. The driver ships in
+  # Affiant.Testing.ComplianceHarness so a host can run the rulebook's suite against its own wiring;
+  # this job is the only check that exercises that claim the way a host does — from the packed
+  # package, restored from a local feed, with the rulebook in a directory that is deliberately NOT
+  # beside the assembly.
+  #
+  # It exists because that claim was once false in a way nothing else could see: the package read
+  # its schemas from a copy of the rulebook beside its own assembly, so the whole surface worked in
+  # this repository (where the test project's build puts one there) and threw for everybody else.
+  # A project reference cannot catch that. A packed package restored from a feed can.
+  harness-consumer:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Pack the release to a local feed
+        run: dotnet pack Affiant.slnx -c Release -o "$RUNNER_TEMP/feed"
+
+      - name: Read the version the tree builds
+        id: version
+        run: |
+          prefix=$(sed -n 's:.*<VersionPrefix>\(.*\)</VersionPrefix>.*:\1:p' Directory.Build.props | head -1)
+          suffix=$(sed -n 's:.*<VersionSuffix>\(.*\)</VersionSuffix>.*:\1:p' Directory.Build.props | head -1)
+          version="$prefix${suffix:+-$suffix}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "packing produced:"; ls "$RUNNER_TEMP/feed"
+
+      # Every Affiant package comes from the local feed and nothing else — a restore that could
+      # reach nuget.org might resolve a PUBLISHED package of the same version and measure a release
+      # nobody built here. Third-party dependencies still come from nuget.org, which is what a
+      # source mapping is for. A job-local packages folder keeps a cached package of the same
+      # version from winning.
+      - name: Restore the consumer against that feed alone
+        working-directory: tests/harness-consumer
+        run: |
+          cat > nuget.config <<'CONFIG'
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <packageSources>
+              <clear />
+              <add key="local" value="FEED" />
+              <add key="nuget" value="https://api.nuget.org/v3/index.json" />
+            </packageSources>
+            <packageSourceMapping>
+              <packageSource key="local">
+                <package pattern="Affiant.*" />
+              </packageSource>
+              <packageSource key="nuget">
+                <package pattern="*" />
+              </packageSource>
+            </packageSourceMapping>
+          </configuration>
+          CONFIG
+          sed -i "s|FEED|$RUNNER_TEMP/feed|" nuget.config
+          dotnet restore -p:AffiantVersion=${{ steps.version.outputs.version }} \
+            --packages "$RUNNER_TEMP/packages"
+
+      # The rulebook is the repository's vendored copy, named by absolute path and nowhere near the
+      # consumer's output directory. A run that read anything from beside its own assembly would
+      # either fail here or quietly measure the wrong document.
+      - name: Run the rulebook's suite from the packed package
+        working-directory: tests/harness-consumer
+        run: |
+          dotnet run -c Release --no-restore \
+            -p:AffiantVersion=${{ steps.version.outputs.version }} \
+            -- "$GITHUB_WORKSPACE/tests/Affiant.Conformance.Tests/protocol"
+
   # The conformance driver's own gate. It runs the rulebook's promoted fixture suite against the
   # shipped packages and asserts that the set of fixtures that FAIL is exactly the set
   # conformance/parity/dotnet-v0.1.json declares -- failing in either direction, because a check
