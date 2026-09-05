@@ -11,7 +11,7 @@ in lockstep as of 2026-07-05 (`Affiant.Extensions.AI` joined the set 2026-08-20)
 plus the bare `Affiant` meta-ID, are reserved on nuget.org (the last two, `Affiant.AgentFramework`
 and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectively).
 
-## [1.0.0-beta.3] — unreleased
+## [1.0.0-beta.3] — 2026-09-05
 
 ### Decisions, attestation and identity as the rulebook defines them
 
