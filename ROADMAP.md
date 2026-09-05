@@ -71,8 +71,8 @@ No dates, ever: a solo-maintained project cannot promise a delivery date without
   conformance driver is green and merge-blocking in CI. The first is now true: the
   `1.0.0-beta.3` conformance release (2026-09-05) made the .NET packages pass that same
   fixture suite — all 63 fixtures at the rulebook's `v0.1.2` tag — and put the attestation
-  record — who or what approved a write — on the Docket entry; the parity manifest is now
-  empty. State: in progress. Links: issue: to be filed;
+  record — who or what approved a write — on the Docket entry; the parity manifest
+  declares an empty failing list. State: in progress. Links: issue: to be filed;
   [affiant-protocol](https://github.com/Sakwala/affiant-protocol),
   [affiant-ts](https://github.com/Sakwala/affiant-ts).
 - **Path to 1.0: stabilise the beta API** `[stability]` — Two of the three releases that
@@ -91,8 +91,9 @@ No dates, ever: a solo-maintained project cannot promise a delivery date without
   one fix at host wiring, not three per-adapter fixes, because the Microsoft Agent Framework and
   Microsoft.Extensions.AI legs share `FunctionInvokingChatClient` (the Semantic Kernel leg
   is unverified against that fix) — SQLite/PostgreSQL store parity gaps, the
-  review-outcome state machine (a card a reviewer *refers* to someone else can today land
-  in a status no later step acts on), a test-isolation flake, and one removal already
+  review-outcome state machine (a card a reviewer *refers* to someone else today files
+  `Pending` with a blocked marker and refuses every decision on it — referral's own
+  semantics remain roadmap work), a test-isolation flake, and one removal already
   announced in the CHANGELOG — `IDeterministicFieldSource`, `[Obsolete]` today, removed no
   earlier than beta.2. Trust the invariant; expect the API to move until 1.0 — this is
   exactly what is moving. State: in progress. Links:
@@ -232,10 +233,12 @@ No dates, ever: a solo-maintained project cannot promise a delivery date without
 - 2026-09-05 — `1.0.0-beta.3`: the conformance release. The .NET packages pass all 63
   fixtures at the rulebook's
   [`v0.1.2`](https://github.com/Sakwala/affiant-protocol/releases/tag/v0.1.2) tag, so the
-  parity manifest is now empty; the release also ships the compliance harness's fixture
-  runner (`Affiant.Testing.ComplianceHarness.ConformanceSuite`), so a host's own
-  compliance tests run the same rulebook suite the framework runs, and puts the
-  attestation record — who or what approved a write — on the Docket entry.
+  parity manifest declares an empty failing list — 11 rulebook exemptions still apply, see
+  [`conformance/parity/dotnet-v0.1.json`](conformance/parity/dotnet-v0.1.json); the release
+  also ships the compliance harness's fixture runner
+  (`Affiant.Testing.ComplianceHarness.ConformanceSuite`), so a host's own compliance tests
+  run the same rulebook suite the framework runs, and puts the attestation record — who or
+  what approved a write — on the Docket entry.
   [Release](https://github.com/Sakwala/affiant/releases/tag/v1.0.0-beta.3),
   [CHANGELOG](CHANGELOG.md).
 - 2026-09-04 — `1.0.0-beta.1.1`: the risk floor fix. With the stock defaults a Standing
