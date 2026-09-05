@@ -36,9 +36,12 @@ public static class EntryIdDerivation
     /// <param name="tenantId">The tenant the conversation belongs to.</param>
     /// <param name="conversationId">The conversation the call was made in.</param>
     /// <param name="toolName">The tool the model called.</param>
-    /// <param name="affidavit">
-    /// The record the call proposes. The operation is read off it — its shape, the entity it names
-    /// and the fields it proposes, which AF-1 makes exactly the operation's own field list.
+    /// <param name="operation">
+    /// The write as the host declared it — its shape, the entity it names and the fields it
+    /// proposes, in the declared order. Stated rather than read off the record: a projection that
+    /// reordered fields would otherwise change which row a proposal is. Where no declaration exists
+    /// — a resubmission has only the stored record to read — <see cref="ProposedOperation.From"/> is
+    /// the reading, which is what the protocol's reference implementation does on that path too.
     /// </param>
     /// <param name="arguments">The arguments the model passed, or <see langword="null"/> for none.</param>
     /// <param name="supersedes">The row this proposal replaces, or <see langword="null"/>.</param>
@@ -46,14 +49,14 @@ public static class EntryIdDerivation
         string tenantId,
         string conversationId,
         string toolName,
-        Affidavit affidavit,
+        ProposedOperation operation,
         IReadOnlyDictionary<string, object?>? arguments,
         Guid? supersedes)
     {
-        ArgumentNullException.ThrowIfNull(affidavit);
+        ArgumentNullException.ThrowIfNull(operation);
 
         var fields = new JsonArray();
-        foreach (var field in affidavit.Fields) fields.Add(JsonValue.Create(field.Name));
+        foreach (var field in operation.Fields) fields.Add(JsonValue.Create(field));
 
         var material = new JsonObject
         {
@@ -62,9 +65,9 @@ public static class EntryIdDerivation
             ["toolName"] = toolName,
             ["operation"] = new JsonObject
             {
-                ["kind"] = Operation.IsUpdateShaped(affidavit.OperationType) ? "update" : "create",
-                ["entityType"] = affidavit.EntityType,
-                ["entityId"] = affidavit.EntityId,
+                ["kind"] = operation.Kind,
+                ["entityType"] = operation.EntityType,
+                ["entityId"] = operation.EntityId,
                 ["fields"] = fields,
             },
             ["args"] = arguments is null

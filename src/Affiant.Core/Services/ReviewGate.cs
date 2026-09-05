@@ -282,7 +282,21 @@ public sealed class ReviewGate(
         }
 
         var scope = new DocketScope(entry.TenantId);
-        var newEntryId = Guid.NewGuid();
+
+        // GT-4 again, and this is the case its `supersedes` clause exists for: a resubmission's id
+        // is DERIVED from the same material as a first filing plus the id of the row it replaces, so
+        // the row a resubmission files has the same identity in every implementation. The operation
+        // is read off the stored record because that is all a resubmission has — the row keeps the
+        // Affidavit, not the call that produced it — and the arguments are none for the same reason.
+        // A random id here would have made the one path the clause is about the one path that
+        // ignored it.
+        var newEntryId = EntryIdDerivation.Derive(
+            entry.TenantId,
+            entry.SessionId,
+            entry.ToolName,
+            ProposedOperation.From(entry.Envelope),
+            arguments: null,
+            supersedes: expiredEntryId);
 
         // Claim the source entry for newEntryId before filing anything else — the claim, not the
         // filing, is what two concurrent ResubmitAsync calls for the same expired entry actually race
@@ -1463,7 +1477,7 @@ public sealed class ReviewGate(
             context.TenantId,
             context.SessionId,
             proposal.ToolName,
-            context.Affidavit,
+            proposal.Operation ?? ProposedOperation.From(context.Affidavit),
             proposal.Arguments,
             context.Supersedes);
 

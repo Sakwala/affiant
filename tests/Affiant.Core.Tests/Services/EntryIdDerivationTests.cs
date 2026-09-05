@@ -19,6 +19,9 @@ using Xunit;
 /// </remarks>
 public class EntryIdDerivationTests
 {
+    private static ProposedOperation Operation(string kind, string entityType, string? entityId, params string[] fields) =>
+        new(kind, entityType, entityId, fields);
+
     private static Affidavit Affidavit(string operationType, string entityType, string? entityId, params string[] fields) =>
         new(
             operationType,
@@ -38,7 +41,7 @@ public class EntryIdDerivationTests
             "tenant-a",
             "conv-1",
             "update_invoice",
-            Affidavit("WriteUpdate", "Invoice", "invoice-1", "status", "amount", "note"),
+            Operation("update", "Invoice", "invoice-1", "status", "amount", "note"),
             arguments: null,
             supersedes: null);
 
@@ -52,7 +55,7 @@ public class EntryIdDerivationTests
             "tenant-b",
             "conv-2",
             "create_widget",
-            Affidavit("WriteCreate", "Widget", null, "name", "size"),
+            Operation("create", "Widget", null, "name", "size"),
             new Dictionary<string, object?> { ["name"] = "gizmo", ["size"] = 4 },
             supersedes: null);
 
@@ -66,7 +69,7 @@ public class EntryIdDerivationTests
             "tenant-a",
             "conv-1",
             "update_invoice",
-            Affidavit("WriteUpdate", "Invoice", "invoice-1", "status"),
+            Operation("update", "Invoice", "invoice-1", "status"),
             new Dictionary<string, object?> { ["status"] = "Active" },
             supersedes: Guid.Parse("8f14e45f-ceea-467e-bd76-000000000001"));
 
@@ -82,7 +85,7 @@ public class EntryIdDerivationTests
     {
         var id = EntryIdDerivation.Derive(
             "tenant-a", "conv-1", "update_invoice",
-            Affidavit("WriteUpdate", "Invoice", "invoice-1", "status"),
+            Operation("update", "Invoice", "invoice-1", "status"),
             arguments: null,
             supersedes: null);
 
@@ -92,22 +95,72 @@ public class EntryIdDerivationTests
     }
 
     /// <summary>
+    /// A resubmission derives its id the same way, plus the row it replaces — the one case GT-4's
+    /// `supersedes` clause exists for, and the one the reference implementation reads off the stored
+    /// record because that is all a resubmission has.
+    /// </summary>
+    [Fact]
+    public void AResubmissionOfAStoredRow_DerivesTheReferenceId()
+    {
+        var id = EntryIdDerivation.Derive(
+            "tenant-a",
+            "conv-1",
+            "update_invoice",
+            ProposedOperation.From(
+                Affidavit("WriteUpdate", "Invoice", "invoice-1", "status", "amount", "note")),
+            arguments: null,
+            supersedes: Guid.Parse("4f3f031b-a7c4-867c-9b1f-be0de416040d"));
+
+        Assert.Equal(Guid.Parse("1048b454-9222-8892-b1ff-8bfdb05db878"), id);
+    }
+
+    /// <summary>
+    /// The operation is the host's DECLARATION, not a reading of the projected record: a projection
+    /// that reordered the fields must not change which row a proposal is.
+    /// </summary>
+    [Fact]
+    public void TheDeclaredFieldOrder_IsTheIdentity()
+    {
+        var declared = EntryIdDerivation.Derive(
+            "tenant-a", "conv-1", "update_invoice",
+            Operation("update", "Invoice", "invoice-1", "status", "amount", "note"),
+            arguments: null, supersedes: null);
+
+        var reordered = EntryIdDerivation.Derive(
+            "tenant-a", "conv-1", "update_invoice",
+            Operation("update", "Invoice", "invoice-1", "amount", "note", "status"),
+            arguments: null, supersedes: null);
+
+        Assert.NotEqual(declared, reordered);
+
+        // And reading it off a record whose fields are in the declared order is the same answer,
+        // which is what makes the fallback safe where a host declared nothing.
+        Assert.Equal(
+            declared,
+            EntryIdDerivation.Derive(
+                "tenant-a", "conv-1", "update_invoice",
+                ProposedOperation.From(
+                    Affidavit("WriteUpdate", "Invoice", "invoice-1", "status", "amount", "note")),
+                arguments: null, supersedes: null));
+    }
+
+    /// <summary>
     /// The arguments are part of the material: two calls that differ only in what the model passed
     /// are two proposals, and a retry of the same call is a replay of the same row (GT-4).
     /// </summary>
     [Fact]
     public void TheArgumentsArePartOfTheIdentity()
     {
-        var affidavit = Affidavit("WriteUpdate", "Invoice", "invoice-1", "status");
+        var operation = Operation("update", "Invoice", "invoice-1", "status");
 
         var active = EntryIdDerivation.Derive(
-            "tenant-a", "conv-1", "update_invoice", affidavit,
+            "tenant-a", "conv-1", "update_invoice", operation,
             new Dictionary<string, object?> { ["status"] = "Active" }, supersedes: null);
         var retired = EntryIdDerivation.Derive(
-            "tenant-a", "conv-1", "update_invoice", affidavit,
+            "tenant-a", "conv-1", "update_invoice", operation,
             new Dictionary<string, object?> { ["status"] = "Retired" }, supersedes: null);
         var again = EntryIdDerivation.Derive(
-            "tenant-a", "conv-1", "update_invoice", affidavit,
+            "tenant-a", "conv-1", "update_invoice", operation,
             new Dictionary<string, object?> { ["status"] = "Active" }, supersedes: null);
 
         Assert.NotEqual(active, retired);

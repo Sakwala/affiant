@@ -46,6 +46,50 @@ public sealed record ReadResult(
 ) : ToolEnvelope(ToolName, Timestamp);
 
 /// <summary>
+/// The write a tool proposes, as the HOST declares it: the shape, the entity it names, and the
+/// fields it proposes, in the order the host declared them.
+/// </summary>
+/// <remarks>
+/// <para>
+/// It is what an entry id is derived from (GT-4), which is why it is stated rather than inferred: a
+/// projection that reordered or renamed fields would otherwise change the identity of the row a
+/// proposal files, and two implementations projecting the same call slightly differently would
+/// disagree about which row it is. A caller that declares none leaves the gate to read the operation
+/// off the record it proposes — which is what a resubmission does, having only the stored record to
+/// read.
+/// </para>
+/// </remarks>
+/// <param name="Kind">The protocol's two-valued shape vocabulary: <c>create</c> or <c>update</c>.</param>
+/// <param name="EntityType">The kind of domain entity being written, named by the host.</param>
+/// <param name="EntityId">The entity being written; null on a create (AF-3).</param>
+/// <param name="Fields">The fields the operation proposes, in the order the host declared them.</param>
+public sealed record ProposedOperation(
+    string Kind,
+    string EntityType,
+    string? EntityId,
+    IReadOnlyList<string> Fields)
+{
+    /// <summary>
+    /// The operation an Affidavit describes — the reading used where no host declaration is at hand.
+    /// </summary>
+    /// <remarks>
+    /// AF-1 makes an Affidavit's fields exactly the fields the operation proposes, so the two agree
+    /// while that holds. A resubmission has nothing else to read: the row it replaces stores the
+    /// record, not the call that produced it.
+    /// </remarks>
+    public static ProposedOperation From(Affidavit affidavit)
+    {
+        ArgumentNullException.ThrowIfNull(affidavit);
+
+        return new ProposedOperation(
+            Operation.IsUpdateShaped(affidavit.OperationType) ? "update" : "create",
+            affidavit.EntityType,
+            affidavit.EntityId,
+            [.. affidavit.Fields.Select(f => f.Name)]);
+    }
+}
+
+/// <summary>
 /// Write proposals — produces an envelope containing the proposed mutation,
 /// never executes the write. The ReviewGate handles confirmation.
 /// </summary>
@@ -65,11 +109,16 @@ public sealed record ReadResult(
 /// give two different writes the same identity.
 /// </para>
 /// </param>
+/// <param name="Operation">
+/// The write as the host declares it, or <see langword="null"/> to let the gate read it off the
+/// record. Part of the material an entry id is derived from (GT-4).
+/// </param>
 public sealed record WriteProposal(
     string ToolName,
     DateTimeOffset Timestamp,
     object Envelope,
-    IReadOnlyDictionary<string, object?>? Arguments = null
+    IReadOnlyDictionary<string, object?>? Arguments = null,
+    ProposedOperation? Operation = null
 ) : ToolEnvelope(ToolName, Timestamp);
 
 /// <summary>

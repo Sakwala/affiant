@@ -528,6 +528,19 @@ Affiant.Abstractions.Models.Principal.Service.Id.init -> void
 Affiant.Abstractions.Models.Principal.Service.Relay.get -> Affiant.Abstractions.Models.RelayAssertion?
 Affiant.Abstractions.Models.Principal.Service.Relay.init -> void
 Affiant.Abstractions.Models.Principal.Service.Service(string! Id, Affiant.Abstractions.Models.RelayAssertion? Relay = null, string? AssertedMember = null) -> void
+Affiant.Abstractions.Models.ProposedOperation
+Affiant.Abstractions.Models.ProposedOperation.<Clone>$() -> Affiant.Abstractions.Models.ProposedOperation!
+Affiant.Abstractions.Models.ProposedOperation.Deconstruct(out string! Kind, out string! EntityType, out string? EntityId, out System.Collections.Generic.IReadOnlyList<string!>! Fields) -> void
+Affiant.Abstractions.Models.ProposedOperation.EntityId.get -> string?
+Affiant.Abstractions.Models.ProposedOperation.EntityId.init -> void
+Affiant.Abstractions.Models.ProposedOperation.EntityType.get -> string!
+Affiant.Abstractions.Models.ProposedOperation.EntityType.init -> void
+Affiant.Abstractions.Models.ProposedOperation.Equals(Affiant.Abstractions.Models.ProposedOperation? other) -> bool
+Affiant.Abstractions.Models.ProposedOperation.Fields.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Affiant.Abstractions.Models.ProposedOperation.Fields.init -> void
+Affiant.Abstractions.Models.ProposedOperation.Kind.get -> string!
+Affiant.Abstractions.Models.ProposedOperation.Kind.init -> void
+Affiant.Abstractions.Models.ProposedOperation.ProposedOperation(string! Kind, string! EntityType, string? EntityId, System.Collections.Generic.IReadOnlyList<string!>! Fields) -> void
 Affiant.Abstractions.Models.ProvenanceBinding
 Affiant.Abstractions.Models.ProvenanceBinding.ComputationRef
 Affiant.Abstractions.Models.ProvenanceBinding.ComputationRef.ComputationRef(Affiant.Abstractions.Models.ComputationRuleRef! Ref) -> void
@@ -646,8 +659,10 @@ Affiant.Abstractions.Models.UtteranceSpanRef.Offset.init -> void
 Affiant.Abstractions.Models.UtteranceSpanRef.UtteranceSpanRef(int Offset, int Length, string! Hash) -> void
 Affiant.Abstractions.Models.WriteProposal.Arguments.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object?>?
 Affiant.Abstractions.Models.WriteProposal.Arguments.init -> void
-Affiant.Abstractions.Models.WriteProposal.Deconstruct(out string! ToolName, out System.DateTimeOffset Timestamp, out object! Envelope, out System.Collections.Generic.IReadOnlyDictionary<string!, object?>? Arguments) -> void
-Affiant.Abstractions.Models.WriteProposal.WriteProposal(string! ToolName, System.DateTimeOffset Timestamp, object! Envelope, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? Arguments = null) -> void
+Affiant.Abstractions.Models.WriteProposal.Deconstruct(out string! ToolName, out System.DateTimeOffset Timestamp, out object! Envelope, out System.Collections.Generic.IReadOnlyDictionary<string!, object?>? Arguments, out Affiant.Abstractions.Models.ProposedOperation? Operation) -> void
+Affiant.Abstractions.Models.WriteProposal.Operation.get -> Affiant.Abstractions.Models.ProposedOperation?
+Affiant.Abstractions.Models.WriteProposal.Operation.init -> void
+Affiant.Abstractions.Models.WriteProposal.WriteProposal(string! ToolName, System.DateTimeOffset Timestamp, object! Envelope, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? Arguments = null, Affiant.Abstractions.Models.ProposedOperation? Operation = null) -> void
 Affiant.Abstractions.Serialization.AffiantJson
 Affiant.Abstractions.Serialization.IsoInstantJsonConverter
 Affiant.Abstractions.Serialization.IsoInstantJsonConverter.IsoInstantJsonConverter() -> void
@@ -1014,6 +1029,9 @@ override Affiant.Abstractions.Models.Principal.Service.GetHashCode() -> int
 override Affiant.Abstractions.Models.Principal.Service.Kind.get -> string!
 override Affiant.Abstractions.Models.Principal.Service.ToString() -> string!
 override Affiant.Abstractions.Models.Principal.ToString() -> string!
+override Affiant.Abstractions.Models.ProposedOperation.Equals(object? obj) -> bool
+override Affiant.Abstractions.Models.ProposedOperation.GetHashCode() -> int
+override Affiant.Abstractions.Models.ProposedOperation.ToString() -> string!
 override Affiant.Abstractions.Models.ProvenanceBinding.ComputationRef.<Clone>$() -> Affiant.Abstractions.Models.ProvenanceBinding.ComputationRef!
 override Affiant.Abstractions.Models.ProvenanceBinding.ComputationRef.Equals(object? obj) -> bool
 override Affiant.Abstractions.Models.ProvenanceBinding.ComputationRef.GetHashCode() -> int
@@ -1255,6 +1273,9 @@ static Affiant.Abstractions.Models.Principal.Service.operator !=(Affiant.Abstrac
 static Affiant.Abstractions.Models.Principal.Service.operator ==(Affiant.Abstractions.Models.Principal.Service? left, Affiant.Abstractions.Models.Principal.Service? right) -> bool
 static Affiant.Abstractions.Models.Principal.operator !=(Affiant.Abstractions.Models.Principal? left, Affiant.Abstractions.Models.Principal? right) -> bool
 static Affiant.Abstractions.Models.Principal.operator ==(Affiant.Abstractions.Models.Principal? left, Affiant.Abstractions.Models.Principal? right) -> bool
+static Affiant.Abstractions.Models.ProposedOperation.From(Affiant.Abstractions.Models.Affidavit! affidavit) -> Affiant.Abstractions.Models.ProposedOperation!
+static Affiant.Abstractions.Models.ProposedOperation.operator !=(Affiant.Abstractions.Models.ProposedOperation? left, Affiant.Abstractions.Models.ProposedOperation? right) -> bool
+static Affiant.Abstractions.Models.ProposedOperation.operator ==(Affiant.Abstractions.Models.ProposedOperation? left, Affiant.Abstractions.Models.ProposedOperation? right) -> bool
 static Affiant.Abstractions.Models.ProvenanceBinding.ComputationRef.operator !=(Affiant.Abstractions.Models.ProvenanceBinding.ComputationRef? left, Affiant.Abstractions.Models.ProvenanceBinding.ComputationRef? right) -> bool
 static Affiant.Abstractions.Models.ProvenanceBinding.ComputationRef.operator ==(Affiant.Abstractions.Models.ProvenanceBinding.ComputationRef? left, Affiant.Abstractions.Models.ProvenanceBinding.ComputationRef? right) -> bool
 static Affiant.Abstractions.Models.ProvenanceBinding.ExternalRef.operator !=(Affiant.Abstractions.Models.ProvenanceBinding.ExternalRef? left, Affiant.Abstractions.Models.ProvenanceBinding.ExternalRef? right) -> bool

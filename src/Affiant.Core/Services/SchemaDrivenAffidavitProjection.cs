@@ -263,6 +263,9 @@ public sealed class SchemaDrivenAffidavitProjection : IAffidavitProjection
 
         _eventStream.Publish(new AffidavitEmittedEvent(
             ConversationId: conversationId,
+            // Not a protocol identity: this is the correlation id of one OBSERVABILITY event, read
+            // by a host's own telemetry consumer and never written to a record, compared, or put on
+            // a wire. The identities the rules are about — a Docket entry id (GT-4) — are derived.
             AffidavitId: Guid.NewGuid(),
             OperationType: operationType,
             EntityType: _strategy.EntityName,

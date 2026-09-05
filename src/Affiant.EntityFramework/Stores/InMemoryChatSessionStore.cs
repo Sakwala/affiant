@@ -28,6 +28,9 @@ public sealed class InMemoryChatSessionStore(TimeProvider? timeProvider = null) 
         ct.ThrowIfCancellationRequested();
 
         var now = _time.GetUtcNow();
+        // Not a protocol identity: a chat session id is the host's own conversation handle, minted
+        // here only because a host that has none asked this store to make one. Nothing in the rules
+        // derives from it, and a Docket entry id — the identity GT-4 is about — is derived.
         var session = new ChatSession(Guid.NewGuid().ToString("N"), tenantId, userId, now, now);
         _sessions[session.SessionId] = session;
         return Task.FromResult(session);

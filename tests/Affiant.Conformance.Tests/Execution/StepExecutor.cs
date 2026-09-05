@@ -224,13 +224,31 @@ internal sealed class StepExecutor(GateHarness harness, GivenSpec given)
         // The arguments the model passed, as a host would hand them over: they are part of the
         // material an entry id derives from (GT-4), and the gate is what derives it. A driver that
         // supplied an id of its own would be answering the question the fixture asks.
+        // The operation as the HOST declares it, which is what an entry id derives from (GT-4): the
+        // fixture's own declaration for a `file` step, and for a wrap the fields the model actually
+        // passed, in the order it passed them. Read off the declaration rather than off the
+        // projected record, so a projection that reordered fields could not change which row this
+        // proposal is.
+        var declared = isWrap
+            ? new ProposedOperation(
+                step.Tool!.EntityId is null ? "create" : "update",
+                step.Tool.EntityType,
+                step.Tool.EntityId,
+                [.. (step.Args ?? new Dictionary<string, JsonNode?>()).Keys])
+            : new ProposedOperation(
+                step.Operation!.Kind,
+                step.Operation.EntityType,
+                step.Operation.EntityId,
+                step.Operation.Fields);
+
         var proposal = new WriteProposal(
             toolName,
             harness.Clock,
             affidavit,
             step.Args is null
                 ? null
-                : step.Args.ToDictionary(kv => kv.Key, kv => Values.ToClr(kv.Value), StringComparer.Ordinal));
+                : step.Args.ToDictionary(kv => kv.Key, kv => Values.ToClr(kv.Value), StringComparer.Ordinal),
+            declared);
         var context = new ReviewContext(
             SessionId: conversationId,
             TenantId: tenantId,

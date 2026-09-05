@@ -23,6 +23,7 @@ public sealed class SqliteChatSessionStore(
 
         var entity = new ChatSessionEntity
         {
+            // Not a protocol identity: the host's own conversation handle. See the in-memory store.
             SessionId = Guid.NewGuid().ToString("N"),
             TenantId = tenantId,
             UserId = userId,
