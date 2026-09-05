@@ -681,9 +681,9 @@ per-release detail are in the [CHANGELOG](CHANGELOG.md)'s header; not repeated h
   tag with no deprecation window — pin the exact version, don't float on `--prerelease`, and
   read the CHANGELOG before bumping.
 - **A breaking prerelease change is still always documented** — every Area-8 breaking change in
-  the current `[Unreleased]` CHANGELOG section is labeled `!` in its commit and spelled out in
-  prose, including the concrete migration. "No stability promise" describes what's allowed to
-  break, not permission to leave a break undocumented.
+  the CHANGELOG is labeled `!` in its commit and spelled out in prose, including the concrete
+  migration. "No stability promise" describes what's allowed to break, not permission to
+  leave a break undocumented.
 - **After `1.0.0` GA, standard SemVer applies:** a breaking change requires a major-version bump
   across all ten packages (lockstep means one package's break is every package's major bump); a
   deprecation gets an `[Obsolete]` attribute with a removal-target version stated in its message
