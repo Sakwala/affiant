@@ -16,9 +16,12 @@ Nothing commits without evidence. Nothing writes without approval.
 > nightly. What to try and what you are looking at:
 > [affiant.dev/start/live-demo](https://affiant.dev/start/live-demo/).
 
-> **Beta.** `1.0.0-beta.1` is on nuget.org — all ten packages, co-versioned, published 2026-08-23 (UTC).
-> The public API has been validated by two first-party host applications but has not yet reached 1.0 GA.
-> Read [Beta status](#beta-status) before adopting — trust the *invariant*, expect the *API* to evolve.
+> **Beta.** `1.0.0-beta.3` — the conformance release — is the current version: all ten packages,
+> co-versioned. It passes the protocol's whole conformance suite, 63 of 63, at the rulebook's
+> [`v0.1.2`](https://github.com/Sakwala/affiant-protocol/releases/tag/v0.1.2) tag; the run and the
+> parity manifest it rests on are in `conformance/`. The public API has been validated by two
+> first-party host applications but has not yet reached 1.0 GA. Read
+> [Beta status](#beta-status) before adopting — trust the *invariant*, expect the *API* to evolve.
 
 ---
 
@@ -698,14 +701,21 @@ per-release detail are in the [CHANGELOG](CHANGELOG.md)'s header; not repeated h
 
 ## Beta status
 
-This is `1.0.0-beta.1`, published on nuget.org on 2026-08-23 (UTC). Earlier `1.0.0-alpha.*`
-versions were internal and were never published.
+This is `1.0.0-beta.3`, the conformance release. `1.0.0-beta.1` was published on nuget.org on
+2026-08-23 (UTC) and `1.0.0-beta.1.1` on 2026-09-04; earlier `1.0.0-alpha.*` versions were internal
+and were never published.
+
+Every package is installed with `--prerelease`, so the Quickstarts below need no version pin: they
+resolve to the latest prerelease, which is this one. Pin explicitly (`--version 1.0.0-beta.3`) where
+a build has to be reproducible.
 
 The API has been exercised by two independent first-party host applications, but it has not
 yet reached 1.0 GA. Adopt on this basis:
 
 - **Trust the invariant.** Every Affidavit field carries provenance, no exceptions. That
-  contract is stable and is enforced by the ComplianceHarness.
+  contract is stable, it is enforced by the ComplianceHarness, and from `1.0.0-beta.3` the same
+  package runs the protocol's own conformance suite — `ConformanceSuite.Run(...)` — so a host can
+  measure its own wiring against the rulebook with the code the framework's own result comes from.
 - **Expect API evolution between prerelease tags** — see
   ["Versioning & compatibility"](#versioning--compatibility) above for exactly what that does
   and doesn't promise.

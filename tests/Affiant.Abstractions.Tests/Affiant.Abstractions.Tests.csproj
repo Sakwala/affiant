@@ -39,7 +39,9 @@
 
   <!-- The vendored rulebook travels with the test binary: these tests read the v0.1 schemas and the
        protocol's byte vectors at run time, and the run must not depend on the working directory or
-       on a network fetch. See tests/protocol/README.md for the commit it was copied from. -->
+       on a network fetch. The ref it was copied from is named in the doc comment of the suite that
+       reads it (CanonicalVectorTests, V01SchemaValidation), beside the checksums in
+       tests/protocol/SHA256SUMS. -->
   <ItemGroup>
     <Content Include="../protocol/**/*" LinkBase="protocol" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

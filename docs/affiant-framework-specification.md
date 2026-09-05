@@ -801,10 +801,12 @@ host's outbox is a retry of an already-attested write rather than a second autho
 // The actual mutation — host code the host runs, against an attested Docket entry
 public interface IWriteExecutor
 {
-    Task<WriteResult> ExecuteAsync(Affidavit approvedAffidavit, ConversationIdentity identity, CancellationToken ct);
+    // The accepted state and the reviewer's edits, if any. A key present with a null value clears
+    // the field; an absent key leaves it alone (DK-2). Raise on failure — the gate does not retry,
+    // and a failed write is reported as `failed` rather than swallowed.
+    Task<string?> ExecuteAsync(
+        Affidavit affidavit, IReadOnlyDictionary<string, object?>? amendments, CancellationToken ct);
 }
-
-public sealed record WriteResult(bool Success, string? EntityId, string? ErrorMessage);
 
 // The only path to execution: "executed". The status stays Approved — the approval happened and is
 // not undone by a failed write; only the execution outcome moves, and it moves once.

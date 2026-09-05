@@ -11,7 +11,7 @@ in lockstep as of 2026-07-05 (`Affiant.Extensions.AI` joined the set 2026-08-20)
 plus the bare `Affiant` meta-ID, are reserved on nuget.org (the last two, `Affiant.AgentFramework`
 and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectively).
 
-## [Unreleased]
+## [1.0.0-beta.3] — unreleased
 
 ### Decisions, attestation and identity as the rulebook defines them
 
@@ -1042,6 +1042,40 @@ delivered its own `EvidenceCardResponse` unblocked the waiter and the row was wr
   noticed it, and one `coverage.refused` event per tool names one of CV-4's own three categories.
   **Breaking** for a host catching `InvalidOperationException` around `WithAffiant`: catch
   `AffiantCoverageException` (or `AffiantRefusalException`, its base) instead.
+#### CV-1, re-read: what the wire-up validator enforces and what it does not
+
+CV-1 says a wiring the gate cannot run is refused before anything is proposed. `AddAffiantCore()`'s
+`AffiantWireUpValidator` runs at startup and refuses, naming the fix for each:
+
+- **no `IStreamingTransport`** and **no `IDocketStore`** — a review with nowhere to go and no queue
+  to sit in;
+- **no `IPreviousValueSource` where a declared tool is update-shaped** — an update Affidavit swears
+  to what each field replaces, and only the host's system of record knows that;
+- **no `IReviewContextProvider`, no `ReviewGate` or no `IDecisionAuthorizationPolicy` where any
+  declared tool is write-capable** — a review loop in which no proposal can be routed, filed or
+  decided;
+- **a Standing Order that declares a risk threshold with no scorer registered** — the policy chain
+  is built in a throwaway scope and asked, so an unbacked threshold is a refusal rather than a
+  silent non-fire;
+- **a coverage gap** — a write-capable tool the gate cannot stand in front of, refused by
+  `ToolCoverage` at the adapter's wire-up (new in this release).
+
+Two clauses are **not** enforced at startup, deliberately, and neither is a coverage gap:
+
+- **the inference port.** A host that registers none is not misconfigured: a Sequence C host hands
+  the gate fields it has already tagged and never asks a model anything. What a host without one
+  gets is an Affidavit whose fields nothing swears for, and GT-3 refuses it *at the proposal* with
+  a message naming the tool — the refusal a host actually needs, at the moment it means something,
+  rather than a startup error for a shape that is legitimate.
+- **the projection port.** `AddAffiantCore()` registers the schema-driven projection, so "missing"
+  is not a state a host can reach; a host that replaces it is exercising a supported seam. A
+  projection that produced an unlawful record is caught by the record's own rules (AF-1, AF-3) on
+  the first proposal, which is where the fact is knowable.
+
+The third way a write could once pass unreviewed — a registered `IReviewContextProvider` that
+returns no context for one particular call — only a live request can know, and `ReviewGateFilter`
+refuses it there.
+
 - **`Affiant.Testing.ComplianceHarness.ConformanceSuite` — the conformance driver ships.** The
   runner — loading, step execution, observation, matching and reporting — lives in the harness
   package, so a host's own compliance tests run the rulebook's suite through the same code the
@@ -2420,5 +2454,6 @@ pre-1.0 clean break, not a deprecation — there is no compatibility shim:
   Mapping), and §5 (Framework Boundary Contract, new Seam 4) corrected/rewritten to describe this
   architecture; see those sections for full detail.
 
-[Unreleased]: https://github.com/Sakwala/affiant/compare/v1.0.0-beta.1...HEAD
+[1.0.0-beta.3]: https://github.com/Sakwala/affiant/compare/v1.0.0-beta.1.1...HEAD
+[1.0.0-beta.1.1]: https://github.com/Sakwala/affiant/releases/tag/v1.0.0-beta.1.1
 [1.0.0-beta.1]: https://github.com/Sakwala/affiant/releases/tag/v1.0.0-beta.1
