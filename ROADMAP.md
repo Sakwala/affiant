@@ -4,8 +4,10 @@ Last updated: 2026-09-05 · Current release: 1.0.0-beta.3 (2026-09-05)
 
 This file is canonical. It is mirrored at [affiant.dev/roadmap/](https://affiant.dev/roadmap/); if the two ever differ, this file wins.
 
-> This roadmap is a statement of direction, not a commitment. No item on this page carries
-> a date. Items move between sections, get merged, or get dropped as work and feedback
+> This roadmap is a statement of direction, not a commitment. No Now, Next or Later item
+> carries a delivery date. The dates this page does carry are facts, not forecasts: when it
+> was last updated, when a release shipped, and when an external legal obligation starts.
+> Items move between sections, get merged, or get dropped as work and feedback
 > dictate. Affiant is maintained by one person, so the honest unit of planning is what is
 > being worked on now, not when it will land. Nothing on this page should be relied on for
 > a purchasing or architecture decision — read [Beta status](README.md#beta-status) first.
@@ -30,11 +32,11 @@ To influence it: open or upvote an issue labelled [`roadmap`](https://github.com
 
 Where "done" goes: a shipped item moves into [Recently shipped](#recently-shipped) below in the same change that ships it. Fine-grained detail lives in the [CHANGELOG](CHANGELOG.md), under the heading of the release it belongs to, and in [GitHub releases](https://github.com/Sakwala/affiant/releases) once tagged.
 
-No dates, ever: a solo-maintained project cannot promise a delivery date without it becoming a promise the maintainer cannot keep. Status — what is being worked on now — is the honest unit of information this page can offer.
+No delivery dates, ever: a solo-maintained project cannot promise one without it becoming a promise the maintainer cannot keep. Status — what is being worked on now — is the honest unit of information this page can offer.
 
 ## What will not change
 
-1. **The invariant.** Every Affidavit field carries provenance, no exceptions; nothing commits without evidence, nothing writes without approval. Enforced today by the [ComplianceHarness](https://affiant.dev/guides/compliance-harness/) — the test harness every .NET adapter must pass — and, once the conformance suite in [affiant-protocol](https://github.com/Sakwala/affiant-protocol) ships, by that suite for every implementation.
+1. **The invariant.** Every Affidavit field carries provenance, no exceptions; nothing commits without evidence, nothing writes without approval. Enforced by two things at once: the [ComplianceHarness](https://affiant.dev/guides/compliance-harness/) — the test harness every .NET adapter must pass — and the conformance suite in [affiant-protocol](https://github.com/Sakwala/affiant-protocol), which has shipped and which every implementation runs. Its 63 fixtures are what each implementation's parity manifest is read against: the .NET line passes 63 of 63 at the rulebook's [`v0.1.2`](https://github.com/Sakwala/affiant-protocol/releases/tag/v0.1.2) tag with eleven declared exemptions, and the TypeScript line passes 63 of 63 at `v0.1.1`, exempting the same eleven rules on its own grounds and asserting the identical result on Node, Bun and workerd.
 2. **Field-level, not call-level.** Approval of a whole tool call is commodity; Affiant's unit is the field and its provenance chain.
 3. **The honest boundary.** Affiant only swears to writes it can intercept in-process. It will not claim otherwise.
 4. **Library, not service.** Affiant runs inside the adopter's process. There is no hosted component, no licence server, and no phone-home.
@@ -96,12 +98,17 @@ No dates, ever: a solo-maintained project cannot promise a delivery date without
   book could never auto-approve, because the default risk calculator never returned `Low`
   while the default threshold was `Low`. The fix removed the stock formula — the risk
   scorer is now host-supplied, and the framework keeps only the comparison. Still in
-  flight for beta.2: conversation-scope isolation when no `ConversationId` is supplied —
-  one fix at host wiring, not three per-adapter fixes, because the Microsoft Agent Framework and
-  Microsoft.Extensions.AI legs share `FunctionInvokingChatClient` (the Semantic Kernel leg
-  is unverified against that fix) — SQLite/PostgreSQL store parity gaps, the
-  review-outcome state machine (a card a reviewer *refers* to someone else today files
-  `Pending` with a blocked marker and refuses every decision on it — referral's own
+  flight for beta.2: conversation-scope isolation when no `ConversationId` is supplied. All
+  three adapters take the ambient service provider the same way — the application root
+  provider, whether it arrives on the function arguments or off the Kernel — so the scoped
+  conversation state resolves to one process-global instance shared by every conversation, and
+  the degradation is backend-neutral rather than one backend's quirk: the fallback that then
+  keys inference idempotency on that shared object's identity lives in the core, not in any
+  adapter. The fix is per-turn scoping at host wiring — one fix that holds on every backend,
+  not three per-adapter ones — and setting a `ConversationId` per conversation closes the
+  idempotency half of it today. Also in flight for beta.2: SQLite/PostgreSQL store parity
+  gaps, the review-outcome state machine (a card a reviewer *refers* to someone else today
+  files `Pending` with a blocked marker and refuses every decision on it — referral's own
   semantics remain roadmap work), a test-isolation flake, and one removal already
   announced in the CHANGELOG — `IDeterministicFieldSource`, `[Obsolete]` today, removed no
   earlier than beta.2. Trust the invariant; expect the API to move until 1.0 — this is
@@ -117,10 +124,21 @@ No dates, ever: a solo-maintained project cannot promise a delivery date without
 
 - **Evidence Card amendments: correct a field before approving** `[review]` — A reviewer
   can edit a proposed value on the card before approving; the correction is recorded with
-  `UserStated` provenance, and the round-trip is part of the wire contract. Today
-  amendments exist in the first-party host applications with gaps — free-text where a
-  typed input would be safer, the control hidden while a card is submitting — and the
-  framework-side round-trip is the deferred beta fast-follow. Links: issue: to be filed.
+  `UserStated` provenance, and the round-trip is part of the wire contract. The
+  framework-side round-trip shipped in `1.0.0-beta.3`, so this is no longer a deferred
+  fast-follow: `AffidavitAmendments.Apply` is the single implementation of what an accepted
+  correction does to the record — the reviewer's tag goes *on top of* the field's provenance
+  chain with a `ReviewerAct` binding rather than merging into it, the machine's displaced tag
+  stays readable beneath it, a cleared field is resolved against the field rather than pasted
+  over (a mandatory one stays on the card visibly empty, an optional one leaves the write),
+  and all three confidence numbers are recomputed over the amended fields, so a card no longer
+  reports the model's pre-correction confidence after a person corrected exactly what the model
+  got wrong. The gate hands the result back on `ReviewOutcome.Approved.AmendedAffidavit`, and
+  the Docket entry keeps it. What remains is downstream of the framework: hosts that still fold
+  the amendments themselves instead of using that Affidavit — both first-party demo hosts and
+  the quickstart sample — which is a second, drifting copy of a merge the gate has already
+  performed. Links: [affiant#63](https://github.com/Sakwala/affiant/issues/63),
+  [affiant#99](https://github.com/Sakwala/affiant/issues/99).
 - **An Affiant MCP server** `[adapters]` — Expose the Docket and the approve/reject
   decision as [MCP](https://modelcontextprotocol.io/) (Model Context Protocol) tools, so
   agents that are not written in .NET can route their writes through the same review
@@ -163,12 +181,17 @@ No dates, ever: a solo-maintained project cannot promise a delivery date without
   to evaluate; both attach to the adopting organisation's management system or service
   audit, not to a library — Affiant will never claim to "be" certified. Links: issue: to
   be filed.
-- **Review policies: auto-approve rules, multi-step and multi-party review** `[review]` —
-  Today every card is a single human decision, though the model already declares the
-  types for sequential review steps (`ReviewStep`) and for more than one approver
-  (`ReviewRequirement.MultiParty`) with nothing implementing them yet. Direction:
-  policy-driven auto-approval for low-risk writes, sequential steps, and more than one
-  approver — semantics first, then code. Links: issue: to be filed.
+- **Review policies: multi-step and multi-party review** `[review]` — Two review shapes run
+  today: a person's decision on a card, and a [Standing
+  Order](https://affiant.dev/concepts/review-gate-and-write-executors/) — an auto-approval rule
+  a host wrote in advance — which approves with nobody present and is attested as
+  `Attestor.StandingOrder`, naming the policy and its version on the record. Two further
+  requirement levels are declared and deliberately not run: `MultiParty` (more than one
+  approver) and `ReferralRequired` (escalation) are recorded verbatim on the entry, which files
+  `Pending` carrying a `RequirementNotImplemented` marker and refuses every decision on it — a
+  level the framework cannot honour blocks rather than quietly collapsing onto one person's
+  single click. Sequential steps have a type (`ReviewStep`) and no implementation. Direction:
+  real semantics for each of the three, then code. Links: issue: to be filed.
 - **Synchronous (blocking) review mode** `[review]` — A mode where the agent waits for the
   decision inside the tool call. The naive version deadlocks over a single
   [SignalR](https://affiant.dev/concepts/transport-and-wire-contract/) connection (the
@@ -256,9 +279,16 @@ No dates, ever: a solo-maintained project cannot promise a delivery date without
   framework exists for: an Evidence Card in a browser tab, one row per field, each row naming
   where its value came from — approve it, amend a field first, or reject it, and only then
   does a row appear in the database. A development-only seam files the same proposal with one
-  `curl`, so the whole review lifecycle is reachable with no model key, and a seven-behaviour
-  Playwright deck in the sample's `e2e/` covers approve, reject, typed inputs, a live-data
-  picker, the mandatory-field gate, expiry, and resubmission with preserved amendments. The
+  `curl`, so the whole review lifecycle is reachable with no model key. The Playwright deck in
+  the sample's `e2e/` declares eight specs — approve, reject, typed inputs, a live-data picker,
+  the mandatory-field gate, the expiry lifecycle, a late decision whose amendments survive into
+  a resubmission, and a re-broadcast card absorbed rather than redrawn — which the sample's
+  README frames as seven review behaviours plus one page behaviour. Seven of the eight pass at
+  `1.0.0-beta.3`. The late-amendments spec is the one that does not, and it stops at its own
+  setup assertion rather than at the behaviour it was written for: it requires the entry to
+  still read `Pending` past the deadline, and this release projects expiry onto every read, so
+  the row already reads `Expired` before the late click lands. Tracked in
+  [affiant#111](https://github.com/Sakwala/affiant/issues/111). The
   [Quickstart](https://affiant.dev/start/quickstart/) is that sample's code step by step —
   including how a field gets its value, from the field schema a domain declares to the
   host-supplied projection that stamps an update-shaped write with its entity id and each
@@ -291,6 +321,6 @@ No dates, ever: a solo-maintained project cannot promise a delivery date without
 
 ## Themes
 
-Each Now / Next / Later item carries a bracketed theme tag, so a reader can follow one thread through the sections:
+Each Now / Next / Later item carries a bracketed theme tag, so a reader can follow one thread through the sections. The tags in use today:
 
-`[stability]` `[on-ramp]` `[evidence-card-ui]` `[typescript]` `[adapters]` `[review]` `[auditors]` `[demos]` `[community]`
+`[stability]` `[on-ramp]` `[evidence-card-ui]` `[typescript]` `[adapters]` `[review]` `[auditors]`
