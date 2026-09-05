@@ -125,10 +125,12 @@ public class AssertToolErrorCodeRegistryParityTests
     public void FrameworkRegistry_MatchesEveryCodeTheFrameworkActuallyEmits()
     {
         // Enumerated from Affiant.Core.Filters.ToolErrorFilter.MapExceptionToToolError (4),
-        // Affiant.Core.Filters.ReviewGateFilter's REVIEW_FILING_FAILED (P1a), and
-        // Affiant.SemanticKernel.Connectors.ManualToolInvoker's FUNCTION_NOT_FOUND (now built
-        // through the real ToolError type + this constant, area-3 P2 fix round — see ToolErrorCodes'
-        // own remarks).
+        // Affiant.Core.Filters.ReviewGateFilter's REVIEW_FILING_FAILED (P1a) and its two protocol
+        // refusal codes (GT-3's substance-refused, raised in ReviewGate and handed back here; CV-1's
+        // wireup-invalid, raised by the filter's three fail-closed branches and by the policy
+        // chain), and Affiant.SemanticKernel.Connectors.ManualToolInvoker's FUNCTION_NOT_FOUND (now
+        // built through the real ToolError type + this constant, area-3 P2 fix round — see
+        // ToolErrorCodes' own remarks).
         string[] emittedByFramework =
         [
             Affiant.Abstractions.Models.ToolErrorCodes.DbTimeout,
@@ -137,6 +139,8 @@ public class AssertToolErrorCodeRegistryParityTests
             Affiant.Abstractions.Models.ToolErrorCodes.Unknown,
             Affiant.Abstractions.Models.ToolErrorCodes.ReviewFilingFailed,
             Affiant.Abstractions.Models.ToolErrorCodes.FunctionNotFound,
+            Affiant.Abstractions.Models.ToolErrorCodes.SubstanceRefused,
+            Affiant.Abstractions.Models.ToolErrorCodes.WireUpInvalid,
         ];
 
         var result = ComplianceHarness.AssertToolErrorCodeRegistryParity(

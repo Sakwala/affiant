@@ -14,11 +14,15 @@ using Affiant.Abstractions.Models;
 /// has already happened and must not re-run policy.
 /// </para>
 /// <para>
-/// Implementations are also the correct place to stamp reviewer provenance: for every key in
-/// <c>amendments</c>, append a <see cref="ProvenanceTag"/> of UserStated origin to that field's
-/// <see cref="ProvenanceChain"/> before the value reaches the domain store. The framework's own
-/// responsibility ends at persisting the amendments onto the docket entry
-/// (<see cref="IDocketStore.UpdateAmendmentsAsync"/>).
+/// <b>Do not hand-roll the amendment fold.</b> <see cref="AffidavitAmendments.Apply"/> is the one
+/// implementation of what an accepted correction does to the record — the reviewer's values, a
+/// <see cref="ProvenanceSource.UserStated"/> tag carrying a
+/// <see cref="ProvenanceBinding.ReviewerAct"/> binding appended on top of each amended field's
+/// chain (never replacing the machine's tag beneath it), the field-list rules for a cleared field,
+/// and all three confidence numbers recomputed. The gate already returns exactly that record on
+/// <see cref="ReviewOutcome.Approved.AmendedAffidavit"/>; an implementation that folds the
+/// amendments itself gets a different answer, and a card that shows the machine's pre-correction
+/// confidence for a value a human already fixed is the defect this closes.
 /// </para>
 /// </remarks>
 public interface IWriteExecutor

@@ -1,0 +1,60 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!-- https://learn.microsoft.com/dotnet/fundamentals/package-validation/diagnostic-ids -->
+<!--
+  Declared breaks against 1.0.0-beta.1.1, permitted by the repository's prerelease-stability policy and
+  required by it to be declared. Three changes account for every entry here: the store implements the
+  scoped, guarded, paged Docket contract (dropping the two unscoped expiry members the sweep used to
+  call, and the unscoped amendments overwrite that had no caller left); MarkBlockedAsync takes the
+  scope every other member that moves a row takes; and every component that needs the current instant
+  takes an injectable TimeProvider as an added constructor parameter.
+
+  A fourth: UpdateReviewStatusAsync is gone from the store — an entry id and a status, with no
+  tenant scope, no expected status and no attestation check — superseded by the guarded
+  TransitionAsync; and CountPendingAsync is added for the depth gauge.
+
+  See CHANGELOG.md's upgrade notes.
+-->
+<Suppressions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Docket.Services.DocketExpiryService.#ctor(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory,Affiant.Core.Extensions.AffiantCoreOptions,Microsoft.Extensions.Logging.ILogger{Affiant.Docket.Services.DocketExpiryService},Affiant.Abstractions.Interfaces.IStreamingTransport)</Target>
+    <Left>lib/net10.0/Affiant.Docket.dll</Left>
+    <Right>lib/net10.0/Affiant.Docket.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Docket.Stores.InMemoryDocketStore.#ctor</Target>
+    <Left>lib/net10.0/Affiant.Docket.dll</Left>
+    <Right>lib/net10.0/Affiant.Docket.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Docket.Stores.InMemoryDocketStore.ListExpiredAsync(System.DateTimeOffset,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Docket.dll</Left>
+    <Right>lib/net10.0/Affiant.Docket.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Docket.Stores.InMemoryDocketStore.MarkExpiredAsync(System.Collections.Generic.IEnumerable{System.Guid},System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Docket.dll</Left>
+    <Right>lib/net10.0/Affiant.Docket.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Docket.Stores.InMemoryDocketStore.UpdateAmendmentsAsync(System.Guid,System.Collections.Generic.IReadOnlyDictionary{System.String,System.Object},System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Docket.dll</Left>
+    <Right>lib/net10.0/Affiant.Docket.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Docket.Stores.InMemoryDocketStore.UpdateReviewStatusAsync(System.Guid,Affiant.Abstractions.Models.ReviewStatus,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Docket.dll</Left>
+    <Right>lib/net10.0/Affiant.Docket.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+</Suppressions>

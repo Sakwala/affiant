@@ -1,7 +1,10 @@
 namespace Affiant.AgentFramework.Validation;
 
 using Affiant.AgentFramework.Extensions;
+using Affiant.Abstractions.Exceptions;
+using Affiant.Abstractions.Models;
 using Affiant.Core.Observability;
+using Affiant.Core.Services;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
@@ -33,10 +36,20 @@ internal static class HostedToolAudit
         {
             if (!options.AllowUnauditableAgent)
             {
-                throw new InvalidOperationException(
+                // TL-1 `coverage.refused` (CV-4): the whole agent is the uncovered surface here —
+                // its tool list could not be enumerated, so no tool name is knowable and the agent's
+                // type is what an operator has to act on.
+                AffiantTelemetry.RecordCoverageRefused(
+                    agent.GetType().FullName ?? agent.GetType().Name, "unauditable-agent", "wire-up");
+
+                // The protocol's refusal code, like every other coverage refusal, so a host catches
+                // one exception for the whole class. The category is not one of the three: what
+                // cannot be covered here is not a named tool but an agent whose tool set cannot be
+                // enumerated, which the telemetry above says in its own words.
+                throw new AffiantCoverageException(
                     "Affiant.AgentFramework: WithAffiant cannot audit hosted-tool coverage for this agent " +
                     $"shape ('{agent.GetType()}') — agent.GetService(typeof(ChatOptions)) returned null. " +
-                    "Detection before first run is the invariant (proposal §4.6); Affiant refuses to wrap an " +
+                    "Detection before first run is the invariant; Affiant refuses to wrap an " +
                     "agent whose tool set it cannot enumerate. Set " +
                     "AgentFrameworkOptions.AllowUnauditableAgent = true if the host accepts this coverage gap " +
                     "for this agent shape.");
@@ -84,13 +97,18 @@ internal static class HostedToolAudit
 
         if (refused.Count > 0)
         {
-            throw new InvalidOperationException(
-                "Affiant.AgentFramework: WithAffiant refuses to wrap an agent with uncovered hosted/provider-side " +
-                $"tools: {string.Join(", ", refused)}. MAF's function-calling middleware fires only for " +
-                "client-invoked AIFunction tools; hosted MCP, code interpreter, web/file search, and other " +
-                "provider-executed tools run outside it, so Affiant cannot see, tag, or gate writes made through " +
-                "them. Acknowledge each tool explicitly via AgentFrameworkOptions.AcknowledgeUncoveredTools if the " +
-                "host accepts this coverage gap, or remove the tool from the agent.");
+            // The rule is the framework's — ToolCoverage.Refuse emits one `coverage.refused` event
+            // per tool and throws the protocol's own refusal, carrying the `coverage-refused` code
+            // (CV-4) — and the sentence about MAF's wiring is this adapter's, because the framework
+            // does not know what a host's agent looks like.
+            ToolCoverage.Refuse(
+                refused,
+                CoverageCategory.ProviderExecuted,
+                "MAF's function-calling middleware fires only for client-invoked AIFunction tools; " +
+                "hosted MCP, code interpreter, web/file search, and other provider-executed tools " +
+                "run outside it, so Affiant cannot see, tag, or gate writes made through them. " +
+                "Acknowledge each tool explicitly via AgentFrameworkOptions.AcknowledgeUncoveredTools " +
+                "if the host accepts this coverage gap, or remove the tool from the agent.");
         }
     }
 }

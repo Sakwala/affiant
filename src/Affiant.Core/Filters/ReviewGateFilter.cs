@@ -2,6 +2,7 @@ namespace Affiant.Core.Filters;
 
 using System.Diagnostics;
 using System.Text.Json;
+using Affiant.Abstractions.Exceptions;
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
 using Affiant.Abstractions.Transport;
@@ -15,9 +16,10 @@ using Microsoft.Extensions.Logging;
 /// non-blocking filing default (P5a). Fires after each auto-invoked tool. If the tool result
 /// deserializes as a WriteProposal, the proposal is routed through
 /// <see cref="ReviewGate.FileForReviewAsync"/> using the pipeline's per-invocation scope
-/// (<see cref="ToolInvocationContext.Services"/>). Silently skips when IReviewContextProvider or
-/// ReviewGate are not registered in the DI container, so the filter is safe to register globally
-/// even in hosts that do not use the full review infrastructure. Runs identically on both adapters
+/// (<see cref="ToolInvocationContext.Services"/>). <b>Fails closed</b> (protocol rules CV-1, CV-2):
+/// a tool the framework's registry declares write-capable is refused — never passed through — when
+/// the review path cannot be reached, or when it returned something other than a proposal.
+/// Runs identically on both adapters
 /// — it is a neutral <see cref="ICompletionStageFilter"/>, invoked inside
 /// <c>AffiantAutoFunctionInvocationBridge</c>'s own <c>pipeline.RunAsync</c> call on SK and inside
 /// <c>AffiantFunctionInvocationMiddleware</c>'s single onion on MAF; neither adapter needs its own
@@ -61,6 +63,43 @@ using Microsoft.Extensions.Logging;
 /// </para>
 ///
 /// <para>
+/// <b>Fail-closed, not skip (CV-1, CV-2 — closes affiant#75).</b> Until <c>1.0.0-beta.1</c> this
+/// filter returned quietly in three branches, each at debug-log level: no
+/// <see cref="IReviewContextProvider"/> registered, no ambient review context available, and no
+/// <see cref="ReviewGate"/> registered. In every one of them the tool's own result — the raw
+/// proposal — stayed on <see cref="ToolInvocationContext.Result"/>, so the model was free to report
+/// an unfiled, unreviewed write as done, and the only signal was a log line nobody watches. That is
+/// the failure mode for exactly the call sites that most need the gate: a queue consumer, a cron
+/// trigger, an alarm, a background job — any seam outside the interactive path the framework's own
+/// reference wiring assumes. All three are now refusals: the tool's result becomes the error arm
+/// carrying <see cref="ToolErrorCodes.WireUpInvalid"/> and nothing is passed through. Two of the
+/// three (no provider, no gate) are also caught before any turn runs, by
+/// <c>AffiantWireUpValidator</c> in this package and <c>AffiantStartupValidator</c> in
+/// <c>Affiant.SemanticKernel</c> — this is the backstop for the third, which only a live request can
+/// know, and for a container that cannot be enumerated at startup.
+/// </para>
+///
+/// <para>
+/// <b>A declared write tool that returns a non-proposal is refused too.</b> A result that does not
+/// deserialize as a <see cref="WriteProposal"/> is skipped when the framework's tool registry does
+/// not declare the tool write-capable — that is an ordinary read tool passing through. When the
+/// registry <em>does</em> declare it write-capable, the same result is a refusal: a write tool's
+/// declared result is a proposal (GT-6), and one that returned a bare success string either wrote
+/// something itself or lost its proposal, and neither may be reported to the model as a completed,
+/// reviewed write.
+/// </para>
+///
+/// <para>
+/// <b>The honest boundary (GT-6).</b> This filter runs <em>after</em> the tool body, because that is
+/// the only seam either host framework exposes. A tool that opens its own connection and writes
+/// inside its body is therefore <b>outside the guarantee</b> — no filter and no wire-up check can
+/// see it, and the framework says so rather than implying a coverage it does not have. What the
+/// framework does guarantee is that such a tool cannot commit <em>through</em> it: the gate never
+/// calls a write tool's own execute, no public API lets a tool commit through the framework, and a
+/// tool declared write-capable that does not hand back a proposal is refused rather than skipped.
+/// </para>
+///
+/// <para>
 /// <b>Filing-failure handling (P1a, affiant#22 / FV-9 — carried over intact from the blocking
 /// predecessor, only the filing call changed):</b> a non-cancellation exception from
 /// <see cref="ReviewGate.FileForReviewAsync"/> means the proposal was never durably filed (any
@@ -78,8 +117,17 @@ using Microsoft.Extensions.Logging;
 /// to end the turn over a docket-store failure that may already be resolved.
 /// </para>
 /// </summary>
-public sealed class ReviewGateFilter(ILogger<ReviewGateFilter> logger) : ICompletionStageFilter
+public sealed class ReviewGateFilter(
+    ILogger<ReviewGateFilter> logger,
+    TimeProvider? timeProvider = null) : ICompletionStageFilter
 {
+    /// <summary>
+    /// The clock the <see cref="ToolError.Timestamp"/> of a filing failure is stamped from.
+    /// Defaults to <see cref="TimeProvider.System"/>; <c>AddAffiantCore</c> registers exactly that
+    /// as the DI default.
+    /// </summary>
+    private readonly TimeProvider _time = timeProvider ?? TimeProvider.System;
+
     /// <summary>
     /// The single, model-facing turn-ending message used whenever a write proposal requires a human
     /// reviewer's decision. Only reachable via <see cref="ReviewFilingResult.RequiresReview"/> — see
@@ -114,38 +162,65 @@ public sealed class ReviewGateFilter(ILogger<ReviewGateFilter> logger) : IComple
         catch (Exception ex) when (ex is JsonException or NotSupportedException)
         {
             // STJ throws JsonException for malformed JSON and NotSupportedException when a
-            // polymorphic type (ToolEnvelope) lacks the required $type discriminator.
-            // Both mean the result is not a WriteProposal — skip silently.
-            return;
+            // polymorphic type (ToolEnvelope) lacks the required `kind` discriminator (AF-5).
+            // Both mean the result is not a WriteProposal — which is a refusal for a declared
+            // write tool and a pass-through for anything else.
+            proposal = null;
         }
 
         if (proposal is null)
+        {
+            // A read tool's result passes through untouched. A tool the registry declares
+            // write-capable does not: a write tool's declared result is a proposal (GT-6).
+            if (DeclaredWriteTool(context) is { } declaredName)
+                RefuseWireUp(context, declaredName, NonProposalReason(declaredName));
             return;
+        }
+
+        // GT-4: the arguments the model passed are part of the material an entry id derives from, and
+        // this seam is where they are known — a tool serializes its proposal without them, so a
+        // filing that left them out would give two calls that differ only in what the model passed
+        // the same row identity. They are carried for identity alone; what is SWORN about a field is
+        // what an interceptor or the inference port says (PV-1).
+        if (context.Arguments is { Count: > 0 } arguments)
+        {
+            proposal = proposal with
+            {
+                Arguments = arguments.ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal),
+            };
+        }
 
         var contextProvider = context.Services.GetService<IReviewContextProvider>();
         if (contextProvider is null)
         {
-            logger.LogDebug(
-                "ReviewGateFilter: IReviewContextProvider not registered; skipping review for {ToolName}",
-                proposal.ToolName);
+            RefuseWireUp(context, proposal.ToolName,
+                $"No {nameof(IReviewContextProvider)} is registered, so the review this write must " +
+                "pass through cannot be routed to anyone. The write was NOT filed and NOT queued " +
+                "for review. Fix: register a host IReviewContextProvider that builds a ReviewContext " +
+                "from the caller's identity, or call the gate directly with an explicit turn context " +
+                "from this call site.");
             return;
         }
 
         var reviewContext = contextProvider.BuildReviewContext(proposal);
         if (reviewContext is null)
         {
-            logger.LogDebug(
-                "ReviewGateFilter: no ambient review context available; skipping review for {ToolName}",
-                proposal.ToolName);
+            RefuseWireUp(context, proposal.ToolName,
+                $"The registered {nameof(IReviewContextProvider)} could not build a review context " +
+                "for this call — the ambient identity a review is routed by is not available at this " +
+                "seam. The write was NOT filed and NOT queued for review. A new call site (a queue " +
+                "consumer, a cron trigger, an alarm) must call the gate directly with an explicit " +
+                "turn context rather than reuse an ambient-context filter.");
             return;
         }
 
         var gate = context.Services.GetService<ReviewGate>();
         if (gate is null)
         {
-            logger.LogDebug(
-                "ReviewGateFilter: ReviewGate not registered; skipping review for {ToolName}",
-                proposal.ToolName);
+            RefuseWireUp(context, proposal.ToolName,
+                $"No {nameof(ReviewGate)} is registered, so there is nothing to file this write " +
+                "with. The write was NOT filed and NOT queued for review. Fix: call " +
+                "services.AddAffiantCore(...) in this application's composition root.");
             return;
         }
 
@@ -164,11 +239,31 @@ public sealed class ReviewGateFilter(ILogger<ReviewGateFilter> logger) : IComple
                 "ReviewGateFilter: filed review for {ToolName}: {FilingType}",
                 proposal.ToolName, filing.GetType().Name);
         }
+        catch (AffiantRefusalException refusal)
+        {
+            // The gate refused rather than failed: the proposal swore to nothing (GT-3), or a policy
+            // broke its own contract (CV-1). Nothing was filed and nothing was broadcast, so this is
+            // not the filing-failure path — the model is told the refusal's own code, which is the
+            // error arm of the three-kind tool result, and the turn is NOT terminated: there is no
+            // card for anyone to look at.
+            context.Result = new ToolError(
+                ToolName: proposal.ToolName,
+                Timestamp: _time.GetUtcNow(),
+                Code: refusal.Code,
+                Message: refusal.Message,
+                Retryable: false).ToJsonString();
+
+            logger.LogWarning(refusal,
+                "ReviewGateFilter: the gate refused {ToolName} with {Code} — the proposal was NOT " +
+                "filed and NOT queued for review",
+                proposal.ToolName, refusal.Code);
+            return;
+        }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             var toolError = new ToolError(
                 ToolName: proposal.ToolName,
-                Timestamp: DateTimeOffset.UtcNow,
+                Timestamp: _time.GetUtcNow(),
                 Code: ToolErrorFilter.ReviewFilingFailedCode,
                 Message: $"The write proposal for '{proposal.ToolName}' was NOT filed and was NOT " +
                          "queued for review. No reviewer will see this request. Please retry, or " +
@@ -203,6 +298,57 @@ public sealed class ReviewGateFilter(ILogger<ReviewGateFilter> logger) : IComple
             context.Terminate = true;
             context.Result = TurnEndingMessage;
         }
+    }
+
+    /// <summary>
+    /// The registry name of the tool at this seam when the framework declares it write-capable, or
+    /// <see langword="null"/> when the registry does not know it or declares it a read.
+    ///
+    /// <para>
+    /// Asked of <see cref="IAffiantToolRegistry"/> rather than of the result's shape, deliberately:
+    /// the whole point of the check is to catch a declared write tool whose result shape is
+    /// <em>wrong</em>. A container with no registry — a host running the neutral pipeline without
+    /// <c>AddAffiantCore</c> — answers "not declared", and the startup validators are what refuse
+    /// that wiring; this branch does not invent a refusal from an absent registry.
+    /// </para>
+    /// </summary>
+    private static string? DeclaredWriteTool(ToolInvocationContext context)
+    {
+        var registry = context.Services.GetService<IAffiantToolRegistry>();
+        var descriptor = registry?.Find(context.FunctionName, context.PluginName)
+                         ?? registry?.Find(context.FunctionName);
+        if (descriptor is null) return null;
+        if (descriptor.Operation.Kind == Operation.ReadQuery.Kind) return null;
+
+        return descriptor.PluginName is null
+            ? descriptor.FunctionName
+            : $"{descriptor.PluginName}.{descriptor.FunctionName}";
+    }
+
+    private static string NonProposalReason(string toolName) =>
+        $"'{toolName}' is declared write-capable but returned a result that is not a write " +
+        "proposal, so there was nothing for the gate to file and no evidence for a reviewer to see. " +
+        "A gated write tool's declared result is a proposal (GT-6). Fix: return a WriteProposal from " +
+        "the tool, or declare it a read tool with services.AddAffiantReadTool(...). A tool that " +
+        "opens its own connection and writes inside its body is outside this framework's guarantee " +
+        "and must not be declared write-capable.";
+
+    /// <summary>
+    /// Seals a <c>wireup-invalid</c> refusal onto the tool result and does not terminate the turn.
+    /// Nothing was filed, so the model should see this like any other typed tool failure rather than
+    /// be told a card is waiting.
+    /// </summary>
+    private void RefuseWireUp(ToolInvocationContext context, string toolName, string reason)
+    {
+        context.Result = new ToolError(
+            ToolName: toolName,
+            Timestamp: _time.GetUtcNow(),
+            Code: ToolErrorCodes.WireUpInvalid,
+            Message: reason,
+            Retryable: false).ToJsonString();
+
+        logger.LogError(
+            "ReviewGateFilter refused {ToolName}: {Reason}", toolName, reason);
     }
 
     private static void RecordFilingFailureEvent(ToolError toolError, Exception ex)

@@ -5,6 +5,11 @@ namespace Affiant.Abstractions.Models;
 /// trail — answers "how did this field arrive at its current value?" by walking
 /// the chain from <see cref="Current"/> through <see cref="Prior"/> (newest first).
 ///
+/// <para>
+/// Nothing is ever dropped from a chain. A merge that discarded the loser would erase the fact that
+/// two producers disagreed, which is the fact a reviewer most wants to see.
+/// </para>
+///
 /// Matches framework specification §2.3.
 /// </summary>
 public sealed record ProvenanceChain(
@@ -18,35 +23,41 @@ public sealed record ProvenanceChain(
         new(tag, Array.Empty<ProvenanceTag>());
 
     /// <summary>
-    /// Append a newer tag unconditionally — the incoming tag becomes
-    /// <see cref="Current"/> and the previous <see cref="Current"/> is prepended
-    /// to <see cref="Prior"/> (preserving newest-first ordering).
+    /// Put <paramref name="newer"/> in force unconditionally — it becomes <see cref="Current"/> and
+    /// the previous <see cref="Current"/> is prepended to <see cref="Prior"/> (preserving
+    /// newest-first ordering).
+    ///
+    /// <para>
+    /// <b>Not a merge, deliberately.</b> A reviewer's act is not a confidence contest it might lose:
+    /// when a person corrects a field, their act is the provenance of the new value even if the
+    /// machine was more sure of the old one. That is what this method is for — the machine's
+    /// pre-correction tag is preserved beneath the reviewer's, never replaced by it. Use
+    /// <see cref="Merge"/> when two producers are genuinely competing.
+    /// </para>
     /// </summary>
     public ProvenanceChain Append(ProvenanceTag newer)
     {
+        ArgumentNullException.ThrowIfNull(newer);
+
         var prior = new List<ProvenanceTag>(Prior.Count + 1) { Current };
         prior.AddRange(Prior);
         return new ProvenanceChain(newer, prior);
     }
 
     /// <summary>
-    /// Merge a candidate tag using the framework spec §2.3 merge rule: higher
-    /// confidence wins; ties are broken by the determinism hierarchy encoded in
-    /// <see cref="ProvenanceSource"/>'s enum ordinal (lower wins).
+    /// Merge a candidate tag: the higher confidence wins, a tie breaks toward the more deterministic
+    /// source, and <b>the loser is preserved</b> at the head of <see cref="Prior"/> either way.
+    ///
+    /// The comparison itself is <see cref="ProvenanceTag.Beats"/> — the framework's one
+    /// implementation of the rule, so nothing here can drift from what the projection and the
+    /// inference merge step decide.
     /// </summary>
     public ProvenanceChain Merge(ProvenanceTag candidate)
     {
-        var candidateWins =
-            candidate.Confidence > Current.Confidence ||
-            (candidate.Confidence == Current.Confidence &&
-             (int)candidate.Source < (int)Current.Source);
+        ArgumentNullException.ThrowIfNull(candidate);
 
-        if (candidateWins)
-        {
-            var prior = new List<ProvenanceTag>(Prior.Count + 1) { Current };
-            prior.AddRange(Prior);
-            return new ProvenanceChain(candidate, prior);
-        }
+        if (candidate.Beats(Current))
+            return Append(candidate);
 
         var updatedPrior = new List<ProvenanceTag>(Prior.Count + 1) { candidate };
         updatedPrior.AddRange(Prior);
@@ -61,6 +72,8 @@ public sealed record ProvenanceChain(
     /// </summary>
     public ProvenanceChain AppendChain(ProvenanceChain other)
     {
+        ArgumentNullException.ThrowIfNull(other);
+
         var newPrior = new List<ProvenanceTag>(other.Prior.Count + 1 + Prior.Count);
         newPrior.AddRange(other.Prior);
         newPrior.Add(Current);

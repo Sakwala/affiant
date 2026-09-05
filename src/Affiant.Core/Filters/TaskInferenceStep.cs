@@ -14,7 +14,12 @@ using Microsoft.Extensions.Logging;
 /// the ProvenanceChains stored in ContextFabric, and upserts winning values as an EntityRef.
 ///
 /// Merge rule (framework spec §2.3): higher confidence wins; ties break by ProvenanceSource
-/// ordinal (lower ordinal = more deterministic, e.g. UserStated=0 beats External=1).
+/// ordinal (lower ordinal = more deterministic, e.g. UserStated=0 beats External=1). The comparison
+/// itself is <see cref="ProvenanceTag.Beats"/>, so this step, the schema-driven projection and
+/// <see cref="ProvenanceChain.Merge"/> cannot state the rule three slightly different ways.
+///
+/// A model-reported confidence is clamped into [0, 1] by <see cref="ProvenanceTag"/> itself, so a
+/// model that answers 1.4 or -0.2 cannot mint a tag outside the range every other rule reads.
 ///
 /// The strategy is accepted as a parameter to ExecuteAsync (not a constructor dependency),
 /// enabling multi-write hosts where each write tool uses its own strategy without a
@@ -26,13 +31,23 @@ public sealed class TaskInferenceStep
 {
     private readonly ContextFabric _contextFabric;
     private readonly ILogger<TaskInferenceStep> _logger;
+    private readonly TimeProvider _time;
 
+    /// <param name="contextFabric">The conversation's own field state.</param>
+    /// <param name="logger">Merge diagnostics.</param>
+    /// <param name="timeProvider">
+    /// The clock every tag this step mints is stamped with. A tag says when the claim it carries was
+    /// made — the v0.1 tag requires it — and there is one clock in this framework, injected, so a
+    /// fixture that pins an instant sees the instant it pinned.
+    /// </param>
     public TaskInferenceStep(
         ContextFabric contextFabric,
-        ILogger<TaskInferenceStep> logger)
+        ILogger<TaskInferenceStep> logger,
+        TimeProvider? timeProvider = null)
     {
         _contextFabric = contextFabric ?? throw new ArgumentNullException(nameof(contextFabric));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _time = timeProvider ?? TimeProvider.System;
     }
 
     /// <summary>
@@ -65,8 +80,17 @@ public sealed class TaskInferenceStep
                 !fieldEl.TryGetProperty("confidence", out var confEl))
                 continue;
 
+            // The value keeps the JSON type the port reported it as. A number reported as a number
+            // is filed as a number: the field's `kind` is a rendering hint for a reviewer surface,
+            // not a licence to re-type the value, and a card that showed "40" where the port said 40
+            // would be showing a different value from the one the record swears to (AF-1, SR-2).
             var newValue = ReadScalarValue(valueEl);
-            if (string.IsNullOrEmpty(newValue))
+            if (newValue is null)
+                continue;
+
+            // The text the span digest is taken over: what the port says was there to read.
+            var newText = ReadScalarText(valueEl);
+            if (string.IsNullOrEmpty(newText))
                 continue;
 
             float newConfidence;
@@ -83,7 +107,24 @@ public sealed class TaskInferenceStep
                 continue;
             }
 
-            var candidateTag = ProvenanceTag.FromInference(field.Name, newConfidence);
+            // The inference step mints through ProvenanceTag.FromInference, whose source parameter
+            // is an InferenceSource and therefore cannot name UserStated, External or Computed.
+            // Those three are claims about an artifact outside the model's own reasoning — a
+            // person's act, a system of record, a named rule — and an inference has none of them.
+            // The restriction is structural, not a convention: there is no overload reachable from
+            // here that could name them.
+            // `presence` is the port's own answer to "was this value literally in the turn, or did
+            // the model reason to it" (GT-1 step 3), and it is the difference between a Conversation
+            // grade and an Inferred one. Absent, it is Inferred: a port that does not say has not
+            // claimed the value was there to read.
+            var presence =
+                fieldEl.TryGetProperty("presence", out var presenceEl)
+                && string.Equals(presenceEl.GetString(), "literal", StringComparison.OrdinalIgnoreCase)
+                    ? InferenceSource.Conversation
+                    : InferenceSource.Inferred;
+
+            var candidateTag = ProvenanceTag.FromInference(
+                presence, field.Name, newConfidence, UtteranceSpanOf(fieldEl, newText), _time.GetUtcNow());
             var currentChain = _contextFabric.GetFieldChain(field.Name);
 
             bool wins;
@@ -96,9 +137,7 @@ public sealed class TaskInferenceStep
             else
             {
                 var current = currentChain.Current;
-                wins = candidateTag.Confidence > current.Confidence ||
-                       (candidateTag.Confidence == current.Confidence &&
-                        (int)candidateTag.Source < (int)current.Source);
+                wins = candidateTag.Beats(current);
                 reason = wins
                     ? $"Higher confidence: {candidateTag.Confidence} > {current.Confidence}"
                     : $"Lower or equal confidence: {candidateTag.Confidence} vs {current.Confidence}";
@@ -148,7 +187,65 @@ public sealed class TaskInferenceStep
     /// calling <see cref="JsonElement.GetString"/> unconditionally throws and aborts the whole
     /// merge. Non-scalar kinds (object, array, null) return null and the field is skipped.
     /// </summary>
-    private static string? ReadScalarValue(JsonElement valueEl) => valueEl.ValueKind switch
+    /// <summary>
+    /// The span of the unmodified turn a value was read from, when the port named one (PV-2).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Offset and length come from the port; the digest is over the value the port reported, which
+    /// is what it says the span contained. A binding points at something an auditor can go and
+    /// re-check, and this is the strongest such claim an inference can make: the turn is on the
+    /// record, the offsets say where to look, and the digest says what was there when it was read.
+    /// </para>
+    /// <para>
+    /// A port that names no span produces no binding: a tag with no binding is a weaker claim, not
+    /// a false one, and inventing a span nobody reported would be the false one.
+    /// </para>
+    /// </remarks>
+    private static ProvenanceBinding? UtteranceSpanOf(JsonElement fieldEl, string value)
+    {
+        if (!fieldEl.TryGetProperty("utteranceSpan", out var span)
+            || span.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        if (!span.TryGetProperty("start", out var startEl) || !startEl.TryGetInt32(out var start))
+            return null;
+
+        var length =
+            span.TryGetProperty("end", out var endEl) && endEl.TryGetInt32(out var end) ? end - start
+            : span.TryGetProperty("length", out var lengthEl) && lengthEl.TryGetInt32(out var stated) ? stated
+            : value.Length;
+
+        // The digest is the canonical form's own — SHA-256 as 64 lowercase hexadecimal characters,
+        // and nothing else — because a second implementation checking this span has to produce the
+        // same string from the same bytes (SR-1, PV-2).
+        var digest = Convert.ToHexStringLower(
+            System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(value)));
+
+        return new ProvenanceBinding.UtteranceSpan(new UtteranceSpanRef(start, length, digest));
+    }
+
+    /// <summary>
+    /// A field's <c>value</c> as the JSON type the port reported, or <see langword="null"/> for a
+    /// kind an Affidavit field cannot carry (object, array, JSON null).
+    /// </summary>
+    private static object? ReadScalarValue(JsonElement valueEl) => valueEl.ValueKind switch
+    {
+        JsonValueKind.String => valueEl.GetString() is { Length: > 0 } text ? text : null,
+        // Boxed explicitly: a conditional whose arms are int and long has type long, so an int
+        // would arrive on the card as a long and compare unequal to the number the port reported.
+        JsonValueKind.Number => valueEl.TryGetInt64(out var whole)
+            ? whole >= int.MinValue && whole <= int.MaxValue ? (object)(int)whole : whole
+            : valueEl.GetDouble(),
+        JsonValueKind.True => true,
+        JsonValueKind.False => false,
+        _ => null,
+    };
+
+    /// <summary>The same value as text — what an utterance span's digest is taken over.</summary>
+    private static string? ReadScalarText(JsonElement valueEl) => valueEl.ValueKind switch
     {
         JsonValueKind.String => valueEl.GetString(),
         JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False => valueEl.GetRawText(),
@@ -162,10 +259,9 @@ public sealed class TaskInferenceStep
     /// </summary>
     public static ProvenanceTag ResolveByConfidence(ProvenanceTag a, ProvenanceTag b)
     {
-        var bWins =
-            b.Confidence > a.Confidence ||
-            (b.Confidence == a.Confidence && (int)b.Source < (int)a.Source);
-        return bWins ? b : a;
+        ArgumentNullException.ThrowIfNull(a);
+        ArgumentNullException.ThrowIfNull(b);
+        return b.Beats(a) ? b : a;
     }
 }
 

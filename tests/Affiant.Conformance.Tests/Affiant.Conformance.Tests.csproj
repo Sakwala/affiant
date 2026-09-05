@@ -6,13 +6,16 @@
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
 
-  <!-- The driver runs against the SHIPPED packages, referenced the way every other test project
-       references them, so the surface it exercises is the surface a consumer installs. -->
+  <!-- The driver itself ships: it lives in Affiant.Testing.ComplianceHarness, so a host's own
+       compliance tests run the rulebook's suite through the same code the framework runs it
+       through. This project is the framework's invocation of it, and keeps the vendored suite and
+       the protocol pin. -->
   <ItemGroup>
     <ProjectReference Include="../../src/Affiant.Abstractions/Affiant.Abstractions.csproj" />
     <ProjectReference Include="../../src/Affiant.Core/Affiant.Core.csproj" />
     <ProjectReference Include="../../src/Affiant.Docket/Affiant.Docket.csproj" />
     <ProjectReference Include="../../src/Affiant.Policies/Affiant.Policies.csproj" />
+    <ProjectReference Include="../../src/Affiant.Testing.ComplianceHarness/Affiant.Testing.ComplianceHarness.csproj" />
   </ItemGroup>
 
   <ItemGroup>

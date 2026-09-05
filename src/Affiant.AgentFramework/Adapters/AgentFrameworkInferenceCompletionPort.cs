@@ -19,13 +19,23 @@ public sealed class AgentFrameworkInferenceCompletionPort : IInferenceCompletion
 {
     private readonly IChatClient _chatClient;
     private readonly ILogger<AgentFrameworkInferenceCompletionPort> _logger;
+    private readonly TimeProvider _time;
 
+    /// <param name="chatClient">The chat client the structured completion is issued on.</param>
+    /// <param name="logger">Logger for inference-call failures.</param>
+    /// <param name="timeProvider">
+    /// The clock the today's-date line of the inference prompt is read from. Defaults to
+    /// <see cref="TimeProvider.System"/>; <c>AddAffiantCore</c> registers exactly that as the DI
+    /// default, and a test that pins the clock gets a deterministic prompt.
+    /// </param>
     public AgentFrameworkInferenceCompletionPort(
         IChatClient chatClient,
-        ILogger<AgentFrameworkInferenceCompletionPort> logger)
+        ILogger<AgentFrameworkInferenceCompletionPort> logger,
+        TimeProvider? timeProvider = null)
     {
         _chatClient = chatClient ?? throw new ArgumentNullException(nameof(chatClient));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _time = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<JsonElement> CompleteStructuredAsync(
@@ -41,7 +51,7 @@ public sealed class AgentFrameworkInferenceCompletionPort : IInferenceCompletion
         {
             var messages = MafMessageConversions.ToChatMessages(request.History);
 
-            var today = DateTime.UtcNow.Date.ToString("yyyy-MM-dd");
+            var today = _time.GetUtcNow().UtcDateTime.Date.ToString("yyyy-MM-dd");
             messages.Add(new ChatMessage(ChatRole.User, BuildPrompt(request.Strategy, today)));
 
             // No ChatOptions.Tools => FunctionInvokingChatClient (if present in the chain) has

@@ -28,15 +28,15 @@ public record ReviewStep(
 /// A pending <see cref="Affidavit"/> awaiting human review. The Docket is the
 /// durable review queue; each entry is keyed by <see cref="EntryId"/>, a
 /// <see cref="Guid"/> that doubles as the idempotency key for
-/// <see cref="IDocketStore.UpdateReviewStatusAsync"/>'s optimistic concurrency guard.
+/// <see cref="IDocketStore.TransitionAsync"/>'s guarded compare-and-set.
 ///
 /// <see cref="ReviewerUserId"/> is null when the entry is self-reviewed by the same
 /// user who proposed it; set to a different user id for Referrals (delegated review).
 /// <see cref="Amendments"/> records any fields the reviewer changed during approval — a
 /// <c>null</c> value means the reviewer explicitly cleared that field, distinct from the
 /// field being absent from the dictionary (unamended). Set at filing time from
-/// <see cref="ReviewContext.Amendments"/> and, for the reviewer's actual edits captured on
-/// the Evidence Card response, updated via <see cref="Interfaces.IDocketStore.UpdateAmendmentsAsync"/>.
+/// <see cref="ReviewContext.Amendments"/> and, for the reviewer's actual edits, written by the
+/// guarded transition an approval performs — a recorded fact, never edited in place (DK-4).
 ///
 /// <para>
 /// <b>Residual risk (P1a, affiant#22 / FV-9):</b> this record has no field marking whether the
@@ -82,6 +82,13 @@ public sealed record DocketEntry(
     string SessionId,
     string TenantId,
     string UserId,
+    [property: Obsolete(
+        "Who decided an entry is recorded in DocketEntry.Attestation, which names the person, the " +
+        "relay that carried their decision, or the Standing Order that fired — ReviewerUserId can " +
+        "say only the first and cannot say how the claim was made. Kept as an alias for one " +
+        "release; read Attestation instead.",
+        error: false,
+        DiagnosticId = "AFFIANT0001")]
     string? ReviewerUserId,
     string OperationType,
     Affidavit Envelope,
@@ -89,4 +96,122 @@ public sealed record DocketEntry(
     DateTimeOffset CreatedAt,
     DateTimeOffset ExpiresAt,
     IReadOnlyDictionary<string, object?>? Amendments,
-    Guid? ResubmittedTo = null);
+    Guid? ResubmittedTo = null,
+
+    // ── The facts a row accumulates after filing ─────────────────────────────
+    // Every member below is a LATER FACT appended beside what was already there — never an edit of
+    // a recorded one. They carry defaults so a caller that constructs the twelve original
+    // parameters positionally still compiles: what those callers get is a freshly filed row with
+    // no decision, no attestation and no execution outcome, which is exactly what a filing is.
+    // What became of the write. Non-null exactly when Status is
+    // Approved: an approved-but-failed write must stay distinguishable
+    // from an approved-and-committed one. Recorded once, under a guarded transition from
+    // Unexecuted — see
+    // RecordExecutionAsync.
+    ExecutionOutcome? Execution = null,
+
+    // What the executor reported, or null when it has not reported or had nothing to say.
+    string? ExecutionDetail = null,
+    // What a reviewer chose and why, or null for a pending row or a Standing Order — no
+    // person chose anything in the latter case, so there is an attestation and no decision record.
+    DecisionRecord? Decision = null,
+    // Who agreed, or null while nobody has. A Standing Order's attestation is written in the
+    // same operation as the filing, so there is no window in which an approved row has no
+    // attribution.
+    Attestation? Attestation = null,
+    // Why this entry cannot be decided, or null when it can. A blocked entry sits in
+    // Pending and refuses every decision.
+    BlockedMarker? Blocked = null,
+    // The composite approval this entry is one constituent of, or null. Until multi-party
+    // semantics land, a host composes multi-party approval above the gate: one entry per
+    // approver, all naming the same composite, each card stating on its face that it is one of N,
+    // and no constituent's approval alone reaching the executor.
+    string? CompositeRef = null,
+    // The state a reviewer's accepted amendments produced, or null while none has
+    // been accepted. Written beside Envelope, which is never edited — a row that
+    // overwrote its proposal could not show what the agent originally said, which is the fact an
+    // auditor is reading the row for.
+    Affidavit? AmendedAffidavit = null,
+    // The amendments a decision carried after the deadline had passed, with the act that
+    // carried them, or null. An appended later fact on an expired row, written by
+    // PreserveAmendmentsAsync and read by a resubmission to
+    // prefill the new proposal. Distinct from Amendments, which is what an approval
+    // accepted: nobody accepted these, and conflating the two would let a resubmission
+    // present a refused caller's corrections as an approval's.
+    PreservedAmendments? PreservedAmendments = null,
+    // The entry this one resubmits, or null for a first filing. The other half of
+    // Lineage; the successor link lives on the superseded row as
+    // ResubmittedTo.
+    Guid? Supersedes = null,
+
+    // When the row left Pending, or null while it has not.
+    DateTimeOffset? DecidedAt = null,
+
+    // The protocol tag this row's shapes conform to. Defaults to Version.
+    string ProtocolVersion = AffiantProtocol.Version)
+{
+    private readonly string? _toolName;
+
+    /// <summary>
+    /// The tool or capture source the proposal came from.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// On the row because two later questions need it and neither can be answered from the
+    /// Affidavit: a resubmission re-runs the coverage lookup against the original tool, and an audit
+    /// of a filed write has to be able to say which tool proposed it.
+    /// </para>
+    /// <para>
+    /// <see cref="OperationType"/> is the same fact under the framework's older name and is what
+    /// this falls back to when nothing set it explicitly, so a row filed by any release carries a
+    /// correct tool name. New code writes and reads <see cref="ToolName"/>.
+    /// </para>
+    /// </remarks>
+    public string ToolName
+    {
+        get => _toolName ?? OperationType;
+        init => _toolName = value;
+    }
+
+    /// <summary>
+    /// The requirement level the approval chain resolved for this proposal — what the row was
+    /// <em>filed as</em>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// On the row because it is the chain's answer, and the chain runs once: a reader that inferred
+    /// it from the row's later state would be guessing, and would guess wrong for the one case that
+    /// matters — a level this version records but does not run stays <see cref="ReviewStatus.Pending"/>
+    /// with a blocked marker, and is never degraded to the weaker requirement the implementation
+    /// does know how to run (AZ-4).
+    /// </para>
+    /// <para>
+    /// It is what was asked for, not what happened: an approved row filed as
+    /// <see cref="ReviewRequirement.ReviewerConfirmation"/> still says so afterwards.
+    /// </para>
+    /// </remarks>
+    public ReviewRequirement Requirement { get; init; } = ReviewRequirement.ReviewerConfirmation;
+
+    /// <summary>
+    /// The channel the proposal arrived on — the host's own name for the surface a person was
+    /// speaking through, as <c>ConversationIdentity.Channel</c> carried it. <c>null</c> when the
+    /// host named none.
+    /// </summary>
+    /// <remarks>
+    /// On the row because it is a fact about the act, and the act is what the row records: a review
+    /// that arrived over a chat widget, a relay and an operations console are three different
+    /// situations to audit, and the Affidavit cannot say which. It is not read by any rule — it is
+    /// evidence, not a control.
+    /// </remarks>
+    public string? Channel { get; init; }
+
+    /// <summary>
+    /// What this entry replaces and what replaced it — <see cref="Supersedes"/> paired with
+    /// <see cref="ResubmittedTo"/>, which is the successor link under its older name.
+    /// </summary>
+    /// <remarks>
+    /// A resubmission is a new entry, never a reopened one: the superseded entry keeps its terminal
+    /// state and records its successor, so the history reads forward.
+    /// </remarks>
+    public Lineage Lineage => new(Supersedes, ResubmittedTo);
+}

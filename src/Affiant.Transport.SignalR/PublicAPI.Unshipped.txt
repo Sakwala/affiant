@@ -1,1 +1,5 @@
 #nullable enable
+*REMOVED*Affiant.Transport.SignalR.Transport.SignalRStreamingTransport<THub>.AwaitEvidenceCardResponseAsync(string! sessionGroupId, System.Guid docketId, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Affiant.Abstractions.Transport.EvidenceCardResponse!>!
+*REMOVED*Affiant.Transport.SignalR.Transport.SignalRStreamingTransport<THub>.TryDeliverResponse(System.Guid docketId, Affiant.Abstractions.Transport.EvidenceCardResponse! response) -> bool
+Affiant.Transport.SignalR.Transport.SignalRStreamingTransport<THub>.AwaitEvidenceCardResponseAsync(string! sessionGroupId, System.Guid docketId, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Affiant.Abstractions.Transport.DecisionHandOff!>!
+Affiant.Transport.SignalR.Transport.SignalRStreamingTransport<THub>.TryDeliverResponse(System.Guid docketId, Affiant.Abstractions.Transport.DecisionHandOff! response) -> bool

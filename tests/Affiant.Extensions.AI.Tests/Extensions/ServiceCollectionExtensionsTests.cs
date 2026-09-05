@@ -178,7 +178,7 @@ public class ServiceCollectionExtensionsTests
         public string EntityType => "Widget";
 
         public Affidavit Project(
-            IContextFabric fabric, string operationType, IReadOnlyList<string> warnings)
+            IContextFabric fabric, string operationType, IReadOnlyList<string> warnings, string? entityId = null)
             => throw new InvalidOperationException("HostProjection.Project should not be called");
     }
 

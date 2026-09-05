@@ -19,10 +19,32 @@ readable in a CI log without reading a test runner's output.
 """
 import json
 import pathlib
+import re
 import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
-RESULTS = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else HERE / "results" / "dotnet-1.0.0-beta.1.json"
+
+def built_version():
+    """The version this tree builds, from Directory.Build.props.
+
+    The run log is named after the version it measured, so a script looking for it has to ask the
+    same question the driver did rather than carry a constant that goes stale the moment the tree is
+    versioned for the next release.
+    """
+    props = (HERE.parent / "Directory.Build.props").read_text()
+    prefix = re.search(r"<VersionPrefix>([^<]+)</VersionPrefix>", props)
+    suffix = re.search(r"<VersionSuffix>([^<]*)</VersionSuffix>", props)
+    if not prefix:
+        raise SystemExit("no <VersionPrefix> in Directory.Build.props")
+    return f"{prefix.group(1)}-{suffix.group(1)}" if suffix and suffix.group(1) else prefix.group(1)
+
+
+def run_log():
+    """The run this tree's own build wrote."""
+    return HERE / "results" / f"dotnet-{built_version()}.json"
+
+
+RESULTS = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else run_log()
 MANIFEST = pathlib.Path(sys.argv[2]) if len(sys.argv) > 2 else HERE / "parity" / "dotnet-v0.1.json"
 
 

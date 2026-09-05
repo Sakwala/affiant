@@ -54,10 +54,11 @@ public class ApprovalPolicyEvaluatorIntegrationTests
     {
         public int CallCount { get; private set; }
 
-        public Task<ReviewRequirement?> EvaluateAsync(Affidavit affidavit, CancellationToken ct = default)
+        public Task<ApprovalVerdict?> EvaluateAsync(
+        Affidavit affidavit, ConversationIdentity identity, CancellationToken ct = default)
         {
             CallCount++;
-            return Task.FromResult<ReviewRequirement?>(null);
+            return Task.FromResult<ApprovalVerdict?>(null);
         }
     }
 
@@ -68,8 +69,10 @@ public class ApprovalPolicyEvaluatorIntegrationTests
         EntityType: "TestEntity",
         EntityId: null,
         Fields: [new AffidavitField("field", "val", null,
-            ProvenanceChain.From(ProvenanceTag.FromInference("field", 1.0f)))],
+            ProvenanceChain.From(ProvenanceTag.FromInference(InferenceSource.Inferred, "field", 1.0f)))],
         AggregateConfidence: 1.0f,
+        PopulatedConfidence: 1.0f,
+        EmptyFieldCount: 0,
         Warnings: [],
         RequiresConfirmation: false);
 
@@ -80,9 +83,9 @@ public class ApprovalPolicyEvaluatorIntegrationTests
     {
         var evaluator = new ApprovalPolicyEvaluator(Array.Empty<IApprovalPolicy>());
 
-        var result = await evaluator.EvaluateAsync(MakeAffidavit());
+        var result = await evaluator.EvaluateAsync(MakeAffidavit(), TestIdentities.Anyone);
 
-        Assert.Equal(ReviewRequirement.ReviewerConfirmation, result);
+        Assert.Equal(ReviewRequirement.ReviewerConfirmation, result!.Requirement);
     }
 
     [Fact]
@@ -94,9 +97,9 @@ public class ApprovalPolicyEvaluatorIntegrationTests
         var sp = services.BuildServiceProvider();
         var evaluator = sp.GetRequiredService<ApprovalPolicyEvaluator>();
 
-        var result = await evaluator.EvaluateAsync(MakeAffidavit());
+        var result = await evaluator.EvaluateAsync(MakeAffidavit(), TestIdentities.Anyone);
 
-        Assert.Equal(ReviewRequirement.ReviewerConfirmation, result);
+        Assert.Equal(ReviewRequirement.ReviewerConfirmation, result!.Requirement);
     }
 
     [Fact]
@@ -111,9 +114,9 @@ public class ApprovalPolicyEvaluatorIntegrationTests
         };
         var evaluator = new ApprovalPolicyEvaluator(policies);
 
-        var result = await evaluator.EvaluateAsync(MakeAffidavit());
+        var result = await evaluator.EvaluateAsync(MakeAffidavit(), TestIdentities.Anyone);
 
-        Assert.Equal(ReviewRequirement.ReferralRequired, result);
+        Assert.Equal(ReviewRequirement.ReferralRequired, result!.Requirement);
         Assert.Equal(1, neverPolicy.CallCount);  // NeverMatchingPolicy was called once then chain stopped at Referral
     }
 
@@ -135,11 +138,11 @@ public class ApprovalPolicyEvaluatorIntegrationTests
         });
 
         var affidavit = MakeAffidavit();
-        var resultA = await evaluatorA.EvaluateAsync(affidavit);
-        var resultB = await evaluatorB.EvaluateAsync(affidavit);
+        var resultA = await evaluatorA.EvaluateAsync(affidavit, TestIdentities.Anyone);
+        var resultB = await evaluatorB.EvaluateAsync(affidavit, TestIdentities.Anyone);
 
-        Assert.Equal(ReviewRequirement.StandingOrder, resultA);
-        Assert.Equal(ReviewRequirement.ReferralRequired, resultB);
+        Assert.Equal(ReviewRequirement.StandingOrder, resultA!.Requirement);
+        Assert.Equal(ReviewRequirement.ReferralRequired, resultB!.Requirement);
     }
 
     [Fact]
@@ -157,9 +160,9 @@ public class ApprovalPolicyEvaluatorIntegrationTests
         using var scope = sp.CreateScope();
         var evaluator = scope.ServiceProvider.GetRequiredService<ApprovalPolicyEvaluator>();
 
-        var result = await evaluator.EvaluateAsync(MakeAffidavit());
+        var result = await evaluator.EvaluateAsync(MakeAffidavit(), TestIdentities.Anyone);
 
-        Assert.Equal(ReviewRequirement.StandingOrder, result);
+        Assert.Equal(ReviewRequirement.StandingOrder, result!.Requirement);
     }
 
     [Fact]
@@ -171,9 +174,9 @@ public class ApprovalPolicyEvaluatorIntegrationTests
             new LowRiskAutoApprovalOrder(new FixedScoreCalculator((int)RiskLevel.Low))
         });
 
-        var result = await evaluator.EvaluateAsync(MakeAffidavit());
+        var result = await evaluator.EvaluateAsync(MakeAffidavit(), TestIdentities.Anyone);
 
-        Assert.Equal(ReviewRequirement.StandingOrder, result);
+        Assert.Equal(ReviewRequirement.StandingOrder, result!.Requirement);
     }
 
     [Fact]
@@ -186,9 +189,9 @@ public class ApprovalPolicyEvaluatorIntegrationTests
             new LowRiskAutoApprovalOrder(new FixedScoreCalculator((int)RiskLevel.High))
         });
 
-        var result = await evaluator.EvaluateAsync(MakeAffidavit());
+        var result = await evaluator.EvaluateAsync(MakeAffidavit(), TestIdentities.Anyone);
 
-        Assert.Equal(ReviewRequirement.ReviewerConfirmation, result);
+        Assert.Equal(ReviewRequirement.ReviewerConfirmation, result!.Requirement);
     }
 
     [Fact]
@@ -205,9 +208,9 @@ public class ApprovalPolicyEvaluatorIntegrationTests
         using var scope = sp.CreateScope();
         var evaluator = scope.ServiceProvider.GetRequiredService<ApprovalPolicyEvaluator>();
 
-        var result = await evaluator.EvaluateAsync(MakeAffidavit());
+        var result = await evaluator.EvaluateAsync(MakeAffidavit(), TestIdentities.Anyone);
 
-        Assert.Equal(ReviewRequirement.StandingOrder, result);
+        Assert.Equal(ReviewRequirement.StandingOrder, result!.Requirement);
     }
 
     private sealed class AlwaysLowCalculator : RiskScoreCalculatorBase

@@ -5,19 +5,30 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Affiant.EntityFramework.Stores;
 
-public sealed class PostgresChatSessionStore(AffiantDbContext db) : IChatSessionStore
+/// <param name="db">The Affiant EF Core context.</param>
+/// <param name="timeProvider">
+/// The clock this store stamps session creation, last-activity and message instants
+/// from. Defaults to <see cref="TimeProvider.System"/>; DI supplies whatever the host
+/// registered, and a test substitutes a fake.
+/// </param>
+public sealed class PostgresChatSessionStore(
+    AffiantDbContext db,
+    TimeProvider? timeProvider = null) : IChatSessionStore
 {
+    private readonly TimeProvider _time = timeProvider ?? TimeProvider.System;
+
     public async Task<ChatSession> CreateAsync(string tenantId, string userId, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
 
         var entity = new ChatSessionEntity
         {
+            // Not a protocol identity: the host's own conversation handle. See the in-memory store.
             SessionId = Guid.NewGuid().ToString("N"),
             TenantId = tenantId,
             UserId = userId,
-            CreatedAt = DateTimeOffset.UtcNow,
-            LastActivityAt = DateTimeOffset.UtcNow
+            CreatedAt = _time.GetUtcNow(),
+            LastActivityAt = _time.GetUtcNow()
         };
 
         db.ChatSessions.Add(entity);
@@ -48,7 +59,7 @@ public sealed class PostgresChatSessionStore(AffiantDbContext db) : IChatSession
 
         var session = await db.ChatSessions.FirstOrDefaultAsync(s => s.SessionId == sessionId, ct);
         if (session is not null)
-            session.LastActivityAt = DateTimeOffset.UtcNow;
+            session.LastActivityAt = _time.GetUtcNow();
 
         for (var i = 0; i < messages.Count; i++)
         {
@@ -73,7 +84,7 @@ public sealed class PostgresChatSessionStore(AffiantDbContext db) : IChatSession
 
         var session = await db.ChatSessions.FirstOrDefaultAsync(s => s.SessionId == sessionId, ct);
         if (session is not null)
-            session.LastActivityAt = DateTimeOffset.UtcNow;
+            session.LastActivityAt = _time.GetUtcNow();
 
         for (var i = 0; i < messages.Count; i++)
         {
@@ -114,7 +125,7 @@ public sealed class PostgresChatSessionStore(AffiantDbContext db) : IChatSession
     private static ChatSession ToDomainRecord(ChatSessionEntity entity) =>
         new(entity.SessionId, entity.TenantId, entity.UserId, entity.CreatedAt, entity.LastActivityAt);
 
-    private static ChatMessageEntity ToEntity(AffiantChatMessage message, string sessionId, int ordinal) =>
+    private ChatMessageEntity ToEntity(AffiantChatMessage message, string sessionId, int ordinal) =>
         new()
         {
             SessionId = sessionId,
@@ -126,7 +137,7 @@ public sealed class PostgresChatSessionStore(AffiantDbContext db) : IChatSession
             ToolCallId = message.ToolCallId,
             FunctionName = message.FunctionName,
             ArgumentsJson = message.ArgumentsJson,
-            Timestamp = DateTimeOffset.UtcNow
+            Timestamp = _time.GetUtcNow()
         };
 
     private static AffiantChatMessage ToDomain(ChatMessageEntity entity) =>

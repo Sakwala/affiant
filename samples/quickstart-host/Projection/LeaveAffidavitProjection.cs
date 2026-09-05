@@ -45,9 +45,9 @@ using QuickstartHost.Data;
 /// <b>Confidence.</b> <c>AggregateConfidence</c> here is the <em>minimum</em> over every proposed
 /// field, an unsourced field counting 0.0 — so the number is 0.0 exactly when some proposed field
 /// has unknown provenance. The framework's own <c>SchemaDrivenAffidavitProjection</c> averages the
-/// fields that do have a source, which lets a mostly-empty affidavit report high confidence; that
-/// is the second reason this host supplies its own projection. See INVARIANTS.md AF-2, linked from
-/// the sample's README.
+/// fields that do have a source as <c>PopulatedConfidence</c> and takes the same minimum for
+/// <c>AggregateConfidence</c>, so this projection and the framework's agree on the number that
+/// matters. See INVARIANTS.md AF-2, linked from the sample's README.
 /// </para>
 ///
 /// <para>
@@ -68,40 +68,49 @@ public sealed class LeaveAffidavitProjection(
     /// The tag an update's unchanged field carries: the database stated this value, not the caller.
     ///
     /// <para>
-    /// A tag naming an external system is expected to say <em>which</em> system and <em>which</em>
-    /// record — an <c>external-ref</c> binding, in INVARIANTS.md PV-2's terms. The 1.0.0-beta.1
-    /// <c>ProvenanceTag</c> has no binding property, so those two facts travel in
-    /// <c>Evidence</c>, the only free-text channel the shipped record offers. A release that adds
-    /// bindings replaces this string with the structured form.
+    /// A tag naming an external system says <em>which</em> system and <em>which</em> record — an
+    /// <c>external-ref</c> binding, in INVARIANTS.md PV-2's terms — and carries it in the tag's
+    /// structured <c>Binding</c> rather than in free text.
     /// </para>
     /// </summary>
     private static ProvenanceTag FromRecord(int recordId) => new(
         ProvenanceSource.External,
         Confidence: 0.95f,
-        Evidence: $"external-ref: system=HrDb, record=LeaveRequest/{recordId.ToString(Invariant)}",
-        ConversationTurn: null);
+        Evidence: null,
+        ConversationTurn: null,
+        Binding: new ProvenanceBinding.ExternalRef(
+            new ExternalRecordRef("HrDb", $"LeaveRequest/{recordId.ToString(Invariant)}")));
 
     public string EntityType => strategy.EntityName;
 
+    /// <param name="fabric">The turn's accumulated entity state and per-field provenance.</param>
+    /// <param name="operationType">The operation being proposed.</param>
+    /// <param name="warnings">Business-rule warnings to carry onto the Affidavit.</param>
+    /// <param name="entityId">
+    /// The entity an update-shaped operation targets, as the caller names it. When the caller
+    /// supplies one it wins: only the caller knows which record the write is against. The fabric is
+    /// read as a fallback for a caller that names none.
+    /// </param>
     public Affidavit Project(
         IContextFabric fabric,
         string operationType,
-        IReadOnlyList<string> warnings)
+        IReadOnlyList<string> warnings,
+        string? entityId = null)
     {
         ArgumentNullException.ThrowIfNull(fabric);
         ArgumentNullException.ThrowIfNull(warnings);
 
         var entity = fabric.GetByKey(strategy.EntityName);
-        var entityId = ReadEntityId(entity);
-        var existing = entityId is null ? null : LoadLeaveRequest(entityId.Value);
+        var targetId = ParseEntityId(entityId) ?? ReadEntityId(entity);
+        var existing = targetId is null ? null : LoadLeaveRequest(targetId.Value);
 
         var fields = strategy.Fields
             .Select(field => ProjectField(field, fabric, entity, existing))
             .ToArray();
 
         // The minimum over every proposed field, an unsourced one counting 0.0. A mean taken over
-        // only the fields that have a source — what the framework's default projection computes —
-        // would report 1.00 on the card below while a mandatory field has nothing behind it at all.
+        // only the fields that have a source would report 1.00 on the card below while a mandatory
+        // field has nothing behind it at all.
         var aggregateConfidence = fields.Length == 0 ? 0f : fields.Min(FieldConfidence);
 
         var allWarnings = warnings
@@ -111,14 +120,20 @@ public sealed class LeaveAffidavitProjection(
             .Append(ConfidenceNote(fields, aggregateConfidence))
             .ToArray();
 
-        return new Affidavit(
-            OperationType: operationType,
-            EntityType: strategy.EntityName,
-            EntityId: existing?.Id.ToString(Invariant),
-            Fields: fields,
-            AggregateConfidence: aggregateConfidence,
-            Warnings: allWarnings,
-            RequiresConfirmation: true);
+        return Affidavit.Create(
+            operationType: operationType,
+            entityType: strategy.EntityName,
+            entityId: existing?.Id.ToString(Invariant),
+            fields: fields,
+            warnings: allWarnings,
+            requiresConfirmation: true) with
+        {
+            // This host swears a stricter aggregate than the framework's own: the minimum over
+            // every proposed field, an unsourced one counting 0.0. The two companions stay as
+            // Affidavit.Create computed them, so the card's three numbers are still about the same
+            // field list (AF-2).
+            AggregateConfidence = aggregateConfidence,
+        };
     }
 
     private AffidavitField ProjectField(
@@ -196,6 +211,12 @@ public sealed class LeaveAffidavitProjection(
             $"populated {populatedConfidence}, " +
             $"{(fields.Length - populated.Length).ToString(Invariant)} field(s) with no source.";
     }
+
+    /// <summary>The caller's entity id, as an int, or <c>null</c> when it names none.</summary>
+    private static int? ParseEntityId(string? entityId) =>
+        int.TryParse(entityId, System.Globalization.NumberStyles.Integer, Invariant, out var parsed)
+            ? parsed
+            : null;
 
     private static int? ReadEntityId(EntityRef? entity)
     {

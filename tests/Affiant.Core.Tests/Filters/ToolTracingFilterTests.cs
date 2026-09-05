@@ -132,7 +132,7 @@ public sealed class ToolTracingFilterTests
     // ── P1d: returned (non-thrown) ToolError-shaped results (area-3 V6) ─────
 
     private static string ToolErrorJson(string code, bool retryable) =>
-        $$"""{"$type":"error","toolName":"Probe","timestamp":"2026-01-01T00:00:00Z","code":"{{code}}","message":"redirected","retryable":{{retryable.ToString().ToLowerInvariant()}}}""";
+        $$"""{"kind":"error","toolName":"Probe","timestamp":"2026-01-01T00:00:00Z","code":"{{code}}","message":"redirected","retryable":{{retryable.ToString().ToLowerInvariant()}}}""";
 
     [Fact]
     public async Task ReturnedToolError_ToolStatusIsError_NotOk()
@@ -171,7 +171,7 @@ public sealed class ToolTracingFilterTests
         // A ReadResult-shaped envelope (valid $type, not "error") must not be misdetected.
         await Run("PlainJsonFn", ctx =>
         {
-            ctx.Result = """{"$type":"read","toolName":"Probe","timestamp":"2026-01-01T00:00:00Z","summary":"s","markdown":"m","entities":[]}""";
+            ctx.Result = """{"kind":"read","toolName":"Probe","timestamp":"2026-01-01T00:00:00Z","summary":"s","markdown":"m","entities":[]}""";
             return Task.CompletedTask;
         });
 

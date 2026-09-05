@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Deliberately NOT in Affiant.slnx: this project consumes the PACKED
+       Affiant.Testing.ComplianceHarness from a local feed, the way an adopter does. Building it
+       inside the solution would give it project references and prove nothing. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Affiant.HarnessConsumer</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <!-- The point is the package's own surface: no analyzers, no baselines, nothing this
+         repository's Directory.Build.props would lend it. -->
+    <ImportDirectoryBuildProps>false</ImportDirectoryBuildProps>
+    <ImportDirectoryBuildTargets>false</ImportDirectoryBuildTargets>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Affiant.Testing.ComplianceHarness" Version="$(AffiantVersion)" />
+  </ItemGroup>
+
+</Project>

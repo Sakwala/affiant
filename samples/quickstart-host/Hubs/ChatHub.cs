@@ -61,10 +61,26 @@ public sealed class ChatHub(
             TenantId, HttpReviewContextProvider.DemoUserId, Context.ConnectionAborted);
 
         var messages = await RehydrateSessionAsync(session.SessionId, Context.ConnectionAborted);
-        await reviewGate.RebroadcastPendingCardsAsync(session.SessionId, Context.ConnectionAborted);
+        await reviewGate.RebroadcastPendingCardsAsync(session.SessionId, TenantId, Context.ConnectionAborted);
 
         return new SessionJoined(session.SessionId, messages);
     }
+
+    /// <summary>
+    /// Who is acting on this connection, from which tenant and in which conversation (AZ-2).
+    ///
+    /// <para>
+    /// Built at the call site from the connection's own identity, never resolved from ambient
+    /// state. This sample authenticates nobody, so the demo reviewer is the principal; a real host
+    /// reads it from <c>Context.User</c> and refuses the call when identity does not resolve —
+    /// which the framework then answers <c>decision-unauthorized</c> before it reads the Docket.
+    /// </para>
+    /// </summary>
+    private DecisionContext Deciding() => new(
+        new Principal.Member(HttpReviewContextProvider.DemoUserId),
+        TenantId,
+        ConversationId: Context.ConnectionId,
+        Channel: "chat");
 
     /// <summary>
     /// Delivers a reviewer's approval, with any fields they amended, and — only if the framework
@@ -78,7 +94,7 @@ public sealed class ChatHub(
     public async Task<DecisionAck> ApproveEntry(Guid entryId, Dictionary<string, object?>? amendments)
     {
         var (outcome, _) = await reviewGate.HandleDecisionAsync(
-            entryId, ApprovalDecision.Approved, amendments, Context.ConnectionAborted);
+            entryId, ApprovalDecision.Approved, Deciding(), amendments, Context.ConnectionAborted);
 
         if (outcome is not ReviewOutcome.Approved)
             return DecisionAck.From(entryId, outcome);
@@ -99,7 +115,7 @@ public sealed class ChatHub(
     public async Task<DecisionAck> RejectEntry(Guid entryId)
     {
         var (outcome, _) = await reviewGate.HandleDecisionAsync(
-            entryId, ApprovalDecision.Rejected, amendments: null, Context.ConnectionAborted);
+            entryId, ApprovalDecision.Rejected, Deciding(), amendments: null, Context.ConnectionAborted);
         return DecisionAck.From(entryId, outcome);
     }
 
@@ -111,7 +127,7 @@ public sealed class ChatHub(
     /// </summary>
     public async Task<DecisionAck> ResubmitEntry(Guid entryId)
     {
-        var filing = await reviewGate.ResubmitAsync(entryId, Context.ConnectionAborted);
+        var filing = await reviewGate.ResubmitAsync(entryId, Deciding(), Context.ConnectionAborted);
         return filing switch
         {
             ReviewFilingResult.RequiresReview requires => new DecisionAck(

@@ -16,9 +16,12 @@ Nothing commits without evidence. Nothing writes without approval.
 > nightly. What to try and what you are looking at:
 > [affiant.dev/start/live-demo](https://affiant.dev/start/live-demo/).
 
-> **Beta.** `1.0.0-beta.1` is on nuget.org — all ten packages, co-versioned, published 2026-08-23 (UTC).
-> The public API has been validated by two first-party host applications but has not yet reached 1.0 GA.
-> Read [Beta status](#beta-status) before adopting — trust the *invariant*, expect the *API* to evolve.
+> **Beta.** `1.0.0-beta.3` — the conformance release — is the current version: all ten packages,
+> co-versioned. It passes the protocol's whole conformance suite, 63 of 63, at the rulebook's
+> [`v0.1.2`](https://github.com/Sakwala/affiant-protocol/releases/tag/v0.1.2) tag; the run and the
+> parity manifest it rests on are in `conformance/`. The public API has been validated by two
+> first-party host applications but has not yet reached 1.0 GA. Read
+> [Beta status](#beta-status) before adopting — trust the *invariant*, expect the *API* to evolve.
 
 ---
 
@@ -36,8 +39,13 @@ call:
 - Every value carries a **`ProvenanceChain`** — the ordered history of how that field
   arrived at its current value — and its **`PreviousValue`**, so an update shows exactly
   what is changing.
-- Every proposed mutation is a durable, sworn **`Affidavit`** with an **`AggregateConfidence`**,
-  reviewed on an **Evidence Card** and persisted for audit whether it is approved or rejected.
+- Every proposed mutation is a durable, sworn **`Affidavit`** carrying three confidence
+  numbers, reviewed on an **Evidence Card** and persisted for audit whether it is approved or
+  rejected. **`AggregateConfidence`** is the *minimum* over every proposed field with an
+  `Empty` field counting as `0` — so it is `0` exactly when some proposed field has unknown
+  provenance, and a mostly-blank record can never report a high score.
+  **`PopulatedConfidence`** (the minimum over the fields that *are* populated, `null` when
+  none is) and **`EmptyFieldCount`** are what make that `0` readable.
 
 The result is *data identity*: not "an agent did something", but "this specific value came
 from this specific source, and here is the proof". See [Positioning](#positioning) for how
@@ -53,7 +61,7 @@ provenance:
 
 ```jsonc
 {
-  "$type": "write",
+  "kind": "write",
   "toolName": "RequestLeave",
   "timestamp": "2026-07-04T09:24:11Z",
   "envelope": {
@@ -67,7 +75,8 @@ provenance:
         "previousValue": null,
         "provenance": {
           "current": { "source": "UserStated", "confidence": 1.0,
-                       "evidence": "User stated: StartDate", "conversationTurn": 3 },
+                       "note": "User stated: StartDate", "conversationTurn": 3,
+                       "at": null, "binding": null },
           "prior": []
         }
       },
@@ -77,7 +86,10 @@ provenance:
         "previousValue": null,
         "provenance": {
           "current": { "source": "External", "confidence": 0.95,
-                       "evidence": "Resolved from directory lookup", "conversationTurn": 2 },
+                       "note": "Resolved from directory lookup", "conversationTurn": 2,
+                       "at": null,
+                       "binding": { "kind": "external-ref",
+                                    "ref": { "system": "directory", "recordId": "4021" } } },
           "prior": []
         }
       },
@@ -87,12 +99,18 @@ provenance:
         "previousValue": null,
         "provenance": {
           "current": { "source": "Computed", "confidence": 1.0,
-                       "evidence": "currentBalance(17) - requestedDays(5)", "conversationTurn": 3 },
+                       "note": "currentBalance(17) - requestedDays(5)", "conversationTurn": 3,
+                       "at": null,
+                       "binding": { "kind": "computation-ref",
+                                    "ref": { "rule": "leave.remainingAfter",
+                                             "inputs": ["currentBalance", "requestedDays"] } } },
           "prior": []
         }
       }
     ],
-    "aggregateConfidence": 0.98,
+    "aggregateConfidence": 0.95,       // the MINIMUM over the proposed fields
+    "populatedConfidence": 0.95,       // the minimum over the fields that are populated
+    "emptyFieldCount": 0,
     "warnings": [],
     "requiresConfirmation": true
   }
@@ -223,24 +241,30 @@ public class RequestLeavePlugin(HrDbContext db)
 
         var fields = new AffidavitField[]
         {
+            // The user typed these into the chat, so the binding is the form-style input they
+            // came from. Pass null only when there is genuinely nothing to point at.
             new("StartDate", startDate.ToString("yyyy-MM-dd"), null,
-                ProvenanceChain.From(ProvenanceTag.FromUser("StartDate"))),
+                ProvenanceChain.From(ProvenanceTag.FromUser(
+                    "StartDate", new ProvenanceBinding.FormInput(new FormInputRef("startDate"))))),
             new("EndDate", endDate.ToString("yyyy-MM-dd"), null,
-                ProvenanceChain.From(ProvenanceTag.FromUser("EndDate"))),
+                ProvenanceChain.From(ProvenanceTag.FromUser(
+                    "EndDate", new ProvenanceBinding.FormInput(new FormInputRef("endDate"))))),
             new("LeaveType", leaveType, null,
-                ProvenanceChain.From(ProvenanceTag.FromUser("LeaveType"))),
+                ProvenanceChain.From(ProvenanceTag.FromUser(
+                    "LeaveType", new ProvenanceBinding.FormInput(new FormInputRef("leaveType"))))),
             new("Reason", reason, null,
-                ProvenanceChain.From(ProvenanceTag.FromUser("Reason"))),
+                ProvenanceChain.From(ProvenanceTag.FromUser(
+                    "Reason", new ProvenanceBinding.FormInput(new FormInputRef("reason"))))),
         };
 
-        var affidavit = new Affidavit(
-            OperationType: "create",
-            EntityType: "LeaveRequest",
-            EntityId: null,
-            Fields: fields,
-            AggregateConfidence: 1.0f,
-            Warnings: [],
-            RequiresConfirmation: true);
+        // Affidavit.Create computes all three confidence numbers from the fields, so a
+        // hand-written aggregate can never disagree with what it is meant to summarise.
+        var affidavit = Affidavit.Create(
+            operationType: "create",
+            entityType: "LeaveRequest",
+            entityId: null,
+            fields: fields,
+            warnings: []);
 
         return Task.FromResult(
             new WriteProposal(toolName, DateTimeOffset.UtcNow, affidavit).ToJsonString());
@@ -313,7 +337,11 @@ ships a bundled or reusable web component for it as of this release (each render
 this Quickstart gets you to is the point where that payload exists and is on the wire, which is
 everything the framework itself is responsible for. From there, `EvidenceCardResponse` (the
 reviewer's decision, including any field amendments) travels back the same transport and
-`ReviewGate.HandleDecisionAsync` picks it up.
+`ReviewGate.HandleDecisionAsync` picks it up — with a `DecisionContext` naming the principal the host
+authenticated and the tenant they are acting in, which is what the gate holds them to and what the
+row records as the attestation. Who may decide a given entry is the host's own answer, supplied once
+through `services.AddDecisionAuthorization<TPolicy>()`; without one the gate refuses every decision
+and the application is refused at startup.
 
 Install:
 
@@ -673,14 +701,21 @@ per-release detail are in the [CHANGELOG](CHANGELOG.md)'s header; not repeated h
 
 ## Beta status
 
-This is `1.0.0-beta.1`, published on nuget.org on 2026-08-23 (UTC). Earlier `1.0.0-alpha.*`
-versions were internal and were never published.
+This is `1.0.0-beta.3`, the conformance release. `1.0.0-beta.1` was published on nuget.org on
+2026-08-23 (UTC) and `1.0.0-beta.1.1` on 2026-09-04; earlier `1.0.0-alpha.*` versions were internal
+and were never published.
+
+Every package is installed with `--prerelease`, so the Quickstarts below need no version pin: they
+resolve to the latest prerelease, which is this one. Pin explicitly (`--version 1.0.0-beta.3`) where
+a build has to be reproducible.
 
 The API has been exercised by two independent first-party host applications, but it has not
 yet reached 1.0 GA. Adopt on this basis:
 
 - **Trust the invariant.** Every Affidavit field carries provenance, no exceptions. That
-  contract is stable and is enforced by the ComplianceHarness.
+  contract is stable, it is enforced by the ComplianceHarness, and from `1.0.0-beta.3` the same
+  package runs the protocol's own conformance suite — `ConformanceSuite.Run(...)` — so a host can
+  measure its own wiring against the rulebook with the code the framework's own result comes from.
 - **Expect API evolution between prerelease tags** — see
   ["Versioning & compatibility"](#versioning--compatibility) above for exactly what that does
   and doesn't promise.

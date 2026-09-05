@@ -106,7 +106,7 @@ public class ManualToolInvokerTests
         var sp = BuildReviewStack(docketStore);
 
         const string writeProposalJson =
-            """{"$type":"write","toolName":"DoWrite","timestamp":"2026-01-01T00:00:00Z","envelope":null}""";
+            """{"kind":"write","toolName":"DoWrite","timestamp":"2026-01-01T00:00:00Z","envelope":null}""";
 
         // Resolve the kernel from a turn scope so kernel.Services (the ambient provider the invoker
         // hands the pipeline) carries the scoped completion filters, fabric, and ReviewGate — this is
@@ -155,8 +155,13 @@ public class ManualToolInvokerTests
             OperationType: "create",
             EntityType: "TestEntity",
             EntityId: null,
-            Fields: [],
-            AggregateConfidence: 1.0f,
+            // A substantive field: the gate refuses a proposal that swears to nothing (GT-3),
+            // so a fixture exercising the filing path has to swear to something.
+            Fields: [new AffidavitField("field", "value", null,
+                ProvenanceChain.From(ProvenanceTag.FromTool("fixture")))],
+            AggregateConfidence: 0.9f,
+            PopulatedConfidence: 0.9f,
+            EmptyFieldCount: 0,
             Warnings: [],
             RequiresConfirmation: false));
 
@@ -167,8 +172,9 @@ public class ManualToolInvokerTests
 
     private sealed class StandingOrderPolicy : IApprovalPolicy
     {
-        public Task<ReviewRequirement?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
-            => Task.FromResult<ReviewRequirement?>(ReviewRequirement.StandingOrder);
+        public Task<ApprovalVerdict?> EvaluateAsync(
+        Affidavit affidavit, ConversationIdentity identity, CancellationToken cancellationToken = default)
+            => Task.FromResult<ApprovalVerdict?>(ReviewRequirement.StandingOrder);
     }
 
     private sealed class UnusedStreamingTransport : IStreamingTransport
@@ -179,7 +185,7 @@ public class ManualToolInvokerTests
         public Task BroadcastToGroupAsync(string groupId, TransportEvent eventType, object payload, CancellationToken ct)
             => throw new InvalidOperationException("UnusedStreamingTransport.BroadcastToGroupAsync should not be called");
 
-        public Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default)
+        public Task<DecisionHandOff> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default)
             => throw new InvalidOperationException("UnusedStreamingTransport.AwaitEvidenceCardResponseAsync should not be called");
     }
 
@@ -196,13 +202,6 @@ public class ManualToolInvokerTests
         public Task<DocketEntry?> GetDocketEntryAsync(Guid entryId, CancellationToken ct)
             => Task.FromResult<DocketEntry?>(Filed.FirstOrDefault(e => e.EntryId == entryId));
 
-        public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct)
-        {
-            var idx = Filed.FindIndex(e => e.EntryId == entryId && e.Status == ReviewStatus.Pending);
-            if (idx < 0) return Task.FromResult(0);
-            Filed[idx] = Filed[idx] with { Status = status };
-            return Task.FromResult(1);
-        }
 
         public Task UpdateAmendmentsAsync(
             Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct)
@@ -233,13 +232,82 @@ public class ManualToolInvokerTests
         public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct)
             => Task.FromResult<IReadOnlyList<DocketEntry>>([]);
 
+        public Task<long> CountPendingAsync(CancellationToken ct) => Task.FromResult(0L);
+
         public Task<IReadOnlyList<DocketEntry>> ListAllPendingAsync(CancellationToken ct)
             => Task.FromResult<IReadOnlyList<DocketEntry>>([]);
 
-        public Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(DateTimeOffset expiresBeforeUtc, CancellationToken ct)
-            => Task.FromResult<IReadOnlyList<DocketEntry>>([]);
+        // ── The scoped, guarded, paged surface ──────────────────────────────
+        // Explicit implementations that refuse: this double exists for a test that never reaches
+        // the Docket's decision surface, and a stub that quietly answered would let such a test
+        // pass against behaviour nobody wrote.
+        /// <summary>
+        /// The guarded compare-and-set, over this double's own list. Implemented rather than refused
+        /// because the filing path reaches it: a Standing Order's approval and its attestation are one
+        /// write, so a double that threw here would make an auto-approving test fail at the filing.
+        /// </summary>
+        Task<DocketTransitionResult> IDocketStore.TransitionAsync(
+            Guid entryId, DocketScope scope, ReviewStatus expected, DocketTransitionPatch patch, CancellationToken ct)
+        {
+            var idx = Filed.FindIndex(e => e.EntryId == entryId);
+            if (idx < 0)
+                return Task.FromResult<DocketTransitionResult>(new DocketTransitionResult.NotFound());
+            if (Filed[idx].Status != expected)
+                return Task.FromResult<DocketTransitionResult>(new DocketTransitionResult.AlreadyDecided());
 
-        public Task MarkExpiredAsync(IEnumerable<Guid> entryIds, CancellationToken ct)
-            => Task.CompletedTask;
-    }
+            Filed[idx] = Filed[idx] with
+            {
+                Status = patch.Status,
+                Execution = patch.Status == ReviewStatus.Approved
+                    ? patch.Execution ?? ExecutionOutcome.Unexecuted
+                    : null,
+                Decision = patch.Decision,
+                Amendments = patch.Amendments ?? Filed[idx].Amendments,
+                AmendedAffidavit = patch.AmendedAffidavit ?? Filed[idx].AmendedAffidavit,
+                Attestation = patch.Attestation ?? Filed[idx].Attestation,
+                DecidedAt = patch.DecidedAt ?? Filed[idx].DecidedAt,
+            };
+            return Task.FromResult<DocketTransitionResult>(
+                new DocketTransitionResult.Transitioned(Filed[idx]));
+        }
+
+        Task<PreserveAmendmentsResult> IDocketStore.PreserveAmendmentsAsync(
+            Guid entryId, DocketScope scope, IReadOnlyDictionary<string, object?> amendments,
+            PreservedAct act, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        Task<RecordExecutionResult> IDocketStore.RecordExecutionAsync(
+            Guid entryId, DocketScope scope, ExecutionOutcome outcome, string? detail,
+            ExecutionOutcome expected, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        Task<RecordSupersessionResult> IDocketStore.RecordSupersessionAsync(
+            Guid entryId, DocketScope scope, Guid supersededBy, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        Task<int> IDocketStore.MarkBlockedAsync(Guid entryId, DocketScope scope, BlockedMarker marker, CancellationToken ct)
+            => Task.FromResult(0);
+
+        Task<DocketPageResult<DocketEntry>> IDocketStore.ListPendingAsync(
+            DocketScope scope, DocketPage page, CancellationToken ct)
+            => Task.FromResult(new DocketPageResult<DocketEntry>([], null, false));
+
+        Task<DocketPageResult<DocketEntry>> IDocketStore.ListApprovedUnexecutedAsync(
+            DocketScope scope, DocketPage page, CancellationToken ct)
+            => Task.FromResult(new DocketPageResult<DocketEntry>([], null, false));
+
+        Task<ExpireDueResult> IDocketStore.ExpireDueAsync(
+            DateTimeOffset now, DocketScope scope, int limit, CancellationToken ct)
+            => Task.FromResult(new ExpireDueResult([], false));
+
+        Task<RetentionResult> IDocketStore.ApplyRetentionAsync(
+            DocketRetentionPolicy policy, DocketScope scope, int limit, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        Task<int> IDocketStore.PurgeTenantAsync(string tenantId, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        IAsyncEnumerable<DocketEntry> IDocketStore.ExportAsync(DocketScope scope, CancellationToken ct)
+            => throw new NotSupportedException();
+}
 }

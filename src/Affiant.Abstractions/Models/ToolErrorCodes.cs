@@ -66,4 +66,24 @@ public static class ToolErrorCodes
     /// P2 wave that introduced this registry and rides the Area-3 closing wave instead.
     /// </summary>
     public const string FunctionNotFound = "FUNCTION_NOT_FOUND";
+
+    /// <summary>
+    /// The gate refused a proposal that swears to nothing (protocol rule GT-3) — every proposed
+    /// field reads <c>Empty</c>, or a field asserts a value under <c>Empty</c> provenance. Nothing
+    /// was filed and no reviewer will see it. Non-retryable: the same proposal would be refused
+    /// again. Spelled in the protocol's refusal registry, which is kebab-case, rather than in this
+    /// registry's own SCREAMING_SNAKE house style — the rulebook owns these four names, and a code
+    /// a consumer switches on must match it exactly.
+    /// </summary>
+    public const string SubstanceRefused = "substance-refused";
+
+    /// <summary>
+    /// The gate refused because the wiring it was asked to run is not a wiring it can run (protocol
+    /// rule CV-1): a write-capable tool reaching the gate with no review-context provider, no
+    /// ambient context, or no <c>ReviewGate</c> registered; a tool declared write-capable that
+    /// returned something other than a proposal; or a policy that named an unusable review window or
+    /// threw. Nothing was filed. Non-retryable — a host fixes the wiring, a retry cannot.
+    /// See <see cref="SubstanceRefused"/> on the spelling.
+    /// </summary>
+    public const string WireUpInvalid = "wireup-invalid";
 }

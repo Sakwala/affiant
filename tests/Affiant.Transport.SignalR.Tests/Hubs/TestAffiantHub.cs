@@ -43,14 +43,22 @@ public sealed class TestAffiantHub(
     public Task StreamToken(string chunk) => Clients.Caller.ReceiveToken(chunk);
 
     /// <summary>
-    /// Routes a reviewer decision back to any live AwaitEvidenceCardResponseAsync waiter.
-    /// Called by the test client to simulate the reviewer UI submitting an approval.
+    /// Routes an already-concluded decision back to any live AwaitEvidenceCardResponseAsync waiter,
+    /// so the transport's waiter registry can be exercised on its own.
     /// </summary>
+    /// <remarks>
+    /// A real host hub cannot do this: only the gate mints a
+    /// <see cref="Affiant.Abstractions.Transport.DecisionHandOff"/>, and it does so only after the
+    /// principal, the tenant, the host's authorization port, the row's state and the attestation
+    /// have all been settled (AZ-1, AZ-2). A host hub takes the reviewer's decision to
+    /// <c>ReviewGate.HandleDecisionAsync</c> and never touches the transport.
+    /// </remarks>
     public Task SubmitDecision(Guid docketId, bool approved)
     {
-        Transport.TryDeliverResponse(docketId, new EvidenceCardResponse(
+        Transport.TryDeliverResponse(
             docketId,
-            approved ? ApprovalDecision.Approved : ApprovalDecision.Rejected));
+            Infrastructure.TestHandOff.For(
+                docketId, approved ? ApprovalDecision.Approved : ApprovalDecision.Rejected));
         return Task.CompletedTask;
     }
 }

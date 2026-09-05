@@ -211,7 +211,10 @@ public sealed class LeaveAffidavitProjectionTests : IDisposable
             fields));
 
         foreach (var name in stated.Keys)
-            fabric.SetFieldChain(name, ProvenanceChain.From(ProvenanceTag.FromUser(name)));
+        {
+            fabric.SetFieldChain(name, ProvenanceChain.From(
+                ProvenanceTag.FromUser(name, new ProvenanceBinding.FormInput(new FormInputRef(name)))));
+        }
 
         return fabric;
     }

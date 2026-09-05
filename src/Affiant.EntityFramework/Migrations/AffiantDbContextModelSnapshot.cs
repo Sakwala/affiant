@@ -142,19 +142,71 @@ namespace Affiant.EntityFramework.Migrations
                         .HasDefaultValue("{}")
                         .HasColumnName("Affidavit");
 
+                    b.Property<string>("AmendedAffidavitJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("AmendedProvenanceChainsJson")
+                        .HasColumnType("text");
+
                     b.Property<string>("AmendmentsJson")
                         .HasColumnType("jsonb")
                         .HasColumnName("Amendments");
 
+                    b.Property<string>("AttestationJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("BlockedJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Channel")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CompositeRef")
+                        .HasColumnType("text");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("CreatedAtTicks")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L);
+
+                    b.Property<DateTimeOffset?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long?>("DecidedAtTicks")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("DecisionJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Execution")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ExecutionDetail")
+                        .HasColumnType("text");
 
                     b.Property<DateTimeOffset>("ExpiresAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<long>("ExpiresAtTicks")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L);
+
                     b.Property<string>("OperationType")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<string>("PreservedAmendmentsJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ProtocolVersion")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("0.1.0");
 
                     b.Property<string>("ProvenanceChainsJson")
                         .IsRequired()
@@ -165,6 +217,9 @@ namespace Affiant.EntityFramework.Migrations
 
                     b.Property<Guid?>("ResubmittedTo")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Requirement")
+                        .HasColumnType("text");
 
                     b.Property<string>("ReviewerUserId")
                         .HasColumnType("text");
@@ -179,8 +234,14 @@ namespace Affiant.EntityFramework.Migrations
                         .HasColumnType("text")
                         .HasDefaultValue("Pending");
 
+                    b.Property<Guid?>("Supersedes")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("TenantId")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ToolName")
                         .HasColumnType("text");
 
                     b.Property<string>("UserId")
@@ -191,9 +252,17 @@ namespace Affiant.EntityFramework.Migrations
 
                     b.HasIndex("ResubmittedTo");
 
+                    b.HasIndex("Supersedes");
+
                     b.HasIndex("SessionId", "Status");
 
+                    b.HasIndex("Status", "DecidedAtTicks");
+
+                    b.HasIndex("Status", "ExpiresAtTicks");
+
                     b.HasIndex("TenantId", "Status");
+
+                    b.HasIndex("TenantId", "Status", "CreatedAtTicks");
 
                     b.ToTable("Docket", "affiant");
                 });

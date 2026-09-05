@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://affiant.dev/schemas/0.1.0/attestation.schema.json",
+  "title": "Attestation",
+  "description": "Who agreed to a write, when, and to which entry (INVARIANTS.md AZ-1). Every executed write carries one: an implementation that cannot attribute a write refuses it. The MODE is the kind of `by` — there is no separate mode field for it to drift from. AZ-3 is what the three kinds encode: a human-verified session attests member; a machine caller may NEVER attest member, so a decision a person makes through a trusted relay attests member-via-relay naming both the person and the relay, and a capture a policy auto-approves attests standing-order naming the policy and the version that fired. entryId is repeated here rather than left implicit because the attestation is the fragment a host exports, signs or ships to an audit sink, and a record that cannot name its own subject is not evidence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["by", "at", "entryId"],
+  "properties": {
+    "by": {
+      "description": "Who agreed.",
+      "type": "object",
+      "oneOf": [
+        { "$ref": "#/$defs/member" },
+        { "$ref": "#/$defs/memberViaRelay" },
+        { "$ref": "#/$defs/standingOrder" }
+      ]
+    },
+    "at": {
+      "description": "When they agreed.",
+      "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/isoInstant"
+    },
+    "entryId": {
+      "description": "The Docket entry this attests to.",
+      "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/uuid"
+    }
+  },
+  "$defs": {
+    "member": {
+      "title": "MemberAttestor",
+      "description": "A human-verified session decided this entry. The strongest claim, and the only one a machine caller can never make.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": { "const": "member" },
+        "id": {
+          "description": "The host's id for the person.",
+          "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/identifier"
+        }
+      }
+    },
+    "memberViaRelay": {
+      "title": "MemberViaRelayAttestor",
+      "description": "A person decided this entry through a trusted relay — a machine caller that asserted their identity rather than authenticating them. Both the person and the relay are named, because the record must not read as though the person signed in directly.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "memberId", "relay"],
+      "properties": {
+        "kind": { "const": "member-via-relay" },
+        "memberId": {
+          "description": "The host's id for the person the relay named.",
+          "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/identifier"
+        },
+        "relay": {
+          "description": "The relay, and the message the decision arrived on.",
+          "$ref": "https://affiant.dev/schemas/0.1.0/binding.schema.json#/$defs/relayRef"
+        }
+      }
+    },
+    "standingOrder": {
+      "title": "StandingOrderAttestor",
+      "description": "A policy approved this entry with no person present, and the pipeline wrote this attestation in the same operation that filed the entry approved — there is no window in which an approved write has no attribution. The version is recorded so a later reader can tell what the policy said at the time.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "policyId", "version"],
+      "properties": {
+        "kind": { "const": "standing-order" },
+        "policyId": {
+          "description": "The host's id for the policy that fired.",
+          "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/identifier"
+        },
+        "version": {
+          "description": "The version of that policy.",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

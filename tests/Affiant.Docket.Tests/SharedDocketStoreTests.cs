@@ -12,7 +12,7 @@ namespace Affiant.Docket.Tests;
 ///
 /// Three invariants from the framework spec are validated (R1, R3, round-trip):
 ///   Case 1 — Round-trip preservation: all DocketEntry fields survive file → retrieve.
-///   Case 2 — Double-submit guard: UpdateReviewStatusAsync returns 0 when entry is no longer Pending.
+///   Case 2 — Double-submit guard: TransitionAsync refuses when the entry is no longer Pending.
 ///   Case 3 — Expiry idempotency: MarkExpiredAsync called twice does not corrupt state.
 ///   Case 4 — Amendments round-trip (issue #6): UpdateAmendmentsAsync persists reviewer edits,
 ///            including an explicit null value for a field the reviewer cleared.
@@ -26,7 +26,7 @@ namespace Affiant.Docket.Tests;
 ///            fabric-persistence path Area 3 built on IDocketStore, previously zero framework
 ///            coverage on any backend (evidence pack area-5-store-parity.md §3 "escapes").
 ///   Case 9 — Genuinely concurrent races beyond Case 6 (Area-5 P4 item I): double
-///            UpdateReviewStatusAsync CAS on one Pending entry, and double FileDocketEntryAsync
+///            TransitionAsync CAS on one Pending entry, and double FileDocketEntryAsync
 ///            on the same EntryId — both via Task.WhenAll against independent store instances,
 ///            not sequential simulation.
 /// </summary>
@@ -85,27 +85,28 @@ public sealed class SharedDocketStoreTests
 
     [Theory]
     [ClassData(typeof(DocketStoreProviderFactory))]
-    public async Task UpdateReviewStatus_DoubleSubmitGuard_RejectsUpdateOnNonPendingEntry(
+    public async Task Transition_DoubleSubmitGuard_RejectsASecondDecisionOnANonPendingEntry(
         IDocketStore store, string providerName)
     {
         Assert.NotEmpty(providerName);
         var entry = TestDocketEntry.CreateDefault();
         await store.FileDocketEntryAsync(entry, CancellationToken.None);
 
-        // First update: entry is Pending → guard passes, 1 row affected
-        var firstRows = await store.UpdateReviewStatusAsync(
-            entry.EntryId, ReviewStatus.Approved, CancellationToken.None);
-        Assert.Equal(1, firstRows);
+        // First decision: the row is pending → the compare-and-set wins.
+        var first = await store.TransitionAsync(
+            entry.EntryId, new DocketScope(entry.TenantId), ReviewStatus.Pending,
+            Decided(ReviewStatus.Approved, entry.EntryId), CancellationToken.None);
+        Assert.IsType<DocketTransitionResult.Transitioned>(first);
 
         var afterFirst = await store.GetDocketEntryAsync(entry.EntryId, CancellationToken.None);
         Assert.Equal(ReviewStatus.Approved, afterFirst!.Status);
 
-        // Second update: entry is Approved → guard (WHERE Status = Pending) rejects, 0 rows affected
-        var secondRows = await store.UpdateReviewStatusAsync(
-            entry.EntryId, ReviewStatus.Rejected, CancellationToken.None);
-        Assert.Equal(0, secondRows);
+        // Second decision: the row is approved → refused, not applied.
+        var second = await store.TransitionAsync(
+            entry.EntryId, new DocketScope(entry.TenantId), ReviewStatus.Pending,
+            Decided(ReviewStatus.Rejected, entry.EntryId), CancellationToken.None);
+        Assert.IsType<DocketTransitionResult.AlreadyDecided>(second);
 
-        // Status must remain Approved — the guard prevented the overwrite
         var afterSecond = await store.GetDocketEntryAsync(entry.EntryId, CancellationToken.None);
         Assert.Equal(ReviewStatus.Approved, afterSecond!.Status);
     }
@@ -114,27 +115,29 @@ public sealed class SharedDocketStoreTests
 
     [Theory]
     [ClassData(typeof(DocketStoreProviderFactory))]
-    public async Task MarkExpired_CalledTwiceOnSameEntries_IsIdempotent(
+    public async Task ExpireDue_CalledTwiceForTheSameEntry_ExpiresItOnceAndReportsItOnce(
         IDocketStore store, string providerName)
     {
         Assert.NotEmpty(providerName);
-        var entry = TestDocketEntry.Expired();
+        var tenantId = Guid.NewGuid().ToString();
+        var entry = TestDocketEntry.Expired(tenantId: tenantId);
         await store.FileDocketEntryAsync(entry, CancellationToken.None);
+        var scope = new DocketScope(tenantId);
 
-        // First tick: identify and mark the expired entry
-        var now = DateTimeOffset.UtcNow;
-        var expired = await store.ListExpiredAsync(now, CancellationToken.None);
-        var ours = expired.Where(e => e.EntryId == entry.EntryId).Select(e => e.EntryId).ToList();
-        Assert.Contains(entry.EntryId, ours);
-
-        await store.MarkExpiredAsync(ours, CancellationToken.None);
+        // First tick: this call's own guarded write is the one that transitioned the row, so the row
+        // comes back in its result — which is what gives the caller the right to notify on it.
+        var first = await store.ExpireDueAsync(
+            DateTimeOffset.UtcNow, scope, limit: 100, CancellationToken.None);
+        Assert.Contains(first.Expired, e => e.EntryId == entry.EntryId);
 
         var afterFirst = await store.GetDocketEntryAsync(entry.EntryId, CancellationToken.None);
         Assert.Equal(ReviewStatus.Expired, afterFirst!.Status);
 
-        // Second tick with the same IDs: the WHERE Status = 'Pending' guard means
-        // already-Expired entries are silently skipped — no corruption, no exception
-        await store.MarkExpiredAsync(ours, CancellationToken.None);
+        // Second tick: the row is no longer pending, so the guard finds nothing to write and the
+        // sweep does not claim it again. A caller that broadcast on a repeat would double-notify.
+        var second = await store.ExpireDueAsync(
+            DateTimeOffset.UtcNow, scope, limit: 100, CancellationToken.None);
+        Assert.DoesNotContain(second.Expired, e => e.EntryId == entry.EntryId);
 
         var afterSecond = await store.GetDocketEntryAsync(entry.EntryId, CancellationToken.None);
         Assert.Equal(ReviewStatus.Expired, afterSecond!.Status);
@@ -142,62 +145,6 @@ public sealed class SharedDocketStoreTests
     }
 
     // ── Case 4: Amendments round-trip (issue #6) ─────────────────────────────
-
-    [Theory]
-    [ClassData(typeof(DocketStoreProviderFactory))]
-    public async Task UpdateAmendments_RoundTrip_PreservesReviewerEditsIncludingExplicitNull(
-        IDocketStore store, string providerName)
-    {
-        Assert.NotEmpty(providerName);
-        var entry = TestDocketEntry.CreateDefault();
-        await store.FileDocketEntryAsync(entry, CancellationToken.None);
-
-        // A reviewer amends one field to a new value and explicitly clears another.
-        var amendments = new Dictionary<string, object?>
-        {
-            ["primaryField"] = "reviewer-edited-value",
-            ["secondaryField"] = null
-        };
-
-        await store.UpdateReviewStatusAsync(entry.EntryId, ReviewStatus.Approved, CancellationToken.None);
-        await store.UpdateAmendmentsAsync(entry.EntryId, amendments, CancellationToken.None);
-
-        var retrieved = await store.GetDocketEntryAsync(entry.EntryId, CancellationToken.None);
-
-        Assert.NotNull(retrieved);
-        Assert.NotNull(retrieved.Amendments);
-        Assert.Equal(2, retrieved.Amendments!.Count);
-        Assert.True(retrieved.Amendments.ContainsKey("secondaryField"));
-        Assert.Null(retrieved.Amendments["secondaryField"]);
-        Assert.Equal("reviewer-edited-value", retrieved.Amendments["primaryField"]?.ToString());
-    }
-
-    [Theory]
-    [ClassData(typeof(DocketStoreProviderFactory))]
-    public async Task UpdateAmendments_OverwritesPreviouslyRecordedAmendments(
-        IDocketStore store, string providerName)
-    {
-        Assert.NotEmpty(providerName);
-        var entry = TestDocketEntry.CreateDefault();
-        await store.FileDocketEntryAsync(entry, CancellationToken.None);
-
-        await store.UpdateAmendmentsAsync(
-            entry.EntryId,
-            new Dictionary<string, object?> { ["primaryField"] = "first-edit" },
-            CancellationToken.None);
-        await store.UpdateAmendmentsAsync(
-            entry.EntryId,
-            new Dictionary<string, object?> { ["primaryField"] = "second-edit" },
-            CancellationToken.None);
-
-        var retrieved = await store.GetDocketEntryAsync(entry.EntryId, CancellationToken.None);
-
-        Assert.NotNull(retrieved!.Amendments);
-        Assert.Single(retrieved.Amendments!);
-        Assert.Equal("second-edit", retrieved.Amendments["primaryField"]?.ToString());
-    }
-
-    // ── Case 5: FileDocketEntryAsync idempotency (issue #32) ─────────────────
 
     [Theory]
     [ClassData(typeof(DocketStoreProviderFactory))]
@@ -230,7 +177,9 @@ public sealed class SharedDocketStoreTests
 
         var first = TestDocketEntry.CreateDefault(entryId: entryId, sessionId: "session-first");
         await store.FileDocketEntryAsync(first, CancellationToken.None);
-        await store.UpdateReviewStatusAsync(entryId, ReviewStatus.Approved, CancellationToken.None);
+        await store.TransitionAsync(
+            entryId, new DocketScope(first.TenantId), ReviewStatus.Pending,
+            Decided(ReviewStatus.Approved, entryId), CancellationToken.None);
 
         // A retried filing (or a race the store-level guard was meant to catch) arrives after
         // the entry already went terminal. The documented contract — and issue #32's fix — say
@@ -253,8 +202,7 @@ public sealed class SharedDocketStoreTests
         IDocketStore storeA, IDocketStore storeB, string providerName)
     {
         Assert.NotEmpty(providerName);
-        var entry = TestDocketEntry.CreateDefault(status: ReviewStatus.Expired);
-        await storeA.FileDocketEntryAsync(entry, CancellationToken.None);
+        var entry = await TestDocketEntry.FileDecidedAsync(storeA, ReviewStatus.Expired);
 
         var firstNewId = Guid.NewGuid();
         var secondNewId = Guid.NewGuid();
@@ -298,8 +246,7 @@ public sealed class SharedDocketStoreTests
         IDocketStore store, string providerName)
     {
         Assert.NotEmpty(providerName);
-        var parent = TestDocketEntry.CreateDefault(status: ReviewStatus.Expired);
-        await store.FileDocketEntryAsync(parent, CancellationToken.None);
+        var parent = await TestDocketEntry.FileDecidedAsync(store, ReviewStatus.Expired);
 
         var childId = Guid.NewGuid();
         var consumed = await store.ConsumeForResubmitAsync(parent.EntryId, childId, CancellationToken.None);
@@ -419,7 +366,7 @@ public sealed class SharedDocketStoreTests
 
     [Theory]
     [ClassData(typeof(DocketStoreConcurrencyProviderFactory))]
-    public async Task UpdateReviewStatusAsync_GenuinelyConcurrentCallsOnPendingEntry_ExactlyOneWins(
+    public async Task TransitionAsync_GenuinelyConcurrentCallsOnPendingEntry_ExactlyOneWins(
         IDocketStore storeA, IDocketStore storeB, string providerName)
     {
         Assert.NotEmpty(providerName);
@@ -427,21 +374,38 @@ public sealed class SharedDocketStoreTests
         await storeA.FileDocketEntryAsync(entry, CancellationToken.None);
 
         // Same shape as Case 6's resubmit race: two independent store instances (not one shared
-        // DbContext, not a sequential simulation) racing the store's own
-        // WHERE Status = 'Pending' CAS guard.
-        var firstTask = Task.Run(() =>
-            storeA.UpdateReviewStatusAsync(entry.EntryId, ReviewStatus.Approved, CancellationToken.None));
-        var secondTask = Task.Run(() =>
-            storeB.UpdateReviewStatusAsync(entry.EntryId, ReviewStatus.Rejected, CancellationToken.None));
+        // DbContext, not a sequential simulation) racing the store's own compare-and-set out of
+        // pending.
+        var scope = new DocketScope(entry.TenantId);
+        var firstTask = Task.Run(() => storeA.TransitionAsync(
+            entry.EntryId, scope, ReviewStatus.Pending,
+            Decided(ReviewStatus.Approved, entry.EntryId), CancellationToken.None));
+        var secondTask = Task.Run(() => storeB.TransitionAsync(
+            entry.EntryId, scope, ReviewStatus.Pending,
+            Decided(ReviewStatus.Rejected, entry.EntryId), CancellationToken.None));
 
         var results = await Task.WhenAll(firstTask, secondTask);
 
-        Assert.Equal(1, results.Sum());
+        Assert.Single(results.OfType<DocketTransitionResult.Transitioned>());
 
         var updated = await storeA.GetDocketEntryAsync(entry.EntryId, CancellationToken.None);
         Assert.NotNull(updated);
-        var expectedStatus = results[0] == 1 ? ReviewStatus.Approved : ReviewStatus.Rejected;
+        var expectedStatus = results[0] is DocketTransitionResult.Transitioned
+            ? ReviewStatus.Approved
+            : ReviewStatus.Rejected;
         Assert.Equal(expectedStatus, updated.Status);
+    }
+
+    /// <summary>A decision patch that names who agreed and what they chose (AZ-1).</summary>
+    private static DocketTransitionPatch Decided(ReviewStatus status, Guid entryId)
+    {
+        var at = DateTimeOffset.UtcNow;
+        return new DocketTransitionPatch(
+            status,
+            Decision: new DecisionRecord(
+                status == ReviewStatus.Approved ? DecisionKind.Approve : DecisionKind.Reject, null, at),
+            Attestation: new Attestation(Attestor.Member.FromStorage("member-1"), at, entryId),
+            DecidedAt: at);
     }
 
     [Theory]

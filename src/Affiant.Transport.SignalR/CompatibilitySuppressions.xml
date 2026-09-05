@@ -1,0 +1,27 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!-- https://learn.microsoft.com/dotnet/fundamentals/package-validation/diagnostic-ids -->
+<!--
+  Declared breaks against 1.0.0-beta.1.1, permitted by the repository's prerelease-stability policy and
+  required by it to be declared. One change accounts for both entries: a decision reaches a blocking
+  caller as a gate-minted DecisionHandOff rather than as a client-shaped EvidenceCardResponse, so this
+  transport's waiter registry and its delivery member speak that type. Only the gate can mint one, so
+  a hub delivering a hand-off is passing on an answer rather than giving one.
+
+  See CHANGELOG.md's upgrade notes.
+-->
+<Suppressions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Transport.SignalR.Transport.SignalRStreamingTransport`1.AwaitEvidenceCardResponseAsync(System.String,System.Guid,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Transport.SignalR.dll</Left>
+    <Right>lib/net10.0/Affiant.Transport.SignalR.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Transport.SignalR.Transport.SignalRStreamingTransport`1.TryDeliverResponse(System.Guid,Affiant.Abstractions.Transport.EvidenceCardResponse)</Target>
+    <Left>lib/net10.0/Affiant.Transport.SignalR.dll</Left>
+    <Right>lib/net10.0/Affiant.Transport.SignalR.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+</Suppressions>

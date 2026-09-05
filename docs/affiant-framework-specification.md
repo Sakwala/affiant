@@ -80,11 +80,52 @@ Every field value in the system carries a `ProvenanceTag`. There are no exceptio
 ```csharp
 public sealed record ProvenanceTag(
     ProvenanceSource Source,      // Which of the 7 sources produced this value
-    float Confidence,             // 0.0–1.0 confidence score
-    string? Evidence,             // Human-readable explanation of why this source was assigned
-    int? ConversationTurn         // Which conversation turn produced this value (null for non-conversational sources)
+    float Confidence,             // Clamped into [0, 1] by the record; always 0 when Source is Empty
+    string? Evidence,             // Human-readable explanation of why this source was assigned — spelled `note` on the wire
+    int? ConversationTurn,        // Which conversation turn produced this value (null for non-conversational sources)
+    ProvenanceBinding? Binding = null,  // What an auditor looks at to check the value; null when there is nothing to point at
+    DateTimeOffset? At = null     // When the tag was minted; null until the injected clock lands
 );
 ```
+
+**On the wire**, a tag is `{ source, confidence, note, at, conversationTurn, binding }`. `Evidence`
+is spelled `note` because the whole record is the evidence and this property is the one sentence a
+person reads. `At` says *when* a claim was made — a chain whose tags cannot be placed in time is a
+history a reader cannot order — and is stamped today only by the one tag minted with an instant
+already in hand, a reviewer's accepted amendment; the rest carry null until the framework has an
+injected clock to read.
+
+**The confidence range is enforced by the type, not by each mint site.** A producer that reports
+1.4, -0.2 or `NaN` gets 1, 0 and 0. An `Empty` tag always reads 0 — "nobody knows where this came
+from" cannot also be a confident claim — so the tag and the aggregate can never disagree about it.
+
+**Bindings.** A tag says *where* a value came from; a `ProvenanceBinding` points at the artifact an
+auditor can go and check years later. The kinds are a fixed set of five, and each carries its own
+`Ref` shape:
+
+```csharp
+public abstract record ProvenanceBinding            // travels as { "kind": ..., "ref": { ... } }
+{
+    sealed record UtteranceSpan(UtteranceSpanRef Ref);   // offset, length, hash of the spanned substring
+    sealed record ReviewerAct(ReviewerActRef Ref);       // entryId, decisionAt — the Docket decision
+    sealed record FormInput(FormInputRef Ref);           // the form field a person typed into
+    sealed record ExternalRef(ExternalRecordRef Ref);    // system, recordId (+ fetchedAt, contentHash, relay)
+    sealed record ComputationRef(ComputationRuleRef Ref);// rule, inputs (+ an external constant and when it was verified)
+}
+```
+
+A binding whose source cannot be re-fetched or re-verified is not a binding. A tag graded above
+`Conversation` (`UserStated`, `External`, `Computed` — see `ProvenanceTag.RequiresBinding`) *should*
+carry one; an unbound tag at those grades is recorded exactly as it was claimed, and it is a policy's
+question, not the tag's, whether a verdict may rest on it.
+
+**What an implementation's own inference may mint.** `ProvenanceTag.FromInference` takes an
+`InferenceSource`, an enum with exactly two members — `Conversation` (the value was literally present
+in the turn) and `Inferred` (the model reasoned to it). `UserStated`, `External` and `Computed` are
+therefore not values the inference path can name at all: the restriction is structural rather than a
+convention. `UserStated` is an observation of a person's act — an utterance span, a form input, a
+reviewer's amendment or prefill (`ProvenanceTag.FromUser(fieldName, binding)`) — never the host
+vouching for a value it produced itself.
 
 ### 2.3 ProvenanceChain (Record)
 
@@ -97,7 +138,11 @@ public sealed record ProvenanceChain(
 );
 ```
 
-**Merge rule**: When `TaskInferenceStep` produces an inferred value for a field that `ContextFabric` already holds from a higher-confidence source, the higher-confidence value wins. Ties break toward the more deterministic source using the hierarchy defined in `ProvenanceSource`. The losing provenance is appended to the `Prior` list.
+**Merge rule**: When `TaskInferenceStep` produces an inferred value for a field that `ContextFabric` already holds from a higher-confidence source, the higher-confidence value wins. Ties break toward the more deterministic source using the hierarchy defined in `ProvenanceSource`. The losing provenance is appended to the `Prior` list — nothing is ever dropped from a chain, because a merge that discarded the loser would erase the fact that two producers disagreed. An exact tie (same confidence, same source) leaves the incumbent in force.
+
+The comparison itself is `ProvenanceTag.Beats(incumbent)` — one implementation, called by `ProvenanceChain.Merge`, by `SchemaDrivenAffidavitProjection` and by `TaskInferenceStep`, so the rule cannot be stated three slightly different ways.
+
+**A reviewer's act is not a merge.** `ProvenanceChain.Append(tag)` puts a tag in force unconditionally, pushing the displaced tag onto `Prior`. A person's correction is not a confidence contest it might lose to the machine's own tag, so the amendment path appends rather than merges — see §2.7's amendment note.
 
 ### 2.4 ToolEnvelope (Discriminated Union)
 
@@ -164,7 +209,40 @@ argument, a `(code, retryable)` classification-tuple arm, or a hand-rolled JSON 
 field) — proven to catch both the rogue-arm mutation and a reverted `ManualToolInvoker` literal, and
 restored byte-identical after each proof.
 
-**JSON polymorphism**: Use `[JsonDerivedType]` attributes (matching SK's own `KernelContent` pattern) to enable polymorphic deserialization in the filter pipeline. The `type` discriminator field distinguishes variants during deserialization.
+**JSON polymorphism.** The three variants are one discriminated union carried on a **single
+discriminator property, `kind`**, holding `"read"`, `"write"` or `"error"`. A consumer switches on
+the discriminator, never on the presence of fields — a consumer that tested for a `markdown` property
+to decide it had a read result would break the moment a write proposal grew one.
+
+The discriminator was spelled `$type` through `1.0.0-beta.1`, inherited from Semantic Kernel's own
+`KernelContent` pattern rather than chosen. `$`-prefixed names are reserved by JSON Schema, so a
+discriminator spelled that way is one no schema can name and nothing can validate. The rename is a
+breaking wire change and is declared in the CHANGELOG's upgrade notes.
+
+### 2.4.1 Serialization: one set of conventions
+
+Every envelope the framework writes goes through `Affiant.Abstractions.Serialization.AffiantJson`,
+which declares the conventions once:
+
+- **camelCase** property names.
+- **Enums as strings**, in the exact casing each wire shape freezes: a `ProvenanceSource` is
+  PascalCase (`"UserStated"`), a `ReviewStatus` is lowercase (`"pending"`), a `ReviewRequirement`
+  is PascalCase (`"MultiParty"`). No implementation case-folds an enum value on the wire.
+- **Nulls written.** A property that is required and may be null is written `null` rather than
+  omitted, so a reader never has to tell "nothing to report" from "the property was left off". A
+  property that is genuinely optional — the Evidence Card's `presentation`, `warnings` and
+  `hostOperation` — is omitted when it has nothing to say.
+- **One spelling per instant**: UTC, milliseconds, a trailing `Z` (`2026-08-01T00:05:00.000Z`).
+- **Money as two strings** — see §2.6.1.
+
+`AffiantJson.Configure(options)` applies them to an options object of your own; the SignalR hub
+protocol calls it rather than restating them, and a host serializing an Affiant record itself should
+too, so its bytes and the framework's agree.
+
+**Every envelope carries `protocolVersion`** — the protocol version string the build speaks, written
+once as `AffiantProtocol.Version`. It is a version of the *protocol*, not of the packages: while the
+major is `0`, a schema-breaking change bumps the minor. A consumer refuses a payload whose major
+differs from the one it targets and may warn on a newer minor.
 
 ### 2.5 EntityRef (Record)
 
@@ -187,9 +265,11 @@ The core write-side contract — formerly called `ConfirmationEnvelope` in the r
 public sealed record Affidavit(
     string OperationType,                      // e.g., "UpdateCustomer", "CreateWorkOrder"
     string EntityType,                         // The domain entity being mutated
-    string? EntityId,                          // Null for create operations
-    AffidavitField[] Fields,                   // Every field with its value and provenance
-    float AggregateConfidence,                 // Minimum of all field confidences
+    string? EntityId,                          // Null for creates, non-null for updates
+    AffidavitField[] Fields,                   // Exactly the proposed fields, with value and provenance
+    float AggregateConfidence,                 // MINIMUM over every proposed field, an Empty field counting as 0
+    float? PopulatedConfidence,                // Minimum over the non-Empty fields; null when none is populated
+    int EmptyFieldCount,                       // How many proposed fields read Empty
     string[] Warnings,                         // Business-rule violations detected
     bool RequiresConfirmation                  // Can be overridden by IApprovalPolicy (Standing Order)
 );
@@ -197,10 +277,94 @@ public sealed record Affidavit(
 public sealed record AffidavitField(
     string Name,                               // Field name (domain-specific)
     object? Value,                             // Proposed value
-    object? PreviousValue,                     // Current value (null for creates)
+    object? PreviousValue,                     // The stored value being replaced; null on a create, and on an update field the entity had no value for
     ProvenanceChain Provenance                 // Full provenance chain for this field
 );
 ```
+
+**The three confidence numbers.** `AggregateConfidence` is the **minimum** over every proposed
+field's current tag, with an `Empty` field counting as `0` whatever its tag says — so it is `0` if
+and only if some proposed field has unknown provenance. It is deliberately not a mean over the
+non-`Empty` fields: a ten-field record with nine unknown fields and one at `1.0` would score a
+perfect `1.0`, which is the exact hole the number exists to close. Because a bare `0` tells a
+reviewer nothing about *how much* is blank, two companions travel with it: `PopulatedConfidence`
+(the minimum over the fields that are populated, `null` — not `0` — when none is) and
+`EmptyFieldCount`. A host policy floor predicates on those two; the aggregate is the safety number,
+and neither the framework nor a policy defines a threshold on it.
+
+All three are computed by one function, `AffidavitConfidence.Compute(fields)`, at filing time and
+again whenever an accepted amendment changes the fields. `Affidavit.Create(...)` builds a record
+with all three computed, and `affidavit.WithFields(...)` recomputes them — a producer should reach
+for those rather than passing numbers of its own.
+
+**The operation shape (`EntityId` and `PreviousValue`).** `EntityId` is non-null **if and only if**
+the operation is update-shaped (`Operation.IsUpdateShaped`), which makes "create-only" a predicate a
+policy can test without knowing the host's verbs. An update-shaped Affidavit carries a
+`PreviousValue` on every proposed field — the entity's stored value before the write, or `null`
+where the field had none. Those values come from the host, through
+`IPreviousValueSource.GetPreviousValuesAsync(entityType, entityId, ct)`, which
+`SchemaDrivenAffidavitProjection` consults **for updates only**; a create carries `null` throughout.
+A host whose write tools declare update operations and registers no source fails at startup
+(`AffiantWireUpValidator`), rather than filing create-shaped records for updates.
+
+### 2.6.1 Money on the wire
+
+A monetary field value is `Money` — `{ "amount": "<decimal string>", "currency": "<ISO 4217>" }` —
+and never a JSON number. `MoneyJsonConverter` refuses one, naming the rule.
+
+The reason is not fussiness about types. No binary float represents `0.10`, so a card that showed
+"£4,000.10" and a store that holds `4000.099999999999` disagree about what was approved, with
+nothing on the record to say which one the reviewer saw. A decimal string is the value the reviewer
+read, byte for byte, and it survives every JSON parser in every language unchanged — including
+amounts no `decimal` holds.
+
+This is a **wire** rule. A host stores what it likes — integer minor units, a database `decimal`,
+its own money type — and converts at the edge; the store persists the wire value without
+reinterpreting it. `"10.00"` is never normalised to `"10"`: the trailing zeros are what the reviewer
+saw, and dropping them would change the canonical bytes of a value nobody amended. No currency list
+is embedded — ISO 4217 changes, and a table frozen into a serialization type would be wrong within a
+year — so `Money` checks the *shape* (three uppercase ASCII letters) and membership is the host's
+check. `money.ScaleFits(minorUnits)` is how a host declares a scale: `2` for sterling, `0` for the
+yen, `3` for the dinar.
+
+### 2.6.2 The canonical form and its hash
+
+`Affiant.Core.Serialization.CanonicalSerializer` produces the **canonical form** of an Affidavit —
+one deterministic byte sequence per record — and the SHA-256 over it.
+
+```csharp
+byte[] bytes  = CanonicalSerializer.Canonicalize(affidavit);
+string digest = CanonicalSerializer.CanonicalHash(affidavit);              // 64 lowercase hex chars
+string sworn  = CanonicalSerializer.CanonicalHash(                        // the accepted state
+    affidavit, amendments, entryId, decisionAt, reviewerId);
+```
+
+The rules, in full: UTF-8; object keys sorted by Unicode **code point** at every level (not by UTF-16
+code unit — a private-use character at U+E000 sorts *before* an emoji at U+1F600, which a naive
+comparator gets backwards); no insignificant whitespace; numbers as the shortest decimal that
+round-trips, written **positionally** (`1e21` in full, never `1e+21`), with `-0` written `0` and a
+non-finite number refused; strings escaped only as JSON requires (a solidus never, non-ASCII as
+itself); `null` written and an absent property omitted; money as its two strings; and an amended
+field's reviewer-act tag included in its chain.
+
+**The form is taken over the accepted state** — the amended record where a reviewer amended one, the
+proposal otherwise. This is the whole point. A host's execution grant binds to the hash of what the
+reviewer accepted; if the form covered the proposal alone, a grant minted for the record a reviewer
+*was shown* would still validate the record they *amended*, which is the substitution this framework
+exists to prevent. The amendment is folded in by `AffidavitAmendments.Apply`, the same function the
+gate uses, so the bytes a decision produces and the amended record a Docket row keeps cannot
+disagree about that decision.
+
+Three things depend on two independent implementations agreeing on these bytes: a conformance
+fixture compares canonical forms; an utterance-span binding hashes the span it points at; and an
+execution grant hashes the accepted state. Any of them breaks if two implementations disagree about
+how to write the number `1.0` or where to put the key `é` — which is why the form is specified to the
+byte and pinned by seven normative vectors rather than left to a serializer's defaults.
+
+`CanonicalSerializer` also accepts a `JsonNode` document, for a record that did not come from this
+framework's model — one read back from a store written by an older release, say — where re-typing it
+would silently rename properties the model has since changed and produce different bytes for a
+document nobody edited.
 
 ### 2.7 DocketEntry (Record) — The Review Queue Item
 
@@ -219,7 +383,9 @@ public sealed record DocketEntry(
     Affidavit Envelope,
     ReviewStatus Status,
     DateTimeOffset CreatedAt,
-    DateTimeOffset ExpiresAt,                  // Default TTL: 10 minutes (configurable via Standing Order)
+    DateTimeOffset ExpiresAt,                  // Stamped AFTER the policy chain, from the verdict's
+                                                // TimeToLive, else the policy's DefaultTimeToLive,
+                                                // else AffiantCoreOptions.DefaultDocketTtl
     IReadOnlyDictionary<string, object?>? Amendments,  // Fields the reviewer changed; null value = explicitly cleared
     Guid? ResubmittedTo = null                 // Set once, by ConsumeForResubmitAsync, when this
                                                 // (Expired) entry is resubmitted — see "Resubmission
@@ -236,13 +402,27 @@ approval transition has won the double-submit race (§ below, "Docket idempotenc
 `Approved` throughout this round-trip — `ReviewStatus` has no distinct value for "approved with
 amendments" (nor for withdrawal); an amended approval is fully described by `Status == Approved`
 plus a non-null `Amendments`, and no code path ever transitions `Status` on account of an amendment.
-Framework responsibility ends there: appending a UserStated `ProvenanceTag` (`ProvenanceTag.FromUser`,
-Rule 7) to each amended field's `ProvenanceChain` before the write reaches the domain store is the
-host's `IWriteExecutor` overlay's job — `IWriteExecutor.ExecuteAsync(affidavit, amendments, ct)`
-already accepts the amendments dictionary for exactly that purpose. A test asserting the persisted
-chain ends in `UserStated` therefore belongs in the host's test suite, once the overlay exists,
-not in `Affiant.Testing.ComplianceHarness` (which asserts task-inference extraction substance, an
-unrelated pipeline stage).
+**What an accepted amendment does to the record.** The framework folds the amendment itself, in one
+place: `AffidavitAmendments.Apply(affidavit, amendments, entryId, decisionAt, reviewerId)` returns
+the amended Affidavit **beside** the proposal — `DocketEntry.Envelope` keeps the record the reviewer
+was actually shown — and `ReviewGate` returns it on `ReviewOutcome.Approved.AmendedAffidavit`. An
+amended field's value becomes the reviewer's, its current tag is `UserStated` carrying a
+`reviewer-act` binding that names the decision (`entryId`, `decisionAt`), and that tag is
+**appended** to the chain rather than merged, so the machine's pre-correction tag is preserved
+beneath it and never replaced. All three confidence numbers are recomputed over the amended fields;
+before this existed they were computed once at filing and never again, so a card could show a
+corrected value under a number that was never about that value. A field's `PreviousValue` never
+moves — it is what the entity holds now, which an amendment does not change.
+
+A **cleared** field (`null` under its key) follows the field-list rule instead of taking the
+reviewer's maximal tag: a mandatory field stays present and reads `Empty` at confidence 0, and an
+optional field leaves `Fields` entirely. Writing the reviewer's `1.0` over an emptied field would
+make the numbers *rise* as a reviewer wiped the record; this way clearing can never raise a number,
+and the reviewer's act is still on the record because the `Empty` tag carries the same
+`reviewer-act` binding a set would.
+
+A host's `IWriteExecutor` overlay no longer hand-rolls any of that: it calls the same helper (or
+uses the amended Affidavit the gate returns) before the write reaches the domain store.
 
 **Resubmission and lineage (Area-5 Decision 2, affiant#31).** `ReviewGate.ResubmitAsync(expiredEntryId, ct)`
 lets a caller retry a review whose `DocketEntry` has already gone `Expired`: it mints a brand-new
@@ -336,7 +516,8 @@ public enum TransportEvent
 {
     EvidenceCardRequest,   // -> "ConfirmAction" — framework broadcasts a write proposal awaiting
                            // human review to the UI. Payload: the EvidenceCardRequest record
-                           // (Affiant.Abstractions.Transport), carrying the Affidavit under review.
+                           // (Affiant.Abstractions.Transport), carrying the Affidavit under review
+                           // plus the envelope described below.
     EvidenceCardResponse,  // -> "EvidenceCardResponse" — reserved for the document-reserved
                            // blocking review path (§3.1); production traffic delivers the
                            // reviewer's decision through a host hub RPC method instead, never
@@ -349,15 +530,47 @@ public enum TransportEvent
                            // (Level, Message) — Level is a plain string, not a C# enum; its
                            // allowed values are pinned by the host contract net, not this type.
     DocketExpiring,        // -> "DocketExpiring" — a Pending DocketEntry (§2.7) is approaching
-                           // its review TTL. Payload: DocketExpiringNotification.
+                           // its review TTL. Payload: DocketExpiringNotification, kind
+                           // "docket-expiring".
     DocketExpired,         // -> "DocketExpired" — a Pending DocketEntry transitioned to Expired
-                           // without a reviewer decision. Payload: DocketExpiredNotification.
+                           // without a reviewer decision. Payload: DocketExpiredNotification,
+                           // kind "docket-expired".
     UiGuidance             // -> "GuideUI" — starts a UI guidance walkthrough (Rule 6, §6).
                            // Payload: Affiant.Abstractions.Transport.UiGuidancePayload. The wire
                            // name "GuideUI" is pinned to match a reference host's existing client
                            // listener — see §6's Rule 6 note for why.
 }
 ```
+
+**The Docket notifications are one discriminated union.** `DocketExpiringNotification`,
+`DocketExpiredNotification` and `DocketTransitionNotification` derive from `DocketNotification` and
+each carries a `kind` (`"docket-expiring"`, `"docket-expired"`, `"docket-transition"`) and a
+`protocolVersion`. They were told apart by *which properties they carried* — a payload with an
+`expiresAt` was the warning and one without it was the expiry — and a consumer switching on the
+presence of fields is exactly what the discriminated-union rule forbids. A notification remains a
+**hint**, never a fact a consumer may act on alone: expiry is queryable state, so an entry past its
+deadline reads expired whether or not any sweep has run or any notification arrived.
+
+**The Evidence Card envelope.** `EvidenceCardRequest` carries the record under review *plus* what a
+reviewer surface needs and the record does not swear to:
+
+| Property | What it is |
+| --- | --- |
+| `protocolVersion` | The protocol this envelope speaks. |
+| `docketId`, `affidavit`, `requiredBy` | The entry, the record, the deadline. |
+| `priorAmendments` | The amendments made on a superseded entry, or null on a first filing. A null *under a key* means the reviewer cleared that field — distinct from the key being absent. |
+| `populatedConfidence`, `emptyFieldCount` | The two companions of the aggregate (§2.6). A card shows all three numbers. |
+| `requiresConfirmation` | The policy chain's verdict — not a property of the evidence, which is why it is here. False on a blocked entry: a card that says no decision will be accepted must not also offer an approve button that cannot work. |
+| `blocked` | Why no decision will be accepted, or null. Structured, so a surface renders it rather than parsing a warning string. |
+| `presentation` | Per-field rendering hints (`name`, `kind`, `allowedValues`, `pattern`) lifted from the host's own field metadata. The gate carries a hint and validates nothing against it. |
+| `warnings` | Sentences a reviewer should see. A consumer never switches on the text of one. |
+| `hostOperation` | The host's own verb — "Reprice", "Onboard" — carried *beside* `affidavit.operationType`, never instead of it, so a card can be headed with the term a person recognises while a policy still tests the shape. |
+
+None of `presentation`, `warnings`, `hostOperation` or `requiresConfirmation` is part of the
+canonical form (§2.6.2): a host that renames a verb or changes an input mask has not changed the
+evidence. Build a card with `EvidenceCardRequest.For(...)`, which fills every repeated number from
+the record it is given — passing them by hand is how a card ends up reporting a confidence that is
+about a different set of values than the ones it shows.
 
 **Historical note.** The founding commit that first implemented this enum (2026-04-30) also
 defined a `UserMessage` member (the fourth of its original eight), added in the same commit and same line range as
@@ -474,13 +687,67 @@ public interface IDocketStore
 ### 3.3 Approval Policy (Standing Orders and Referrals)
 
 ```csharp
-// Determines whether an Affidavit requires review, auto-approves (Standing Order), or escalates (Referral)
+// Determines whether an Affidavit requires review, auto-approves (Standing Order), or escalates
+// (Referral) — and how long the window to decide stays open.
 public interface IApprovalPolicy
 {
-    Task<ReviewRequirement> EvaluateAsync(Affidavit envelope, ConversationIdentity identity);
+    // null = "this rule has no opinion here"; the chain continues. The first non-null verdict wins;
+    // a chain that produces none falls back to ReviewerConfirmation — the safe default is a person.
+    //
+    // `identity` — the conversation, the person whose turn produced the proposal, the tenant and the
+    // channel — is supplied so a policy can BIND: "only for this member", "only inside this tenant",
+    // "only on our own web UI". It is never a statement about who may APPROVE. Authorizing the actor
+    // is the framework's job, enforced through IDecisionAuthorizationPolicy before any transition,
+    // and never delegated to a policy (AZ-2).
+    Task<ApprovalVerdict?> EvaluateAsync(
+        Affidavit affidavit, ConversationIdentity identity, CancellationToken ct = default);
+
+    // The provenance sources this policy predicates on. Before a StandingOrder verdict is honoured,
+    // every proposed field whose tag in force names one of these AND is graded above Conversation
+    // must carry a binding; if any does not, the verdict degrades to ReviewerConfirmation and the
+    // policy's own window still applies. Empty (the default) for a policy that predicates only on
+    // field values or host state.
+    IReadOnlyCollection<ProvenanceSource> DeclaredInputs => [];
+
+    // This policy's own review window when its verdict names none. null falls through to
+    // AffiantCoreOptions.DefaultDocketTtl.
+    TimeSpan? DefaultTimeToLive => null;
+
+    // This policy's identity and version, on the `policy.id`/`policy.version` telemetry attributes
+    // and — when it approves a write with no person present — in the attestation the row carries
+    // (AZ-1). Defaults to the concrete type's full name and to no version.
+    string PolicyId => GetType().FullName ?? GetType().Name;
+    string? PolicyVersion => null;
 }
 
+public sealed record ApprovalVerdict(
+    ReviewRequirement Requirement,      // The requirement IN FORCE, after the checks below
+    TimeSpan? TimeToLive = null,        // This write's window; stamped after the chain
+    string? Reason = null,              // One line for the reviewer's card
+    string? BlockedReason = null,       // Why a Standing Order was held back, as a stable code
+    ReviewRequirement? DegradedFrom = null,
+    string? PolicyId = null,            // Which policy spoke — stamped by the chain, not the policy
+    string? PolicyVersion = null);      // …and the version it fired under, for the attestation
+
 public enum ReviewRequirement { StandingOrder, ReviewerConfirmation, ReferralRequired, MultiParty }
+
+// A Standing Order is never honoured while any of three checks holds it back, run in this order:
+//   1. mandatory-field-empty   — a proposed field marked mandatory reads Empty. First, because it
+//                                depends on nothing the policy declared and nothing a host port
+//                                returns, so a host's risk scorer is never spent on a proposal
+//                                with a hole in it. An OPTIONAL field left Empty does not block.
+//   2. unbound-declared-input  — a DeclaredInputs grade above Conversation points at nothing.
+//   3. risk-above-threshold    — the host's score is above the order's declared ceiling. The
+//                                framework ships no scoring formula and no floor; it owns only the
+//                                comparison, and an order that declares no ceiling needs no scorer.
+// A check that fires degrades the verdict to ReviewerConfirmation, keeps the policy's own window,
+// and names itself on the row and on the `standing-order.blocked` event.
+public static class StandingOrderBlockedReasons
+{
+    public const string MandatoryFieldEmpty  = "mandatory-field-empty";
+    public const string UnboundDeclaredInput = "unbound-declared-input";
+    public const string RiskAboveThreshold   = "risk-above-threshold";
+}
 
 // The ReviewGate's response types — adopted from Pydantic AI's ToolApproved | ToolDenied pattern
 public abstract record ReviewResponse;
@@ -522,15 +789,75 @@ public interface IFieldMapper<TDomainModel>
 
 ### 3.6 Write Execution (Host-Implemented)
 
+**The framework never performs the write, and there is nowhere in it for one to happen** (AZ-7). No
+package holds, takes, returns or implements this port — the host resolves its own executor and calls
+it. The path is: the gate hands back an approved `ReviewOutcome` carrying the attested Docket entry;
+the host writes; the host reports what happened through `ReviewGate.MarkExecutedAsync`, **once**
+(AZ-5, DK-1). An executor is reachable only through a row that carries an attestation — nothing
+replayed from a client's history, a chat transcript or a framework checkpoint stands in for it, and a
+host's outbox is a retry of an already-attested write rather than a second authorization path.
+
 ```csharp
-// The actual mutation — only called after the ReviewGate receives approval
+// The actual mutation — host code the host runs, against an attested Docket entry
 public interface IWriteExecutor
 {
-    Task<WriteResult> ExecuteAsync(Affidavit approvedAffidavit, ConversationIdentity identity, CancellationToken ct);
+    // The accepted state and the reviewer's edits, if any. A key present with a null value clears
+    // the field; an absent key leaves it alone (DK-2). Raise on failure — the gate does not retry,
+    // and a failed write is reported as `failed` rather than swallowed.
+    Task<string?> ExecuteAsync(
+        Affidavit affidavit, IReadOnlyDictionary<string, object?>? amendments, CancellationToken ct);
 }
 
-public sealed record WriteResult(bool Success, string? EntityId, string? ErrorMessage);
+// The only path to execution: "executed". The status stays Approved — the approval happened and is
+// not undone by a failed write; only the execution outcome moves, and it moves once.
+Task<ReviewOutcome> ReviewGate.MarkExecutedAsync(
+    Guid entryId, ExecutionOutcome outcome, string? detail, DecisionContext context, CancellationToken ct = default);
 ```
+
+### 3.6a Decision Authorization (Host-Implemented)
+
+```csharp
+// Who may decide, report on, or resubmit a Docket entry. Registered with
+// services.AddDecisionAuthorization<TPolicy>(); required whenever the host declares a write-capable
+// tool, and refused at startup when it is missing (AZ-2, CV-1).
+public interface IDecisionAuthorizationPolicy
+{
+    Task<bool> MayDecideAsync(Principal principal, DocketEntry entry, CancellationToken ct = default);
+}
+
+// Who is acting, and where from. Passed at the call site, never resolved from ambient state.
+public abstract record Principal
+{
+    public sealed record Member(string Id) : Principal;                          // human-verified session
+    public sealed record Service(                                                // machine caller
+        string Id, RelayAssertion? Relay = null, string? AssertedMember = null) : Principal;
+}
+
+public sealed record DecisionContext(
+    Principal? Principal,        // null = unresolved, which is refused — never treated as permission
+    string TenantId,             // the framework compares the row's tenant with this itself
+    string? ConversationId = null,
+    string? Channel = null,
+    string? Reason = null,
+    DateTimeOffset? At = null);
+```
+
+**The framework does three of the four checks and delegates one.** In order, before any transition:
+an unresolved principal is refused with `decision-unauthorized` **before the store is read**; an
+entry outside the caller's tenant is `entry-not-found` — the framework compares the row's own tenant
+rather than trusting a store's scope, so a store with a scope bug does not make the gate fall open;
+the host's port has the last word, and a port that returns `false` **or throws** refuses. Only then
+do the state-machine checks run. A host that registers no port gets `DenyAllDecisionAuthorization`,
+which refuses everything: nothing is ever fail-open, and the startup validator refuses a host that
+declares a write-capable tool without one.
+
+**What identity may attest what** (AZ-1, AZ-3). A `Member` principal attests `member`. A `Service`
+principal that names both the person it speaks for and the relay assertion that carried them attests
+`member-via-relay`, naming both; one with neither is refused — a machine cannot agree to a write in a
+person's name. A Standing Order attests `standing-order`, naming the policy and the version it fired
+under, written in the same operation that files the entry approved. The rule is structural: every
+attestor kind's constructor is private, and the only factory that produces a `member` attestation
+takes a `Principal.Member`, so there is no expression through which a machine caller reaches one.
 
 ### 3.7 UI Guidance
 
@@ -778,7 +1105,7 @@ L2 introduces three new abstractions in `Affiant.Abstractions.Interfaces`, each 
 
 **`IInferenceTrigger`** decides, per tool invocation, whether inference should run. Its single method, `ShouldRun(InferenceTriggerContext) → bool`, receives the function name, plugin name, current tool arguments, the active `ContextFabric`, and the invocation phase (`PreTool`). The framework registers one default trigger: `WriteIntentInferenceTrigger`, which returns `true` for any tool whose `AffiantToolDescriptor` has `Operation.Kind` equal to `"WriteCreate"` or `"WriteUpdate"`. Hosts may register additional triggers via DI; `InferenceTriggerFilter` short-circuits on the first trigger that returns `true`.
 
-**`IAffidavitProjection`** constructs the Affidavit for a given entity type after inference results are merged into the `ContextFabric`. Its `Project(IContextFabric, operationType, warnings) → Affidavit` method reads fields from the fabric, applies `IDeterministicFieldSource` overrides (see below), and falls back to `ProvenanceTag.Empty` for any field the fabric cannot satisfy (Rule 7). The default implementation is `SchemaDrivenAffidavitProjection` in `Affiant.Core`.
+**`IAffidavitProjection`** constructs the Affidavit for a given entity type after inference results are merged into the `ContextFabric`. Its `Project(IContextFabric, operationType, warnings, entityId?) → Affidavit` method reads fields from the fabric, applies `IDeterministicFieldSource` overrides (see below), and falls back to `ProvenanceTag.Empty` for any field the fabric cannot satisfy (Rule 7). `entityId` names the entity an update-shaped operation targets and is non-null if and only if the operation is update-shaped (§2.6); it is a parameter rather than something read out of the fabric because only the caller knows which entity the operation targets. The default implementation is `SchemaDrivenAffidavitProjection` in `Affiant.Core`.
 
 **`IDeterministicFieldSource`** is an augmentation surface for fields that should always come from a deterministic source (e.g., a system clock, a session-authenticated user ID) rather than from LLM inference. `SchemaDrivenAffidavitProjection` checks registered `IDeterministicFieldSource` implementations per field before consulting the fabric; the first non-null resolution wins.
 
@@ -792,7 +1119,7 @@ Three default service implementations ship with the framework. Hosts that accept
 
 **`WriteIntentInferenceTrigger`** (in `Affiant.Core.Triggers`) is the default `IInferenceTrigger` registered by `AddAffiantInferenceOrchestration()`. It fires inference for any tool whose registered `AffiantToolDescriptor` has `Operation.Kind` of `"WriteCreate"` or `"WriteUpdate"`.
 
-**`SchemaDrivenAffidavitProjection`** (in `Affiant.Core.Services`) is the default `IAffidavitProjection`. It iterates the fields declared by the active `ITaskInferenceStrategy`, applies `IDeterministicFieldSource` overrides first, then reads from the `ContextFabric`, and falls back to `ProvenanceTag.Empty` for any unresolved field (Rule 7). After projection it emits the `affidavit.projected` span event and publishes a typed `AffidavitEmittedEvent` through `IObservabilityEventStream<AffidavitEmittedEvent>` for downstream subscribers.
+**`SchemaDrivenAffidavitProjection`** (in `Affiant.Core.Services`) is the default `IAffidavitProjection`. It iterates the fields declared by the active `ITaskInferenceStrategy`, applies `IDeterministicFieldSource` overrides first, then reads from the `ContextFabric`, and falls back to `ProvenanceTag.Empty` for any unresolved field (Rule 7). Its field list covers the strategy's declared projected fields exactly — every one present, no other present, checked rather than assumed — and on an update-shaped operation it fills each field's `PreviousValue` from the host's `IPreviousValueSource` (§2.6). After projection it emits the `affidavit.projected` span event and publishes a typed `AffidavitEmittedEvent` through `IObservabilityEventStream<AffidavitEmittedEvent>` for downstream subscribers.
 
 **`FunctionNameInferenceTrigger`** — *deleted 2026-08-20* (Area-8 ruling 5). It was a soft-deprecated `IInferenceTrigger` that fired by explicit function-name allowlist rather than registry classification, kept for hosts adopted before the Tool Descriptor Registry (§3.11) existed. It carried an `[Obsolete]` attribute from the day it was written and had zero usage in either host app, so it was removed rather than shipped deprecated-on-arrival in the first public package. Use `WriteIntentInferenceTrigger` with `[AffiantWriteTool]` decoration; a host that genuinely needs allowlist triggering implements the two-member `IInferenceTrigger` itself.
 
@@ -991,6 +1318,13 @@ The framework emits L2 inference telemetry through the `Affiant.TaskInference` A
 | `affidavit.projected` | `SchemaDrivenAffidavitProjection` | `affiant.affidavit.populated_field_count`, `affiant.affidavit.aggregate_confidence`, `affiant.affidavit.empty_provenance_field_count` |
 
 All 12 attribute key strings are constants in `Affiant.Core.Observability.L2TelemetryKeys`. They are part of the public observability API at v1.0.0 — renaming or removing any key requires a v2.0.0 major-version bump.
+
+> **`affidavit.projected` is deprecated as of `1.0.0-beta.3`** in favour of the telemetry-key
+> registry's `affidavit.filed` (§8), with the hollow-Affidavit case moving to
+> `affidavit.refused.substance`, emitted from this same projection seam. It keeps being emitted for
+> one release so an existing alert does not go dark on upgrade, and is removed in the release after
+> `1.0.0-beta.3`. The `inference.*` events above are **not** deprecated — the registry does not
+> cover the inference step's own progress, and they keep their names.
 
 **Typed event publication.** After projection, `SchemaDrivenAffidavitProjection` publishes a typed `AffidavitEmittedEvent` record through `IObservabilityEventStream<AffidavitEmittedEvent>`. The event carries `ConversationId`, `AffidavitId`, `OperationType`, `EntityType`, `PopulatedFieldCount`, `AggregateConfidence`, and `EmptyProvenanceFieldCount`. The Phase 3.5 Validator subscribes to this stream to perform quality audits without coupling to OTel infrastructure; hosts that want dashboard-level monitoring subscribe to the OTel span events instead.
 
@@ -1281,6 +1615,12 @@ These rules are non-negotiable. Every implementation, code review, and plugin au
 
 **Rule 3: Write tools never write.** Write-intent tools produce `WriteProposal` envelopes containing the *proposed* Affidavit with full provenance. The actual write happens only after the `ReviewGate` receives reviewer confirmation and invokes the host's `IWriteExecutor`. *Rationale*: This is the entire point of the framework — deterministic, auditable, reversible-before-commit mutations. *Anti-pattern*: A "write" tool that calls `dbContext.SaveChanges()` inside the `[KernelFunction]` method.
 
+> **The gate fails closed, and says where its guarantee ends.** `ReviewGateFilter` no longer skips a write it cannot route. Three conditions that previously returned quietly at debug-log level, leaving the raw proposal as the tool's visible result — no `IReviewContextProvider` registered, no review context available for this call, no `ReviewGate` registered — are refusals: the tool result becomes the error arm carrying `wireup-invalid`, and nothing is passed through. The first and third are also refused at startup by `AffiantWireUpValidator` (and, for an unregistered `[KernelFunction]`, by `AffiantStartupValidator`), before any turn runs. A tool the framework's registry declares write-capable that returns something *other* than a proposal is refused too, rather than skipped. `AffiantCoreOptions.AcknowledgeMissingReviewWiring` does not apply to a host that has declared a write-capable tool: it exists for a host deliberately running the read and inference half with no review loop, and there is no option that turns the gate off for a tool it covers.
+>
+> **The honest boundary.** The filter runs *after* the tool body, because that is the only seam either host framework exposes. A tool that opens its own connection and writes inside its body is **outside the guarantee** — no filter and no wire-up check can see it, and this specification states that rather than implying a coverage the framework does not have. What it does guarantee is that such a tool cannot commit *through* the framework: the gate never calls a write tool's own execute, no public API lets a tool commit through it, and a declared write tool that does not hand back a proposal is refused.
+>
+> **A proposal that swears to nothing is refused at run time**, before the policy chain runs, with `substance-refused`: no fields at all, every proposed field tagged `Empty`, or a field asserting a value while its provenance reads `Empty`. `0`, `false`, an empty array and an empty object are values; only `null` and a blank string are empty. Until the conformance release this check existed only in `ComplianceHarness`, which runs in an adopter's own test suite and never in production — a rule that holds only where someone wrote a test is not a rule the gate enforces. The harness keeps its check; the gate now has one too.
+
 **Rule 4: Filters over prompts for determinism.** Context extraction, task inference, and review gating happen in SK filters, not in prompt engineering. Prompts request tool calls; filters process the results deterministically. *Rationale*: Prompt-based context extraction is non-deterministic, non-auditable, and varies by model. Filter-based extraction produces identical results regardless of which LLM provider is active. *Anti-pattern*: Adding "After calling the tool, extract the customer's email from the result" to the system prompt.
 
 **L2 example (Story 16.3, 2026-05-16):** The empty-Affidavit regression of 2026-04-30 (commit `b72c1fa`) decomposed Meridian's host-side pre-tool inference filter into a generic post-tool framework filter that ran after every auto-invoked tool. The decomposition was behaviorally lossy: structured-output JSON from the LLM's *intent* (pre-tool) ended up parsed from the tool's *return value* (post-tool), where it never existed. The L2 fix (Story 16.3) restored pre-tool inference as a framework filter — `InferenceTriggerFilter` — which decides per-tool whether to run inference and forwards through `TaskInferenceRunner` to a host-specified `ITaskInferenceStrategy`. The fix is faithful to Rule 4: pre-tool decision logic stays in a filter, never in a prompt. Hosts cannot "ask the LLM to fill in fields" by string concatenation; they declare a strategy and the framework's filter handles the rest. See §3.12 Inference Orchestration & Affidavit Projection for the full surface.
@@ -1293,7 +1633,7 @@ These rules are non-negotiable. Every implementation, code review, and plugin au
 
 > **The wire path is now a framework mechanism, not host folklore (built 2026-08-04, area-4 architecture review P1f(b)).** Until 2026-08-04, this rule described a real discovery contract (`IRouteRegistry`) with no framework-owned way to actually deliver a guidance walkthrough to a client: the only implementation anywhere was a reference host hand-rolling a raw SignalR broadcast (`Clients.Group(...).SendAsync("GuideUI", ...)`) directly, bypassing the framework's transport abstraction entirely. As of 2026-08-04, `Affiant.Core.UiBridge.UiGuidanceBridge` carries the wire path itself: `BuildStep(elementId, description, prefillValue?, title?)` resolves a step's popover placement and highlight padding from the `GuidableElement.Attributes` registered for `elementId`, and `BroadcastGuidanceAsync(sessionGroupId, payload, ct)` sends the assembled `Affiant.Abstractions.Transport.UiGuidancePayload` through `IStreamingTransport` as `TransportEvent.UiGuidance` (wire method name `"GuideUI"` — preserved deliberately so an existing client keeps working unmodified; see §2.10 and §3.1). What stays host-owned is exactly what Rule 6 was always about: per-step *content* (which fields to guide through, prefill values, description text) is domain-specific and is composed by the host's own guidance tool before being handed to `UiGuidanceBridge` — the framework now carries the mechanism, never the content, mirroring `ReviewGate`'s own split between framework-owned filing and host-owned review context (§6 Rule 3, §4 Layer 4).
 
-**Rule 7: Every Affidavit field carries provenance, no exceptions.** If a field's provenance is unknown, it must be tagged `ProvenanceSource.Empty` — never omitted. The Evidence Card renders provenance as visual indicators (green for UserStated, amber for Inferred, grey for Default). *Rationale*: Missing provenance is indistinguishable from "the framework forgot to track it" versus "the AI made this up." *Anti-pattern*: Fields without provenance tags that the UI renders identically to user-confirmed values.
+**Rule 7: Every Affidavit field carries provenance, no exceptions.** If a *proposed* field's provenance is unknown, it must be tagged `ProvenanceSource.Empty` — never omitted. The converse is equally binding: a field the operation does **not** propose (untouched on an update, not applicable to the operation) is **absent** from `Fields` rather than present with an `Empty` tag. Omitting the not-proposed and `Empty`-tagging the unknown is what makes the field list a statement of intent a policy can read; conflating them makes it neither. The Evidence Card renders provenance as visual indicators (green for UserStated, amber for Inferred, grey for Default). *Rationale*: Missing provenance is indistinguishable from "the framework forgot to track it" versus "the AI made this up." *Anti-pattern*: Fields without provenance tags that the UI renders identically to user-confirmed values.
 
 > **The Area 3 gating principle (ratified 2026-08-03, verbatim from the ecosystem architecture
 > review's Area 3 position paper — `docs/architecture-review/area-3-tool-calling-reliability.md`
@@ -1408,6 +1748,17 @@ public class CustomerPlugin(IServiceScopeFactory scopeFactory)
 
 Write tools return `WriteProposal` containing an Affidavit — they NEVER execute the mutation. The `ReviewGate` handles confirmation, and `IWriteExecutor` handles execution.
 
+Two things this example is careful about, because both are rules rather than style:
+
+- **A field the tool proposes is always present, `Empty`-tagged when its provenance is unknown**
+  — never quietly omitted. Omission and `Empty` mean different things: absent says "this write does
+  not touch that field", `Empty` says "it does, and nobody knows where the value came from". The
+  second is what drags `AggregateConfidence` to 0 and shows up in `EmptyFieldCount`, and a reviewer
+  is entitled to see it. A field the operation genuinely does not propose *is* absent (see the note
+  after the code).
+- **The three confidence numbers come from the fields.** `Affidavit.Create` computes them, so a
+  hand-written aggregate can never disagree with what it is meant to summarise.
+
 ```csharp
 [KernelFunction, Description("Update a customer's contact information")]
 public async Task<string> UpdateCustomer(
@@ -1424,34 +1775,43 @@ public async Task<string> UpdateCustomer(
             "UpdateCustomer", DateTimeOffset.UtcNow, "CUSTOMER_NOT_FOUND",
             $"No customer found with ID {customerId}", Retryable: false));
 
-    // Build Affidavit fields with provenance
-    var fields = new List<AffidavitField>();
+    // This tool proposes both contact fields, so both are on the Affidavit. A parameter the caller
+    // left null is a proposed field with no known origin: present, tagged Empty at confidence 0.
+    // The value the tool WAS given came from a person's turn, so it is bound to the utterance the
+    // argument was read from — a UserStated tag with nothing to point at is the weakest form of the
+    // strongest grade.
+    var fields = new[]
+    {
+        new AffidavitField("email", email, customer.Email,
+            email is null
+                ? ProvenanceChain.From(ProvenanceTag.Empty)
+                : ProvenanceChain.From(ProvenanceTag.FromUser(
+                    "email", new ProvenanceBinding.FormInput(new FormInputRef("email"))))),
 
-    if (email is not null)
-        fields.Add(new AffidavitField("email", email, customer.Email,
-            new ProvenanceChain(
-                new ProvenanceTag(ProvenanceSource.UserStated, 0.95f, "Parameter from tool call", null),
-                Array.Empty<ProvenanceTag>())));
+        new AffidavitField("phone", phone, customer.Phone,
+            phone is null
+                ? ProvenanceChain.From(ProvenanceTag.Empty)
+                : ProvenanceChain.From(ProvenanceTag.FromUser(
+                    "phone", new ProvenanceBinding.FormInput(new FormInputRef("phone"))))),
+    };
 
-    if (phone is not null)
-        fields.Add(new AffidavitField("phone", phone, customer.Phone,
-            new ProvenanceChain(
-                new ProvenanceTag(ProvenanceSource.UserStated, 0.90f, "Parameter from tool call", null),
-                Array.Empty<ProvenanceTag>())));
-
-    var affidavit = new Affidavit(
-        OperationType: "UpdateCustomer",
-        EntityType: "Customer",
-        EntityId: customerId,
-        Fields: fields.ToArray(),
-        AggregateConfidence: fields.Min(f => f.Provenance.Current.Confidence),
-        Warnings: Array.Empty<string>(),
-        RequiresConfirmation: true);
+    var affidavit = Affidavit.Create(
+        operationType: "WriteUpdate",   // update-shaped: it names the entity and swears to what it replaces
+        entityType: "Customer",
+        entityId: customerId,           // non-null if and only if the operation is update-shaped
+        fields: fields,
+        warnings: Array.Empty<string>());
 
     return JsonSerializer.Serialize(new WriteProposal(
         "UpdateCustomer", DateTimeOffset.UtcNow, affidavit));
 }
 ```
+
+**What "absent" looks like, for contrast.** A `Customer` also has a `billingAddress`, and this tool
+never touches it — so it is simply not in `fields`. That is the other half of the rule: the field
+list is a statement of intent a policy can read, and it says exactly which fields this write
+proposes. If the tool's contract changed so that it *could* write the billing address, the field
+would move from absent to present-and-`Empty` whenever the caller left it out.
 
 ### 7.4 ContextExtractor Registration
 
@@ -1558,9 +1918,59 @@ Every agent turn produces a root span with child spans for each LLM call, tool e
     affiant.turn.tool_count: 2
 ```
 
+### The telemetry-key registry
+
+Every event the gate emits is named in a versioned registry (protocol rule TL-1): `TelemetryKeys` in
+`Affiant.Abstractions.Telemetry`, shipped alongside an embedded `telemetry-keys.json` document that
+conforms to the rulebook's `telemetry-key.schema.json`. Operators build alerts on these names, so a
+key is **never renamed and never removed — only deprecated**, with the replacement named in the
+deprecation message. `TelemetryKeyRegistryTests` enforces that against a snapshot list.
+
+The nine v0.1 keys, and the seam each is emitted from:
+
+| Key | Emitted from | Attributes carried today |
+|---|---|---|
+| `affidavit.filed` | `ReviewGate.FileForReviewCoreAsync`, after the entry is filed | `gen_ai.tool.name`, `gen_ai.conversation.id`, `entry.id`, `docket.status`, `affidavit.field_count`, `created` |
+| `affidavit.refused.substance` | `SchemaDrivenAffidavitProjection`, on the hollow-Affidavit detection (GT-3) | `gen_ai.conversation.id`, `affidavit.field_count`, `reason` |
+| `coverage.refused` | `HostedToolAudit` in `Affiant.AgentFramework` and `Affiant.Extensions.AI`, at wire-up (CV-4) | `gen_ai.tool.name`, `coverage.category`, `phase` |
+| `docket.transition` | `ReviewGate`, per guarded write that affected a row (DK-1) | `entry.id`, `gen_ai.conversation.id`, `from`, `to`, `decision.kind`, `amended`, `execution`, `attestation.kind` |
+| `docket.expired` | `DocketExpiryService`, per entry the sweep's own write expired (DK-3) | `entry.id` |
+| `decision.unauthorized` | `ReviewGate`, on every refusal path of every decision-surface entry point (AZ-2, AZ-3) | `entry.id`, `gen_ai.conversation.id`, `reason`, `path`, `principal.kind` |
+| `standing-order.fired` | `StandingOrderBase.EvaluateAsync`, when the order approves (AZ-1) | `policy.id`, `policy.version`, `risk.score` |
+| `standing-order.blocked` | `StandingOrderBase.EvaluateAsync`, when the verdict is not honoured (GT-5) | `policy.id`, `policy.version`, `blocked.reason`, `reason`, `risk.score`, `risk.threshold` |
+| `policy.invalid` | `ApprovalPolicyEvaluator` (an evaluate that threw) and `AffiantWireUpValidator` (an unusable deadline) — GT-4, CV-1 | `policy.id`, `option`, `reason` |
+
+**Attributes carry field names, never field values.** An event is an operational signal; the audit
+record is the Affidavit. Where a public standard already names the same thing, the standard's name is
+used (rule TL-2): OpenTelemetry's `gen_ai.tool.name`, `gen_ai.conversation.id` and
+`gen_ai.operation.name`.
+
+An attribute a release cannot yet know is **absent**, not guessed. In `1.0.0-beta.3` that means
+`docket.requirement` is absent from `affidavit.filed` (the gate files before it evaluates the policy
+chain), and `execution`, `decision.kind` where no decision drove the transition, `attestation.kind`
+and `principal.kind` are absent because this release has no execution-outcome state, no attestation
+record and no principal on the decision surface.
+
+**Deprecated for one release.** `affidavit.projected` is superseded by `affidavit.filed` (and, for
+the hollow case, `affidavit.refused.substance`). It is still emitted through `1.0.0-beta.3` and is
+removed in the release after it. The framework's other event names — `affiant.tool_error`,
+`affiant.review.filing_failed`, `affiant.review.broadcast_failed`, `affiant.extractor.failed` and
+the `inference.*` family — are not deprecated: they name things the registry does not cover.
+
 ### Key Metrics
 
-The framework emits four core metrics: `affiant.turn.duration` (histogram), `affiant.review.wait_duration` (histogram), `affiant.token.usage` (counter by purpose — orchestration vs inference), and `affiant.review.outcome` (counter by result — approved/rejected/expired/standing_order).
+The framework emits five core metrics: `affiant.turn.duration` (histogram), `affiant.review.wait_duration` (histogram), `affiant.token.usage` (counter by purpose — orchestration vs inference), `affiant.review.outcome` (counter by result — approved/rejected/expired/standing_order), and `affiant.docket.pending` (observable gauge — entries awaiting review, by tenant).
+
+**`affiant.docket.pending` and what it costs.** `DocketDepthInstrument` (registered by
+`AddAffiantCore` when `EnableObservability` is set) answers the question the other four cannot: how
+deep is the review queue right now. Reading it costs a `ListAllPendingAsync` against the docket
+store, so the instrument keeps that cost bounded and off the collection path — a scrape returns the
+last sample and, if it is older than 15 seconds, starts one background refresh, with at most one in
+flight. At most 100 tenant series are reported and the remaining tenants are summed into a single
+`__other__` series, so a collector's series count cannot track a host's tenant count. The value can
+be up to one refresh interval stale, and the first scrape after startup may report nothing: it is a
+trend signal, not a transactional count. A host with no `IDocketStore` reports no measurements and
+logs once.
 
 ---
 
@@ -1590,7 +2000,9 @@ ConversationContext:
 
 **Docket idempotency**: On review submission, execute `UPDATE Docket SET Status = 'Approved' WHERE EntryId = @id AND Status = 'Pending'` — the `WHERE Status = 'Pending'` clause prevents double-submit races.
 
-**Expiry sweep**: An `IHostedService` running every 30 seconds marks expired Docket entries. Default TTL is 10 minutes, configurable per `IApprovalPolicy` (Standing Order). A SignalR `DocketExpiring` notification is sent 60 seconds before expiry.
+**Expiry sweep**: An `IHostedService` running every 30 seconds marks expired Docket entries. A SignalR `DocketExpiring` notification is sent before expiry, inside `AffiantCoreOptions.DocketExpiryWarningWindow`.
+
+**The review window comes from the policy result, after the chain** — the verdict's `TimeToLive`, else the policy's own `DefaultTimeToLive`, else `AffiantCoreOptions.DefaultDocketTtl`. One global default applied *before* the policy chain is non-conformant: a policy that knows a capture is worthless in five minutes has nowhere to say so. A window that is not at least one millisecond, or too large to stamp, is a configuration error refused with `wireup-invalid` — never an entry born expired. A re-file with an existing `EntryId` is an idempotent replay: it returns the existing entry's state and, while it is still pending, re-broadcasts *that entry's* card with its **existing** deadline, never a fresh one.
 
 ---
 

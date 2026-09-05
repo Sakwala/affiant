@@ -173,7 +173,10 @@ public class ReviewGateSemanticsAtTheSeamTests
         // (c) decision applied — the reviewer approves the entry the card named.
         using var scope = sp.CreateScope();
         var gate = scope.ServiceProvider.GetRequiredService<ReviewGate>();
-        var (outcome, _) = await gate.HandleDecisionAsync(card.DocketId, ApprovalDecision.Approved);
+        var (outcome, _) = await gate.HandleDecisionAsync(
+            card.DocketId,
+            ApprovalDecision.Approved,
+            new DecisionContext(new Principal.Member("reviewer-1"), filed.TenantId));
 
         Assert.IsType<ReviewOutcome.Approved>(outcome);
         var resolved = Assert.Single(docket.Filed);
@@ -227,7 +230,7 @@ public class ReviewGateSemanticsAtTheSeamTests
         var catalog = AffiantToolCatalog.FromType<WidgetTools>();
         var options = new ChatOptions { Tools = [new HostedCodeInterpreterTool(), .. catalog.Functions] };
 
-        var ex = Assert.Throws<InvalidOperationException>(() => options.WithAffiant(sp, catalog));
+        var ex = Assert.Throws<Affiant.Abstractions.Exceptions.AffiantCoverageException>(() => options.WithAffiant(sp, catalog));
 
         Assert.Contains("code_interpreter", ex.Message, StringComparison.Ordinal);
         // The caller's own options are untouched: nothing was wrapped, so nothing about this object

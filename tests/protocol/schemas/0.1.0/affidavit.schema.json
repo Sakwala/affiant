@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://affiant.dev/schemas/0.1.0/affidavit.schema.json",
+  "title": "Affidavit",
+  "description": "The sworn evidence record for one proposed write. Every write an agent proposes is wrapped in one of these, carrying per-field provenance, before any person sees it and before anything is committed. operationType is the protocol's own two-valued vocabulary rather than the host's verb, because AF-3 is a rule about the SHAPE — an update names the entity it updates and swears to what it replaces — and \"create-only\" has to be a predicate a policy can test without knowing the host's verbs. The host's own verb travels on the card envelope. The three confidence numbers are AF-2: a mean that first discards every Empty field lets a mostly-empty Affidavit report high confidence, which is the exact hole once provenance authorises writes, so the aggregate is a MINIMUM with Empty counting as 0.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocolVersion",
+    "operationType",
+    "entityType",
+    "entityId",
+    "fields",
+    "aggregateConfidence",
+    "populatedConfidence",
+    "emptyFieldCount",
+    "conversationTurn",
+    "createdAt"
+  ],
+  "properties": {
+    "protocolVersion": {
+      "description": "The protocol version this record conforms to (SR-4).",
+      "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/protocolVersion"
+    },
+    "operationType": {
+      "description": "The shape of the operation being proposed.",
+      "$ref": "https://affiant.dev/schemas/0.1.0/operation.schema.json"
+    },
+    "entityType": {
+      "description": "The kind of domain entity being written, named by the host. With entityId this is the entity-ref shape.",
+      "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/identifier"
+    },
+    "entityId": {
+      "description": "The entity being written; null on a create, non-null on an update (AF-3). Non-null if and only if operationType is \"update\" — a schema cannot state that correlation, and an implementation enforces it.",
+      "oneOf": [
+        { "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/identifier" },
+        { "type": "null" }
+      ]
+    },
+    "fields": {
+      "description": "The sworn fields, in the order the operation proposed them. Never null — an empty array is what no fields looks like, and the substance gate refuses a proposal with nothing to swear to before it is ever filed (GT-3).",
+      "type": "array",
+      "items": { "$ref": "https://affiant.dev/schemas/0.1.0/affidavit-field.schema.json" }
+    },
+    "aggregateConfidence": {
+      "description": "The MINIMUM confidence over every proposed field's current tag, with an Empty field counting as 0 whatever its tag says — so it is 0 exactly when some proposed field has unknown provenance (AF-2). This is the safety number an invariant and a fixture pin; a host policy floor predicates on populatedConfidence and emptyFieldCount instead. Neither the protocol nor any implementation defines a threshold on it.",
+      "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/unitInterval"
+    },
+    "populatedConfidence": {
+      "description": "The minimum confidence over the NON-Empty proposed fields, or null when there are none (AF-2). Null rather than 0: \"there is nothing populated to be confident about\" is a different statement from \"the populated fields are worthless\", and a card showing 0 would say the second. New in v0.1; on the card envelope under the seed.",
+      "oneOf": [
+        { "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/unitInterval" },
+        { "type": "null" }
+      ]
+    },
+    "emptyFieldCount": {
+      "description": "How many proposed fields are tagged Empty (AF-2). Without it a person approving a card sees an aggregate of 0 and cannot tell how many fields are empty or how good the populated ones are. New in v0.1; on the card envelope under the seed.",
+      "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/nonNegativeInteger"
+    },
+    "conversationTurn": {
+      "description": "The conversation turn the proposal was made on, or null when it did not come from a turn.",
+      "type": ["integer", "null"]
+    },
+    "createdAt": {
+      "description": "When the Affidavit was built. Passed in by the caller, never read from a clock inside the model, so a fixture can pin it.",
+      "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/isoInstant"
+    }
+  }
+}

@@ -1,6 +1,8 @@
 namespace Affiant.Extensions.AI.Validation;
 
+using Affiant.Abstractions.Models;
 using Affiant.Core.Observability;
+using Affiant.Core.Services;
 using Affiant.Extensions.AI.Extensions;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
@@ -68,15 +70,18 @@ internal static class HostedToolAudit
 
         if (refused.Count > 0)
         {
-            throw new InvalidOperationException(
-                "Affiant.Extensions.AI: WithAffiant refuses to wire up a tool list with uncovered " +
-                $"hosted/provider-side tools: {string.Join(", ", refused)}. Affiant intercepts a tool by " +
-                "wrapping the AIFunction the client invokes; hosted MCP, code interpreter, web/file search, " +
-                "and other provider-executed tools are AITool markers with no client-side invocation to " +
-                "wrap, so they run outside Affiant entirely and it cannot see, tag, or gate writes made " +
-                "through them. Acknowledge each tool explicitly via " +
-                "ExtensionsAIOptions.AcknowledgeUncoveredTools if the host accepts this coverage gap, or " +
-                "remove the tool from ChatOptions.Tools.");
+            // The rule is the framework's — ToolCoverage.Refuse emits one `coverage.refused` event
+            // per tool and throws the protocol's own refusal, carrying the `coverage-refused` code
+            // (CV-4) — and the sentence about this adapter's wiring is this adapter's.
+            ToolCoverage.Refuse(
+                refused,
+                CoverageCategory.ProviderExecuted,
+                "Affiant intercepts a tool by wrapping the AIFunction the client invokes; hosted " +
+                "MCP, code interpreter, web/file search, and other provider-executed tools are " +
+                "AITool markers with no client-side invocation to wrap, so they run outside Affiant " +
+                "entirely. Acknowledge each tool explicitly via " +
+                "ExtensionsAIOptions.AcknowledgeUncoveredTools if the host accepts this coverage " +
+                "gap, or remove the tool from ChatOptions.Tools.");
         }
     }
 }

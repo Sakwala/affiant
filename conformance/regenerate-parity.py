@@ -17,6 +17,11 @@ for a named release, in `plannedFor`), `fenced` (a host-side workaround contains
 is still scheduled) and `ignored` (nothing is being done). Nothing here is `ignored`, and nothing is
 `fixed` either: every correction is on a branch or on a schedule, and no release carrying one has
 shipped.
+
+Every sentence below is written from a diff in the run log named in `runLog` and describes the tree
+that produced it. A fixture whose diffs match no cause here stops this script rather than being
+given the nearest old sentence: a detail that has outlived the defect it describes is worse than no
+detail, because it reads as a measurement.
 """
 import json
 import pathlib
@@ -24,10 +29,30 @@ import re
 import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
-RESULTS = HERE / "results" / "dotnet-1.0.0-beta.1.json"
 MANIFEST = HERE / "parity" / "dotnet-v0.1.json"
 FIXTURE_INDEX = HERE.parent / "tests" / "Affiant.Conformance.Tests" / "protocol" / "fixtures" / "MANIFEST.json"
 EXEMPTIONS = HERE.parent / "tests" / "Affiant.Conformance.Tests" / "protocol" / "lint" / "coverage-exemptions.json"
+
+
+def built_version():
+    """The version this tree builds, from Directory.Build.props.
+
+    The run log is named after the version it measured, so a script looking for it has to ask the
+    same question the driver did rather than carry a constant that goes stale the moment the tree is
+    versioned for the next release.
+    """
+    props = (HERE.parent / "Directory.Build.props").read_text()
+    prefix = re.search(r"<VersionPrefix>([^<]+)</VersionPrefix>", props)
+    suffix = re.search(r"<VersionSuffix>([^<]*)</VersionSuffix>", props)
+    if not prefix:
+        raise SystemExit("no <VersionPrefix> in Directory.Build.props")
+    return f"{prefix.group(1)}-{suffix.group(1)}" if suffix and suffix.group(1) else prefix.group(1)
+
+
+def run_log():
+    """The run this tree's own build wrote."""
+    return HERE / "results" / f"dotnet-{built_version()}.json"
+
 
 # The release every open gap below is scheduled for. A row that names it carries disposition
 # "planned": the gap is measured, written down and on the schedule for a named release. That is a
@@ -35,247 +60,23 @@ EXEMPTIONS = HERE.parent / "tests" / "Affiant.Conformance.Tests" / "protocol" / 
 # value for each -- see affiant-protocol conformance/PARITY.md.
 PLANNED_FOR = "1.0.0-beta.3"
 
-# disposition, detail, and the extra key that disposition requires.
-CAUSES = {
-    "AZ-1-attestation": (
-        "planned",
-        "Nothing on a Docket row says who or what approved the write. DocketEntry has twelve "
-        "properties and an attestation is not among them, so an approved row carries no "
-        "attributable record of who is answerable for it; a Standing Order's approver id is "
-        "computed by StandingOrderBase and only written to the log.",
-        {},
-    ),
-    "DK-1-execution": (
-        "planned",
-        "There is no execution state. Nothing records whether an approved write actually ran, so "
-        "an approved-but-failed write is indistinguishable on the record from an "
-        "approved-and-committed one, and there is no entry point for a host to report either.",
-        {},
-    ),
-    "DK-1-decision": (
-        "planned",
-        "A decision leaves a status and, on approval, a dictionary of amendments. There is no "
-        "record of what was chosen and why, no timestamped preserved-amendments record, and an "
-        "accepted amendment is never folded into an amended Affidavit -- so a later reader cannot "
-        "see the state the approval accepted.",
-        {},
-    ),
-    "AZ-4-blocked": (
-        "planned",
-        "A row has no blocked marker, and a MultiParty verdict is routed to the same "
-        "single-card branch as ReviewerConfirmation -- one approval satisfies a joint requirement. "
-        "A referral is recorded as Deferred with nothing a card can show.",
-        {},
-    ),
-    "GT-3-substance": (
-        "planned",
-        "Substance is checked by the compliance harness at test time only. At run time the gate "
-        "files whatever Affidavit it is handed, including one whose every field is tagged Empty -- "
-        "a proposal that swears to nothing reaches a reviewer as though it swore to something.",
-        {},
-    ),
-    "CV-4-coverage": (
-        "fenced",
-        "There is no coverage concept in the core. The only coverage refusal in the release is an "
-        "internal wire-up audit inside the two adapter packages; nothing marks a filed row as "
-        "blocked on coverage and there is no runtime refusal, so a tool the gate cannot intercept "
-        "produces a proposal that looks like any other.",
-        {
-            "fence": "Wire the tool catalogue through WithAffiant in Affiant.Extensions.AI or "
-            "Affiant.AgentFramework: its HostedToolAudit refuses a tool list carrying "
-            "provider-executed or hosted tools at start-up, before anything can be proposed. That "
-            "closes the wire-up case only -- there is still no runtime refusal and no marker on a "
-            "filed row."
-        },
-    ),
-    "AZ-2-decision": (
-        "fenced",
-        "The decision path consults no authorization port. ReviewGate.HandleDecisionAsync "
-        "transitions any row whose id the caller knows -- from another tenant, or with no principal "
-        "resolved at all -- and a host's authorization policy is never asked.",
-        {
-            "fence": "Authorize in the host before calling HandleDecisionAsync: resolve the "
-            "principal, compare it and its tenant against the row's UserId and TenantId (read the "
-            "row with IDocketStore.GetDocketEntryAsync first), and refuse there. The framework "
-            "will not do it, and there is no seam that makes it."
-        },
-    ),
-    "AZ-3-relay": (
-        "planned",
-        "There is no identity model for a machine caller speaking for a person. A decision "
-        "carries a single UserId string, so a relay asserting a member's identity and a member's "
-        "own authenticated session are the same thing on the record.",
-        {},
-    ),
-    "GT-4-ttl": (
-        "planned",
-        "The deadline is stamped from one global default before the policy chain runs, and a "
-        "policy's verdict is a bare enum that cannot name one. A re-file with the same id "
-        "broadcasts a card carrying a freshly computed deadline while the row keeps its original, "
-        "so a reviewer can be shown a deadline the record does not hold.",
-        {},
-    ),
-    "GT-5-standing-order": (
-        "planned",
-        "A policy cannot declare a risk ceiling or the provenance sources it predicates on: "
-        "IApprovalPolicy returns a bare requirement and nothing else. A Standing Order that should "
-        "be held back -- over its threshold, on an unbound input, or with a mandatory field left "
-        "empty -- fires anyway, and approves with no person present.",
-        {},
-    ),
-    "CV-1-wireup": (
-        "planned",
-        "A wiring the gate should refuse is accepted. A policy cannot declare a threshold, so "
-        "there is no declaration for the gate to notice is unbacked by a risk scorer, and the "
-        "silent non-fire that follows is indistinguishable from a policy that had no opinion.",
-        {},
-    ),
-    "DK-1-clock": (
-        "planned",
-        "There is no clock seam anywhere in the release: ReviewGate reads DateTimeOffset.UtcNow "
-        "at four sites and the expiry sweep at a fifth, none of them injectable. A row past its "
-        "deadline reads pending until a background sweep happens to run, and a decision that "
-        "arrives late is accepted rather than refused.",
-        {},
-    ),
-    "AF-3-projection": (
-        "fenced",
-        "Every Affidavit the built-in projection produces is create-shaped: the entity id is "
-        "hard-coded null and the previous value is null on every field, whatever the operation. A "
-        "card for an update therefore cannot show what is changing, which is most of what a "
-        "reviewer is being asked to check.",
-        {
-            "fence": "Register a host IAffidavitProjection in place of the schema-driven default. "
-            "The interface is public and the registration replaces it; a host projection can set "
-            "the entity id and fill each field's previous value from its own store before the "
-            "proposal is filed."
-        },
-    ),
-    "AF-2-confidence": (
-        "planned",
-        "The Affidavit carries one confidence number and it is the mean over the non-Empty "
-        "fields, so a mostly-empty Affidavit can report a high one. The record has no "
-        "populatedConfidence and no empty-field count at all, so a reader cannot tell a confident "
-        "record from a sparse one.",
-        {},
-    ),
-    "PV-1-inference": (
-        "planned",
-        "A value the host's inference reports is always tagged Inferred, whatever the port said "
-        "about how it was found, and the merge is confidence-first with a source-ordinal "
-        "tie-break. A value read literally out of the turn therefore loses to the model's own "
-        "argument at equal confidence, and the argument is what gets filed.",
-        {},
-    ),
-    "PV-2-binding": (
-        "planned",
-        "A provenance tag carries a source, a confidence, an evidence string and a conversation "
-        "turn, and nothing that points at a record an auditor could re-fetch. No value is ever "
-        "bound, so nothing can tell a value checked against a system of record from one a model "
-        "asserted.",
-        {},
-    ),
-    "DK-3-sweep": (
-        "planned",
-        "The expiry sweep loads every pending entry on every instance and reports nothing: it "
-        "takes no limit, no cursor and no scope, and returns void. A docket large enough to matter "
-        "is swept in one unbounded read.",
-        {},
-    ),
-    "DK-5-rehydrate": (
-        "planned",
-        "The rehydration surface re-broadcasts a session's pending cards and returns void. There "
-        "is no page, no cursor, no more flag and no order a reconnecting client can read, so a "
-        "client cannot tell a complete rehydration from a partial one.",
-        {},
-    ),
-    "SR-1-canonical": (
-        "planned",
-        "There is no canonical serialization and no content hash in the release. Nothing can "
-        "bind an execution grant to the exact Affidavit a reviewer accepted, which is the "
-        "substitution the rule exists to prevent.",
-        {},
-    ),
-    "SR-1-model": (
-        "planned",
-        "The canonical form is reproduced byte for byte by a canonicaliser written out from the "
-        "rule, but the .NET model cannot hold the shape the vector pins: the Affidavit record has "
-        "no protocol version, no populated-confidence, no empty-field count, no conversation turn "
-        "and no created-at instant, and a provenance tag has no note, no timestamp and no binding. "
-        "The release also exports no canonical-hash helper, so there is nothing to compare against.",
-        {},
-    ),
-    "SR-4-card": (
-        "planned",
-        "The Evidence Card carries a docket id, an Affidavit, a deadline and prior amendments -- "
-        "and no protocol version. A consumer cannot tell which version of the envelope it "
-        "received, which is checked on every filing and so fails on every filing.",
-        {},
-    ),
-}
+# disposition, detail, and the extra key that disposition requires. Empty: this tree passes every
+# fixture in the vendored suite, so there is no row to attribute. A fixture that starts failing stops
+# this script with its own id rather than being given the nearest sentence that once fit something
+# else -- a detail that has outlived the defect it describes is worse than no detail, because it
+# reads as a measurement.
+CAUSES: dict[str, tuple[str, str, dict[str, str]]] = {}
 
 # Rows scheduled for a release other than PLANNED_FOR. `fixedIn` is for a release that has SHIPPED
-# -- a version a reader can install -- and nothing here qualifies yet, so these are `planned` and
-# name their own release in `plannedFor`.
-SCHEDULED = {
-    "gate/standing-order-by-the-book": (
-        "1.0.0-beta.3",
-        "The shipped default risk scorer never returned the grade the default Standing Order "
-        "threshold demands, so a by-the-book Standing Order could never fire. That defect is "
-        "corrected in 1.0.0-beta.1.1 (Sakwala/affiant#53), which has shipped. This fixture still "
-        "fails at 1.0.0-beta.1.1, because it also asserts the row's execution state "
-        "(entry.execution: \"unexecuted\", DK-1) and its attestation record (AZ-1), and neither "
-        "lands until 1.0.0-beta.3. No declarative fixture reaches the risk floor itself -- a "
-        "fixture's declared policy binds to IApprovalPolicy, and the floor is in StandingOrderBase "
-        "with the default scorer -- so what refutes it is the framework's own "
-        "RiskConfigurationTests (Affiant.Policies.Tests.StandingOrders, Sakwala/affiant#53).",
-    ),
-}
+# -- a version a reader can install -- and nothing here qualifies yet, so a row that named its own
+# release would be `planned` and name it in `plannedFor`. There is no such row in this run.
+SCHEDULED: dict[str, tuple[str, str]] = {}
 
 # Where the ordered path scan is not the right reading, the fixture is named.
-OVERRIDES = {
-    "gate/substance-hollow-refused": "GT-3-substance",
-    "gate/substance-zero-field-refused": "GT-3-substance",
-    "gate/threshold-without-scorer": "CV-1-wireup",
-    "gate/coverage-refused-declared": "CV-4-coverage",
-    "sequence-a/coverage-refused-at-wire-up": "CV-4-coverage",
-    "decide/relay-without-assertion-refused": "AZ-3-relay",
-    "sequence-c/relay-may-not-attest-member": "AZ-3-relay",
-    "decide/resubmit-prefills": "DK-1-clock",
-    "sequence-a/late-amendments-preserved": "DK-1-clock",
-    "decide/expired-amendments-preserved": "DK-1-clock",
-    "sequence-a/expiry-then-resubmit": "DK-1-clock",
-    "decide/execution-on-pending-refused": "DK-1-execution",
-    "sequence-a/interleaved-conversations": "AF-3-projection",
-    "canonical/create-shaped": "SR-1-model",
-    "canonical/update-shaped": "SR-1-model",
-    "canonical/wire-evidence-card-request": "SR-1-model",
-    "canonical/key-order-stress": "SR-1-model",
-    "canonical/number-forms": "SR-1-model",
-    "canonical/money-and-escapes": "SR-1-model",
-    "canonical/wire-evidence-card-request-amended": "SR-1-canonical",
-}
+OVERRIDES: dict[str, str] = {}
 
 # Most fundamental first: the first pattern a fixture's diffs match names its root cause.
-SCAN = [
-    ("AZ-1-attestation", r"^(entry|superseded)\.attestation$"),
-    ("DK-1-execution", r"^(entry|superseded)\.execution"),
-    ("AZ-4-blocked", r"^(entry|superseded)\.blocked$|^card\.blocked$"),
-    ("AZ-2-decision", r"^error$|^prior\.refusal$|^step\.refusal$"),
-    ("GT-5-standing-order", r"^(entry|superseded)\.status$"),
-    ("AF-3-projection", r"affidavit\.entityId$|previousValue$"),
-    ("GT-4-ttl", r"expiresAtOffsetMs$|^card\.requiredBy$"),
-    ("DK-1-decision", r"^entry\.(decision|amendments|preservedAmendments|amendedAffidavit)$"),
-    ("AZ-4-blocked", r"^entry\.requirement$"),
-    ("DK-3-sweep", r"^expired\."),
-    ("DK-5-rehydrate", r"^page\."),
-    ("SR-1-canonical", r"^canonicalHash$"),
-    ("PV-2-binding", r"\.(bound|bindingKind)$"),
-    ("AF-2-confidence", r"(populatedConfidence|emptyFieldCount|aggregateConfidence)$"),
-    ("PV-1-inference", r"affidavit\.fields\[\d+\]\.(value|source|confidence|priorSources)"),
-    ("SR-4-card", r"^card\.protocolVersion$"),
-    ("DK-5-rehydrate", r"^card$"),
-]
+SCAN: list[tuple[str, str]] = []
 
 
 def cause_of(result):
@@ -289,7 +90,8 @@ def cause_of(result):
 
 
 def main():
-    run = json.loads(RESULTS.read_text())
+    results = run_log()
+    run = json.loads(results.read_text())
     index = {f["id"]: f for f in json.loads(FIXTURE_INDEX.read_text())["conformance"]["fixtures"]}
     exemptions = json.loads(EXEMPTIONS.read_text())["exemptions"]
 
@@ -330,7 +132,7 @@ def main():
         "version": run["implementation"]["version"],
         "protocolTag": run["protocolTag"],
         "producedAt": run["producedAt"],
-        "runLog": "conformance/results/dotnet-1.0.0-beta.1.json (Sakwala/affiant)",
+        "runLog": f"conformance/results/{results.name} (Sakwala/affiant)",
         "failing": failing,
         "runtimes": [{"name": "net10.0", "version": "10.0", "claimed": True}],
         "exemptions": [
@@ -366,47 +168,31 @@ CHECKED_INSTEAD = {
 }
 
 NOTES = (
-    "The .NET conformance driver against the shipped packages at 1.0.0-beta.1, read at the "
-    "rulebook's v0.1.1. "
-    "Four things a reader of this document alone should know. "
-    "(1) Every planned row carries plannedFor 1.0.0-beta.3: the gap is measured, "
-    "written down and scheduled for that release; no row is \"fixed\", because that "
-    "value names a release a reader can install. One of them, gate/standing-order-by-the-book, has "
-    "its underlying code defect already corrected in 1.0.0-beta.1.1 (Sakwala/affiant#53) -- but the "
-    "fixture also asserts an execution state and an attestation record on the row, neither of "
-    "which lands before 1.0.0-beta.3, so the row itself still fails there. The ten fenced rows name "
-    "a host-side workaround that contains the gap today AND the 1.0.0-beta.3 release, because a "
-    "fence is the honest disposition now, not the end of the work. "
-    "(2) There is no injectable clock in this release: ReviewGate reads DateTimeOffset.UtcNow at "
-    "four sites and the expiry sweep at a fifth, none of them injectable, and there is no "
-    "TimeProvider seam anywhere in the packages. Four fixtures -- decide/expired-amendments-preserved, "
-    "decide/resubmit-prefills, sequence-a/expiry-then-resubmit and sequence-a/late-amendments-preserved "
-    "-- fail on that alone: a fixture that moves its own clock cannot move the framework's. It also "
-    "keeps sequence-a/sweep-pages from driving an entry past its deadline, so the paging gap that "
-    "fixture is about is read off the API rather than exercised. "
-    "(3) The seven canonical byte vectors are run against a canonicaliser written out from SR-1 "
-    "inside the driver's own test project -- the second canonicaliser the rulebook asks for, not a "
-    "claim about the framework, which exports no canonical-hash helper at all. That canonicaliser "
-    "reproduces the pinned bytes and the pinned digest for six of the seven, at the first attempt "
-    "and with no change to it, over vectors the rulebook regenerated at v0.1.1; the seventh, "
-    "canonical/wire-evidence-card-request-amended, needs the accepted amendments folded into the "
-    "Affidavit and this release never folds them. All seven nonetheless fail, and six of them fail "
-    "ONLY because the .NET model cannot HOLD the shape the vector pins -- the Affidavit record has "
-    "no protocol version, no populated-confidence, no empty-field count, no conversation turn and "
-    "no created-at instant, and a provenance tag has no note, no timestamp and no binding -- which "
-    "is a different thing from canonicalising it wrongly. Three of those six passed at v0.1.0 and "
-    "fail here, and no code changed: at v0.1.0 the vectors' inputs described a seed-shaped record "
-    "the Affidavit schema refuses, so canonical/wire-evidence-card-request was measured against a "
-    "shape this release happens to hold, and canonical/key-order-stress and canonical/number-forms "
-    "were bare JSON documents with no record in them to hold at all. The rulebook regenerated them "
-    "from v0.1-shaped inputs, and the honest reading of this release against the shape it will "
-    "actually be asked to carry is that it holds none of the seven. The gap is the model, and it "
-    "is the same 1.0.0-beta.3 gap the rest of this manifest names. "
-    "(4) The framework emits telemetry under names that share nothing with the rulebook's registry "
-    "-- it emits affidavit.projected, inference.completed and affiant.review.broadcast_failed where "
-    "the registry names affidavit.filed, docket.transition and standing-order.fired -- so every "
-    "telemetry clause in the suite fails and every telemetryAbsent clause holds. That is a true "
-    "statement about this release; no name was translated to make a clause pass."
+    "The .NET conformance driver, run by this repository's own test suite against the packages this "
+    "tree builds, read at the rulebook's v0.1.2. ALL SIXTY-THREE FIXTURES PASS: the failing list is "
+    "empty, which is what this release's acceptance asks for. "
+    "Three things a reader of this document alone should know. "
+    "(1) WHAT THIS RUN IS. It is a BRANCH BUILD of the 1.0.0-beta.3 candidate, not a shipped "
+    "release: the version here names what the tree builds, and nothing carrying it has been "
+    "published. "
+    "(2) THE CANONICAL FORM AND THE ENTRY ID ARE THE PROTOCOL'S. Every byte vector is reproduced "
+    "through the SHIPPED serializer -- the same exported helper a host calls to mint an execution "
+    "grant -- and never through a canonicaliser written beside the test: the rule says a driver "
+    "reproduces the bytes and the digest rather than re-deriving them. The amended vector's sworn "
+    "form is folded by the shipped amendment fold and checked against the accepted state the vector "
+    "writes down before its bytes are compared, and every vector is validated against "
+    "canonical-vector.schema.json before it runs. The form is over the Affidavit as the schema "
+    "defines it, protocol version included (SR-1 at v0.1.2). A Docket entry id is derived from the "
+    "tenant, the conversation, the tool and the canonical form of the operation and its arguments, "
+    "digested and laid out as GT-4 states, so an id minted here and an id minted by another "
+    "implementation for the same proposal are the same id -- which they must be, because the id "
+    "travels inside the record and therefore inside the hash a grant binds to. "
+    "(3) WHAT THE DRIVER CHECKS WITHOUT BEING ASKED. Every filing a fixture performs -- prior steps "
+    "included -- is card-checked: the card points at its row, carries that row's deadline and "
+    "protocol version, repeats the record's three confidence numbers, and says on its face when the "
+    "row is blocked. Every attestation is checked to name the entry it attests to. `wrap-execute` "
+    "runs the shipped tool-wrapping pipeline rather than a restatement of it, and the driver's "
+    "README names the entry point each of the eight step kinds is bound to."
 )
 
 if __name__ == "__main__":

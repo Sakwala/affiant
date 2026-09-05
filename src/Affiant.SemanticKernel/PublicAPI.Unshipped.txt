@@ -1,1 +1,8 @@
 #nullable enable
+*REMOVED*Affiant.SemanticKernel.Adapters.SemanticKernelInferenceCompletionPort.SemanticKernelInferenceCompletionPort(System.IServiceProvider! services, Microsoft.Extensions.Logging.ILogger<Affiant.SemanticKernel.Adapters.SemanticKernelInferenceCompletionPort!>! logger) -> void
+*REMOVED*Affiant.SemanticKernel.Connectors.ManualToolInvoker.ManualToolInvoker(Affiant.Core.Services.ToolInvocationPipeline! pipeline, Microsoft.Extensions.Logging.ILogger<Affiant.SemanticKernel.Connectors.ManualToolInvoker!>! logger) -> void
+Affiant.SemanticKernel.Adapters.SemanticKernelInferenceCompletionPort.SemanticKernelInferenceCompletionPort(System.IServiceProvider! services, Microsoft.Extensions.Logging.ILogger<Affiant.SemanticKernel.Adapters.SemanticKernelInferenceCompletionPort!>! logger, System.TimeProvider? timeProvider = null) -> void
+Affiant.SemanticKernel.Connectors.ManualToolInvoker.ManualToolInvoker(Affiant.Core.Services.ToolInvocationPipeline! pipeline, Microsoft.Extensions.Logging.ILogger<Affiant.SemanticKernel.Connectors.ManualToolInvoker!>! logger, System.TimeProvider? timeProvider = null) -> void
+Affiant.SemanticKernel.Services.RehydrationResult.ApprovedUnexecutedEntries.get -> System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.DocketEntry!>!
+Affiant.SemanticKernel.Services.RehydrationResult.ApprovedUnexecutedEntries.init -> void
+Affiant.SemanticKernel.Services.SessionRehydrator.RehydrateAsync(string! sessionId, string? tenantId, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.SemanticKernel.Services.RehydrationResult!>!

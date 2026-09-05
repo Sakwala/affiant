@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Affiant.Abstractions.Serialization;
 
 namespace Affiant.Abstractions.Models;
 
@@ -10,16 +11,17 @@ namespace Affiant.Abstractions.Models;
 /// </summary>
 public static class ToolEnvelopeExtensions
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = false
-    };
-
     /// <summary>
-    /// Serializes a <see cref="ToolEnvelope"/> variant to JSON with the polymorphic
-    /// <c>$type</c> discriminator and camelCase property names.
+    /// Serializes a <see cref="ToolEnvelope"/> variant to JSON with the <c>kind</c> discriminator
+    /// (AF-5) under the framework's one set of JSON conventions
+    /// (<see cref="AffiantJson.SerializerOptions"/>, SR-3).
+    ///
+    /// <para>
+    /// It used to configure its own options — camelCase, and nothing else — so an enum inside a tool
+    /// result crossed as an integer while the same enum inside an Evidence Card crossed as a string.
+    /// The two now agree.
+    /// </para>
     /// </summary>
     public static string ToJsonString(this ToolEnvelope envelope) =>
-        JsonSerializer.Serialize(envelope, SerializerOptions);
+        JsonSerializer.Serialize(envelope, AffiantJson.SerializerOptions);
 }

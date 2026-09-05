@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://affiant.dev/schemas/0.1.0/blocked.schema.json",
+  "title": "BlockedMarker",
+  "description": "Why an entry cannot be decided even though it sits in pending (INVARIANTS.md AZ-4, CV-4). An implementation that receives a requirement level it does not run records that level verbatim, files the entry pending with this marker, refuses every decision on it, never executes it, and NEVER degrades it to a weaker requirement — a joint requirement quietly satisfied by one approval is the failure this exists to prevent. A blocked entry's card says so on its face and never claims a confirmation is being awaited. The marker is discriminated by its code, and each code carries exactly the context that code makes meaningful: a coverage refusal has no requirement level to report.",
+  "type": "object",
+  "oneOf": [
+    { "$ref": "#/$defs/requirementNotImplemented" },
+    { "$ref": "#/$defs/coverageRefused" }
+  ],
+  "$defs": {
+    "requirementNotImplemented": {
+      "title": "RequirementNotImplemented",
+      "description": "A requirement level this version recognises but does not run reached the pipeline. In v0.1 those are ReferralRequired and MultiParty, whose semantics are reserved for protocol v0.2.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "level"],
+      "properties": {
+        "code": { "const": "requirement-not-implemented" },
+        "level": {
+          "description": "The requirement level that is not implemented, recorded verbatim.",
+          "type": "string",
+          "enum": ["StandingOrder", "ReviewerConfirmation", "ReferralRequired", "MultiParty"]
+        }
+      }
+    },
+    "coverageRefused": {
+      "title": "CoverageRefused",
+      "description": "A proposal came from a write-capable tool the host declared the gate cannot intercept (CV-4). Wire-up refuses such a tool outright unless the host declares it uncovered, in which case its proposals are still recorded on the Docket — blocked, never silently allowed to write. The tool name is on the row so coverage can be re-assessed on resubmission.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "category", "toolName"],
+      "properties": {
+        "code": { "const": "coverage-refused" },
+        "category": {
+          "description": "The category the gate cannot cover: a write-capable tool with no execute to replace, a tool the model provider executes, or a hosted MCP server-side write.",
+          "type": "string",
+          "enum": ["no-execute", "provider-executed", "hosted-mcp"]
+        },
+        "toolName": {
+          "description": "The tool the uncovered proposal came from.",
+          "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/identifier"
+        }
+      }
+    }
+  }
+}

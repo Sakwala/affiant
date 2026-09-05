@@ -31,7 +31,14 @@
        yet. -->
   <PropertyGroup>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);1591;1573;1574;1734;1735</NoWarn>
+    <!-- AFFIANT0001 is this repository's own deprecation diagnostic: members carrying
+         [Obsolete(..., DiagnosticId = "AFFIANT0001")] are kept as aliases for one release while
+         the framework's own code still reads them (DocketEntry.ReviewerUserId, superseded by
+         DocketEntry.Attestation). Suppressing it here silences it for THIS repository's
+         compilation only — a consumer referencing the package still gets the warning, which is the
+         whole point of announcing the deprecation. Remove both the suppression and the aliases
+         together in the release after the one that introduced them. -->
+    <NoWarn>$(NoWarn);1591;1573;1574;1734;1735;AFFIANT0001</NoWarn>
   </PropertyGroup>
 
   <!-- Package validation (area-8 ruling 6 / V5's "cheapest now, costly to retrofit"). Runs the
@@ -40,7 +47,7 @@
        — once PackageValidationBaselineVersion is set — that the new package is API-compatible with
        the previous release.
 
-       PackageValidationBaselineVersion is set to 1.0.0-beta.1, the first published version: pack
+       PackageValidationBaselineVersion is set to 1.0.0-beta.1.1, the latest published version: pack
        downloads it from a configured feed and diffs the package being built against it, so a
        break against what is already on nuget.org fails the build unless it is declared in a
        CompatibilitySuppressions.xml. Prerelease stability policy still permits breaks — it
@@ -48,9 +55,9 @@
   <PropertyGroup>
     <IsPackable>true</IsPackable>
     <EnablePackageValidation>true</EnablePackageValidation>
-    <PackageValidationBaselineVersion>1.0.0-beta.1</PackageValidationBaselineVersion>
+    <PackageValidationBaselineVersion>1.0.0-beta.1.1</PackageValidationBaselineVersion>
     <VersionPrefix>1.0.0</VersionPrefix>
-    <VersionSuffix>beta.1.1</VersionSuffix>
+    <VersionSuffix>beta.3</VersionSuffix>
     <Authors>Seevali</Authors>
     <PackageProjectUrl>https://github.com/Sakwala/affiant</PackageProjectUrl>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>

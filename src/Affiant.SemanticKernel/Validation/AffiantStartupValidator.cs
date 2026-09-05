@@ -7,6 +7,30 @@ using Microsoft.SemanticKernel;
 
 namespace Affiant.SemanticKernel.Validation;
 
+/// <summary>
+/// Refuses, at startup, two Semantic-Kernel wirings the gate cannot cover: a <c>[KernelFunction]</c>
+/// the framework's tool registry has never heard of, and a registered tool descriptor naming an
+/// inference strategy the container cannot resolve.
+///
+/// <para>
+/// <b>Why check A is a write-capability check (protocol rule CV-1).</b> A <c>[KernelFunction]</c>
+/// the registry does not know is a function the gate has no declaration for — the framework cannot
+/// tell whether it writes, and a tool that writes without a declaration is a write nobody reviews.
+/// The rule is that a misconfiguration the framework can detect fails at wire-up naming the missing
+/// piece; there is no option that turns the gate off for a tool it covers. Declaring the function —
+/// as a write with <c>[AffiantWriteTool]</c> / <c>AddAffiantTool</c>, or as a read with
+/// <c>AddAffiantReadTool</c> — is the whole fix, and the read declaration is how a host says "this
+/// one genuinely does not write".
+/// </para>
+///
+/// <para>
+/// The other half of the same rule — a host that <em>has</em> declared write-capable tools but
+/// registered no <c>IReviewContextProvider</c> or no <c>ReviewGate</c>, so a declared write has
+/// nowhere to be filed — is <c>Affiant.Core.Validation.AffiantWireUpValidator</c>'s, because it is
+/// not Semantic-Kernel-specific: it holds for every adapter. Both run as hosted services at startup,
+/// before any turn.
+/// </para>
+/// </summary>
 // IServiceScopeFactory is injected (not Kernel) so that the singleton IHostedService
 // never forces Kernel resolution from the root scope. Hosts that register plugins with
 // scoped dependencies (e.g. IDocketStore) would otherwise trip ValidateScopes=true
@@ -40,7 +64,10 @@ public sealed class AffiantStartupValidator(
         if (unregistered.Count == 0) return;
 
         var msg = new StringBuilder();
-        msg.AppendLine("The following [KernelFunction] methods are not registered as Affiant tool descriptors:");
+        msg.AppendLine(
+            "The following [KernelFunction] methods are not registered as Affiant tool descriptors, " +
+            "so the framework cannot tell whether they write — and an undeclared write is a write " +
+            "nobody reviews (CV-1):");
         foreach (var (plugin, function) in unregistered)
             msg.AppendLine($"- {plugin}.{function}");
         msg.AppendLine();

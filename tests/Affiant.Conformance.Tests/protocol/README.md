@@ -2,7 +2,7 @@
 
 The conformance suite, copied from
 [`Sakwala/affiant-protocol`](https://github.com/Sakwala/affiant-protocol) at the ref
-`../../../conformance/PROTOCOL_PIN` names (v0.1.1).
+`../../../conformance/PROTOCOL_PIN` names (v0.1.2).
 
 Every file here is a copy. Editing one changes what this repository's published parity
 claim is about, so `conformance/sync.sh --verify` (which CI runs) fails on any change
