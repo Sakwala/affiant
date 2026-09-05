@@ -1,0 +1,195 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://affiant.dev/schemas/0.1.0/binding.schema.json",
+  "title": "Binding",
+  "description": "What to look at to check a value (INVARIANTS.md PV-2). A provenance tag says where a value came from; a binding points at the artifact an auditor can go and check years later. The five kinds are a fixed set — a binding kind nobody can enumerate is a binding nobody can audit — and a binding whose source cannot be re-fetched or re-verified is not a binding. A tag with no binding is not a lie, it is a weaker claim, and the framework's job is to keep the difference visible rather than to average it away: a tag graded above Conversation with no binding is recorded as claimed but a person-free verdict may not rest on it (PV-4, PV-5).",
+  "type": "object",
+  "oneOf": [
+    { "$ref": "#/$defs/utteranceSpan" },
+    { "$ref": "#/$defs/reviewerAct" },
+    { "$ref": "#/$defs/formInput" },
+    { "$ref": "#/$defs/externalRef" },
+    { "$ref": "#/$defs/computationRef" }
+  ],
+  "$defs": {
+    "utteranceSpan": {
+      "title": "UtteranceSpanBinding",
+      "description": "The span of the unmodified utterance the value was read from. Offset and length rather than a start/end pair, and a hash of the substring: offsets alone rot the moment anything re-wraps or re-encodes a transcript, so the hash is what lets an auditor prove the span still says what it said. The digest algorithm and encoding are the canonical-form rules' (SR-1).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "ref"],
+      "properties": {
+        "kind": { "const": "utterance-span" },
+        "ref": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["offset", "length", "hash"],
+          "properties": {
+            "offset": {
+              "description": "Character offset into the utterance, from 0.",
+              "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/nonNegativeInteger"
+            },
+            "length": {
+              "description": "Length of the span in characters.",
+              "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/nonNegativeInteger"
+            },
+            "hash": {
+              "description": "Digest of the spanned substring, so the span can be checked after the fact.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    "reviewerAct": {
+      "title": "ReviewerActBinding",
+      "description": "The Docket decision that amended or prefilled the field. A reviewer's correction is provenance in its own right: their act is what the new value rests on, and this names the act (AF-4).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "ref"],
+      "properties": {
+        "kind": { "const": "reviewer-act" },
+        "ref": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["entryId", "decisionAt"],
+          "properties": {
+            "entryId": {
+              "description": "The Docket entry the decision was made on.",
+              "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/uuid"
+            },
+            "decisionAt": {
+              "description": "When the decision was made.",
+              "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/isoInstant"
+            }
+          }
+        }
+      }
+    },
+    "formInput": {
+      "title": "FormInputBinding",
+      "description": "The form control a person typed into, as the host's own surface names it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "ref"],
+      "properties": {
+        "kind": { "const": "form-input" },
+        "ref": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["field"],
+          "properties": {
+            "field": {
+              "description": "The form field's name.",
+              "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/identifier"
+            }
+          }
+        }
+      }
+    },
+    "externalRef": {
+      "title": "ExternalRefBinding",
+      "description": "The system of record an External value was read from. system and recordId are always present; the other three are present only when the value's kind of source makes them checkable, and are absent otherwise rather than null — a binding names what it can point at and claims nothing else. fetchedAt and contentHash are what a value read from a published page with no API binds instead of a record id: when it was read, and what it said when it was read. relay is present when the value arrived over a trusted relay that asserted a person's identity rather than authenticating them.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "ref"],
+      "properties": {
+        "kind": { "const": "external-ref" },
+        "ref": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["system", "recordId"],
+          "properties": {
+            "system": {
+              "description": "The source system, named the way the host names it.",
+              "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/identifier"
+            },
+            "recordId": {
+              "description": "The record within that system. A canonical URL where the system is a page with no API.",
+              "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/identifier"
+            },
+            "fetchedAt": {
+              "description": "When the value was read. Optional: present where the source is re-read rather than addressed by a stable record id.",
+              "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/isoInstant"
+            },
+            "contentHash": {
+              "description": "Digest of what the source said when it was read. Optional, and the companion of fetchedAt.",
+              "type": "string",
+              "minLength": 1
+            },
+            "relay": {
+              "description": "The relay that carried the capture, when one did. Optional.",
+              "$ref": "#/$defs/relayRef"
+            }
+          }
+        }
+      }
+    },
+    "computationRef": {
+      "title": "ComputationRefBinding",
+      "description": "The deterministic rule a Computed value came out of, and what it consumed. The rule is re-runnable, named rather than described, and the inputs are field names in the order the rule consumed them.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "ref"],
+      "properties": {
+        "kind": { "const": "computation-ref" },
+        "ref": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["rule", "inputs"],
+          "properties": {
+            "rule": {
+              "description": "The rule's name — re-runnable, not a description.",
+              "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/identifier"
+            },
+            "inputs": {
+              "description": "The field names the rule consumed, in the order it consumed them. Never null — an empty array is what no inputs looks like.",
+              "type": "array",
+              "items": { "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/identifier" }
+            },
+            "constant": {
+              "description": "An externally published constant the rule depends on. Optional, and present whenever there is one: when a value was checked is a different fact from when the tag was written — a rate table verified in March and used in September is a September tag resting on a March fact, and a reviewer is entitled to see both.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["source", "verifiedOn"],
+              "properties": {
+                "source": {
+                  "description": "Where the constant is published.",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "verifiedOn": {
+                  "description": "The date the constant was last verified, as an ISO 8601 date or instant.",
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "relayRef": {
+      "title": "RelayRef",
+      "description": "A relay that asserted a person's identity rather than authenticating them: the channel the capture arrived on and the message it arrived in.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["principal", "channelIdentity", "messageId"],
+      "properties": {
+        "principal": {
+          "description": "The relay's own principal id.",
+          "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/identifier"
+        },
+        "channelIdentity": {
+          "description": "How the person is addressed on that channel.",
+          "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/identifier"
+        },
+        "messageId": {
+          "description": "The message the capture arrived in.",
+          "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/identifier"
+        }
+      }
+    }
+  }
+}

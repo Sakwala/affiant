@@ -29,6 +29,8 @@ internal sealed class WidgetTools
             Fields: [new AffidavitField(
                 "name", name, null, ProvenanceChain.From(ProvenanceTag.FromTool("CreateWidget")))],
             AggregateConfidence: 0.9f,
+            PopulatedConfidence: 0.9f,
+            EmptyFieldCount: 0,
             Warnings: [],
             RequiresConfirmation: false);
 

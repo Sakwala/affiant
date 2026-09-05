@@ -13,6 +13,13 @@ using Xunit;
 /// across JSON scalar kinds. Structured-output models emit numeric and boolean fields as
 /// native JSON numbers/booleans; calling GetString() on those previously threw
 /// InvalidOperationException, which aborted the entire merge loop and dropped every field.
+///
+/// <para>
+/// A value keeps the JSON type the port reported it as: a number stays a number and a boolean stays
+/// a boolean, all the way onto the card. The field's <c>kind</c> is a rendering hint for a reviewer
+/// surface, not a licence to re-type the value, and a card showing <c>"40"</c> where the port said
+/// <c>40</c> shows a different value from the one the record swears to (AF-1, SR-2).
+/// </para>
 /// </summary>
 public class TaskInferenceStepScalarValueTests
 {
@@ -40,29 +47,29 @@ public class TaskInferenceStepScalarValueTests
         var result = await step.ExecuteAsync(new FieldsStrategy(new TaskInferenceField("EstimatedHours", "number", "Estimated hours")), json);
 
         Assert.True(result.MergedFields["EstimatedHours"].Merged);
-        Assert.Equal("4", fabric.GetByKey("Thing")!.Fields["EstimatedHours"]);
+        Assert.Equal(4, fabric.GetByKey("Thing")!.Fields["EstimatedHours"]);
     }
 
     [Fact]
-    public async Task Decimal_value_preserves_its_text()
+    public async Task Decimal_value_preserves_its_type()
     {
         var (step, fabric) = Build();
         var json = Parse("""{ "EstimatedHours": { "value": 4.5, "confidence": 0.8 } }""");
 
         await step.ExecuteAsync(new FieldsStrategy(new TaskInferenceField("EstimatedHours", "number", "Estimated hours")), json);
 
-        Assert.Equal("4.5", fabric.GetByKey("Thing")!.Fields["EstimatedHours"]);
+        Assert.Equal(4.5d, fabric.GetByKey("Thing")!.Fields["EstimatedHours"]);
     }
 
     [Fact]
-    public async Task Boolean_value_is_read_as_text()
+    public async Task Boolean_value_is_read_as_a_boolean()
     {
         var (step, fabric) = Build();
         var json = Parse("""{ "Urgent": { "value": true, "confidence": 0.9 } }""");
 
         await step.ExecuteAsync(new FieldsStrategy(new TaskInferenceField("Urgent", "boolean", "Urgent flag")), json);
 
-        Assert.Equal("true", fabric.GetByKey("Thing")!.Fields["Urgent"]);
+        Assert.Equal(true, fabric.GetByKey("Thing")!.Fields["Urgent"]);
     }
 
     [Fact]
@@ -85,7 +92,7 @@ public class TaskInferenceStepScalarValueTests
         Assert.True(result.MergedFields["Title"].Merged);
         Assert.True(result.MergedFields["EstimatedHours"].Merged);
         Assert.Equal("Replace landing gear tyre", fabric.GetByKey("Thing")!.Fields["Title"]);
-        Assert.Equal("6", fabric.GetByKey("Thing")!.Fields["EstimatedHours"]);
+        Assert.Equal(6, fabric.GetByKey("Thing")!.Fields["EstimatedHours"]);
     }
 
     [Fact]

@@ -1,7 +1,7 @@
 # The affiant-protocol ref this repository's conformance driver is pinned to.
 #
 # Versions of the rulebook (https://github.com/Sakwala/affiant-protocol) are git tags.
-# The pin is the v0.1.0 tag, and `commit` records what that tag points at, so a reader
+# The pin is the v0.1.2 tag, and `commit` records what that tag points at, so a reader
 # can check one against the other with no network. While a version's text is on the
 # rulebook's default branch and its tag has not been cut, `tag` is empty and the COMMIT
 # is the pin: a commit is as immutable as a tag and, unlike a tag, cannot be moved
@@ -15,7 +15,7 @@
 # which is what CI runs, so a local edit to a vendored fixture cannot pass unnoticed.
 
 repository=https://github.com/Sakwala/affiant-protocol
-commit=8530987a510b2843c5ff89cfaa8cd19ed588a2ab
-tag=v0.1.1
-tag_note=v0.1.1 was cut on the commit above on 2026-09-04: the seven canonical byte vectors regenerated from v0.1-shaped inputs, and a lint that validates every vector's record against schemas/0.1.0/affidavit.schema.json. The vectors published at v0.1.0 described a seed-shaped record that schema refuses, so they pinned the bytes of a document the protocol does not have; every byte and every digest moved. No rule text and no wire schema changed - the 0.1.0 schemas and the 56 declarative fixtures are v0.1.0's.
+commit=d803fb0740c4b86dd6560c8614d7eb9e47b5b333
+tag=v0.1.2
+tag_note=v0.1.2 was cut on the commit above on 2026-09-05: SR-1 now states that the canonical form is taken over the Affidavit as the schema defines it, protocolVersion included; the two conformance fixtures that pin a content hash (sequence-a/approve-round-trip, decide/amend-recompute) carry hashes regenerated from the corrected reference, because the ones published at v0.1.1 came from a runtime whose model did not carry that property and so disagreed with the schema and with all seven canonical byte vectors; and GT-4 now states the entry-id derivation - the tenant, the conversation, the tool and the canonical form of the operation and its arguments, digested and laid out as a version-8 UUID - which was previously left to an implementation and is inside every content hash through a reviewer-act binding. The 0.1.0 wire schemas are unchanged.
 vendored=tests/Affiant.Conformance.Tests/protocol

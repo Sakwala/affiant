@@ -1,5 +1,7 @@
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
+using Affiant.Core.Observability;
+using Affiant.Core.Services;
 using Affiant.Policies.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -68,6 +70,21 @@ public abstract class StandingOrderBase : IApprovalPolicy
     /// Returns the declared ceiling and the calculator that will score it; both null when the
     /// order declares no ceiling and so needs no calculator at all.
     /// </summary>
+    /// <summary>
+    /// Why this order cannot run as it is wired (CV-1): it declares a risk ceiling and no scorer is
+    /// registered, so the comparison the framework owns has no number to make.
+    /// </summary>
+    /// <remarks>
+    /// Reported at startup rather than at the first evaluation. The framework ships no scoring
+    /// formula — what counts as risk is the host's to say — so an order with a ceiling and no
+    /// calculator is a host that has not finished wiring, and every write it was written to
+    /// auto-approve would fall through to a person instead.
+    /// </remarks>
+    public string? ConfigurationFault =>
+        RiskThreshold is not null && RiskScorer is null or MissingRiskScoreCalculator
+            ? MissingRiskScoreCalculator.MessageFor(GetType())
+            : null;
+
     internal (int? Threshold, RiskScoreCalculatorBase? Scorer) EnsureConfigured()
     {
         var threshold = RiskThreshold;
@@ -81,8 +98,74 @@ public abstract class StandingOrderBase : IApprovalPolicy
         return (threshold, scorer);
     }
 
-    public async Task<ReviewRequirement?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// The provenance sources this Standing Order predicates on (protocol rule PV-4). Empty by
+    /// default: a Standing Order whose <see cref="MatchesAsync"/> looks only at field values or host
+    /// state predicates on nothing outside the conversation, and the rule leaves it alone. Override
+    /// it — <c>=&gt; [ProvenanceSource.External]</c> — when the match reads a grade a caller could
+    /// have asserted with nothing behind it, and the check below will require every such tag in
+    /// force to point at something an auditor can re-fetch before this order fires.
+    /// </summary>
+    protected virtual IReadOnlyCollection<ProvenanceSource> DeclaredInputs => [];
+
+    /// <summary>
+    /// This order's own review window, used when a person ends up being asked anyway — because one
+    /// of the three checks below held the order back — and the verdict names none (protocol rule
+    /// GT-4). Null by default, so the gate's own default applies. The degrade changes who decides,
+    /// not when the window closes, which is why the window is the order's to name even on a verdict
+    /// it did not get to keep.
+    /// </summary>
+    protected virtual TimeSpan? StandingOrderTimeToLive => null;
+
+    /// <inheritdoc />
+    IReadOnlyCollection<ProvenanceSource> IApprovalPolicy.DeclaredInputs => DeclaredInputs;
+
+    /// <inheritdoc />
+    TimeSpan? IApprovalPolicy.DefaultTimeToLive => StandingOrderTimeToLive;
+
+    /// <summary>
+    /// The order's verdict, with the three checks that hold a person-free approval back applied in
+    /// the order protocol rule GT-5 fixes:
+    ///
+    /// <list type="number">
+    /// <item><description><b>The empty required field.</b> No proposed field marked mandatory may
+    /// read <c>Empty</c>. First because it is the cheapest read and the least conditional — it
+    /// depends on nothing this policy declared and nothing a host port returns, so a proposal with a
+    /// hole in it is held back identically under every wiring, and a host's risk scorer is never
+    /// spent on it.</description></item>
+    /// <item><description><b>The unbound declared input (PV-4).</b> Every field whose tag in force
+    /// names one of <see cref="DeclaredInputs"/> and sits above
+    /// <see cref="ProvenanceSource.Conversation"/> must point at something an auditor can re-check.
+    /// Still a pure read of the Affidavit, and still cheaper than a score.</description></item>
+    /// <item><description><b>The risk comparison.</b> An order that declares no
+    /// <see cref="RiskThreshold"/> fires on the match alone and needs no calculator. One that
+    /// declares a ceiling fires only when the host's score is at or below it. The framework owns the
+    /// comparison; the host owns the number.</description></item>
+    /// </list>
+    ///
+    /// <para>
+    /// A check that fires <b>degrades</b> the verdict to
+    /// <see cref="ReviewRequirement.ReviewerConfirmation"/> rather than returning <c>null</c>: the
+    /// order matched and had an opinion, and the record has to say a Standing Order was held back
+    /// rather than let a later policy speak as though this one never fired. Degrading toward a
+    /// person is always safe. The order's own review window survives the degrade.
+    /// </para>
+    /// </summary>
+    /// <param name="affidavit">The proposed write, as sworn.</param>
+    /// <param name="identity">
+    /// Where the proposal came from — the conversation, the person, the tenant and the channel.
+    /// Supplied so a rule can <em>bind</em> to one of them; never a statement about who may approve,
+    /// which the framework decides through <c>IDecisionAuthorizationPolicy</c>.
+    /// </param>
+    /// <param name="cancellationToken">Caller cancellation.</param>
+    public async Task<ApprovalVerdict?> EvaluateAsync(
+        Affidavit affidavit,
+        ConversationIdentity identity,
+        CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(affidavit);
+        ArgumentNullException.ThrowIfNull(identity);
+
         // Configuration first, before the conditions are even tested: a Standing Order that
         // declares a risk ceiling with no calculator to score it fails here — on its first
         // evaluation, before any write is auto-approved, never silently.
@@ -90,6 +173,21 @@ public abstract class StandingOrderBase : IApprovalPolicy
 
         if (!await MatchesAsync(affidavit, cancellationToken).ConfigureAwait(false))
             return null;
+
+        var verdict = new ApprovalVerdict(
+            ReviewRequirement.StandingOrder,
+            TimeToLive: StandingOrderTimeToLive);
+
+        // Checks 1 and 2 — both pure reads of the Affidavit, both before the scorer is spent.
+        var guarded = StandingOrderGuardrails.Apply(
+            verdict, affidavit, DeclaredInputs, PolicyId, PolicyVersion);
+        if (guarded.Requirement != ReviewRequirement.StandingOrder)
+        {
+            Logger.LogInformation(
+                "Standing Order {Policy} was not honoured ({BlockedReason}): {Reason}",
+                GetType().Name, guarded.BlockedReason, guarded.Reason);
+            return guarded;
+        }
 
         // EnsureConfigured returns a scorer whenever it returns a threshold, and throws otherwise,
         // so a null scorer here can only mean this order declares no ceiling.
@@ -99,23 +197,51 @@ public abstract class StandingOrderBase : IApprovalPolicy
             Logger.LogInformation(
                 "Standing Order {Policy} auto-approved: conditions matched, no risk ceiling declared, approver {Approver}",
                 GetType().Name, matchApproverId ?? "[system]");
-            return ReviewRequirement.StandingOrder;
+
+            // No risk score on the verdict: nothing was scored, and an absent attribute is honest
+            // where a zero would read as "scored, and it was zero". `standing-order.fired` is
+            // emitted by the gate, which is where a write is actually approved with no person
+            // present and the only place that knows the entry id (TL-1, AZ-1).
+            return verdict;
         }
 
+        // Check 3 — the risk comparison. The framework ships no scoring formula and no floor.
         var riskScore = await scorer.ComputeAsync(affidavit, cancellationToken).ConfigureAwait(false);
 
         if (riskScore <= threshold.Value)
         {
             var approverId = await GetAutoApproverIdAsync(affidavit, cancellationToken).ConfigureAwait(false);
             Logger.LogInformation(
-                "Standing Order {Policy} auto-approved: risk {Score} ≤ threshold {Threshold}, approver {Approver}",
+                "Standing Order {Policy} auto-approved: risk {Score} \u2264 threshold {Threshold}, approver {Approver}",
                 GetType().Name, riskScore, threshold.Value, approverId ?? "[system]");
-            return ReviewRequirement.StandingOrder;
+        }
+        else
+        {
+            Logger.LogInformation(
+                "Standing Order {Policy} matched conditions but risk {Score} exceeds threshold {Threshold}",
+                GetType().Name, riskScore, threshold.Value);
         }
 
-        Logger.LogInformation(
-            "Standing Order {Policy} matched conditions but risk {Score} exceeds threshold {Threshold}",
-            GetType().Name, riskScore, threshold.Value);
-        return null;
+        // The comparison, and the sentence that says why the order did not fire, are the
+        // framework's: one implementation, so a policy written against the bare interface and one
+        // built on this base degrade identically (GT-5). The score travels on the verdict rather
+        // than into an event here — the gate emits `standing-order.fired` where the write is
+        // actually approved, and a verdict a later check degrades never reaches it.
+        return StandingOrderGuardrails.ApplyRiskCeiling(
+            verdict, riskScore, threshold.Value, PolicyId, PolicyVersion);
     }
+
+    /// <summary>
+    /// The policy's identity in telemetry (<c>policy.id</c>). Defaults to the concrete policy type's
+    /// full name, which is stable across releases in a way a display name is not. Override it when
+    /// a host names its policies in configuration and wants alerts keyed on that name instead.
+    /// </summary>
+    public virtual string PolicyId => GetType().FullName ?? GetType().Name;
+
+    /// <summary>
+    /// The policy's own version in telemetry (<c>policy.version</c>), or <see langword="null"/> when
+    /// the policy does not version itself. Override it when a host revises a policy's rules and
+    /// needs to tell an approval made under the old rules from one made under the new.
+    /// </summary>
+    public virtual string? PolicyVersion => null;
 }

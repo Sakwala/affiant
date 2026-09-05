@@ -131,7 +131,7 @@ public sealed class AffiantHubBroadcastHelperTests(TransportIntegrationTestFixtu
             return Task.CompletedTask;
         }
 
-        public Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default) =>
-            Task.FromCanceled<EvidenceCardResponse>(ct);
+        public Task<DecisionHandOff> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default) =>
+            Task.FromCanceled<DecisionHandOff>(ct);
     }
 }

@@ -1,0 +1,357 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!-- https://learn.microsoft.com/dotnet/fundamentals/package-validation/diagnostic-ids -->
+<!--
+  Declared breaks against 1.0.0-beta.1.1, permitted by the repository's prerelease-stability policy and
+  required by it to be declared. Six changes account for every entry here:
+
+  1. The Affidavit as the rules define it — the record gains its two companion confidence numbers, a
+     field gains a binding and a mandatory marker, and the projection port gains the entity id an
+     update-shaped record needs. The positional constructors and Deconstruct members of the affected
+     records change shape as a result; construction through Affidavit.Create / ProvenanceTag's
+     factories is unaffected.
+  2. An approval policy returns a verdict rather than a bare requirement, so it can name this write's
+     review window (the deadline is stamped from the policy result, after the chain) and so the
+     framework can record why a Standing Order was held back. IApprovalPolicy and
+     IApprovalPolicyEvaluator change their return types; the new members on IApprovalPolicy are
+     default interface members, so an existing implementation compiles unchanged apart from the
+     return type.
+  3. The Docket row and the store contract as the rules define them. DocketEntry gains the execution
+     outcome, the decision record, the attestation, the blocked marker, the accepted amendment state,
+     the preserved late amendments, the lineage and the channel, so its positional constructor and
+     Deconstruct change shape; IDocketStore gains the scoped, guarded, paged surface and drops the two
+     unscoped expiry members the sweep used to call.
+  4. A decision names who made it. IApprovalPolicy.EvaluateAsync regains the conversation identity the
+     specification declares a policy is given, and the decision surface takes a principal.
+  5. The wire as the rulebook defines it: the Evidence Card envelope carries the record's two
+     companion numbers, whether a person must confirm, the blocked marker, the presentation hints, the
+     warnings and the host's own verb, so its positional constructor and Deconstruct change shape.
+     Build cards with EvidenceCardRequest.For, which fills every repeated number from the record it is
+     given.
+  6. A decision reaches a blocking caller as a gate-minted DecisionHandOff rather than a client-shaped
+     response. IStreamingTransport.AwaitEvidenceCardResponseAsync and TryDeliverResponse change their
+     types accordingly, and IDocketStore.MarkBlockedAsync takes the scope every other member that
+     moves a row takes. UpdateAmendmentsAsync is removed: it was an unscoped, unguarded overwrite with
+     no caller left, and a recorded fact is not edited in place.
+  7. A write proposal carries the arguments the model passed, because an entry id is derived from
+     the operation AND its arguments (GT-4): the record's positional constructor and Deconstruct
+     gain one defaulted parameter, so a call site that already compiled still does.
+  8. The store guard is total. UpdateReviewStatusAsync is removed for the same reason as
+     UpdateAmendmentsAsync and a stronger one: it took an entry id and a status and nothing else, so
+     anything holding the store could write any status onto any row in any tenant, without the
+     expected-status compare-and-set, the tenant scope or the attestation the decision path checks.
+     TransitionAsync is the replacement and checks all three. IDocketStore also gains
+     CountPendingAsync, a count for the docket-depth gauge, which previously asked for every pending
+     row in the deployment on a timer; a store implementing the interface implements one more member.
+
+  See CHANGELOG.md's upgrade notes.
+-->
+<Suppressions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Interfaces.IAffidavitProjection.Project(Affiant.Abstractions.Interfaces.IContextFabric,System.String,System.Collections.Generic.IReadOnlyList{System.String})</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Interfaces.IApprovalPolicy.EvaluateAsync(Affiant.Abstractions.Models.Affidavit,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Interfaces.IApprovalPolicyEvaluator.EvaluateAsync(Affiant.Abstractions.Models.Affidavit,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Interfaces.IDocketStore.ListExpiredAsync(System.DateTimeOffset,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Interfaces.IDocketStore.MarkExpiredAsync(System.Collections.Generic.IEnumerable{System.Guid},System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Interfaces.IDocketStore.UpdateAmendmentsAsync(System.Guid,System.Collections.Generic.IReadOnlyDictionary{System.String,System.Object},System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Interfaces.IStreamingTransport.AwaitEvidenceCardResponseAsync(System.String,System.Guid,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Interfaces.IStreamingTransport.TryDeliverResponse(System.Guid,Affiant.Abstractions.Transport.EvidenceCardResponse)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Models.Affidavit.#ctor(System.String,System.String,System.String,Affiant.Abstractions.Models.AffidavitField[],System.Single,System.String[],System.Boolean)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Models.Affidavit.Deconstruct(System.String@,System.String@,System.String@,Affiant.Abstractions.Models.AffidavitField[]@,System.Single@,System.String[]@,System.Boolean@)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Models.ConversationIdentity.#ctor(System.String,System.String,System.DateTimeOffset,System.String)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Models.ConversationIdentity.Deconstruct(System.String@,System.String@,System.DateTimeOffset@,System.String@)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Models.DocketEntry.#ctor(System.Guid,System.String,System.String,System.String,System.String,System.String,Affiant.Abstractions.Models.Affidavit,Affiant.Abstractions.Models.ReviewStatus,System.DateTimeOffset,System.DateTimeOffset,System.Collections.Generic.IReadOnlyDictionary{System.String,System.Object},System.Nullable{System.Guid})</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Models.DocketEntry.Deconstruct(System.Guid@,System.String@,System.String@,System.String@,System.String@,System.String@,Affiant.Abstractions.Models.Affidavit@,Affiant.Abstractions.Models.ReviewStatus@,System.DateTimeOffset@,System.DateTimeOffset@,System.Collections.Generic.IReadOnlyDictionary{System.String,System.Object}@,System.Nullable{System.Guid}@)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Models.InferenceFixtureCase.#ctor(System.String,System.Collections.Generic.IReadOnlyList{Affiant.Abstractions.Models.AffiantChatMessage},System.Collections.Generic.IReadOnlyDictionary{System.String,System.Object},System.Func{Affiant.Abstractions.Models.Affidavit,System.Boolean})</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Models.InferenceFixtureCase.Deconstruct(System.String@,System.Collections.Generic.IReadOnlyList{Affiant.Abstractions.Models.AffiantChatMessage}@,System.Collections.Generic.IReadOnlyDictionary{System.String,System.Object}@,System.Func{Affiant.Abstractions.Models.Affidavit,System.Boolean}@)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Models.ProvenanceTag.#ctor(Affiant.Abstractions.Models.ProvenanceSource,System.Single,System.String,System.Nullable{System.Int32})</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Models.ProvenanceTag.Deconstruct(Affiant.Abstractions.Models.ProvenanceSource@,System.Single@,System.String@,System.Nullable{System.Int32}@)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Models.ProvenanceTag.FromInference(System.String,System.Single)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Models.ProvenanceTag.FromUser(System.String)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Models.ReviewContext.#ctor(System.String,System.String,System.String,System.String,Affiant.Abstractions.Models.Affidavit,System.Nullable{System.Guid},System.Collections.Generic.IReadOnlyDictionary{System.String,System.Object})</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Models.ReviewContext.Deconstruct(System.String@,System.String@,System.String@,System.String@,Affiant.Abstractions.Models.Affidavit@,System.Nullable{System.Guid}@,System.Collections.Generic.IReadOnlyDictionary{System.String,System.Object}@)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Models.ReviewOutcome.Approved.#ctor(System.Guid)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Transport.EvidenceCardRequest.#ctor(System.Guid,Affiant.Abstractions.Models.Affidavit,System.DateTimeOffset,System.Collections.Generic.IReadOnlyDictionary{System.String,System.Object})</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Transport.EvidenceCardRequest.Deconstruct(System.Guid@,Affiant.Abstractions.Models.Affidavit@,System.DateTimeOffset@,System.Collections.Generic.IReadOnlyDictionary{System.String,System.Object}@)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0006</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Interfaces.IAffidavitProjection.Project(Affiant.Abstractions.Interfaces.IContextFabric,System.String,System.Collections.Generic.IReadOnlyList{System.String},System.String)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0006</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Interfaces.IApprovalPolicy.EvaluateAsync(Affiant.Abstractions.Models.Affidavit,Affiant.Abstractions.Models.ConversationIdentity,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0006</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Interfaces.IApprovalPolicyEvaluator.EvaluateAsync(Affiant.Abstractions.Models.Affidavit,Affiant.Abstractions.Models.ConversationIdentity,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0006</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Interfaces.IDocketStore.ApplyRetentionAsync(Affiant.Abstractions.Interfaces.DocketRetentionPolicy,Affiant.Abstractions.Interfaces.DocketScope,System.Int32,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0006</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Interfaces.IDocketStore.ExpireDueAsync(System.DateTimeOffset,Affiant.Abstractions.Interfaces.DocketScope,System.Int32,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0006</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Interfaces.IDocketStore.ExportAsync(Affiant.Abstractions.Interfaces.DocketScope,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0006</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Interfaces.IDocketStore.ListApprovedUnexecutedAsync(Affiant.Abstractions.Interfaces.DocketScope,Affiant.Abstractions.Interfaces.DocketPage,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0006</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Interfaces.IDocketStore.ListPendingAsync(Affiant.Abstractions.Interfaces.DocketScope,Affiant.Abstractions.Interfaces.DocketPage,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0006</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Interfaces.IDocketStore.MarkBlockedAsync(System.Guid,Affiant.Abstractions.Interfaces.DocketScope,Affiant.Abstractions.Models.BlockedMarker,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0006</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Interfaces.IDocketStore.PreserveAmendmentsAsync(System.Guid,Affiant.Abstractions.Interfaces.DocketScope,System.Collections.Generic.IReadOnlyDictionary{System.String,System.Object},Affiant.Abstractions.Interfaces.PreservedAct,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0006</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Interfaces.IDocketStore.PurgeTenantAsync(System.String,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0006</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Interfaces.IDocketStore.RecordExecutionAsync(System.Guid,Affiant.Abstractions.Interfaces.DocketScope,Affiant.Abstractions.Models.ExecutionOutcome,System.String,Affiant.Abstractions.Models.ExecutionOutcome,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0006</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Interfaces.IDocketStore.RecordSupersessionAsync(System.Guid,Affiant.Abstractions.Interfaces.DocketScope,System.Guid,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0006</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Interfaces.IDocketStore.TransitionAsync(System.Guid,Affiant.Abstractions.Interfaces.DocketScope,Affiant.Abstractions.Models.ReviewStatus,Affiant.Abstractions.Interfaces.DocketTransitionPatch,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0006</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Interfaces.IStreamingTransport.AwaitEvidenceCardResponseAsync(System.String,System.Guid,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Interfaces.IDocketStore.UpdateReviewStatusAsync(System.Guid,Affiant.Abstractions.Models.ReviewStatus,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0006</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Interfaces.IDocketStore.CountPendingAsync(System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Models.WriteProposal.#ctor(System.String,System.DateTimeOffset,System.Object)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Abstractions.Models.WriteProposal.Deconstruct(System.String@,System.DateTimeOffset@,System.Object@)</Target>
+    <Left>lib/net10.0/Affiant.Abstractions.dll</Left>
+    <Right>lib/net10.0/Affiant.Abstractions.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+</Suppressions>

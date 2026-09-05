@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://affiant.dev/schemas/0.1.0/notification.schema.json",
+  "title": "Notification",
+  "description": "What a producer tells a reviewer surface about a Docket entry that nobody asked it about: a deadline approaching, a deadline passed, a state change (INVARIANTS.md DK-1, DK-3). One discriminated union with a `kind` property, added in v0.1 — the seed's two notifications were told apart by which properties they carried, and a consumer switching on the presence of fields is exactly what AF-5 forbids. A notification is a HINT, never a fact a consumer may act on alone: expiry is queryable state, so an entry past its deadline reads expired whether or not any sweep has run or any notification arrived.",
+  "type": "object",
+  "oneOf": [
+    { "$ref": "#/$defs/docketExpiring" },
+    { "$ref": "#/$defs/docketExpired" },
+    { "$ref": "#/$defs/docketTransition" }
+  ],
+  "$defs": {
+    "docketExpiring": {
+      "title": "DocketExpiringNotification",
+      "description": "A pending entry is approaching its deadline. RE-SENT on every sweep while the entry stays inside the warning window, so a consumer must treat repeats for the same docketId as idempotent — key a countdown off expiresAt rather than counting notifications.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "kind", "docketId", "expiresAt"],
+      "properties": {
+        "protocolVersion": {
+          "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/protocolVersion"
+        },
+        "kind": { "const": "docket-expiring" },
+        "docketId": {
+          "description": "The entry approaching expiry.",
+          "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/uuid"
+        },
+        "expiresAt": {
+          "description": "When the entry expires. The boundary is inclusive.",
+          "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/isoInstant"
+        }
+      }
+    },
+    "docketExpired": {
+      "title": "DocketExpiredNotification",
+      "description": "A pending entry lapsed without a reviewer decision. The write it carried is not committed. A decision arriving after this is refused, and — when it came from a principal who could have decided — its amendments are preserved on the row for a resubmission (DK-1).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "kind", "docketId"],
+      "properties": {
+        "protocolVersion": {
+          "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/protocolVersion"
+        },
+        "kind": { "const": "docket-expired" },
+        "docketId": {
+          "description": "The entry that expired.",
+          "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/uuid"
+        }
+      }
+    },
+    "docketTransition": {
+      "title": "DocketTransitionNotification",
+      "description": "An entry changed state (DK-1). New in v0.1, and the shape of the docket.transition telemetry event the registry names (TL-1): the state it left, the state it reached, and the execution outcome an approved row now carries.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "kind", "docketId", "from", "to", "execution"],
+      "properties": {
+        "protocolVersion": {
+          "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/protocolVersion"
+        },
+        "kind": { "const": "docket-transition" },
+        "docketId": {
+          "description": "The entry that changed state.",
+          "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/uuid"
+        },
+        "from": {
+          "description": "The state the entry left.",
+          "$ref": "https://affiant.dev/schemas/0.1.0/docket-entry.schema.json#/$defs/status"
+        },
+        "to": {
+          "description": "The state the entry reached.",
+          "$ref": "https://affiant.dev/schemas/0.1.0/docket-entry.schema.json#/$defs/status"
+        },
+        "execution": {
+          "description": "The execution outcome the row now carries, or null when it is not approved.",
+          "oneOf": [
+            { "$ref": "https://affiant.dev/schemas/0.1.0/docket-entry.schema.json#/$defs/execution" },
+            { "type": "null" }
+          ]
+        }
+      }
+    }
+  }
+}

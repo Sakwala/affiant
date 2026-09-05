@@ -13,10 +13,11 @@ public class ApprovalPolicyEvaluatorTests
     {
         public int CallCount { get; private set; }
 
-        public Task<ReviewRequirement?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
+        public Task<ApprovalVerdict?> EvaluateAsync(
+        Affidavit affidavit, ConversationIdentity identity, CancellationToken cancellationToken = default)
         {
             CallCount++;
-            return Task.FromResult<ReviewRequirement?>(requirement);
+            return Task.FromResult<ApprovalVerdict?>(requirement);
         }
     }
 
@@ -24,10 +25,11 @@ public class ApprovalPolicyEvaluatorTests
     {
         public int CallCount { get; private set; }
 
-        public Task<ReviewRequirement?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
+        public Task<ApprovalVerdict?> EvaluateAsync(
+        Affidavit affidavit, ConversationIdentity identity, CancellationToken cancellationToken = default)
         {
             CallCount++;
-            return Task.FromResult<ReviewRequirement?>(null);
+            return Task.FromResult<ApprovalVerdict?>(null);
         }
     }
 
@@ -35,10 +37,11 @@ public class ApprovalPolicyEvaluatorTests
     {
         public CancellationToken CapturedToken { get; private set; }
 
-        public Task<ReviewRequirement?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
+        public Task<ApprovalVerdict?> EvaluateAsync(
+        Affidavit affidavit, ConversationIdentity identity, CancellationToken cancellationToken = default)
         {
             CapturedToken = cancellationToken;
-            return Task.FromResult<ReviewRequirement?>(ReviewRequirement.ReviewerConfirmation);
+            return Task.FromResult<ApprovalVerdict?>(ReviewRequirement.ReviewerConfirmation);
         }
     }
 
@@ -49,8 +52,10 @@ public class ApprovalPolicyEvaluatorTests
         EntityType: "TestEntity",
         EntityId: null,
         Fields: [new AffidavitField("field", "value", null,
-            ProvenanceChain.From(ProvenanceTag.FromInference("field", 1.0f)))],
+            ProvenanceChain.From(ProvenanceTag.FromInference(InferenceSource.Inferred, "field", 1.0f)))],
         AggregateConfidence: 1.0f,
+        PopulatedConfidence: 1.0f,
+        EmptyFieldCount: 0,
         Warnings: [],
         RequiresConfirmation: true);
 
@@ -61,9 +66,9 @@ public class ApprovalPolicyEvaluatorTests
     {
         var evaluator = new ApprovalPolicyEvaluator(Array.Empty<IApprovalPolicy>());
 
-        var result = await evaluator.EvaluateAsync(MakeAffidavit());
+        var result = await evaluator.EvaluateAsync(MakeAffidavit(), TestIdentities.Anyone);
 
-        Assert.Equal(ReviewRequirement.ReviewerConfirmation, result);
+        Assert.Equal(ReviewRequirement.ReviewerConfirmation, result!.Requirement);
     }
 
     [Fact]
@@ -72,9 +77,9 @@ public class ApprovalPolicyEvaluatorTests
         var policy = new MatchingPolicy(ReviewRequirement.StandingOrder);
         var evaluator = new ApprovalPolicyEvaluator([policy]);
 
-        var result = await evaluator.EvaluateAsync(MakeAffidavit());
+        var result = await evaluator.EvaluateAsync(MakeAffidavit(), TestIdentities.Anyone);
 
-        Assert.Equal(ReviewRequirement.StandingOrder, result);
+        Assert.Equal(ReviewRequirement.StandingOrder, result!.Requirement);
         Assert.Equal(1, policy.CallCount);
     }
 
@@ -84,9 +89,9 @@ public class ApprovalPolicyEvaluatorTests
         var policy = new DeferringPolicy();
         var evaluator = new ApprovalPolicyEvaluator([policy]);
 
-        var result = await evaluator.EvaluateAsync(MakeAffidavit());
+        var result = await evaluator.EvaluateAsync(MakeAffidavit(), TestIdentities.Anyone);
 
-        Assert.Equal(ReviewRequirement.ReviewerConfirmation, result);
+        Assert.Equal(ReviewRequirement.ReviewerConfirmation, result!.Requirement);
         Assert.Equal(1, policy.CallCount);
     }
 
@@ -98,9 +103,9 @@ public class ApprovalPolicyEvaluatorTests
         var third = new MatchingPolicy(ReviewRequirement.StandingOrder);
         var evaluator = new ApprovalPolicyEvaluator([first, second, third]);
 
-        var result = await evaluator.EvaluateAsync(MakeAffidavit());
+        var result = await evaluator.EvaluateAsync(MakeAffidavit(), TestIdentities.Anyone);
 
-        Assert.Equal(ReviewRequirement.ReferralRequired, result);
+        Assert.Equal(ReviewRequirement.ReferralRequired, result!.Requirement);
         Assert.Equal(1, first.CallCount);
         Assert.Equal(1, second.CallCount);
         Assert.Equal(0, third.CallCount);
@@ -113,13 +118,13 @@ public class ApprovalPolicyEvaluatorTests
         var referral = new MatchingPolicy(ReviewRequirement.ReferralRequired);
 
         var evaluatorA = new ApprovalPolicyEvaluator([standingOrder, referral]);
-        var resultA = await evaluatorA.EvaluateAsync(MakeAffidavit());
+        var resultA = await evaluatorA.EvaluateAsync(MakeAffidavit(), TestIdentities.Anyone);
 
         var evaluatorB = new ApprovalPolicyEvaluator([referral, standingOrder]);
-        var resultB = await evaluatorB.EvaluateAsync(MakeAffidavit());
+        var resultB = await evaluatorB.EvaluateAsync(MakeAffidavit(), TestIdentities.Anyone);
 
-        Assert.Equal(ReviewRequirement.StandingOrder, resultA);
-        Assert.Equal(ReviewRequirement.ReferralRequired, resultB);
+        Assert.Equal(ReviewRequirement.StandingOrder, resultA!.Requirement);
+        Assert.Equal(ReviewRequirement.ReferralRequired, resultB!.Requirement);
     }
 
     [Fact]
@@ -129,7 +134,7 @@ public class ApprovalPolicyEvaluatorTests
         var evaluator = new ApprovalPolicyEvaluator([policy]);
         using var cts = new CancellationTokenSource();
 
-        await evaluator.EvaluateAsync(MakeAffidavit(), cts.Token);
+        await evaluator.EvaluateAsync(MakeAffidavit(), TestIdentities.Anyone, cts.Token);
 
         Assert.Equal(cts.Token, policy.CapturedToken);
     }

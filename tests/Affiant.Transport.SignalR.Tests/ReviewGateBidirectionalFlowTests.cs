@@ -28,13 +28,13 @@ public sealed class ReviewGateBidirectionalFlowTests(TransportIntegrationTestFix
         await Task.Delay(20, cts.Token);
 
         var delivered = transport.TryDeliverResponse(
-            docketId, new EvidenceCardResponse(docketId, ApprovalDecision.Approved));
+            docketId, Infrastructure.TestHandOff.For(docketId, ApprovalDecision.Approved));
 
         Assert.True(delivered, "TryDeliverResponse should find the live waiter");
 
         var result = await awaitTask;
         Assert.Equal(ApprovalDecision.Approved, result.Decision);
-        Assert.Equal(docketId, result.DocketId);
+        Assert.Equal(docketId, result.EntryId);
     }
 
     [Fact(DisplayName = "TryDeliverResponse returns false when no waiter exists")]
@@ -43,7 +43,7 @@ public sealed class ReviewGateBidirectionalFlowTests(TransportIntegrationTestFix
         var transport = fixture.Server.Services.GetRequiredService<IStreamingTransport>();
 
         var delivered = transport.TryDeliverResponse(
-            Guid.NewGuid(), new EvidenceCardResponse(Guid.NewGuid(), ApprovalDecision.Rejected));
+            Guid.NewGuid(), Infrastructure.TestHandOff.For(Guid.NewGuid(), ApprovalDecision.Rejected));
 
         Assert.False(delivered);
         await Task.CompletedTask;
@@ -92,7 +92,7 @@ public sealed class ReviewGateBidirectionalFlowTests(TransportIntegrationTestFix
         // 5. AwaitEvidenceCardResponseAsync should now be unblocked
         var response = await awaitTask.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(ApprovalDecision.Approved, response.Decision);
-        Assert.Equal(docketId, response.DocketId);
+        Assert.Equal(docketId, response.EntryId);
     }
 
     [Fact(DisplayName = "Multiple concurrent groups receive isolated events")]

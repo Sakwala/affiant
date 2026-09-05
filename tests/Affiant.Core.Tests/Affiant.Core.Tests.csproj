@@ -9,6 +9,10 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Affiant.Abstractions\Affiant.Abstractions.csproj" />
     <ProjectReference Include="..\..\src\Affiant.Core\Affiant.Core.csproj" />
+    <!-- The shipped in-memory Docket store: the gate is exercised against the real reference
+         implementation of the store contract rather than a fake that would agree with the gate and
+         with nothing else. -->
+    <ProjectReference Include="..\..\src\Affiant.Docket\Affiant.Docket.csproj" />
     <ProjectReference Include="..\..\src\Affiant.SemanticKernel\Affiant.SemanticKernel.csproj" />
     <ProjectReference Include="..\..\src\Affiant.Testing.ComplianceHarness\Affiant.Testing.ComplianceHarness.csproj" />
   </ItemGroup>
@@ -18,12 +22,22 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.2" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.2" />
     <PackageReference Include="Microsoft.SemanticKernel" Version="1.74.0" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.9.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.4.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+  </ItemGroup>
+
+  <!-- The vendored rulebook travels with the test binary: these tests read the v0.1 schemas and the
+       protocol's byte vectors at run time, and the run must not depend on the working directory or
+       on a network fetch. The ref it was copied from is named in the doc comment of the suite that
+       reads it (CanonicalVectorTests, V01SchemaValidation), beside the checksums in
+       tests/protocol/SHA256SUMS. -->
+  <ItemGroup>
+    <Content Include="../protocol/**/*" LinkBase="protocol" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

@@ -80,8 +80,12 @@ internal static class AffiantTestHost
         services.AddSingleton<IDocketStore>(docketStore);
         services.AddSingleton(approvalPolicy ?? new StandingOrderPolicy());
         services.AddSingleton<IApprovalPolicyEvaluator, ApprovalPolicyEvaluator>();
+
+        // Who may decide is the host's answer (AZ-2), and the framework's default refuses everyone.
+        // This host admits everyone: these tests are about the seam, not about authorization.
+        services.AddSingleton<IDecisionAuthorizationPolicy, AdmitEveryone>();
         services.AddSingleton<IReviewContextProvider>(new DelegatingReviewContextProvider(
-            _ => BuildReviewContext()));
+            BuildReviewContext));
 
         configure?.Invoke(services);
 
@@ -89,12 +93,60 @@ internal static class AffiantTestHost
     }
 
     /// <summary>
-    /// The neutral <c>ReviewGateFilter</c> deserializes <c>WriteProposal.Envelope</c> as a plain
-    /// object via System.Text.Json, which yields a <c>JsonElement</c> rather than the original CLR
-    /// <see cref="Affidavit"/> — so, matching the SK and MAF fixtures, this provider supplies a
-    /// constant <see cref="ReviewContext"/> instead of attempting to cast the round-tripped envelope.
+    /// The review context a proposal is filed under.
     /// </summary>
-    public static ReviewContext BuildReviewContext() => new(
+    /// <remarks>
+    /// The turn's own identity is constant — these fixtures run one session in one tenant — but the
+    /// <b>Affidavit is the proposal's own</b>. An entry id is derived from the tool and the canonical
+    /// form of what it swore (GT-4), so a provider that handed every proposal the same record would
+    /// make every filing in a conversation a replay of the first, which is a property of the fixture
+    /// and not of the framework.
+    /// </remarks>
+    /// <param name="proposal">The proposal being filed, or <c>null</c> for the constant record.</param>
+    public static ReviewContext BuildReviewContext(WriteProposal? proposal = null)
+    {
+        var context = ConstantReviewContext();
+        return SwornBy(proposal) is { } sworn ? context with { Affidavit = sworn } : context;
+    }
+
+    /// <summary>
+    /// The Affidavit a proposal swore, read back off the round-tripped envelope.
+    /// </summary>
+    /// <remarks>
+    /// The neutral <c>ReviewGateFilter</c> deserializes <c>WriteProposal.Envelope</c> as a plain
+    /// <c>object</c>, so what arrives is a <c>JsonElement</c> and not the original CLR record. A
+    /// host re-reads it, which is what this does; a host that could not would build the record from
+    /// its own state instead. Either way the record has to be the proposal's own: an entry id is
+    /// derived from the tool and the canonical form of what it swore (GT-4), so a provider handing
+    /// every proposal the same record would make every filing in a conversation a replay of the
+    /// first.
+    /// </remarks>
+    private static Affidavit? SwornBy(WriteProposal? proposal)
+    {
+        if (proposal?.Envelope is not { } envelope)
+            return null;
+
+        if (envelope is Affidavit already)
+            return already;
+
+        try
+        {
+            var options = Affiant.Abstractions.Serialization.AffiantJson.SerializerOptions;
+            var read = System.Text.Json.JsonSerializer.Deserialize<Affidavit>(
+                System.Text.Json.JsonSerializer.Serialize(envelope, options), options);
+
+            // Only a record that actually swears to something: a half-read envelope would be filed
+            // as a proposal that swears to nothing, which the gate refuses (GT-3), and the fixture
+            // would be measuring the round trip rather than its own subject.
+            return read is { Fields.Length: > 0 } ? read : null;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static ReviewContext ConstantReviewContext() => new(
         SessionId: "session-test",
         TenantId: "tenant-test",
         UserId: "user-test",
@@ -103,8 +155,13 @@ internal static class AffiantTestHost
             OperationType: "create",
             EntityType: "Widget",
             EntityId: null,
-            Fields: [],
-            AggregateConfidence: 1.0f,
+            // A substantive field: the gate refuses a proposal that swears to nothing (GT-3),
+            // so a fixture exercising the filing path has to swear to something.
+            Fields: [new AffidavitField("field", "value", null,
+                ProvenanceChain.From(ProvenanceTag.FromTool("fixture")))],
+            AggregateConfidence: 0.9f,
+            PopulatedConfidence: 0.9f,
+            EmptyFieldCount: 0,
             Warnings: [],
             RequiresConfirmation: false));
 
@@ -116,8 +173,9 @@ internal static class AffiantTestHost
 
     private sealed class StandingOrderPolicy : IApprovalPolicy
     {
-        public Task<ReviewRequirement?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
-            => Task.FromResult<ReviewRequirement?>(ReviewRequirement.StandingOrder);
+        public Task<ApprovalVerdict?> EvaluateAsync(
+        Affidavit affidavit, ConversationIdentity identity, CancellationToken cancellationToken = default)
+            => Task.FromResult<ApprovalVerdict?>(ReviewRequirement.StandingOrder);
     }
 
     private sealed class UnusedStreamingTransport : IStreamingTransport
@@ -128,7 +186,7 @@ internal static class AffiantTestHost
         public Task BroadcastToGroupAsync(string groupId, TransportEvent eventType, object payload, CancellationToken ct)
             => throw new InvalidOperationException("UnusedStreamingTransport.BroadcastToGroupAsync should not be called");
 
-        public Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default)
+        public Task<DecisionHandOff> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default)
             => throw new InvalidOperationException("UnusedStreamingTransport.AwaitEvidenceCardResponseAsync should not be called");
     }
 }
@@ -170,9 +228,21 @@ internal sealed class StubInferenceChatClient : IChatClient
 /// </summary>
 internal sealed class ReviewerConfirmationPolicy : IApprovalPolicy
 {
-    public Task<ReviewRequirement?> EvaluateAsync(
-        Affidavit affidavit, CancellationToken cancellationToken = default)
-        => Task.FromResult<ReviewRequirement?>(ReviewRequirement.ReviewerConfirmation);
+    public Task<ApprovalVerdict?> EvaluateAsync(
+        Affidavit affidavit, ConversationIdentity identity, CancellationToken cancellationToken = default)
+        => Task.FromResult<ApprovalVerdict?>(ReviewRequirement.ReviewerConfirmation);
+}
+
+/// <summary>
+/// The host authorization port for a seam test: every principal may act on every entry. The
+/// framework's own default is a deny-all, and these tests exercise the tool seam rather than the
+/// question of who is entitled to approve.
+/// </summary>
+internal sealed class AdmitEveryone : IDecisionAuthorizationPolicy
+{
+    public Task<bool> MayDecideAsync(
+        Principal principal, DocketEntry entry, CancellationToken cancellationToken = default)
+        => Task.FromResult(true);
 }
 
 /// <summary>
@@ -196,7 +266,7 @@ internal sealed class RecordingStreamingTransport : IStreamingTransport
         return Task.CompletedTask;
     }
 
-    public Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(
+    public Task<DecisionHandOff> AwaitEvidenceCardResponseAsync(
         string sessionGroupId, Guid docketId, CancellationToken ct = default)
         => throw new InvalidOperationException(
             "RecordingStreamingTransport.AwaitEvidenceCardResponseAsync should not be called — the " +
@@ -217,13 +287,6 @@ internal sealed class FakeDocketStore : IDocketStore
     public Task<DocketEntry?> GetDocketEntryAsync(Guid entryId, CancellationToken ct)
         => Task.FromResult<DocketEntry?>(Filed.FirstOrDefault(e => e.EntryId == entryId));
 
-    public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct)
-    {
-        var idx = Filed.FindIndex(e => e.EntryId == entryId && e.Status == ReviewStatus.Pending);
-        if (idx < 0) return Task.FromResult(0);
-        Filed[idx] = Filed[idx] with { Status = status };
-        return Task.FromResult(1);
-    }
 
     public Task UpdateAmendmentsAsync(
         Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct)
@@ -254,12 +317,81 @@ internal sealed class FakeDocketStore : IDocketStore
     public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct)
         => Task.FromResult<IReadOnlyList<DocketEntry>>([]);
 
+    public Task<long> CountPendingAsync(CancellationToken ct) => Task.FromResult(0L);
+
     public Task<IReadOnlyList<DocketEntry>> ListAllPendingAsync(CancellationToken ct)
         => Task.FromResult<IReadOnlyList<DocketEntry>>([]);
 
-    public Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(DateTimeOffset expiresBeforeUtc, CancellationToken ct)
-        => Task.FromResult<IReadOnlyList<DocketEntry>>([]);
+        // ── The scoped, guarded, paged surface ──────────────────────────────
+        // Explicit implementations that refuse: this double exists for a test that never reaches
+        // the Docket's decision surface, and a stub that quietly answered would let such a test
+        // pass against behaviour nobody wrote.
+        /// <summary>
+        /// The guarded compare-and-set, over this double's own list — the seam test decides a real
+        /// entry, so this is the one member here that has to behave rather than refuse.
+        /// </summary>
+        Task<DocketTransitionResult> IDocketStore.TransitionAsync(
+            Guid entryId, DocketScope scope, ReviewStatus expected, DocketTransitionPatch patch, CancellationToken ct)
+        {
+            var idx = Filed.FindIndex(e => e.EntryId == entryId && DocketRow.InScope(e, scope));
+            if (idx < 0)
+                return Task.FromResult<DocketTransitionResult>(new DocketTransitionResult.NotFound());
 
-    public Task MarkExpiredAsync(IEnumerable<Guid> entryIds, CancellationToken ct)
-        => Task.CompletedTask;
+            var now = DateTimeOffset.UtcNow;
+            var current = Filed[idx];
+            if (DocketRow.ReadStatus(current, now) == ReviewStatus.Expired && patch.Status != ReviewStatus.Expired)
+                return Task.FromResult<DocketTransitionResult>(new DocketTransitionResult.Expired());
+            if (current.Status != ReviewStatus.Pending)
+                return Task.FromResult<DocketTransitionResult>(new DocketTransitionResult.AlreadyDecided());
+
+            var updated = DocketRow.Apply(current, patch, now);
+            Filed[idx] = updated;
+            return Task.FromResult<DocketTransitionResult>(new DocketTransitionResult.Transitioned(updated));
+        }
+
+        Task<PreserveAmendmentsResult> IDocketStore.PreserveAmendmentsAsync(
+            Guid entryId, DocketScope scope, IReadOnlyDictionary<string, object?> amendments,
+            PreservedAct act, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        Task<RecordExecutionResult> IDocketStore.RecordExecutionAsync(
+            Guid entryId, DocketScope scope, ExecutionOutcome outcome, string? detail,
+            ExecutionOutcome expected, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        Task<RecordSupersessionResult> IDocketStore.RecordSupersessionAsync(
+            Guid entryId, DocketScope scope, Guid supersededBy, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        Task<int> IDocketStore.MarkBlockedAsync(Guid entryId, DocketScope scope, BlockedMarker marker, CancellationToken ct)
+            => Task.FromResult(0);
+
+        Task<DocketPageResult<DocketEntry>> IDocketStore.ListPendingAsync(
+            DocketScope scope, DocketPage page, CancellationToken ct)
+        {
+            var now = DateTimeOffset.UtcNow;
+            IReadOnlyList<DocketEntry> items = Filed
+                .Where(e => DocketRow.InScope(e, scope) && DocketRow.ReadStatus(e, now) == ReviewStatus.Pending)
+                .OrderBy(e => e.CreatedAt)
+                .ToList();
+            return Task.FromResult(new DocketPageResult<DocketEntry>(items, null, false));
+        }
+
+        Task<DocketPageResult<DocketEntry>> IDocketStore.ListApprovedUnexecutedAsync(
+            DocketScope scope, DocketPage page, CancellationToken ct)
+            => Task.FromResult(new DocketPageResult<DocketEntry>([], null, false));
+
+        Task<ExpireDueResult> IDocketStore.ExpireDueAsync(
+            DateTimeOffset now, DocketScope scope, int limit, CancellationToken ct)
+            => Task.FromResult(new ExpireDueResult([], false));
+
+        Task<RetentionResult> IDocketStore.ApplyRetentionAsync(
+            DocketRetentionPolicy policy, DocketScope scope, int limit, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        Task<int> IDocketStore.PurgeTenantAsync(string tenantId, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        IAsyncEnumerable<DocketEntry> IDocketStore.ExportAsync(DocketScope scope, CancellationToken ct)
+            => throw new NotSupportedException();
 }

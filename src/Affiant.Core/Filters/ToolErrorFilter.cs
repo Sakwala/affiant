@@ -66,8 +66,17 @@ namespace Affiant.Core.Filters;
 /// retrying is correct and unchanged. See that property's remarks for the full finding.
 /// </para>
 /// </summary>
-public class ToolErrorFilter(ILogger<ToolErrorFilter> logger) : IToolInvocationFilter
+public class ToolErrorFilter(
+    ILogger<ToolErrorFilter> logger,
+    TimeProvider? timeProvider = null) : IToolInvocationFilter
 {
+    /// <summary>
+    /// The clock the <see cref="ToolError.Timestamp"/> of every error this filter builds is stamped
+    /// from. Defaults to <see cref="TimeProvider.System"/>; <c>AddAffiantCore</c> registers exactly
+    /// that as the DI default.
+    /// </summary>
+    private readonly TimeProvider _time = timeProvider ?? TimeProvider.System;
+
     /// <summary>
     /// Code for a <see cref="ToolError"/> produced when <c>ReviewGateFilter</c>'s call to
     /// <c>ReviewGate.FileReviewAsync</c> throws (P1a, affiant#22 / FV-9) — the WriteProposal was
@@ -182,7 +191,7 @@ public class ToolErrorFilter(ILogger<ToolErrorFilter> logger) : IToolInvocationF
         }
     }
 
-    private static ToolError MapExceptionToToolError(string toolName, Exception ex)
+    private ToolError MapExceptionToToolError(string toolName, Exception ex)
     {
         // DbUpdateException is checked by type name to avoid a compile-time dependency on
         // Microsoft.EntityFrameworkCore in the framework core package. EF Core hosts still
@@ -200,7 +209,7 @@ public class ToolErrorFilter(ILogger<ToolErrorFilter> logger) : IToolInvocationF
 
         return new ToolError(
             ToolName: toolName,
-            Timestamp: DateTimeOffset.UtcNow,
+            Timestamp: _time.GetUtcNow(),
             Code: code,
             Message: ex.Message, // Never ex.ToString() — no stack traces in user-facing text
             Retryable: retryable);

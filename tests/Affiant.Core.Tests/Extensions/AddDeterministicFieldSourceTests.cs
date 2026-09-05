@@ -15,13 +15,13 @@ public class AddDeterministicFieldSourceTests
     private sealed class ColorSource : IDeterministicFieldSource
     {
         public string FieldName => "Color";
-        public ProvenanceTag? Resolve(IContextFabric fabric) => ProvenanceTag.FromUser("Color");
+        public ProvenanceTag? Resolve(IContextFabric fabric) => ProvenanceTag.FromUser("Color", binding: null);
     }
 
     private sealed class WeightSource : IDeterministicFieldSource
     {
         public string FieldName => "Weight";
-        public ProvenanceTag? Resolve(IContextFabric fabric) => ProvenanceTag.FromUser("Weight");
+        public ProvenanceTag? Resolve(IContextFabric fabric) => ProvenanceTag.FromUser("Weight", binding: null);
     }
 
     // --- Test 1: resolves same instance as concrete type ---

@@ -25,13 +25,23 @@ public sealed class SemanticKernelInferenceCompletionPort : IInferenceCompletion
 {
     private readonly IServiceProvider _services;
     private readonly ILogger<SemanticKernelInferenceCompletionPort> _logger;
+    private readonly TimeProvider _time;
 
+    /// <param name="services">The provider the SK chat-completion service is resolved from.</param>
+    /// <param name="logger">Logger for inference-call failures.</param>
+    /// <param name="timeProvider">
+    /// The clock the today's-date line of the inference prompt is read from. Defaults to
+    /// <see cref="TimeProvider.System"/>; <c>AddAffiantCore</c> registers exactly that as the DI
+    /// default, and a test that pins the clock gets a deterministic prompt.
+    /// </param>
     public SemanticKernelInferenceCompletionPort(
         IServiceProvider services,
-        ILogger<SemanticKernelInferenceCompletionPort> logger)
+        ILogger<SemanticKernelInferenceCompletionPort> logger,
+        TimeProvider? timeProvider = null)
     {
         _services = services ?? throw new ArgumentNullException(nameof(services));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _time = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<JsonElement> CompleteStructuredAsync(
@@ -54,7 +64,7 @@ public sealed class SemanticKernelInferenceCompletionPort : IInferenceCompletion
             // inference call reads all context.
             var inferenceHistory = Filters.SkMessageConversions.ToChatHistory(request.History);
 
-            var today = DateTime.UtcNow.Date.ToString("yyyy-MM-dd");
+            var today = _time.GetUtcNow().UtcDateTime.Date.ToString("yyyy-MM-dd");
             inferenceHistory.AddUserMessage(BuildPrompt(request.Strategy, today));
 
             // FunctionChoiceBehavior.None() prevents tool routing during the inference call.

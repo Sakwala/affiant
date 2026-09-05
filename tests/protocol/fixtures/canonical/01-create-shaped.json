@@ -1,0 +1,62 @@
+{
+  "id": "canonical/create-shaped",
+  "rules": [
+    "SR-1",
+    "AF-1",
+    "AF-3"
+  ],
+  "note": "A create-shaped Affidavit: entityId null, previousValue null on every field (AF-3), one field left with no provenance so the record carries an `Empty` tag at confidence 0 rather than omitting the field (AF-1). The three numbers are AF-2's: the aggregate is 0 because one proposed field is `Empty`, the populated minimum is 0.9 over the field that is not, and one field is counted empty. The canonical bytes sort every key by code point at every level, so `aggregateConfidence` precedes `conversationTurn` precedes `createdAt` regardless of the order `toWire` emits them in.",
+  "input": {
+    "protocolVersion": "0.1.0",
+    "operationType": "create",
+    "entityType": "Widget",
+    "entityId": null,
+    "fields": [
+      {
+        "name": "Status",
+        "kind": "enum",
+        "value": "Active",
+        "previousValue": null,
+        "provenance": {
+          "current": {
+            "source": "Conversation",
+            "confidence": 0.9,
+            "note": "Extracted from the turn",
+            "at": "2026-09-04T09:00:00.000Z",
+            "conversationTurn": 1,
+            "binding": null
+          },
+          "prior": []
+        },
+        "isMandatory": true
+      },
+      {
+        "name": "Owner",
+        "kind": "text",
+        "value": null,
+        "previousValue": null,
+        "provenance": {
+          "current": {
+            "source": "Empty",
+            "confidence": 0,
+            "note": "Provenance unknown",
+            "at": "2026-09-04T09:00:00.000Z",
+            "conversationTurn": null,
+            "binding": null
+          },
+          "prior": []
+        },
+        "isMandatory": false
+      }
+    ],
+    "aggregateConfidence": 0,
+    "populatedConfidence": 0.9,
+    "emptyFieldCount": 1,
+    "conversationTurn": 1,
+    "createdAt": "2026-09-04T09:00:00.000Z"
+  },
+  "amendments": null,
+  "reviewerAct": null,
+  "expectedBytesUtf8": "{\"aggregateConfidence\":0,\"conversationTurn\":1,\"createdAt\":\"2026-09-04T09:00:00.000Z\",\"emptyFieldCount\":1,\"entityId\":null,\"entityType\":\"Widget\",\"fields\":[{\"isMandatory\":true,\"kind\":\"enum\",\"name\":\"Status\",\"previousValue\":null,\"provenance\":{\"current\":{\"at\":\"2026-09-04T09:00:00.000Z\",\"binding\":null,\"confidence\":0.9,\"conversationTurn\":1,\"note\":\"Extracted from the turn\",\"source\":\"Conversation\"},\"prior\":[]},\"value\":\"Active\"},{\"isMandatory\":false,\"kind\":\"text\",\"name\":\"Owner\",\"previousValue\":null,\"provenance\":{\"current\":{\"at\":\"2026-09-04T09:00:00.000Z\",\"binding\":null,\"confidence\":0,\"conversationTurn\":null,\"note\":\"Provenance unknown\",\"source\":\"Empty\"},\"prior\":[]},\"value\":null}],\"operationType\":\"create\",\"populatedConfidence\":0.9,\"protocolVersion\":\"0.1.0\"}",
+  "expectedSha256": "089ac04a11d52441e2eded9c518a4d3ede89f04c911fd9531741d66d9ff82281"
+}

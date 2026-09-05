@@ -1,0 +1,115 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!-- https://learn.microsoft.com/dotnet/fundamentals/package-validation/diagnostic-ids -->
+<!--
+  Declared breaks against 1.0.0-beta.1.1, permitted by the repository's prerelease-stability policy and
+  required by it to be declared. Every entry follows a contract change in Affiant.Abstractions — the
+  projection's entity id and previous-value seam, the approval-policy verdict, the Docket row and its
+  store contract, the decision context that names the principal, and the sealed decision hand-off a
+  blocking caller now receives — or an added optional constructor parameter (the injectable clock, the
+  wire-up validator's tool registry and scope factory, the authorization policy). None of the added
+  parameters is required at a call site that already compiled; the changed return and parameter types
+  are. EvidenceCardRequestFactory.CreateAsync gains two optional arguments so a card can report the
+  row's blocked marker and say that a Standing Order approval asks nobody.
+
+  See CHANGELOG.md's upgrade notes.
+-->
+<Suppressions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Core.Filters.ReviewGateFilter.#ctor(Microsoft.Extensions.Logging.ILogger{Affiant.Core.Filters.ReviewGateFilter})</Target>
+    <Left>lib/net10.0/Affiant.Core.dll</Left>
+    <Right>lib/net10.0/Affiant.Core.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Core.Filters.ToolErrorFilter.#ctor(Microsoft.Extensions.Logging.ILogger{Affiant.Core.Filters.ToolErrorFilter})</Target>
+    <Left>lib/net10.0/Affiant.Core.dll</Left>
+    <Right>lib/net10.0/Affiant.Core.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Core.Policies.ReviewerConfirmationPolicy.EvaluateAsync(Affiant.Abstractions.Models.Affidavit,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Core.dll</Left>
+    <Right>lib/net10.0/Affiant.Core.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Core.Services.ApprovalPolicyEvaluator.#ctor(System.Collections.Generic.IEnumerable{Affiant.Abstractions.Interfaces.IApprovalPolicy})</Target>
+    <Left>lib/net10.0/Affiant.Core.dll</Left>
+    <Right>lib/net10.0/Affiant.Core.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Core.Services.ApprovalPolicyEvaluator.EvaluateAsync(Affiant.Abstractions.Models.Affidavit,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Core.dll</Left>
+    <Right>lib/net10.0/Affiant.Core.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Core.Services.EvidenceCardRequestFactory.CreateAsync(Affiant.Abstractions.Interfaces.IDocketStore,System.Guid,Affiant.Abstractions.Models.Affidavit,System.DateTimeOffset,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Core.dll</Left>
+    <Right>lib/net10.0/Affiant.Core.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Core.Services.ReviewGate.#ctor(Affiant.Abstractions.Interfaces.IStreamingTransport,Affiant.Abstractions.Interfaces.IDocketStore,Affiant.Abstractions.Interfaces.IApprovalPolicyEvaluator,Affiant.Core.Extensions.AffiantCoreOptions,Microsoft.Extensions.Logging.ILogger{Affiant.Core.Services.ReviewGate})</Target>
+    <Left>lib/net10.0/Affiant.Core.dll</Left>
+    <Right>lib/net10.0/Affiant.Core.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Core.Services.ReviewGate.HandleDecisionAsync(System.Guid,Affiant.Abstractions.Transport.ApprovalDecision,System.Collections.Generic.IReadOnlyDictionary{System.String,System.Object},System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Core.dll</Left>
+    <Right>lib/net10.0/Affiant.Core.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Core.Services.ReviewGate.RebroadcastPendingCardsAsync(System.String,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Core.dll</Left>
+    <Right>lib/net10.0/Affiant.Core.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Core.Services.ReviewGate.ResubmitAsync(System.Guid,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Affiant.Core.dll</Left>
+    <Right>lib/net10.0/Affiant.Core.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Core.Services.SchemaDrivenAffidavitProjection.#ctor(Affiant.Abstractions.Interfaces.ITaskInferenceStrategy,System.Collections.Generic.IEnumerable{Affiant.Abstractions.Interfaces.IFieldResolver},System.Collections.Generic.IEnumerable{Affiant.Abstractions.Interfaces.IDeterministicFieldSource},Microsoft.Extensions.Logging.ILogger{Affiant.Core.Services.SchemaDrivenAffidavitProjection},Affiant.Abstractions.Interfaces.IObservabilityEventStream{Affiant.Abstractions.Models.AffidavitEmittedEvent})</Target>
+    <Left>lib/net10.0/Affiant.Core.dll</Left>
+    <Right>lib/net10.0/Affiant.Core.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Core.Services.SchemaDrivenAffidavitProjection.Project(Affiant.Abstractions.Interfaces.IContextFabric,System.String,System.Collections.Generic.IReadOnlyList{System.String})</Target>
+    <Left>lib/net10.0/Affiant.Core.dll</Left>
+    <Right>lib/net10.0/Affiant.Core.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Core.Validation.AffiantWireUpValidator.#ctor(Affiant.Core.Extensions.AffiantCoreOptions,Microsoft.Extensions.Logging.ILogger{Affiant.Core.Validation.AffiantWireUpValidator},Microsoft.Extensions.DependencyInjection.IServiceProviderIsService)</Target>
+    <Left>lib/net10.0/Affiant.Core.dll</Left>
+    <Right>lib/net10.0/Affiant.Core.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Core.Filters.TaskInferenceStep.#ctor(Affiant.Core.Services.ContextFabric,Microsoft.Extensions.Logging.ILogger{Affiant.Core.Filters.TaskInferenceStep})</Target>
+    <Left>lib/net10.0/Affiant.Core.dll</Left>
+    <Right>lib/net10.0/Affiant.Core.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+</Suppressions>

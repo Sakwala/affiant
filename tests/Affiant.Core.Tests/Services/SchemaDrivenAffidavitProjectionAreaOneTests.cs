@@ -113,7 +113,7 @@ public class SchemaDrivenAffidavitProjectionAreaOneTests
     public void Project_ExcludesNonProjectedFields()
     {
         var fabric = new ContextFabric();
-        fabric.SetFieldChain("TailNumber", ProvenanceChain.From(ProvenanceTag.FromInference("TailNumber", 0.8f)));
+        fabric.SetFieldChain("TailNumber", ProvenanceChain.From(ProvenanceTag.FromInference(InferenceSource.Inferred, "TailNumber", 0.8f)));
         fabric.Upsert(new EntityRef("Widget", "Widget", "Widget", new Dictionary<string, object>
         {
             ["TailNumber"] = "N12345",
@@ -145,7 +145,7 @@ public class SchemaDrivenAffidavitProjectionAreaOneTests
     public void ExtractionFacts_ReachResolvers()
     {
         var fabric = new ContextFabric();
-        fabric.SetFieldChain("TailNumber", ProvenanceChain.From(ProvenanceTag.FromInference("TailNumber", 0.7f)));
+        fabric.SetFieldChain("TailNumber", ProvenanceChain.From(ProvenanceTag.FromInference(InferenceSource.Inferred, "TailNumber", 0.7f)));
         fabric.Upsert(new EntityRef("Aircraft", "Aircraft", "Aircraft", new Dictionary<string, object>
         {
             ["TailNumber"] = "N12345",
@@ -206,7 +206,7 @@ public class SchemaDrivenAffidavitProjectionAreaOneTests
     {
         var fabric = new ContextFabric();
         fabric.Upsert(new EntityRef("Widget", "Widget", "Widget", new Dictionary<string, object> { ["Color"] = "Green" }));
-        var deterministicTag = ProvenanceTag.FromUser("Color");
+        var deterministicTag = ProvenanceTag.FromUser("Color", binding: null);
 
         var projection = BuildProjection(
             resolvers: [new FixedResolver("Color", null, null)],
@@ -250,7 +250,7 @@ public class SchemaDrivenAffidavitProjectionAreaOneTests
         fabric.SetFieldChain("Color", ProvenanceChain.From(conversationTag));
         fabric.Upsert(new EntityRef("Widget", "Widget", "Widget", new Dictionary<string, object> { ["Color"] = "Blue" }));
 
-        var deterministicTag = ProvenanceTag.FromUser("Color");
+        var deterministicTag = ProvenanceTag.FromUser("Color", binding: null);
         var projection = BuildProjection(sources: [new FixedSource("Color", deterministicTag)]);
 
         var affidavit = projection.Project(fabric, "WriteCreate", []);
@@ -268,7 +268,7 @@ public class SchemaDrivenAffidavitProjectionAreaOneTests
     {
         var fabric = new ContextFabric();
         fabric.Upsert(new EntityRef("Widget", "Widget", "Widget", new Dictionary<string, object> { ["Color"] = "Blue" }));
-        var deterministicTag = ProvenanceTag.FromUser("Color");
+        var deterministicTag = ProvenanceTag.FromUser("Color", binding: null);
 
         var projection = BuildProjection(sources: [new FixedSource("Color", deterministicTag)]);
         var affidavit = projection.Project(fabric, "WriteCreate", []);
@@ -286,7 +286,7 @@ public class SchemaDrivenAffidavitProjectionAreaOneTests
     public void Resolver_LosingCandidate_CurrentStaysExisting_PriorGainsResolverTag_ValueReflectsExistingEntity()
     {
         var fabric = new ContextFabric();
-        var existingTag = ProvenanceTag.FromUser("Color"); // UserStated, confidence 1.0
+        var existingTag = ProvenanceTag.FromUser("Color", binding: null); // UserStated, confidence 1.0
         fabric.SetFieldChain("Color", ProvenanceChain.From(existingTag));
         fabric.Upsert(new EntityRef("Widget", "Widget", "Widget", new Dictionary<string, object> { ["Color"] = "Blue" }));
 
@@ -311,7 +311,7 @@ public class SchemaDrivenAffidavitProjectionAreaOneTests
     public void LegacySource_LosingCandidate_CurrentStaysExisting_PriorGainsLegacyTag_ValueReflectsExistingEntity()
     {
         var fabric = new ContextFabric();
-        var existingTag = ProvenanceTag.FromUser("Color"); // UserStated, confidence 1.0
+        var existingTag = ProvenanceTag.FromUser("Color", binding: null); // UserStated, confidence 1.0
         fabric.SetFieldChain("Color", ProvenanceChain.From(existingTag));
         fabric.Upsert(new EntityRef("Widget", "Widget", "Widget", new Dictionary<string, object> { ["Color"] = "Blue" }));
 

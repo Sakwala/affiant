@@ -12,6 +12,13 @@
     <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
+  <!-- DocketDepthInstrument exposes the ObservableGauge instance it published so a test's
+       MeterListener can enable measurements for THAT gauge rather than for every instrument sharing
+       the name affiant.docket.pending. Public API would be the wrong home for a test seam. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Affiant.Core.Tests" />
+  </ItemGroup>
+
   <!-- Framework layering: Core depends on Abstractions only -->
   <ItemGroup>
     <ProjectReference Include="..\Affiant.Abstractions\Affiant.Abstractions.csproj" />

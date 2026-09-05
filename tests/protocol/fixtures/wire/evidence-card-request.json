@@ -1,0 +1,51 @@
+{
+  "docketId": "8f14e45f-ceea-467e-bd76-000000000001",
+  "affidavit": {
+    "operationType": "WriteUpdate",
+    "entityType": "Widget",
+    "entityId": "W-1",
+    "fields": [
+      {
+        "name": "Status",
+        "value": "Active",
+        "previousValue": null,
+        "provenance": {
+          "current": {
+            "source": "UserStated",
+            "confidence": 1.0,
+            "evidence": "User stated: Status",
+            "conversationTurn": null
+          },
+          "prior": []
+        },
+        "isMandatory": true,
+        "kind": "enum",
+        "allowedValues": ["Active", "Retired"],
+        "pattern": null
+      },
+      {
+        "name": "Weight",
+        "value": 12.5,
+        "previousValue": 10.0,
+        "provenance": {
+          "current": {
+            "source": "Conversation",
+            "confidence": 0.9,
+            "evidence": "Extracted from search_widget",
+            "conversationTurn": 3
+          },
+          "prior": []
+        },
+        "isMandatory": false,
+        "kind": "number",
+        "allowedValues": null,
+        "pattern": "^\\d+(\\.\\d+)?$"
+      }
+    ],
+    "aggregateConfidence": 0.95,
+    "warnings": [],
+    "requiresConfirmation": true
+  },
+  "requiredBy": "2026-08-01T00:00:00+00:00",
+  "priorAmendments": null
+}

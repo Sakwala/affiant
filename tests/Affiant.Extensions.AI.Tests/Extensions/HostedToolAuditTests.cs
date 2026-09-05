@@ -29,16 +29,23 @@ using Xunit;
 /// </summary>
 public class HostedToolAuditTests
 {
+    /// <summary>
+    /// The refusal carries the protocol's own code (CV-4). A coverage gap is the same finding
+    /// whichever adapter noticed it, so a host catches one exception for the whole class and reads
+    /// `coverage-refused` off it rather than matching on an adapter's prose.
+    /// </summary>
     [Fact]
-    public void UnacknowledgedHostedTool_CausesWithAffiantToThrow()
+    public void UnacknowledgedHostedTool_IsRefusedWithTheProtocolsCoverageCode()
     {
         var sp = BuildServices().BuildServiceProvider();
         var options = new ChatOptions { Tools = [new HostedCodeInterpreterTool()] };
 
-        var ex = Assert.Throws<InvalidOperationException>(
+        var ex = Assert.Throws<Affiant.Abstractions.Exceptions.AffiantCoverageException>(
             () => options.WithAffiant(sp, AffiantToolCatalog.FromType<NoToolsMarker>()));
 
+        Assert.Equal("coverage-refused", ex.Code);
         Assert.Contains("code_interpreter", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("ChatOptions.Tools", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -112,7 +119,7 @@ public class HostedToolAuditTests
 
         var options = new ChatOptions { Tools = [new HostedCodeInterpreterTool()] };
 
-        Assert.Throws<InvalidOperationException>(() => options.WithAffiant(sp, catalog));
+        Assert.Throws<Affiant.Abstractions.Exceptions.AffiantCoverageException>(() => options.WithAffiant(sp, catalog));
 
         Assert.Empty(registry.All);
     }
@@ -131,7 +138,7 @@ public class HostedToolAuditTests
 
         var catalog = AffiantToolCatalog.FromType<SampleTools>();
 
-        Assert.Throws<InvalidOperationException>(
+        Assert.Throws<Affiant.Abstractions.Exceptions.AffiantCoverageException>(
             () => new ChatOptions { Tools = [new HostedCodeInterpreterTool()] }.WithAffiant(sp, catalog));
 
         var corrected = new ChatOptions

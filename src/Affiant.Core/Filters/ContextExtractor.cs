@@ -3,6 +3,7 @@ namespace Affiant.Core.Filters;
 using System.Text.Json;
 using Affiant.Abstractions.Interfaces;
 using Affiant.Abstractions.Models;
+using Affiant.Abstractions.Serialization;
 using Affiant.Core.Observability;
 using Affiant.Core.Services;
 using Microsoft.Extensions.Logging;
@@ -31,10 +32,7 @@ using Microsoft.Extensions.Logging;
 /// </summary>
 public abstract class ContextExtractor : IToolInvocationFilter
 {
-    private static readonly JsonSerializerOptions EnvelopeOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
+    private static readonly JsonSerializerOptions EnvelopeOptions = AffiantJson.SerializerOptions;
 
     protected readonly ContextFabric ContextFabric;
     protected readonly ILogger Logger;
@@ -60,7 +58,10 @@ public abstract class ContextExtractor : IToolInvocationFilter
         if (string.IsNullOrWhiteSpace(resultText)) return;
 
         ReadResult? readResult = null;
-        if (resultText.Contains("\"$type\""))
+        // AF-5's discriminator, spelled `kind` from protocol v0.1 (it was `$type` through
+        // 1.0.0-beta.1). A tool result that does not carry it is not a ToolEnvelope, and most tool
+        // results are plain markdown rather than JSON, so the cheap string test comes first.
+        if (resultText.Contains("\"kind\"", StringComparison.Ordinal))
         {
             try
             {

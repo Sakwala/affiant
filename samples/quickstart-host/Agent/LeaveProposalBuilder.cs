@@ -87,12 +87,20 @@ public sealed class LeaveProposalBuilder(IEnumerable<IAffidavitProjection> proje
             DisplayName: "Leave request",
             Fields: entityFields));
 
-        // Every value here came straight off the caller's own arguments, so every tag is UserStated.
-        // A field the caller said nothing about gets no chain at all, and the projection decides
-        // between the record's current value and ProvenanceTag.Empty.
+        // Every value here came straight off the caller's own arguments, so every tag is UserStated
+        // and binds to the control the person typed into (PV-3). A field the caller said nothing
+        // about gets no chain at all, and the projection decides between the record's current value
+        // and ProvenanceTag.Empty.
         foreach (var name in statedFields.Keys)
-            fabric.SetFieldChain(name, ProvenanceChain.From(ProvenanceTag.FromUser(name)));
+        {
+            fabric.SetFieldChain(name, ProvenanceChain.From(
+                ProvenanceTag.FromUser(name, new ProvenanceBinding.FormInput(new FormInputRef(name)))));
+        }
 
-        return Projection.Project(fabric, operationType, []);
+        return Projection.Project(
+            fabric,
+            operationType,
+            [],
+            leaveRequestId?.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 }

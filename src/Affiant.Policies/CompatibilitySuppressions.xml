@@ -1,24 +1,32 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <!-- https://learn.microsoft.com/dotnet/fundamentals/package-validation/diagnostic-ids -->
-<!-- Declared break, permitted before 1.0: the framework's stock risk formula is removed so that a Standing Order written to the documented contract can actually auto-approve. -->
+<!--
+  Declared breaks against 1.0.0-beta.1.1, permitted by the repository's prerelease-stability policy
+  and required by it to be declared. One change accounts for both entries here: a Standing Order and
+  a Referral rule return a verdict rather than a bare requirement — so an order held back by one of
+  the three checks degrades to reviewer confirmation on the record instead of vanishing, and so a
+  policy can name this write's review window — and both regain the conversation identity the
+  specification declares an approval policy is given, supplied so a policy can BIND (a member-bound
+  Standing Order), never so it can authorize the actor, which the framework does itself.
+
+  Three entries left this file when the baseline moved from 1.0.0-beta.1 to 1.0.0-beta.1.1: the
+  removal of the framework's stock risk formula, the risk threshold's type and the risk calculator's
+  return type were breaks against beta.1 and are what beta.1.1 shipped, so against that baseline
+  there is nothing left to declare.
+
+  See CHANGELOG.md's upgrade notes.
+-->
 <Suppressions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
   <Suppression>
-    <DiagnosticId>CP0001</DiagnosticId>
-    <Target>T:Affiant.Policies.Services.DefaultRiskScoreCalculator</Target>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Affiant.Policies.Referrals.ReferralRuleBase.EvaluateAsync(Affiant.Abstractions.Models.Affidavit,System.Threading.CancellationToken)</Target>
     <Left>lib/net10.0/Affiant.Policies.dll</Left>
     <Right>lib/net10.0/Affiant.Policies.dll</Right>
     <IsBaselineSuppression>true</IsBaselineSuppression>
   </Suppression>
   <Suppression>
     <DiagnosticId>CP0002</DiagnosticId>
-    <Target>M:Affiant.Policies.StandingOrders.StandingOrderBase.get_RiskThreshold</Target>
-    <Left>lib/net10.0/Affiant.Policies.dll</Left>
-    <Right>lib/net10.0/Affiant.Policies.dll</Right>
-    <IsBaselineSuppression>true</IsBaselineSuppression>
-  </Suppression>
-  <Suppression>
-    <DiagnosticId>CP0012</DiagnosticId>
-    <Target>M:Affiant.Policies.Services.RiskScoreCalculatorBase.ComputeAsync(Affiant.Abstractions.Models.Affidavit,System.Threading.CancellationToken)</Target>
+    <Target>M:Affiant.Policies.StandingOrders.StandingOrderBase.EvaluateAsync(Affiant.Abstractions.Models.Affidavit,System.Threading.CancellationToken)</Target>
     <Left>lib/net10.0/Affiant.Policies.dll</Left>
     <Right>lib/net10.0/Affiant.Policies.dll</Right>
     <IsBaselineSuppression>true</IsBaselineSuppression>

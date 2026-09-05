@@ -33,7 +33,27 @@ public abstract class ReferralRuleBase : IApprovalPolicy
     /// </summary>
     protected abstract Task<string?> GetReferredToUserIdAsync(Affidavit affidavit, CancellationToken cancellationToken);
 
-    public async Task<ReviewRequirement?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// This rule's own review window, or null — the default — to fall through to the gate's
+    /// (protocol rule GT-4). Override it when an escalation to a named reviewer has a different
+    /// useful lifetime from an ordinary confirmation.
+    /// </summary>
+    protected virtual TimeSpan? ReferralTimeToLive => null;
+
+    /// <inheritdoc />
+    TimeSpan? IApprovalPolicy.DefaultTimeToLive => ReferralTimeToLive;
+
+    /// <param name="affidavit">The proposed write, as sworn.</param>
+    /// <param name="identity">
+    /// Where the proposal came from — the conversation, the person, the tenant and the channel.
+    /// Supplied so a rule can <em>bind</em> to one of them; never a statement about who may approve,
+    /// which the framework decides through <c>IDecisionAuthorizationPolicy</c>.
+    /// </param>
+    /// <param name="cancellationToken">Caller cancellation.</param>
+    public async Task<ApprovalVerdict?> EvaluateAsync(
+        Affidavit affidavit,
+        ConversationIdentity identity,
+        CancellationToken cancellationToken = default)
     {
         if (!await MatchesAsync(affidavit, cancellationToken).ConfigureAwait(false))
             return null;
@@ -52,6 +72,9 @@ public abstract class ReferralRuleBase : IApprovalPolicy
             "Referral rule {Policy} escalating {FieldCount} fields to reviewer {ReviewerId}",
             GetType().Name, affidavit.Fields.Length, referredToUserId);
 
-        return ReviewRequirement.ReferralRequired;
+        return new ApprovalVerdict(
+            ReviewRequirement.ReferralRequired,
+            TimeToLive: ReferralTimeToLive,
+            Reason: $"Referred to reviewer {referredToUserId} by {GetType().Name}.");
     }
 }

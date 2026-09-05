@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://affiant.dev/schemas/0.1.0/error-code.schema.json",
+  "title": "ErrorCode",
+  "description": "The registry of reasons the gate refuses a request (INVARIANTS.md, \"Refusal codes (v0.1)\"). A refusal carries its code and a human-readable reason; the CODE is the contract and the message is for a human reading a log, so a host that branches on the message is doing it wrong. An implementation MAY add codes but MUST NOT reuse these names for other meanings. The registry names GATE REFUSALS only: a caller's programming error — an amendment naming a field the Affidavit does not propose, a verdict naming a requirement outside the four — is a language-level error, not a refusal code. Three names are PROVISIONAL until this registry is first tagged, marked in their own descriptions; the other seven are fixed by the rulebook's v0.1 text. The order below only ever grows at the end: a code is added by appending, never by inserting among the codes that already shipped, because a reordering looks like a rename to a host's exhaustiveness check and to a parity manifest.",
+  "type": "string",
+  "oneOf": [
+    {
+      "const": "requirement-not-implemented",
+      "description": "PROVISIONAL. A requirement level this implementation recognises but does not run — a MultiParty approval, a ReferralRequired referral — reached the pipeline. The entry is filed pending and marked blocked; every decision on it is refused, and it is never degraded to a weaker requirement (AZ-4)."
+    },
+    {
+      "const": "coverage-refused",
+      "description": "PROVISIONAL. A write-capable tool the gate must cover cannot be intercepted: it has no execute to replace, the model provider executes it, or it is a hosted MCP server-side write. Raised at wire-up, or carried on a proposal from a tool the host explicitly declared uncovered (CV-4, CV-1, AZ-4)."
+    },
+    {
+      "const": "substance-refused",
+      "description": "A proposal reached the substance gate with nothing to swear to: no proposed field carrying provenance other than Empty, or a non-empty value sitting under Empty provenance. Refused before the policy chain runs, so no Standing Order ever sees a hollow proposal, and before anything is filed (GT-3)."
+    },
+    {
+      "const": "decision-unauthorized",
+      "description": "A decision was refused on identity grounds: the context carried no resolved principal, the host's authorization port said no, or a port that threw was read as a refusal rather than an approval. Checked before the store is read (AZ-2, AZ-3)."
+    },
+    {
+      "const": "decision-not-pending",
+      "description": "A decision was made on an entry that is no longer pending, or on one carrying a blocked marker — in which case the blocked code travels in the refusal's details (DK-1, AZ-4)."
+    },
+    {
+      "const": "decision-expired",
+      "description": "A decision arrived after the entry's deadline. The entry reads expired whether or not any sweep has run; when the decision came from a principal who could have decided, its amendments are preserved on the row for a resubmission (DK-1)."
+    },
+    {
+      "const": "decision-lost-race",
+      "description": "Two decisions raced for the same entry and this one lost the compare-and-set. A transition is applied once or not at all, never twice, and never silently overwritten (DK-1)."
+    },
+    {
+      "const": "wireup-invalid",
+      "description": "The gate was built wrong in a way it can detect: no store, no inference port, no projection port, no authorization port, no default time-to-live or an invalid one, a policy declaring a risk threshold with no scorer wired. Raised at wire-up, not on the first request; two policy faults that cannot be seen at wire-up — a verdict carrying an invalid time-to-live, and an evaluate that throws — are refused at evaluation with the same code, nothing filed. No option turns the gate off for a tool it covers (CV-1)."
+    },
+    {
+      "const": "entry-not-found",
+      "description": "No entry with that id is visible in the caller's scope. An entry outside the caller's tenant is NOT FOUND rather than unauthorized — the framework compares the row's tenant with the caller's itself (AZ-2, DK-1)."
+    },
+    {
+      "const": "execution-already-recorded",
+      "description": "PROVISIONAL. An execution outcome was reported against a row that already carries one. The first report stands and the row is untouched: a host that retries a write reports ONCE, when it knows the outcome, because an outbox is a retry of an already-attested write and not a second fact about what happened (DK-1, DK-4, AZ-5)."
+    }
+  ],
+  "enum": [
+    "requirement-not-implemented",
+    "coverage-refused",
+    "substance-refused",
+    "decision-unauthorized",
+    "decision-not-pending",
+    "decision-expired",
+    "decision-lost-race",
+    "wireup-invalid",
+    "entry-not-found",
+    "execution-already-recorded"
+  ]
+}

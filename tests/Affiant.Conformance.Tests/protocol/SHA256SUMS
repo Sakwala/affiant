@@ -1,8 +1,8 @@
-cbc09fd5c3011dafe645c32b8bcb773fa4b661400ccc9ed829bfd113859cd1b9  ./README.md
+b08619a896f9b1d4cf85e05a2cb221d8bef2f1a5faacf0dff2ee49d7c003eae4  ./README.md
 27b0fe061c0555db77ca017e7605634fe97d1095ab13c306764da3af7bd0ce2f  ./canonical-vector.schema.json
 2cdbc829c841ae931bc3aa5606c8029471574ba694641a08cf3bdfedfa50ff70  ./fixture.schema.json
-0c125088c3cee71111a05e19d82cefc33d5a49a4ce41c71d14a7e51fd7e68054  ./fixtures/MANIFEST.json
-9bf40d02312c42d65fa0b51adac34f8655ab2b638ec55b0eba986140704c95e9  ./fixtures/PROMOTED_FROM
+8d0ec4d16db18938a24307a0dee4a515dad50121012f9d25f9533d0140e027da  ./fixtures/MANIFEST.json
+ad296ea9208b2ce97b3978eec7d64a4fd35c0c6e21bd7910aaba2f889633d24f  ./fixtures/PROMOTED_FROM
 8c63f93b455e095f45b072ceb1299b8652e5b26763c907dc14a41d590122993c  ./fixtures/canonical/01-create-shaped.json
 db06019e78fce0097be4e7973a4f08602acf078f0ad4ce5047498c2b901e012d  ./fixtures/canonical/02-update-shaped.json
 5e71bc6d4c2b73cdae8bf32e43c9fbbd3e920c1d28a1fbe8ee4e8c05c01350a0  ./fixtures/canonical/03-wire-evidence-card-request.json
@@ -15,7 +15,7 @@ b7227088927499097ffb8f58f410ee36cc4848b8754c55ef38911a5323186e81  ./fixtures/can
 8f9693c93f32adc2577261343cf1b00544ecd88c6b1713b2b6ea9505e8deff02  ./fixtures/decide/03-second-decision-refused.json
 958db038780f9da83680862119ca088670ccf20ad8a07e7cfb713cb2206acfe1  ./fixtures/decide/04-expired-amendments-preserved.json
 0d5ef69bdd581b8b5ace30470ea3f2d6c18409c0589b50d7990f67e8500a5f5f  ./fixtures/decide/05-blocked-refused.json
-8b6c909c057caf28da9bd2604dfe7c8aa1dd532f67c74513cad25bbcc84313a8  ./fixtures/decide/06-amend-recompute.json
+ef72222e54c3286c89097a35e5314f36a3262a164db64ff813c0987c11ac868b  ./fixtures/decide/06-amend-recompute.json
 d0151a5ed6552cad7062c8938d22c28ec76685b3f7ef0fe8832a2964b021025f  ./fixtures/decide/07-unresolved-identity.json
 2061460b12e3f7d0239c14b5da251b7abd046a37f1e84793ab3040d6d39d7562  ./fixtures/decide/08-wrong-tenant.json
 75d0fec45d9b73d7e6e9172890ccc3919f247b61d241302ecc49db7c227af682  ./fixtures/decide/09-authorization-declined.json
@@ -47,7 +47,7 @@ f146ff72f56aa34fb89d14accf40f0ec12341b46f3cdf7d3a0fd363e6584376e  ./fixtures/gat
 27311f914d517ec6b87771335b27ed8cf5acb93f5e0206503162a4528d84e43f  ./fixtures/gate/15-create-null-previous-values.json
 8e23ce8b05aa24b7eb1365abaa58d77ea01fb1f2fce4ac9a38f559ac6eb2d5dc  ./fixtures/gate/16-inference-conversation-and-inferred.json
 270b1d5d1818d1827b698a866351c131bef19fc01aaf4aec241c4c832edb7c94  ./fixtures/gate/17-threshold-without-scorer.json
-16eb74631e56b9ca55226bab0b311c1590c3f7a76d6653996c764c134863f807  ./fixtures/sequence-a/01-approve-round-trip.json
+25d6bf1a0cbe784c70950adf2e9873e18eb7e90afd23da15aef766f0ff531250  ./fixtures/sequence-a/01-approve-round-trip.json
 4746364993b6a09bb1f76127df5c1254412a124ceab104ffdf503eac6c0f8ef6  ./fixtures/sequence-a/02-reject-round-trip.json
 399cb28aae86d45ac559eac282b7493814a0abc4c5c3f1543fd5607dafb99078  ./fixtures/sequence-a/03-typed-inputs-on-the-card.json
 279323ca258b0d6bfdfe9d7d88db8dd947563e63b2d1491473aa07143a441335  ./fixtures/sequence-a/04-picker-external-binding.json

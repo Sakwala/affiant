@@ -67,7 +67,7 @@ public class PrimitiveRoundTripTests
     [Fact]
     public void AffidavitField_survives_json_roundtrip()
     {
-        var tag = ProvenanceTag.FromUser("StartDate");
+        var tag = ProvenanceTag.FromUser("StartDate", binding: null);
         var field = new AffidavitField(
             Name: "StartDate",
             Value: "2026-05-01",
@@ -86,7 +86,7 @@ public class PrimitiveRoundTripTests
     [Fact]
     public void Affidavit_survives_json_roundtrip()
     {
-        var tag = ProvenanceTag.FromUser("StartDate");
+        var tag = ProvenanceTag.FromUser("StartDate", binding: null);
         var affidavit = new Affidavit(
             OperationType: "RequestLeave",
             EntityType: "LeaveRequest",
@@ -94,9 +94,11 @@ public class PrimitiveRoundTripTests
             Fields: new[]
             {
                 new AffidavitField("StartDate", "2026-05-01", null, ProvenanceChain.From(tag)),
-                new AffidavitField("EndDate", "2026-05-05", null, ProvenanceChain.From(ProvenanceTag.FromUser("EndDate"))),
+                new AffidavitField("EndDate", "2026-05-05", null, ProvenanceChain.From(ProvenanceTag.FromUser("EndDate", binding: null))),
             },
             AggregateConfidence: 1.0f,
+            PopulatedConfidence: 1.0f,
+            EmptyFieldCount: 0,
             Warnings: Array.Empty<string>(),
             RequiresConfirmation: true);
 

@@ -1,1 +1,33 @@
 #nullable enable
+*REMOVED*Affiant.Docket.Services.DocketExpiryService.DocketExpiryService(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory! scopeFactory, Affiant.Core.Extensions.AffiantCoreOptions! options, Microsoft.Extensions.Logging.ILogger<Affiant.Docket.Services.DocketExpiryService!>! logger, Affiant.Abstractions.Interfaces.IStreamingTransport? transport = null) -> void
+*REMOVED*Affiant.Docket.Stores.InMemoryDocketStore.InMemoryDocketStore() -> void
+*REMOVED*Affiant.Docket.Stores.InMemoryDocketStore.ListExpiredAsync(System.DateTimeOffset expiresBeforeUtc, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Affiant.Abstractions.Models.DocketEntry!>!>!
+*REMOVED*Affiant.Docket.Stores.InMemoryDocketStore.MarkExpiredAsync(System.Collections.Generic.IEnumerable<System.Guid>! entryIds, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
+*REMOVED*Affiant.Docket.Stores.InMemoryDocketStore.UpdateAmendmentsAsync(System.Guid entryId, System.Collections.Generic.IReadOnlyDictionary<string!, object?>! amendments, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
+*REMOVED*Affiant.Docket.Stores.InMemoryDocketStore.UpdateReviewStatusAsync(System.Guid entryId, Affiant.Abstractions.Models.ReviewStatus status, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<int>!
+Affiant.Docket.Options.AffiantDocketOptions
+Affiant.Docket.Options.AffiantDocketOptions.AffiantDocketOptions() -> void
+Affiant.Docket.Options.AffiantDocketOptions.ExpirySweepBatchSize.get -> int
+Affiant.Docket.Options.AffiantDocketOptions.ExpirySweepBatchSize.set -> void
+Affiant.Docket.Options.AffiantDocketOptions.ExpirySweepBatchesPerTick.get -> int
+Affiant.Docket.Options.AffiantDocketOptions.ExpirySweepBatchesPerTick.set -> void
+Affiant.Docket.Options.AffiantDocketOptions.SweepScope.get -> Affiant.Abstractions.Interfaces.DocketScope!
+Affiant.Docket.Options.AffiantDocketOptions.SweepScope.set -> void
+Affiant.Docket.Options.DocketOptions.ExpirySweepBatchSize.get -> int
+Affiant.Docket.Options.DocketOptions.ExpirySweepBatchSize.set -> void
+Affiant.Docket.Services.DocketExpiryService.DocketExpiryService(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory! scopeFactory, Affiant.Core.Extensions.AffiantCoreOptions! options, Microsoft.Extensions.Logging.ILogger<Affiant.Docket.Services.DocketExpiryService!>! logger, Affiant.Abstractions.Interfaces.IStreamingTransport? transport = null, Affiant.Docket.Options.AffiantDocketOptions? docketOptions = null, System.TimeProvider? timeProvider = null) -> void
+Affiant.Docket.Stores.InMemoryDocketStore.ApplyRetentionAsync(Affiant.Abstractions.Interfaces.DocketRetentionPolicy! policy, Affiant.Abstractions.Interfaces.DocketScope! scope, int limit, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.RetentionResult!>!
+Affiant.Docket.Stores.InMemoryDocketStore.CountPendingAsync(System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<long>!
+Affiant.Docket.Stores.InMemoryDocketStore.ExpireDueAsync(System.DateTimeOffset now, Affiant.Abstractions.Interfaces.DocketScope! scope, int limit, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.ExpireDueResult!>!
+Affiant.Docket.Stores.InMemoryDocketStore.ExportAsync(Affiant.Abstractions.Interfaces.DocketScope! scope, System.Threading.CancellationToken ct) -> System.Collections.Generic.IAsyncEnumerable<Affiant.Abstractions.Models.DocketEntry!>!
+Affiant.Docket.Stores.InMemoryDocketStore.InMemoryDocketStore(System.TimeProvider? timeProvider = null) -> void
+Affiant.Docket.Stores.InMemoryDocketStore.ListApprovedUnexecutedAsync(Affiant.Abstractions.Interfaces.DocketScope! scope, Affiant.Abstractions.Interfaces.DocketPage! page, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.DocketPageResult<Affiant.Abstractions.Models.DocketEntry!>!>!
+Affiant.Docket.Stores.InMemoryDocketStore.ListPendingAsync(Affiant.Abstractions.Interfaces.DocketScope! scope, Affiant.Abstractions.Interfaces.DocketPage! page, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.DocketPageResult<Affiant.Abstractions.Models.DocketEntry!>!>!
+Affiant.Docket.Stores.InMemoryDocketStore.MarkBlockedAsync(System.Guid entryId, Affiant.Abstractions.Interfaces.DocketScope! scope, Affiant.Abstractions.Models.BlockedMarker! marker, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<int>!
+Affiant.Docket.Stores.InMemoryDocketStore.PreserveAmendmentsAsync(System.Guid entryId, Affiant.Abstractions.Interfaces.DocketScope! scope, System.Collections.Generic.IReadOnlyDictionary<string!, object?>! amendments, Affiant.Abstractions.Interfaces.PreservedAct! act, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.PreserveAmendmentsResult!>!
+Affiant.Docket.Stores.InMemoryDocketStore.PurgeTenantAsync(string! tenantId, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<int>!
+Affiant.Docket.Stores.InMemoryDocketStore.RecordExecutionAsync(System.Guid entryId, Affiant.Abstractions.Interfaces.DocketScope! scope, Affiant.Abstractions.Models.ExecutionOutcome outcome, string? detail, Affiant.Abstractions.Models.ExecutionOutcome expected, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.RecordExecutionResult!>!
+Affiant.Docket.Stores.InMemoryDocketStore.RecordSupersessionAsync(System.Guid entryId, Affiant.Abstractions.Interfaces.DocketScope! scope, System.Guid supersededBy, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.RecordSupersessionResult!>!
+Affiant.Docket.Stores.InMemoryDocketStore.TransitionAsync(System.Guid entryId, Affiant.Abstractions.Interfaces.DocketScope! scope, Affiant.Abstractions.Models.ReviewStatus expected, Affiant.Abstractions.Interfaces.DocketTransitionPatch! patch, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Affiant.Abstractions.Interfaces.DocketTransitionResult!>!
+const Affiant.Docket.Options.AffiantDocketOptions.DefaultExpirySweepBatchSize = 100 -> int
+const Affiant.Docket.Options.AffiantDocketOptions.DefaultExpirySweepBatchesPerTick = 10 -> int

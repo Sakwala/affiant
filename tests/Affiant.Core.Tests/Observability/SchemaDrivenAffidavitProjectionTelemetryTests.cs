@@ -99,8 +99,8 @@ public class SchemaDrivenAffidavitProjectionTelemetryTests
             var projection = BuildProjection();
             var fabric = new ContextFabric();
             // Both fields populated via inference — neither is Empty provenance.
-            fabric.SetFieldChain("Color", ProvenanceChain.From(ProvenanceTag.FromInference("Color", 0.8f)));
-            fabric.SetFieldChain("Weight", ProvenanceChain.From(ProvenanceTag.FromInference("Weight", 0.6f)));
+            fabric.SetFieldChain("Color", ProvenanceChain.From(ProvenanceTag.FromInference(InferenceSource.Inferred, "Color", 0.8f)));
+            fabric.SetFieldChain("Weight", ProvenanceChain.From(ProvenanceTag.FromInference(InferenceSource.Inferred, "Weight", 0.6f)));
             fabric.Upsert(new EntityRef("Widget", "Widget", "Widget", new Dictionary<string, object>
             {
                 ["Color"] = "Red",
@@ -121,8 +121,8 @@ public class SchemaDrivenAffidavitProjectionTelemetryTests
 
         Assert.Equal(2, Convert.ToInt32(tags["affiant.affidavit.populated_field_count"]));
         Assert.Equal(0, Convert.ToInt32(tags["affiant.affidavit.empty_provenance_field_count"]));
-        // AggregateConfidence = mean(0.8, 0.6) = 0.7
-        Assert.Equal(0.7f, Convert.ToSingle(tags["affiant.affidavit.aggregate_confidence"]), precision: 5);
+        // AggregateConfidence = min(0.8, 0.6) = 0.6
+        Assert.Equal(0.6f, Convert.ToSingle(tags["affiant.affidavit.aggregate_confidence"]), precision: 5);
     }
 
     [Fact]
@@ -134,7 +134,7 @@ public class SchemaDrivenAffidavitProjectionTelemetryTests
         {
             var projection = BuildProjection();
             var fabric = new ContextFabric();
-            fabric.SetFieldChain("Color", ProvenanceChain.From(ProvenanceTag.FromInference("Color", 0.9f)));
+            fabric.SetFieldChain("Color", ProvenanceChain.From(ProvenanceTag.FromInference(InferenceSource.Inferred, "Color", 0.9f)));
             fabric.Upsert(new EntityRef("Widget", "Widget", "Widget", new Dictionary<string, object>
             {
                 ["Color"] = "Blue",

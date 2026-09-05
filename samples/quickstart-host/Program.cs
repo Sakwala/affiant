@@ -87,6 +87,12 @@ builder.Services.AddAffiantReadTool(
     pluginName: nameof(LeaveLookupPlugin));
 
 builder.Services.AddAffidavitProjection<LeaveAffidavitProjection>();
+
+// The two host ports the framework refuses to start without once a write-capable tool is declared:
+// what the record holds today (AF-3), and who may decide (AZ-2). Both are questions only the host
+// can answer, and the startup refusal is what stops either being discovered mid-conversation.
+builder.Services.AddPreviousValueSource<HrPreviousValueSource>();
+builder.Services.AddDecisionAuthorization<QuickstartDecisionAuthorization>();
 builder.Services.AddSingleton<LeaveProposalBuilder>();
 
 // Registering plugin types with the kernel is ordinary Semantic Kernel, not Affiant. The chat

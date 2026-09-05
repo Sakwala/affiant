@@ -34,11 +34,11 @@ public class AssertProvenanceIsSubstantiveTests
     private static readonly ITaskInferenceStrategy RequiredStrategy = new FakeRequiredFieldStrategy();
 
     private static ProvenanceChain InferredChain(float confidence = 0.9f) =>
-        ProvenanceChain.From(ProvenanceTag.FromInference("Name", confidence));
+        ProvenanceChain.From(ProvenanceTag.FromInference(InferenceSource.Inferred, "Name", confidence));
 
     private static Affidavit AffidavitWith(params AffidavitField[] fields) =>
         new("WriteCreate", "RequiredEntity", EntityId: null, fields,
-            AggregateConfidence: 0.9f, Warnings: [], RequiresConfirmation: true);
+            AggregateConfidence: 0.9f, PopulatedConfidence: 0.9f, EmptyFieldCount: 0, Warnings: [], RequiresConfirmation: true);
 
     // ── Direct-predicate: the four per-Affidavit checks ──────────────────────
 

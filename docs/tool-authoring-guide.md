@@ -196,7 +196,7 @@ public class SearchEmployeesPlugin(IServiceScopeFactory scopeFactory)
 - The composable query pattern (`AsQueryable()` + successive `.Where()` calls) is standard across all read tools with optional filter parameters
 - `AsNoTracking()` is essential for read-only queries — skips EF Core's change-tracking overhead
 - Return empty `EntityRef[]` (not an error) when zero results are found — let the LLM reason about the empty result
-- `.ToJsonString()` serializes with the `$type` discriminator that the UI layer uses for polymorphic deserialization
+- `.ToJsonString()` serializes with the `kind` discriminator the UI layer switches on for polymorphic deserialization (it was `$type` through `1.0.0-beta.1` — see the CHANGELOG's upgrade note)
 
 **The scope-factory pattern is the rule, not an alternative (affiant#21).** The worked example
 above already uses it. A second host example, for completeness — this is the same pattern, not a
@@ -242,8 +242,22 @@ on a `Scoped` service (a `DbContext`, or any per-request dependency your host re
 - Parameters express *user intent* — nullable parameters mean "only include this field if the user provided it"
 - `AffidavitField` records the proposed value, the previous value (null for creates), and a `ProvenanceChain`
 - `ProvenanceChain.From(tag)` creates a single-node chain; use `.Append(tag)` to accumulate history
-- `ProvenanceTag.FromUser(fieldName)` tags a value the user stated directly; `new ProvenanceTag(Computed, ...)` for derived values
+- `ProvenanceTag.FromUser(fieldName, binding)` tags a value a person stated — the binding says what an auditor should look at (`ProvenanceBinding.UtteranceSpan`, `.FormInput`, `.ReviewerAct`); pass `null` only when there is genuinely nothing to point at. Use `new ProvenanceTag(ProvenanceSource.Computed, …, new ProvenanceBinding.ComputationRef(…))` for derived values, and `ProvenanceTag.FromInference(InferenceSource.Conversation | .Inferred, …)` for anything the model produced — the inference factory has no way to name `UserStated`, `External` or `Computed`, which is deliberate
 - `Affidavit.RequiresConfirmation: true` tells the `ReviewGate` to show an Evidence Card before committing
+- Build the record with `Affidavit.Create(...)`, which computes the three confidence numbers from the fields — `AggregateConfidence` (the minimum over every proposed field, an `Empty` field counting as 0), `PopulatedConfidence` and `EmptyFieldCount`. Never hand-write them
+- `EntityId` is non-null **if and only if** the operation is update-shaped, and an update fills every field's `PreviousValue` — from your own store in a hand-written tool, or from an `IPreviousValueSource` when the schema-driven projection builds the record
+
+**Three ways the gate refuses a write tool, and what each one means.** All three are the *error* arm of the tool result — the same three-kind union a read result and a proposal travel in — carrying a stable code, never a silent skip:
+
+| Code | What happened | Fix |
+|---|---|---|
+| `substance-refused` | The proposal swore to nothing: no fields at all, every field tagged `Empty`, or a field asserting a value while its provenance reads `Empty` (the *hollow* signature). Nothing was filed and no reviewer saw it. `0`, `false`, an empty array and an empty object are values — only `null` and a blank string are empty. | Fill the fields the tool declares, and tag each one with where its value actually came from. |
+| `wireup-invalid` | The gate was asked to run a wiring it cannot run: no `IReviewContextProvider`, no review context for this call, no `ReviewGate` registered, a tool declared write-capable that returned something other than a proposal, or an approval policy that named an unusable review window or threw. Nothing was filed. | Fix the registration. The first and third are also refused at startup, before any turn. |
+| `REVIEW_FILING_FAILED` | The proposal was well-formed and the wiring was sound, but the Docket store itself failed. Nothing was filed. | Retry, or check the store. |
+
+**The honest boundary.** The framework's filter runs *after* your tool's body, because that is the only seam either host framework exposes. A tool that opens its own connection and writes inside its body is therefore **outside the guarantee** — no filter and no wire-up check can see it, and the framework says so rather than implying a coverage it does not have. What it does guarantee is that such a tool cannot commit *through* it: the gate never calls a write tool's own execute, no public API lets a tool commit through the framework, and a tool declared write-capable that does not hand back a proposal is refused rather than skipped. Declare a tool that genuinely does not write with `services.AddAffiantReadTool(...)`; there is no option that turns the gate off for a tool it covers.
+
+**Naming the review window.** Your `IApprovalPolicy` names it, and the gate stamps the deadline *after* the chain has run — `ApprovalVerdict.TimeToLive` first, then the policy's own `DefaultTimeToLive`, then `AffiantCoreOptions.DefaultDocketTtl`. So "five minutes for a high-risk write, a day for a routine one" is a property of the verdict, not a global setting. A window under one millisecond is refused rather than stamped: an entry born expired is a write that silently never happens.
 
 **Worked example — multi-field write proposal with mixed provenance:**
 
@@ -324,13 +338,17 @@ public class RequestLeavePlugin(HRPortalDbContext dbContext, ILogger<RequestLeav
             var fields = new AffidavitField[]
             {
                 new("StartDate",  startDate.ToString("yyyy-MM-dd"), null,
-                    ProvenanceChain.From(ProvenanceTag.FromUser("StartDate"))),
+                    ProvenanceChain.From(ProvenanceTag.FromUser(
+                        "StartDate", new ProvenanceBinding.FormInput(new FormInputRef("startDate"))))),
                 new("EndDate",    endDate.ToString("yyyy-MM-dd"), null,
-                    ProvenanceChain.From(ProvenanceTag.FromUser("EndDate"))),
+                    ProvenanceChain.From(ProvenanceTag.FromUser(
+                        "EndDate", new ProvenanceBinding.FormInput(new FormInputRef("endDate"))))),
                 new("LeaveType",  normalizedType, null,
-                    ProvenanceChain.From(ProvenanceTag.FromUser("LeaveType"))),
+                    ProvenanceChain.From(ProvenanceTag.FromUser(
+                        "LeaveType", new ProvenanceBinding.FormInput(new FormInputRef("leaveType"))))),
                 new("Reason",     reason, null,
-                    ProvenanceChain.From(ProvenanceTag.FromUser("Reason"))),
+                    ProvenanceChain.From(ProvenanceTag.FromUser(
+                        "Reason", new ProvenanceBinding.FormInput(new FormInputRef("reason"))))),
                 new("RemainingDaysAfter", remainingAfter.ToString(), null,
                     ProvenanceChain.From(new ProvenanceTag(
                         ProvenanceSource.Computed, 1.0f,
@@ -342,14 +360,16 @@ public class RequestLeavePlugin(HRPortalDbContext dbContext, ILogger<RequestLeav
                 ? [$"Insufficient balance: {remainingAfter} days remaining after request."]
                 : [];
 
-            var affidavit = new Affidavit(
-                OperationType: "create",
-                EntityType:    "LeaveRequest",
-                EntityId:      null,         // null = create operation; non-null = update
-                Fields:        fields,
-                AggregateConfidence: 1.0f,
-                Warnings: warnings,
-                RequiresConfirmation: true); // ReviewGate will show an Evidence Card
+            // Affidavit.Create computes AggregateConfidence (the MINIMUM over every proposed
+            // field, an Empty field counting as 0), PopulatedConfidence and EmptyFieldCount from
+            // the fields — so the numbers on the card can never disagree with the evidence.
+            var affidavit = Affidavit.Create(
+                operationType: "create",
+                entityType:    "LeaveRequest",
+                entityId:      null,         // null = create; non-null if and only if update-shaped
+                fields:        fields,
+                warnings:      warnings,
+                requiresConfirmation: true); // ReviewGate will show an Evidence Card
 
             // This is a WriteProposal — no database mutation happens here.
             // IWriteExecutor.ExecuteAsync is called only after ReviewGate approval.
@@ -560,23 +580,26 @@ public class LeaveRequestFieldMapper(ILogger<LeaveRequestFieldMapper> logger) : 
         var fields = new AffidavitField[]
         {
             new("StartDate", entity.StartDate.ToString("yyyy-MM-dd"), null,
-                ProvenanceChain.From(ProvenanceTag.FromUser("StartDate"))),
+                ProvenanceChain.From(ProvenanceTag.FromUser(
+                    "StartDate", new ProvenanceBinding.FormInput(new FormInputRef("startDate"))))),
             new("EndDate", entity.EndDate.ToString("yyyy-MM-dd"), null,
-                ProvenanceChain.From(ProvenanceTag.FromUser("EndDate"))),
+                ProvenanceChain.From(ProvenanceTag.FromUser(
+                    "EndDate", new ProvenanceBinding.FormInput(new FormInputRef("endDate"))))),
             new("LeaveType", entity.LeaveType.ToString(), null,
-                ProvenanceChain.From(ProvenanceTag.FromUser("LeaveType"))),
+                ProvenanceChain.From(ProvenanceTag.FromUser(
+                    "LeaveType", new ProvenanceBinding.FormInput(new FormInputRef("leaveType"))))),
             new("Reason", entity.Reason, null,
-                ProvenanceChain.From(ProvenanceTag.FromUser("Reason"))),
+                ProvenanceChain.From(ProvenanceTag.FromUser(
+                    "Reason", new ProvenanceBinding.FormInput(new FormInputRef("reason"))))),
         };
 
-        return new Affidavit(
-            OperationType: operationType,
-            EntityType:    "LeaveRequest",
-            EntityId:      entity.RequestId == 0 ? null : entity.RequestId.ToString(),
-            Fields:        fields,
-            AggregateConfidence: 1.0f,
-            Warnings: [],
-            RequiresConfirmation: false);
+        return Affidavit.Create(
+            operationType: operationType,
+            entityType:    "LeaveRequest",
+            entityId:      entity.RequestId == 0 ? null : entity.RequestId.ToString(),
+            fields:        fields,
+            warnings:      [],
+            requiresConfirmation: false);
     }
 }
 ```
@@ -1042,11 +1065,12 @@ public class MyWritePlugin
 
             var fields = new AffidavitField[]
             {
-                new("Name", name, null, ProvenanceChain.From(ProvenanceTag.FromUser("Name"))),
+                new("Name", name, null, ProvenanceChain.From(ProvenanceTag.FromUser(
+                    "Name", new ProvenanceBinding.FormInput(new FormInputRef("name"))))),
             };
 
             return new WriteProposal(toolName, DateTimeOffset.UtcNow,
-                new Affidavit("create", "MyEntity", null, fields, 1.0f, [], true))
+                Affidavit.Create("create", "MyEntity", null, fields, []))
                 .ToJsonString();
         }
         catch (Exception ex) when (ex is TimeoutException or DbUpdateException)
@@ -1100,9 +1124,9 @@ return new ToolError(toolName, DateTimeOffset.UtcNow,
 
 **Symptom:** `WriteProposal` is returned correctly, but the review flow is skipped.
 
-**Cause:** `Affidavit.RequiresConfirmation` is `false`, or your `IApprovalPolicy` auto-approves silently.
+**Cause:** `Affidavit.RequiresConfirmation` is `false`, or your `IApprovalPolicy` auto-approves silently. Since the gate began refusing at run time, a third cause is common: the proposal swore to nothing and was refused with `substance-refused` before any policy ran — check the tool's result for the error arm rather than assuming the card was lost.
 
-**Fix:** Set `RequiresConfirmation: true` unless you explicitly want auto-approval. Check your `IApprovalPolicy` implementation — `StandingOrderPolicy` and `ReviewerConfirmationPolicy` have distinct bypass conditions.
+**Fix:** Set `RequiresConfirmation: true` unless you explicitly want auto-approval. Check your `IApprovalPolicy` implementation — `StandingOrderPolicy` and `ReviewerConfirmationPolicy` have distinct bypass conditions. If a Standing Order that used to fire has stopped, read the `standing-order.blocked` event's `blocked.reason`: a Standing Order is never honoured over a proposed field marked mandatory that reads `Empty` (`mandatory-field-empty`), nor over a provenance grade the policy predicates on that points at nothing (`unbound-declared-input`), nor over a host risk score above its ceiling (`risk-above-threshold`). In each case the verdict degrades to reviewer confirmation and a person is asked — the write is not lost.
 
 ---
 
@@ -1112,7 +1136,9 @@ return new ToolError(toolName, DateTimeOffset.UtcNow,
 
 **Cause:** You constructed `AffidavitField` without a meaningful `ProvenanceChain`, or used `ProvenanceSource.Empty` when the real source is known.
 
-**Fix:** Tag every field with its actual source. Use `ProvenanceTag.FromUser(fieldName)` for user-stated values, `new ProvenanceTag(Computed, 1.0f, "evidence string", null)` for computed values. The `Evidence` string is displayed to the reviewer — make it meaningful.
+**Fix:** Tag every field with its actual source. Use `ProvenanceTag.FromUser(fieldName, binding)` for values a person stated, `new ProvenanceTag(ProvenanceSource.Computed, 1.0f, "evidence string", null, new ProvenanceBinding.ComputationRef(new ComputationRuleRef("ruleName", ["input"])))` for computed values. The `Evidence` string is displayed to the reviewer — make it meaningful, and the binding is what an auditor follows years later.
+
+Note the difference between grey and absent: a field the write *proposes* but cannot source is present with an `Empty` tag (grey, and counted in `EmptyFieldCount`), and a field the write does not propose at all is absent from `Fields` entirely. Grey is a real statement — "this write touches the field and nobody knows where the value came from" — and it is what drags `AggregateConfidence` to 0.
 
 ---
 

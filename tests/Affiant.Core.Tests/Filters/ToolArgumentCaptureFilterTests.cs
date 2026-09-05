@@ -10,9 +10,9 @@ using Xunit;
 
 /// <summary>
 /// Backend-free unit tests for the neutral ToolArgumentCaptureFilter.
-/// Verifies that LLM-populated tool arguments are captured into IContextFabric via
-/// ProvenanceTag.FromTool (Source = Conversation), that unregistered tools are skipped,
-/// and that next() always fires.
+/// Verifies that a model's tool arguments reach the IContextFabric as the values it PROPOSES and
+/// nothing more (PV-1: an argument is not evidence about where a value came from), that
+/// unregistered tools are skipped, and that next() always fires.
 /// </summary>
 public class ToolArgumentCaptureFilterTests
 {
@@ -40,7 +40,7 @@ public class ToolArgumentCaptureFilterTests
     // ── Argument capture ──────────────────────────────────────────────────────
 
     [Fact]
-    public async Task DescriptorPresent_ArgumentsPopulated_SetsFieldChainPerArgument()
+    public async Task DescriptorPresent_ArgumentsPopulated_ProposesEachValueAndSwearsToNone()
     {
         var fabric = new ContextFabric();
         var registry = new AffiantToolRegistry();
@@ -52,14 +52,18 @@ public class ToolArgumentCaptureFilterTests
             ["priority"] = "High"
         }));
 
-        var titleChain = fabric.GetFieldChain("title");
-        var priorityChain = fabric.GetFieldChain("priority");
+        var entity = fabric.GetByKey("TestEntity");
 
-        Assert.NotNull(titleChain);
-        Assert.NotNull(priorityChain);
-        Assert.Equal(ProvenanceSource.Conversation, titleChain.Current.Source);
-        Assert.Equal(ProvenanceSource.Conversation, priorityChain.Current.Source);
-        Assert.InRange(titleChain.Current.Confidence, 0.89f, 0.91f);
+        Assert.NotNull(entity);
+        Assert.Equal("my title", entity.Fields["title"]);
+        Assert.Equal("High", entity.Fields["priority"]);
+
+        // PV-1: what the model wrote into the call is the value it proposes and says nothing about
+        // where that value came from. The capture mints no tag; a deterministic interceptor or the
+        // host's inference port is what swears for a field, and where neither speaks the projection
+        // swears the field Empty at confidence 0.
+        Assert.Null(fabric.GetFieldChain("title"));
+        Assert.Null(fabric.GetFieldChain("priority"));
     }
 
     [Fact]

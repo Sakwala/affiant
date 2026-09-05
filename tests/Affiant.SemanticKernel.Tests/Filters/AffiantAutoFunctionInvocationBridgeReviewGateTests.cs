@@ -60,7 +60,7 @@ public class AffiantAutoFunctionInvocationBridgeReviewGateTests
 
         using var scope = sp.CreateScope();
         var writeProposalJson =
-            """{"$type":"write","toolName":"DoWrite","timestamp":"2026-01-01T00:00:00Z","envelope":null}""";
+            """{"kind":"write","toolName":"DoWrite","timestamp":"2026-01-01T00:00:00Z","envelope":null}""";
         var context = BuildAutoInvocationContext(scope.ServiceProvider, "DoWrite", writeProposalJson);
 
         // Simulates SK's own remaining auto-invocation chain — a no-op here since context.Result
@@ -71,8 +71,8 @@ public class AffiantAutoFunctionInvocationBridgeReviewGateTests
         var resultText = context.Result.GetValue<object>() as string;
         Assert.NotNull(resultText);
         Assert.Contains("REVIEW_FILING_FAILED", resultText);
-        Assert.Contains("\"$type\":\"error\"", resultText);
-        Assert.DoesNotContain("\"$type\":\"write\"", resultText); // not the raw, unfiled proposal
+        Assert.Contains("\"kind\":\"error\"", resultText);
+        Assert.DoesNotContain("\"kind\":\"write\"", resultText); // not the raw, unfiled proposal
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public class AffiantAutoFunctionInvocationBridgeReviewGateTests
 
         using var scope = sp.CreateScope();
         var writeProposalJson =
-            """{"$type":"write","toolName":"DoWrite","timestamp":"2026-01-01T00:00:00Z","envelope":null}""";
+            """{"kind":"write","toolName":"DoWrite","timestamp":"2026-01-01T00:00:00Z","envelope":null}""";
         var context = BuildAutoInvocationContext(scope.ServiceProvider, "DoWrite", writeProposalJson);
 
         await bridge.OnAutoFunctionInvocationAsync(context, _ => Task.CompletedTask);
@@ -128,8 +128,13 @@ public class AffiantAutoFunctionInvocationBridgeReviewGateTests
             OperationType: "DoWrite",
             EntityType: "TestEntity",
             EntityId: null,
-            Fields: [],
-            AggregateConfidence: 1.0f,
+            // A substantive field: the gate refuses a proposal that swears to nothing (GT-3),
+            // so a fixture exercising the filing path has to swear to something.
+            Fields: [new AffidavitField("field", "value", null,
+                ProvenanceChain.From(ProvenanceTag.FromTool("fixture")))],
+            AggregateConfidence: 0.9f,
+            PopulatedConfidence: 0.9f,
+            EmptyFieldCount: 0,
             Warnings: [],
             RequiresConfirmation: true));
 
@@ -140,8 +145,9 @@ public class AffiantAutoFunctionInvocationBridgeReviewGateTests
 
     private sealed class StandingOrderPolicy : IApprovalPolicy
     {
-        public Task<ReviewRequirement?> EvaluateAsync(Affidavit affidavit, CancellationToken cancellationToken = default)
-            => Task.FromResult<ReviewRequirement?>(ReviewRequirement.StandingOrder);
+        public Task<ApprovalVerdict?> EvaluateAsync(
+        Affidavit affidavit, ConversationIdentity identity, CancellationToken cancellationToken = default)
+            => Task.FromResult<ApprovalVerdict?>(ReviewRequirement.StandingOrder);
     }
 
     private sealed class ThrowingDocketStore : IDocketStore
@@ -158,8 +164,6 @@ public class AffiantAutoFunctionInvocationBridgeReviewGateTests
         public Task<DocketEntry?> GetDocketEntryAsync(Guid entryId, CancellationToken ct)
             => Task.FromResult<DocketEntry?>(null);
 
-        public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct)
-            => Task.FromResult(0);
 
         public Task<int> ConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
             => Task.FromResult(0);
@@ -167,25 +171,67 @@ public class AffiantAutoFunctionInvocationBridgeReviewGateTests
         public Task<DocketEntry?> GetResubmissionParentAsync(Guid entryId, CancellationToken ct)
             => Task.FromResult<DocketEntry?>(null);
 
-        public Task UpdateAmendmentsAsync(
-            Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct)
-            => Task.CompletedTask;
 
         public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct)
             => Task.FromResult<IReadOnlyList<DocketEntry>>([]);
 
+        public Task<long> CountPendingAsync(CancellationToken ct) => Task.FromResult(0L);
+
         public Task<IReadOnlyList<DocketEntry>> ListAllPendingAsync(CancellationToken ct)
             => Task.FromResult<IReadOnlyList<DocketEntry>>([]);
 
-        public Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(DateTimeOffset expiresBeforeUtc, CancellationToken ct)
-            => Task.FromResult<IReadOnlyList<DocketEntry>>([]);
+        // ── The scoped, guarded, paged surface ──────────────────────────────
+        // Explicit implementations that refuse: this double exists for a test that never reaches
+        // the Docket's decision surface, and a stub that quietly answered would let such a test
+        // pass against behaviour nobody wrote.
+        Task<DocketTransitionResult> IDocketStore.TransitionAsync(
+            Guid entryId, DocketScope scope, ReviewStatus expected, DocketTransitionPatch patch, CancellationToken ct)
+            => throw new NotSupportedException();
 
-        public Task MarkExpiredAsync(IEnumerable<Guid> entryIds, CancellationToken ct)
-            => Task.CompletedTask;
-    }
+        Task<PreserveAmendmentsResult> IDocketStore.PreserveAmendmentsAsync(
+            Guid entryId, DocketScope scope, IReadOnlyDictionary<string, object?> amendments,
+            PreservedAct act, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        Task<RecordExecutionResult> IDocketStore.RecordExecutionAsync(
+            Guid entryId, DocketScope scope, ExecutionOutcome outcome, string? detail,
+            ExecutionOutcome expected, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        Task<RecordSupersessionResult> IDocketStore.RecordSupersessionAsync(
+            Guid entryId, DocketScope scope, Guid supersededBy, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        Task<int> IDocketStore.MarkBlockedAsync(Guid entryId, DocketScope scope, BlockedMarker marker, CancellationToken ct)
+            => Task.FromResult(0);
+
+        Task<DocketPageResult<DocketEntry>> IDocketStore.ListPendingAsync(
+            DocketScope scope, DocketPage page, CancellationToken ct)
+            => Task.FromResult(new DocketPageResult<DocketEntry>([], null, false));
+
+        Task<DocketPageResult<DocketEntry>> IDocketStore.ListApprovedUnexecutedAsync(
+            DocketScope scope, DocketPage page, CancellationToken ct)
+            => Task.FromResult(new DocketPageResult<DocketEntry>([], null, false));
+
+        Task<ExpireDueResult> IDocketStore.ExpireDueAsync(
+            DateTimeOffset now, DocketScope scope, int limit, CancellationToken ct)
+            => Task.FromResult(new ExpireDueResult([], false));
+
+        Task<RetentionResult> IDocketStore.ApplyRetentionAsync(
+            DocketRetentionPolicy policy, DocketScope scope, int limit, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        Task<int> IDocketStore.PurgeTenantAsync(string tenantId, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        IAsyncEnumerable<DocketEntry> IDocketStore.ExportAsync(DocketScope scope, CancellationToken ct)
+            => throw new NotSupportedException();
+}
 
     private sealed class InMemoryDocketStore : IDocketStore
     {
+        public Task<long> CountPendingAsync(CancellationToken ct) => Task.FromResult(0L);
+
         private readonly Dictionary<Guid, DocketEntry> _entries = [];
 
         public Task SaveContextAsync(string sessionId, ConversationContext context, CancellationToken ct)
@@ -203,13 +249,6 @@ public class AffiantAutoFunctionInvocationBridgeReviewGateTests
         public Task<DocketEntry?> GetDocketEntryAsync(Guid entryId, CancellationToken ct)
             => Task.FromResult(_entries.TryGetValue(entryId, out var e) ? e : null);
 
-        public Task<int> UpdateReviewStatusAsync(Guid entryId, ReviewStatus status, CancellationToken ct)
-        {
-            if (!_entries.TryGetValue(entryId, out var existing) || existing.Status != ReviewStatus.Pending)
-                return Task.FromResult(0);
-            _entries[entryId] = existing with { Status = status };
-            return Task.FromResult(1);
-        }
 
         public Task<int> ConsumeForResubmitAsync(Guid entryId, Guid newEntryId, CancellationToken ct)
         {
@@ -226,9 +265,6 @@ public class AffiantAutoFunctionInvocationBridgeReviewGateTests
         public Task<DocketEntry?> GetResubmissionParentAsync(Guid entryId, CancellationToken ct)
             => Task.FromResult(_entries.Values.FirstOrDefault(e => e.ResubmittedTo == entryId));
 
-        public Task UpdateAmendmentsAsync(
-            Guid entryId, IReadOnlyDictionary<string, object?> amendments, CancellationToken ct)
-            => Task.CompletedTask;
 
         public Task<IReadOnlyList<DocketEntry>> ListPendingBySessionAsync(string sessionId, CancellationToken ct)
             => Task.FromResult<IReadOnlyList<DocketEntry>>([]);
@@ -236,12 +272,78 @@ public class AffiantAutoFunctionInvocationBridgeReviewGateTests
         public Task<IReadOnlyList<DocketEntry>> ListAllPendingAsync(CancellationToken ct)
             => Task.FromResult<IReadOnlyList<DocketEntry>>([]);
 
-        public Task<IReadOnlyList<DocketEntry>> ListExpiredAsync(DateTimeOffset expiresBeforeUtc, CancellationToken ct)
-            => Task.FromResult<IReadOnlyList<DocketEntry>>([]);
+        // ── The scoped, guarded, paged surface ──────────────────────────────
+        // Explicit implementations that refuse: this double exists for a test that never reaches
+        // the Docket's decision surface, and a stub that quietly answered would let such a test
+        // pass against behaviour nobody wrote.
+        /// <summary>
+        /// The guarded compare-and-set, over this double's own dictionary. Implemented rather than
+        /// refused because the filing path reaches it: a Standing Order's approval and its
+        /// attestation are one write.
+        /// </summary>
+        Task<DocketTransitionResult> IDocketStore.TransitionAsync(
+            Guid entryId, DocketScope scope, ReviewStatus expected, DocketTransitionPatch patch, CancellationToken ct)
+        {
+            if (!_entries.TryGetValue(entryId, out var entry))
+                return Task.FromResult<DocketTransitionResult>(new DocketTransitionResult.NotFound());
+            if (entry.Status != expected)
+                return Task.FromResult<DocketTransitionResult>(new DocketTransitionResult.AlreadyDecided());
 
-        public Task MarkExpiredAsync(IEnumerable<Guid> entryIds, CancellationToken ct)
-            => Task.CompletedTask;
-    }
+            var moved = entry with
+            {
+                Status = patch.Status,
+                Execution = patch.Status == ReviewStatus.Approved
+                    ? patch.Execution ?? ExecutionOutcome.Unexecuted
+                    : null,
+                Decision = patch.Decision,
+                Amendments = patch.Amendments ?? entry.Amendments,
+                AmendedAffidavit = patch.AmendedAffidavit ?? entry.AmendedAffidavit,
+                Attestation = patch.Attestation ?? entry.Attestation,
+                DecidedAt = patch.DecidedAt ?? entry.DecidedAt,
+            };
+            _entries[entryId] = moved;
+            return Task.FromResult<DocketTransitionResult>(new DocketTransitionResult.Transitioned(moved));
+        }
+
+        Task<PreserveAmendmentsResult> IDocketStore.PreserveAmendmentsAsync(
+            Guid entryId, DocketScope scope, IReadOnlyDictionary<string, object?> amendments,
+            PreservedAct act, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        Task<RecordExecutionResult> IDocketStore.RecordExecutionAsync(
+            Guid entryId, DocketScope scope, ExecutionOutcome outcome, string? detail,
+            ExecutionOutcome expected, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        Task<RecordSupersessionResult> IDocketStore.RecordSupersessionAsync(
+            Guid entryId, DocketScope scope, Guid supersededBy, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        Task<int> IDocketStore.MarkBlockedAsync(Guid entryId, DocketScope scope, BlockedMarker marker, CancellationToken ct)
+            => Task.FromResult(0);
+
+        Task<DocketPageResult<DocketEntry>> IDocketStore.ListPendingAsync(
+            DocketScope scope, DocketPage page, CancellationToken ct)
+            => Task.FromResult(new DocketPageResult<DocketEntry>([], null, false));
+
+        Task<DocketPageResult<DocketEntry>> IDocketStore.ListApprovedUnexecutedAsync(
+            DocketScope scope, DocketPage page, CancellationToken ct)
+            => Task.FromResult(new DocketPageResult<DocketEntry>([], null, false));
+
+        Task<ExpireDueResult> IDocketStore.ExpireDueAsync(
+            DateTimeOffset now, DocketScope scope, int limit, CancellationToken ct)
+            => Task.FromResult(new ExpireDueResult([], false));
+
+        Task<RetentionResult> IDocketStore.ApplyRetentionAsync(
+            DocketRetentionPolicy policy, DocketScope scope, int limit, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        Task<int> IDocketStore.PurgeTenantAsync(string tenantId, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        IAsyncEnumerable<DocketEntry> IDocketStore.ExportAsync(DocketScope scope, CancellationToken ct)
+            => throw new NotSupportedException();
+}
 
     private sealed class RecordingStreamingTransport : IStreamingTransport
     {
@@ -256,7 +358,7 @@ public class AffiantAutoFunctionInvocationBridgeReviewGateTests
             return Task.CompletedTask;
         }
 
-        public Task<EvidenceCardResponse> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default)
+        public Task<DecisionHandOff> AwaitEvidenceCardResponseAsync(string sessionGroupId, Guid docketId, CancellationToken ct = default)
             => throw new InvalidOperationException("should not be called");
     }
 }

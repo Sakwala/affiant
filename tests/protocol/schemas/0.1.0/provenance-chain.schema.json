@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://affiant.dev/schemas/0.1.0/provenance-chain.schema.json",
+  "title": "ProvenanceChain",
+  "description": "The ordered provenance history of a single field: the tag in force now, plus every tag it displaced, newest first. Nothing is ever dropped from a chain — a merge that discarded the loser would erase the fact that two producers disagreed, which is the fact a reviewer most wants. On merge the higher confidence wins and ties break toward the more deterministic source; a reviewer's act is not a confidence contest it might lose and supersedes outright (INVARIANTS.md PV-1, AF-4).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["current", "prior"],
+  "properties": {
+    "current": {
+      "description": "The tag in force for this field's current value.",
+      "$ref": "https://affiant.dev/schemas/0.1.0/provenance-tag.schema.json"
+    },
+    "prior": {
+      "description": "Superseded tags, newest first — the order a card reads them in (\"was Inferred at 0.4, before that Default\"). Empty on a chain that has never been merged or superseded. Never null.",
+      "type": "array",
+      "items": { "$ref": "https://affiant.dev/schemas/0.1.0/provenance-tag.schema.json" }
+    }
+  }
+}

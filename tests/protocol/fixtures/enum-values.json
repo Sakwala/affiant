@@ -1,0 +1,7 @@
+{
+  "$note": "The closed value sets captured on 2026-09-04 from the two demo hosts in Sakwala/affiant-host-apps (966d6df), built on Sakwala/affiant v1.0.0-beta.1 (b37e139). Each set is a de-facto enum on the wire — a plain JSON string field with a fixed allowed-value set — pinned here as data so an implementation in any language can check its own literals against the same list. Sets and the schema each belongs to: `actionDecisionResultOutcome` is the `outcome` field of the host hub payload `wire/action-decision-result.json`, which has no schema in this seed; `provenanceSource` is `schemas/provenance-source.schema.json`, the `source` field of every provenance tag; `systemNotificationLevel` is the `level` field of the transport payload `wire/system-notification.json`, which has no schema in this seed; `getActionStatusesValue` is the value a host's action-status query returns per docket entry, a host surface with no wire fixture and no schema in this seed.",
+  "actionDecisionResultOutcome": ["approved", "rejected", "expired", "resubmitted"],
+  "provenanceSource": ["UserStated", "External", "Computed", "Conversation", "Inferred", "Default", "Empty"],
+  "systemNotificationLevel": ["error", "warning", "info"],
+  "getActionStatusesValue": ["pending", "approved", "rejected", "expired", "resubmitted", "unknown"]
+}

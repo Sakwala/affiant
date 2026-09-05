@@ -113,6 +113,13 @@ public static class ServiceCollectionExtensions
             services.Insert(0, ServiceDescriptor.Singleton<IHostedService, AffiantWireUpValidator>());
         }
 
+        // The framework's one clock. Every framework component that needs the current instant —
+        // ReviewGate's deadlines, the docket stores' expiry reads, the expiry sweep, the session
+        // stores' stamps, the inference prompt's today's-date line — takes a TimeProvider and reads
+        // it from here. TryAdd so a host (or a test) that registered its own wins; the default is
+        // the system clock, so a host that does nothing sees no change in behaviour.
+        services.TryAddSingleton(TimeProvider.System);
+
         // Tool descriptor registry — always present once framework DI is added
         services.TryAddSingleton<IAffiantToolRegistry, AffiantToolRegistry>();
 
@@ -198,6 +205,19 @@ public static class ServiceCollectionExtensions
         {
             _ = AffiantTelemetry.AffiantActivitySource;
             _ = AffiantTelemetry.AffiantMeter;
+
+            // The docket-depth gauge (repo issue #66). Registered as a hosted service because
+            // constructing it is what publishes the instrument — a lazily-resolved singleton nothing
+            // asks for would never exist, and a gauge nobody created reports nothing. Guarded the
+            // same way AffiantWireUpValidator is, so a second AddAffiantCore() cannot publish a
+            // second instrument with the same name. Costs one docket listing per sample interval;
+            // see DocketDepthInstrument's own docs for the full cost.
+            if (!services.Any(d =>
+                    d.ServiceType == typeof(IHostedService) &&
+                    d.ImplementationType == typeof(DocketDepthInstrument)))
+            {
+                services.AddSingleton<IHostedService, DocketDepthInstrument>();
+            }
         }
 
         services.AddSingleton(options);
@@ -291,6 +311,75 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<TProjection>();
         // Factory keeps IAffidavitProjection and TProjection sharing the same singleton instance.
         services.AddSingleton<IAffidavitProjection>(sp => sp.GetRequiredService<TProjection>());
+        return services;
+    }
+
+    /// <summary>
+    /// Registers an <see cref="IPreviousValueSource"/> in DI — the host port the built-in
+    /// projection asks, on an update-shaped operation only, for the values the write replaces.
+    /// Multiple sources may be registered (one per store, say); the projection consults them in
+    /// registration order and takes the first non-null answer. Calling with the same
+    /// <typeparamref name="TSource"/> twice is a no-op.
+    /// </summary>
+    /// <remarks>
+    /// Registered <b>Scoped</b>, for the same reason <see cref="AddFieldResolver{TResolver}"/> is:
+    /// a previous-value source reads the host's domain store and will normally take a Scoped
+    /// dependency (a DbContext, a per-request client). Both projection registration paths are Scoped
+    /// too, so nothing captures a scope it should not.
+    /// </remarks>
+    /// <summary>
+    /// Registers the host's answer to "may this principal decide this entry" — required before any
+    /// decision, execution report or resubmission the gate accepts (AZ-2).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Register one. A host that registers none does not fail open — the gate falls back to
+    /// <see cref="DenyAllDecisionAuthorization"/>, which refuses everything — but it also does not
+    /// work: <c>AffiantWireUpValidator</c> refuses at startup when this application declares a
+    /// write-capable tool and no policy is registered, because a review loop nobody can complete is
+    /// a wiring bug, not a configuration.
+    /// </para>
+    /// <para>
+    /// Registered <b>Scoped</b>: an authorization policy normally reads the host's own identity and
+    /// membership stores and will take a Scoped dependency to do it. Calling with the same
+    /// <typeparamref name="TPolicy"/> twice replaces nothing and adds a second registration; the
+    /// last one registered wins, which is the container's normal rule.
+    /// </para>
+    /// </remarks>
+    /// <typeparam name="TPolicy">The host's implementation.</typeparam>
+    public static IServiceCollection AddDecisionAuthorization<TPolicy>(
+        this IServiceCollection services)
+        where TPolicy : class, IDecisionAuthorizationPolicy
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.AddScoped<TPolicy>();
+        services.AddScoped<IDecisionAuthorizationPolicy>(sp => sp.GetRequiredService<TPolicy>());
+        return services;
+    }
+
+    /// <summary>
+    /// Registers an <see cref="IPreviousValueSource"/> in DI — the host port the built-in
+    /// projection asks, on an update-shaped operation only, for the values the write replaces.
+    /// Multiple sources may be registered (one per store, say); the projection consults them in
+    /// registration order and takes the first non-null answer. Calling with the same
+    /// <typeparamref name="TSource"/> twice is a no-op.
+    /// </summary>
+    /// <remarks>
+    /// Registered <b>Scoped</b>, for the same reason <see cref="AddFieldResolver{TResolver}"/> is:
+    /// a previous-value source reads the host's domain store and will normally take a Scoped
+    /// dependency (a DbContext, a per-request client). Both projection registration paths are Scoped
+    /// too, so nothing captures a scope it should not.
+    /// </remarks>
+    public static IServiceCollection AddPreviousValueSource<TSource>(
+        this IServiceCollection services)
+        where TSource : class, IPreviousValueSource
+    {
+        // Idempotency guard: skip if TSource was already registered.
+        if (services.Any(d => d.ServiceType == typeof(TSource)))
+            return services;
+
+        services.AddScoped<TSource>();
+        services.AddScoped<IPreviousValueSource>(sp => sp.GetRequiredService<TSource>());
         return services;
     }
 

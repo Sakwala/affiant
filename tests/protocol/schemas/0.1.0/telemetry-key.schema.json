@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://affiant.dev/schemas/0.1.0/telemetry-key.schema.json",
+  "title": "TelemetryKeyRegistry",
+  "description": "The telemetry-key registry an implementation ships beside its packages (INVARIANTS.md TL-1). Every event the gate emits is named here, and a key is NEVER renamed and never removed, only deprecated — the registry is a versioned API, and an operator's alerts are built on it. Attributes carry field NAMES, never field values: an event is not an audit record, and the audit record is the Affidavit. Where a public standard names the same thing the registry uses its name (TL-2): OpenTelemetry's gen_ai.* semantic conventions for the tool name, the conversation id and the operation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocolVersion", "registryVersion", "keys"],
+  "properties": {
+    "protocolVersion": {
+      "description": "The protocol version this registry document conforms to (SR-4).",
+      "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/protocolVersion"
+    },
+    "registryVersion": {
+      "description": "The version of the registry itself, as the implementation that ships it numbers its own releases. Distinct from protocolVersion: a registry gains keys between protocol versions.",
+      "type": "string",
+      "minLength": 1
+    },
+    "keys": {
+      "description": "Every key, in registry order. The order only ever grows at the end.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/entry" }
+    }
+  },
+  "$defs": {
+    "entry": {
+      "title": "TelemetryKeyEntry",
+      "description": "One event the gate emits.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "since", "description", "attributes"],
+      "properties": {
+        "key": {
+          "description": "The event name. The v0.1 keys are affidavit.filed, affidavit.refused.substance, coverage.refused, docket.transition, docket.expired, decision.unauthorized, standing-order.fired, standing-order.blocked and policy.invalid.",
+          "type": "string",
+          "pattern": "^[a-z0-9]+([.-][a-z0-9]+)*$"
+        },
+        "since": {
+          "description": "The version of the shipping implementation the key first appeared in.",
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "description": "What the event means, in one line.",
+          "type": "string",
+          "minLength": 1
+        },
+        "attributes": {
+          "description": "The attribute names carried on this event. Names, never values. Never null — an empty array is what an event with no attributes looks like.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

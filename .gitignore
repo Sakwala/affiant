@@ -21,3 +21,6 @@ TestResults/
 # OS
 .DS_Store
 Thumbs.db
+
+# The harness-consumer's CI-generated feed configuration (written by the job, never committed).
+tests/harness-consumer/nuget.config

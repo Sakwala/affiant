@@ -151,15 +151,15 @@ public sealed class DevSeamTests
         Assert.Equal(ProvenanceSource.UserStated, endDate.Provenance.Current.Source);
 
         // Every other field is still proposed — an affidavit states the whole row — but it names
-        // the database as its source, and says which record it read.
+        // the database as its source, and binds to the record it read, so an auditor can go and
+        // re-fetch it (PV-2).
         foreach (var field in entry.Envelope.Fields.Where(f => f.Name != "EndDate"))
         {
             Assert.Equal(ProvenanceSource.External, field.Provenance.Current.Source);
             Assert.Equal(field.PreviousValue, field.Value);
-            Assert.Contains(
-                "external-ref",
-                field.Provenance.Current.Evidence ?? string.Empty,
-                StringComparison.Ordinal);
+            var binding = Assert.IsType<ProvenanceBinding.ExternalRef>(field.Provenance.Current.Binding);
+            Assert.Equal("HrDb", binding.Ref.System);
+            Assert.StartsWith("LeaveRequest/", binding.Ref.RecordId, StringComparison.Ordinal);
         }
 
         // Reason in particular: the canned create default is not written over the row's own text.

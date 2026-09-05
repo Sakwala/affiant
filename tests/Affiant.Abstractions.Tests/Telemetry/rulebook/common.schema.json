@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://affiant.dev/schemas/0.1.0/common.schema.json",
+  "title": "Common definitions",
+  "description": "The primitives every other v0.1 schema refers to, defined once. Nothing here is a payload on its own; each $def is reached by $ref from the schemas in this directory.",
+  "$defs": {
+    "isoInstant": {
+      "title": "IsoInstant",
+      "description": "A point in time as an RFC 3339 date-time with an explicit offset. Every instant the framework writes onto a record is in UTC (a trailing \"Z\"); a host-supplied instant may carry another offset. Nothing in this protocol carries a local time with no offset.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "uuid": {
+      "title": "Uuid",
+      "description": "A UUID in the canonical 8-4-4-4-12 lowercase hexadecimal form. Docket entry ids are UUIDs derived deterministically from the tenant, the conversation, the tool and the canonical form of the operation and its arguments, so a retry of the same proposal replays the same entry rather than filing a second one.",
+      "type": "string",
+      "format": "uuid"
+    },
+    "identifier": {
+      "title": "Identifier",
+      "description": "A host-chosen identifier: a tenant, a conversation, a person, a policy, a tool. A non-empty string; the protocol never parses one.",
+      "type": "string",
+      "minLength": 1
+    },
+    "protocolVersion": {
+      "title": "ProtocolVersion",
+      "description": "The protocol version an envelope conforms to, as a semantic version with no leading \"v\" (INVARIANTS.md SR-4). It is a version of the PROTOCOL, not of any implementation: while the major is 0 a schema-breaking change bumps the minor. A consumer refuses a payload whose major differs from the one it targets and MAY warn on a newer minor. \"0.1.0\" for this directory; the fixture-set-level string \"0.0.1-seed\" is what the seed carried instead, since the seed predates the field.",
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$"
+    },
+    "jsonValue": {
+      "title": "JsonValue",
+      "description": "Any value JSON can carry, null included. Written out rather than left unconstrained so a reader can see what is admitted: no undefined, which is not a JSON value and would not survive serialization, and no non-finite number, which JSON cannot spell.",
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/jsonValue"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/jsonValue"
+          }
+        }
+      ]
+    },
+    "nonNegativeInteger": {
+      "title": "NonNegativeInteger",
+      "description": "A count: an integer of zero or more.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "unitInterval": {
+      "title": "UnitInterval",
+      "description": "A confidence in the closed range [0, 1]. An implementation clamps a producer-reported number into this range before it mints a tag (INVARIANTS.md PV-1); the bound is a rule, not a description of any one release.",
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    }
+  }
+}

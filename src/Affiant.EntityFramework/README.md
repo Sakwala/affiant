@@ -35,6 +35,34 @@ builder.Services.AddAffiantDocket();                                            
 
 `ef.UseInMemory()` registers **no** `IDocketStore` — the in-memory implementation is `Affiant.Docket`'s `InMemoryDocketStore`, selected with `AddAffiantDocket(d => d.UseInMemory())`.
 
+## Schema changes in this release
+
+The Docket table gains the columns the review row needs to record what happened to a write, not only
+that it was proposed: the execution outcome and its detail, the decision record, the attestation, the
+blocked marker, the composite reference, the accepted amendment state, a refused late decision's
+preserved amendments, the lineage's `Supersedes` half, the decision instant, the tool name and the
+protocol tag — plus three sortable tick columns.
+
+- **PostgreSQL** applies migration `AddDocketRowFacts` through `MigrateAffiantSchemaAsync` (or
+  `dotnet ef database update`). It adds the columns and indexes and **backfills** the tick columns
+  from the instants they mirror.
+- **SQLite** has no migration history here — the checked-in migrations were generated under the
+  Npgsql provider and map columns Npgsql's way, so running them against SQLite produces a table EF's
+  own SQLite-mapped model cannot query. `AffiantMigrator` heals the drift instead: on every
+  `MigrateAffiantSchemaAsync` it adds whichever of those columns the existing `Docket` table lacks,
+  creates the indexes, and backfills the tick columns row by row. A future column addition is added
+  to the list in `AffiantMigrator.HealSqliteDriftAsync` until a SQLite-native migration history
+  exists.
+
+**Why tick columns.** SQLite has no native `DateTimeOffset`: its EF provider stores one as ISO-8601
+text and can translate neither an inequality nor an `ORDER BY` over it into SQL. Before these
+columns, a paged listing or a bounded sweep on SQLite had to load every candidate row and filter in
+memory — which is exactly what a bounded store contract must not do, and why the two backends had
+begun to diverge. Both now query and order by the integer and return the `DateTimeOffset`, so they
+page identically. The backfill matters: a pre-existing row left at the column default of zero would
+read as filed and due at the beginning of time — expired the moment the sweep ran, and eligible for
+retention immediately.
+
 ## Package contents
 
 | Namespace | Purpose |

@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://affiant.dev/schemas/0.1.0/amendments.schema.json",
+  "title": "AmendmentMap",
+  "description": "A reviewer's corrections, keyed by the field's name on the Affidavit. Within a map, null means the reviewer CLEARED the field and an absent key means they LEFT IT UNTOUCHED; an implementation never conflates the two and never accepts an undefined value, which is not a JSON value and would vanish on serialization (INVARIANTS.md DK-2). An amendment naming a field the Affidavit does not propose is a caller error and changes no state — a language-level error, not a refusal code.",
+  "type": "object",
+  "additionalProperties": {
+    "description": "The reviewer's replacement value for the named field. Any JSON value, null included; null means cleared.",
+    "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/jsonValue"
+  }
+}

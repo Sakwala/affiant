@@ -27,15 +27,20 @@ public class AffidavitProjectionInterfaceTests
     }
 
     [Fact]
-    public void Project_HasThreeParameters()
+    public void Project_HasFourParameters_TheFourthBeingTheEntityAnUpdateTargets()
     {
         var method = typeof(IAffidavitProjection).GetMethod("Project");
         Assert.NotNull(method);
         var parameters = method.GetParameters();
-        Assert.Equal(3, parameters.Length);
+        Assert.Equal(4, parameters.Length);
         Assert.Equal("fabric", parameters[0].Name);
         Assert.Equal("operationType", parameters[1].Name);
         Assert.Equal("warnings", parameters[2].Name);
+        Assert.Equal("entityId", parameters[3].Name);
+        Assert.Equal(typeof(string), parameters[3].ParameterType);
+        // Optional, so a create-only caller reads unchanged.
+        Assert.True(parameters[3].IsOptional);
+        Assert.Null(parameters[3].DefaultValue);
     }
 
     [Fact]

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://affiant.dev/schemas/0.1.0/provenance-tag.schema.json",
+  "title": "ProvenanceTag",
+  "description": "One provenance record for one field value: where the value came from, how confident its producer is, a line for the reviewer, when the tag was minted, which conversation turn produced it, and what to look at to check it. A field whose provenance is unknown carries a tag with source \"Empty\" at confidence 0 rather than no tag at all — the absence of evidence is itself recorded evidence (INVARIANTS.md AF-1, PV-1).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source", "confidence", "note", "at", "conversationTurn", "binding"],
+  "properties": {
+    "source": {
+      "description": "Where the value came from.",
+      "$ref": "https://affiant.dev/schemas/0.1.0/provenance-source.schema.json"
+    },
+    "confidence": {
+      "description": "Confidence in the value, clamped into [0, 1] at mint time (PV-1). An Empty tag always carries 0: \"nobody knows where this came from\" cannot also be a confident claim.",
+      "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/unitInterval"
+    },
+    "note": {
+      "description": "A human-readable line for the reviewer explaining how the value was obtained, or null when there is nothing to say. Named `evidence` in the 0.0.1-seed wire; renamed here because the whole record is the evidence and this property is the sentence a person reads.",
+      "type": ["string", "null"]
+    },
+    "at": {
+      "description": "When the tag was minted. New in v0.1: the seed wire had nowhere to put it, so a chain read off the seed could not say when a claim was made.",
+      "$ref": "https://affiant.dev/schemas/0.1.0/common.schema.json#/$defs/isoInstant"
+    },
+    "conversationTurn": {
+      "description": "Index of the conversation turn the value came from, or null when the value did not come from a turn.",
+      "type": ["integer", "null"]
+    },
+    "binding": {
+      "description": "What to look at to check the value, or null when the producer had nothing to point at (PV-2). Written on every minted tag — null rather than omitted — so a reader never has to distinguish \"unbound\" from \"the property was left off\". A tag graded above Conversation SHOULD carry one at v0.1 and MUST at v0.2; an unbound tag above Conversation is recorded as claimed but never honoured by a verdict made with no person present (PV-4, PV-5).",
+      "oneOf": [
+        { "$ref": "https://affiant.dev/schemas/0.1.0/binding.schema.json" },
+        { "type": "null" }
+      ]
+    }
+  }
+}

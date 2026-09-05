@@ -3,14 +3,14 @@ seven canonical byte vectors under canonical/ were promoted — copied unchanged
 file name and content — from the TypeScript reference implementation.
 
   repository  Sakwala/affiant-ts   https://github.com/Sakwala/affiant-ts
-  commit      f041cdd3af13a0c11bd5253159281c5cf2d98023
+  commit      aa485f2946e4678a357544e0a115dc88536cca44
   package     @affiant/core 0.1.0-alpha.0
   path        packages/core/test/fixtures/{gate,decide,sequence-a,sequence-c,canonical}
   runner      packages/core/src/testing.ts, published as @affiant/core/testing
   promoted    2026-09-04
 
-The seven canonical byte vectors were re-promoted at v0.1.1, from `aed3bfb` to the commit
-above. At v0.1.0 every one of them described a SEED-SHAPED record: `operationType`
+The seven canonical byte vectors were re-promoted at v0.1.1, from `aed3bfb` to `f041cdd`,
+and are byte-identical at the commit above. At v0.1.0 every one of them described a SEED-SHAPED record: `operationType`
 "WriteUpdate" where v0.1 says `create` or `update`; `allowedValues` and `pattern` on the
 fields and `warnings` and `requiresConfirmation` on the record, all four of which v0.1
 puts on the card envelope because nothing swears to them; `evidence` where a tag now says
@@ -30,8 +30,22 @@ schema on every push. The two vectors that were bare JSON values are now Affidav
 carrying the same key-ordering and number-form cases inside a field's value, so every
 vector is a record the schema can be held against.
 
-The 56 declarative fixtures did not move: they are byte-identical at `aed3bfb` and at the
-commit above.
+Two declarative fixtures were re-promoted at v0.1.2, from `f041cdd` to the commit above:
+`sequence-a/approve-round-trip` and `decide/amend-recompute`. Each pinned an `expect.canonicalHash`
+the reference implementation's **runtime** canonical path produced, and that path disagreed with the
+implementation's own document path: its Affidavit model omitted `protocolVersion` and only its wire
+writer added it, so the bytes a Docket row hashed were not the bytes of the same record on a card.
+SR-1's form is over the Affidavit as `schemas/0.1.0/affidavit.schema.json` defines it, and that
+schema requires `protocolVersion` on the record — which is why all seven canonical vectors carry it
+and these two hashes did not. The runtime form was corrected and both hashes were regenerated from
+it:
+
+  sequence-a/approve-round-trip  776b7b40…6837275  ->  2ce4c4af…840eca9
+  decide/amend-recompute         8d1579d7…4ecff6a  ->  d389401d…3bd3402
+
+The corrected bytes are the previous bytes with one key inserted. Nothing else in either document
+changed, the seven canonical vectors are untouched, and the other 54 declarative fixtures are
+byte-identical at `aed3bfb`, at `f041cdd` and at the commit above.
 
 One document was re-promoted before v0.1.0 was tagged, from `c4591ea` to `aed3bfb`:
 `sequence-a/typed-inputs-on-the-card`. Its `expect.card.fields[]` stated `allowedValues` and

@@ -171,7 +171,7 @@ public sealed class SignalRTransportContractTests(TransportIntegrationTestFixtur
             Name: "Status",
             Value: "Active",
             PreviousValue: null,
-            Provenance: ProvenanceChain.From(ProvenanceTag.FromUser("Status")),
+            Provenance: ProvenanceChain.From(ProvenanceTag.FromUser("Status", binding: null)),
             Kind: AffidavitFieldKind.Enum,
             AllowedValues: ["Active", "Retired"],
             Pattern: null);
@@ -180,7 +180,7 @@ public sealed class SignalRTransportContractTests(TransportIntegrationTestFixtur
             Name: "Weight",
             Value: 12.5,
             PreviousValue: null,
-            Provenance: ProvenanceChain.From(ProvenanceTag.FromUser("Weight")),
+            Provenance: ProvenanceChain.From(ProvenanceTag.FromUser("Weight", binding: null)),
             Kind: AffidavitFieldKind.Number,
             AllowedValues: null,
             Pattern: @"^\d+(\.\d+)?$");
@@ -191,6 +191,8 @@ public sealed class SignalRTransportContractTests(TransportIntegrationTestFixtur
             EntityId: "W-1",
             Fields: [enumField, numberField],
             AggregateConfidence: 1.0f,
+            PopulatedConfidence: 1.0f,
+            EmptyFieldCount: 0,
             Warnings: [],
             RequiresConfirmation: true);
 

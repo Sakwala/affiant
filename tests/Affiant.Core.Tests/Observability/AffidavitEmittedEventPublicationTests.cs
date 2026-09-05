@@ -43,7 +43,7 @@ public class AffidavitEmittedEventPublicationTests
         var fabric = new ContextFabric();
 
         // Populate one field with a real value so PopulatedFieldCount = 1.
-        fabric.SetFieldChain("Color", ProvenanceChain.From(ProvenanceTag.FromInference("Color", 0.8f)));
+        fabric.SetFieldChain("Color", ProvenanceChain.From(ProvenanceTag.FromInference(InferenceSource.Inferred, "Color", 0.8f)));
         fabric.Upsert(new EntityRef("Widget", "Widget", "Widget", new Dictionary<string, object>
         {
             ["Color"] = "Blue",
