@@ -31,6 +31,22 @@ public class ExecutorReachabilityTests
     /// <summary>The one file allowed to name the port in code: its own declaration.</summary>
     private const string DeclarationFile = "IWriteExecutor.cs";
 
+    /// <summary>
+    /// The one place under <c>src/</c> allowed to register an executor, and what it must be.
+    /// </summary>
+    /// <remarks>
+    /// The conformance runner in <c>Affiant.Testing.ComplianceHarness</c> arms a TRIPWIRE executor
+    /// for every fixture: GT-6 says the gate stands in front of a write and never performs one, and
+    /// the way to measure that is to put an executor where the gate could reach it and assert it was
+    /// never called. That is the opposite of a path to a write, and the second test below holds it
+    /// to that — the only implementation in the harness must throw when invoked. Nothing else under
+    /// <c>src/</c> may name the port at all, and
+    /// <c>Affiant.Conformance.Tests.ConformanceDriverTests.TheOnlyExecutorInAShippedAssembly_IsATripwireThatThrows</c>
+    /// — which can see that assembly, where this project cannot — holds it to throwing.
+    /// </remarks>
+    private const string HarnessRunner =
+        "Affiant.Testing.ComplianceHarness" + "/" + "Conformance" + "/";
+
     [Fact]
     public void NoFrameworkSourceFile_CallsAnExecutor()
     {
@@ -55,7 +71,10 @@ public class ExecutorReachabilityTests
                 if (code.StartsWith("//", StringComparison.Ordinal)) continue;
                 if (!code.Contains(Port, StringComparison.Ordinal)) continue;
 
-                offenders.Add($"{Path.GetRelativePath(src, file)}:{lineNumber}: {code}");
+                var relative = Path.GetRelativePath(src, file).Replace(Path.DirectorySeparatorChar, '/');
+                if (relative.StartsWith(HarnessRunner, StringComparison.Ordinal)) continue;
+
+                offenders.Add($"{relative}:{lineNumber}: {code}");
             }
         }
 
@@ -86,20 +105,25 @@ public class ExecutorReachabilityTests
         {
             foreach (var type in assembly.GetTypes())
             {
-                if (type != typeof(IWriteExecutor) && typeof(IWriteExecutor).IsAssignableFrom(type))
+                if (type != typeof(IWriteExecutor)
+                    && typeof(IWriteExecutor).IsAssignableFrom(type)
+                    && !IsTheConformanceTripwire(type))
+                {
                     offenders.Add($"{assembly.GetName().Name}: {type.FullName} implements the port");
+                }
 
                 const BindingFlags All =
                     BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
 
                 foreach (var field in type.GetFields(All))
                 {
-                    if (field.FieldType == typeof(IWriteExecutor))
+                    if (field.FieldType == typeof(IWriteExecutor) && !IsTheConformanceTripwire(type))
                         offenders.Add($"{type.FullName}.{field.Name} holds the port");
                 }
 
                 foreach (var method in type.GetMethods(All).Where(m => m.DeclaringType == type))
                 {
+                    if (IsTheConformanceTripwire(type)) continue;
                     if (method.ReturnType == typeof(IWriteExecutor))
                         offenders.Add($"{type.FullName}.{method.Name} returns the port");
                     if (method.GetParameters().Any(p => p.ParameterType == typeof(IWriteExecutor)))
@@ -108,6 +132,7 @@ public class ExecutorReachabilityTests
 
                 foreach (var ctor in type.GetConstructors(All))
                 {
+                    if (IsTheConformanceTripwire(type)) continue;
                     if (ctor.GetParameters().Any(p => p.ParameterType == typeof(IWriteExecutor)))
                         offenders.Add($"{type.FullName}'s constructor takes the port");
                 }
@@ -119,6 +144,11 @@ public class ExecutorReachabilityTests
             "AZ-7: no shipped type may hold, take, return or implement IWriteExecutor. Found:\n" +
             string.Join("\n", offenders));
     }
+
+    /// <summary>Whether <paramref name="type"/> is the compliance harness's GT-6 tripwire.</summary>
+    private static bool IsTheConformanceTripwire(Type type) =>
+        type.Assembly.GetName().Name == "Affiant.Testing.ComplianceHarness"
+        && type.FullName?.Contains(".Conformance.", StringComparison.Ordinal) == true;
 
     /// <summary>
     /// The gate's own surface, stated positively: the only method that moves a row to an executed

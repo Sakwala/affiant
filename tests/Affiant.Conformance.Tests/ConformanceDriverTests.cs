@@ -1,7 +1,8 @@
 using System.Reflection;
+using Affiant.Abstractions.Interfaces;
 using System.Text.Json.Nodes;
-using Affiant.Conformance.Tests.Loading;
-using Affiant.Conformance.Tests.Reporting;
+using Affiant.Testing.ComplianceHarness.Conformance.Loading;
+using Affiant.Testing.ComplianceHarness.Conformance.Reporting;
 using Json.Schema;
 using Xunit;
 using Xunit.Abstractions;
@@ -26,6 +27,43 @@ namespace Affiant.Conformance.Tests;
 /// </remarks>
 public sealed class ConformanceDriverTests(ITestOutputHelper output)
 {
+    /// <summary>
+    /// AZ-7 and GT-6 together: the compliance harness arms a tripwire executor so a fixture can
+    /// assert the gate never reached it, and that tripwire is the ONLY <c>IWriteExecutor</c> in any
+    /// shipped assembly — and it throws. An executor in a shipped package that did anything else
+    /// would be the path AZ-7 says does not exist.
+    /// </summary>
+    /// <remarks>
+    /// The source-level guard lives in <c>Affiant.Core.Tests</c>
+    /// (<c>ExecutorReachabilityTests</c>), which exempts the harness's runner directory by path;
+    /// this is the other half, held against the compiled assembly, and it is here because this is
+    /// the project that references the harness.
+    /// </remarks>
+    [Fact]
+    public void TheOnlyExecutorInAShippedAssembly_IsATripwireThatThrows()
+    {
+        var harness = typeof(Affiant.Testing.ComplianceHarness.ConformanceSuite).Assembly;
+
+        var implementations = AppDomain.CurrentDomain
+            .GetAssemblies()
+            .Where(a => a.GetName().Name?.StartsWith("Affiant.", StringComparison.Ordinal) == true)
+            .Where(a => a.GetName().Name?.EndsWith(".Tests", StringComparison.Ordinal) != true)
+            .SelectMany(a => a.GetTypes())
+            .Where(t => t != typeof(IWriteExecutor) && typeof(IWriteExecutor).IsAssignableFrom(t))
+            .ToArray();
+
+        var tripwire = Assert.Single(implementations);
+        Assert.Equal(harness, tripwire.Assembly);
+        Assert.Contains(".Conformance.", tripwire.FullName!, StringComparison.Ordinal);
+
+        var instance = (IWriteExecutor)Activator.CreateInstance(tripwire, nonPublic: true)!;
+
+        Assert.ThrowsAny<Exception>(() => instance
+            .ExecuteAsync(null!, null, CancellationToken.None)
+            .GetAwaiter()
+            .GetResult());
+    }
+
     [Fact]
     public void EveryFixtureTheIndexListsWasRun()
     {

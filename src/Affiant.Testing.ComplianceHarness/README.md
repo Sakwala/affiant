@@ -61,3 +61,29 @@ member-naming violations.
 ---
 
 *Apache-2.0 License | Part of the [Affiant Framework](https://github.com/Sakwala/affiant)*
+
+## Running the protocol's conformance suite
+
+`ConformanceSuite.Run(protocolRoot, writeRunTo)` runs the rulebook's own suite — every declarative
+fixture and every canonical byte vector — against the shipped packages, and returns the report:
+every fixture's outcome, the failing ids, and the run document the rulebook's `results.schema.json`
+describes.
+
+```csharp
+var report = ConformanceSuite.Run(protocolRoot: "protocol", writeRunTo: "conformance/results");
+
+Assert.True(
+    report.Passed,
+    "fixtures failing: " + string.Join(", ", report.FailingIds));
+```
+
+The rulebook is **vendored by the caller**: `protocolRoot` is the directory holding `fixtures/`,
+`fixture.schema.json` and `canonical-vector.schema.json` as
+[`Sakwala/affiant-protocol`](https://github.com/Sakwala/affiant-protocol) publishes them, pinned in
+your own repository rather than fetched at run time — a suite a run measures against has to be a
+document a reader can check. Passing `null` reads a copy the build placed beside the assembly.
+
+Every fixture is validated against the rulebook's schema before it runs, so a malformed document is
+an error and never a pass; an error counts against the implementation exactly like a failure. This
+is the same code the framework's own conformance run goes through, so a claim in the framework's
+release notes and a run in your test suite are the same measurement.

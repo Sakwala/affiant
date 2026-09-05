@@ -1,1 +1,37 @@
 #nullable enable
+Affiant.Testing.ComplianceHarness.ConformanceOutcome
+Affiant.Testing.ComplianceHarness.ConformanceOutcome.<Clone>$() -> Affiant.Testing.ComplianceHarness.ConformanceOutcome!
+Affiant.Testing.ComplianceHarness.ConformanceOutcome.ConformanceOutcome(string! Id, string! Verdict, string? Reason) -> void
+Affiant.Testing.ComplianceHarness.ConformanceOutcome.Deconstruct(out string! Id, out string! Verdict, out string? Reason) -> void
+Affiant.Testing.ComplianceHarness.ConformanceOutcome.Equals(Affiant.Testing.ComplianceHarness.ConformanceOutcome? other) -> bool
+Affiant.Testing.ComplianceHarness.ConformanceOutcome.Id.get -> string!
+Affiant.Testing.ComplianceHarness.ConformanceOutcome.Id.init -> void
+Affiant.Testing.ComplianceHarness.ConformanceOutcome.Reason.get -> string?
+Affiant.Testing.ComplianceHarness.ConformanceOutcome.Reason.init -> void
+Affiant.Testing.ComplianceHarness.ConformanceOutcome.Verdict.get -> string!
+Affiant.Testing.ComplianceHarness.ConformanceOutcome.Verdict.init -> void
+Affiant.Testing.ComplianceHarness.ConformanceReport
+Affiant.Testing.ComplianceHarness.ConformanceReport.<Clone>$() -> Affiant.Testing.ComplianceHarness.ConformanceReport!
+Affiant.Testing.ComplianceHarness.ConformanceReport.ConformanceReport(System.Text.Json.Nodes.JsonObject! Document, System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.ConformanceOutcome!>! Outcomes, string? WrittenTo) -> void
+Affiant.Testing.ComplianceHarness.ConformanceReport.Deconstruct(out System.Text.Json.Nodes.JsonObject! Document, out System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.ConformanceOutcome!>! Outcomes, out string? WrittenTo) -> void
+Affiant.Testing.ComplianceHarness.ConformanceReport.Document.get -> System.Text.Json.Nodes.JsonObject!
+Affiant.Testing.ComplianceHarness.ConformanceReport.Document.init -> void
+Affiant.Testing.ComplianceHarness.ConformanceReport.Equals(Affiant.Testing.ComplianceHarness.ConformanceReport? other) -> bool
+Affiant.Testing.ComplianceHarness.ConformanceReport.FailingIds.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Affiant.Testing.ComplianceHarness.ConformanceReport.Outcomes.get -> System.Collections.Generic.IReadOnlyList<Affiant.Testing.ComplianceHarness.ConformanceOutcome!>!
+Affiant.Testing.ComplianceHarness.ConformanceReport.Outcomes.init -> void
+Affiant.Testing.ComplianceHarness.ConformanceReport.Passed.get -> bool
+Affiant.Testing.ComplianceHarness.ConformanceReport.WrittenTo.get -> string?
+Affiant.Testing.ComplianceHarness.ConformanceReport.WrittenTo.init -> void
+Affiant.Testing.ComplianceHarness.ConformanceSuite
+override Affiant.Testing.ComplianceHarness.ConformanceOutcome.Equals(object? obj) -> bool
+override Affiant.Testing.ComplianceHarness.ConformanceOutcome.GetHashCode() -> int
+override Affiant.Testing.ComplianceHarness.ConformanceOutcome.ToString() -> string!
+override Affiant.Testing.ComplianceHarness.ConformanceReport.Equals(object? obj) -> bool
+override Affiant.Testing.ComplianceHarness.ConformanceReport.GetHashCode() -> int
+override Affiant.Testing.ComplianceHarness.ConformanceReport.ToString() -> string!
+static Affiant.Testing.ComplianceHarness.ConformanceOutcome.operator !=(Affiant.Testing.ComplianceHarness.ConformanceOutcome? left, Affiant.Testing.ComplianceHarness.ConformanceOutcome? right) -> bool
+static Affiant.Testing.ComplianceHarness.ConformanceOutcome.operator ==(Affiant.Testing.ComplianceHarness.ConformanceOutcome? left, Affiant.Testing.ComplianceHarness.ConformanceOutcome? right) -> bool
+static Affiant.Testing.ComplianceHarness.ConformanceReport.operator !=(Affiant.Testing.ComplianceHarness.ConformanceReport? left, Affiant.Testing.ComplianceHarness.ConformanceReport? right) -> bool
+static Affiant.Testing.ComplianceHarness.ConformanceReport.operator ==(Affiant.Testing.ComplianceHarness.ConformanceReport? left, Affiant.Testing.ComplianceHarness.ConformanceReport? right) -> bool
+static Affiant.Testing.ComplianceHarness.ConformanceSuite.Run(string? protocolRoot = null, string? writeRunTo = null) -> Affiant.Testing.ComplianceHarness.ConformanceReport!

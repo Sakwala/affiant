@@ -1042,7 +1042,18 @@ delivered its own `EvidenceCardResponse` unblocked the waiter and the row was wr
   noticed it, and one `coverage.refused` event per tool names one of CV-4's own three categories.
   **Breaking** for a host catching `InvalidOperationException` around `WithAffiant`: catch
   `AffiantCoverageException` (or `AffiantRefusalException`, its base) instead.
-- **`tests/Affiant.Conformance.Tests` — the conformance driver.** Runs the
+- **`Affiant.Testing.ComplianceHarness.ConformanceSuite` — the conformance driver ships.** The
+  runner — loading, step execution, observation, matching and reporting — lives in the harness
+  package, so a host's own compliance tests run the rulebook's suite through the same code the
+  framework runs it through, and get the report the framework's release notes are derived from
+  rather than a re-implementation living beside somebody's test. `Run(protocolRoot, writeRunTo)`
+  returns every fixture's outcome, the failing ids and the run document
+  `results.schema.json` describes. The rulebook stays vendored by the caller: a suite a run measures
+  against has to be a document a reader can check, pinned in a repository rather than fetched at run
+  time. The package gains references to `Affiant.Docket`, `Affiant.Policies` and `JsonSchema.Net` —
+  a compliance run files a proposal through the shipped gate against the shipped store and the
+  shipped policy chain, and validates every document against the rulebook's own schema first.
+- **`tests/Affiant.Conformance.Tests` — the framework's invocation of it.** Runs the
   [`Sakwala/affiant-protocol`](https://github.com/Sakwala/affiant-protocol) rulebook's promoted
   fixture suite (56 declarative fixtures and 7 canonical byte vectors) against the packages this
   repository builds, and publishes what it finds. The suite is vendored from the ref
