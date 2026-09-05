@@ -47,6 +47,11 @@ the bytes are: two states that differ can only be told apart by reading them. Ea
 against `canonical-vector.schema.json` before it runs, so a malformed vector is an error and never a
 pass.
 
+## What the suite would notice
+
+`MUTATIONS.md` lists nine substitutions that each break one rule the suite is about, with the number
+of fixtures each turns red. A run is worth what it would catch, so the catching is written down.
+
 ## The checks the runner performs whether or not a fixture states them
 
 - **Every attestation names the entry it attests to** (`RUNNER.md` §4.1, AZ-1). A record that
@@ -56,9 +61,13 @@ pass.
   a blocked row says so with the row's own marker and never asks for a confirmation no decision
   path will accept. "No card was broadcast" is one of the answers these can give: a filing that
   broadcast none is exactly what the check is for.
-- **A step's declared refusal is compared where it is declared**, and the step under test's is
-  compared against `expect.error` — code exactly, `messageContains` as a substring of the reason
-  (`RUNNER.md` §5.3).
+- **Every step's refusal is compared, stated or not.** The step under test's is compared against
+  `expect.error` — code exactly, `messageContains` as a substring of the reason (`RUNNER.md` §5.3) —
+  and a fixture that states no `error` clause asserts that its act produced NO refusal, which is a
+  positive statement and not the absence of one. Each `prior` step is compared the same way, an
+  unwritten `refusal` meaning null: a prior step is a fact the fixture's own act rests on, and one
+  that silently refused leaves the rest of the fixture measuring a world that never happened. That
+  is stricter than `RUNNER.md` §5.4 asks and is what the reference driver does.
 - **A wiring the gate refuses is itself a fixture** (`RUNNER.md` §6): the refusal is reported
   through `expect.error`, nothing after it runs, and any clause that needs a row, a card or a page
   fails because nothing was filed.

@@ -58,14 +58,16 @@ internal sealed class FixtureRunner
 
                 priorIndex++;
 
-                // A prior step's declared refusal is compared after that step runs.
-                if (prior.RefusalStated)
+                // A prior step's refusal is compared after that step runs — whether or not the
+                // fixture wrote the key. An unwritten `refusal` is null, which says the step
+                // succeeded: a prior step is a fact the fixture's own act rests on, and one that
+                // silently refused leaves the rest of the fixture measuring a world that never
+                // happened. This is stricter than RUNNER.md §5.4 requires and is what the reference
+                // driver does; it produces no false failure on the suite as vendored.
+                var mismatch = CompareRefusal($"prior[{priorIndex}].refusal", prior.Refusal, result.Refusal);
+                if (mismatch is not null)
                 {
-                    var mismatch = CompareRefusal("prior.refusal", prior.Refusal, result.Refusal);
-                    if (mismatch is not null)
-                    {
-                        return new Outcome("fail", [mismatch], Reason(notImplemented));
-                    }
+                    return new Outcome("fail", [mismatch], Reason(notImplemented));
                 }
             }
 

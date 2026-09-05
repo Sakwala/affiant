@@ -245,8 +245,18 @@ update at all.
   by the protocol's reference implementation are pinned as vectors in
   `EntryIdDerivationTests`.
 
-  **`WriteProposal` gains an optional `Arguments`**, which is how the material reaches the gate.
-  Every seam in this framework fills it — `ReviewGateFilter` attaches the invocation's own arguments
+  **A resubmission's id is derived too** — the same material plus the id of the row it replaces,
+  which is the one case GT-4's `supersedes` clause exists for and was the one path that minted a
+  random GUID. Two implementations now agree about the identity of a resubmitted row as well as a
+  first filing.
+
+  **`WriteProposal` gains an optional `Arguments` and an optional `Operation`**, which is how the
+  material reaches the gate. The operation is the host's own declaration — its shape, the entity it
+  names and the fields it proposes, in the declared order — so a projection that reordered fields
+  cannot change which row a proposal is; a caller that declares none leaves the gate to read it off
+  the record (`ProposedOperation.From`), which is what a resubmission does, having only the stored
+  record to read.
+  Every seam in this framework fills the arguments — `ReviewGateFilter` attaches the invocation's own arguments
   — and a host calling `ReviewGate.FileForReviewAsync` directly should pass them too. **What a host
   must know:** two proposals carrying *no* arguments that differ only in a field's value are, by
   that material, the same proposal, so the second replays the first's row. Pass the arguments the
@@ -1060,7 +1070,9 @@ delivered its own `EvidenceCardResponse` unblocked the waiter and the row was wr
   canonical form is taken over the Affidavit as the schema defines it — protocol version included —
   regenerates the two conformance fixtures whose pinned content hashes had been produced by a
   reference *runtime* whose model omitted it, and states the entry-id derivation in GT-4. This
-  implementation already matched all three; the re-pin is what let the last two rows close.
+  implementation already produced the canonical form v0.1.2 states and the hashes it regenerated; it
+  **adopted** the entry-id derivation in this same release, including on the resubmission path,
+  where it had been minting a random id. The re-pin is what let the last two rows close.
 
   `conformance/results/ORACLE-RUN-1.0.0-beta.1.md` reads the shipped release's own run against the
   rulebook's negative oracle, and `conformance/results/dotnet-1.0.0-beta.1.json` is that release's

@@ -9,8 +9,20 @@ namespace Affiant.Conformance.Tests.Matching;
 internal static class Checker
 {
     /// <summary>Compares every clause a fixture states against the observation, appending every failure found.</summary>
+    /// <remarks>
+    /// <c>RUNNER.md</c> §5.3: an <c>expect</c> with no <c>error</c> key, or one holding <c>null</c>,
+    /// asserts that the step under test produced NO refusal — a positive statement, not the absence
+    /// of one. A driver that compared the clause only where a fixture wrote it would let a gate that
+    /// refused every act keep most of the suite green, because most fixtures are about what an act
+    /// DID and say nothing about it failing.
+    /// </remarks>
     public static void Check(JsonObject expect, JsonObject observation, IReadOnlySet<string> telemetry, List<Mismatch> into)
     {
+        if (!expect.ContainsKey("error") || expect["error"] is null)
+        {
+            CheckNoRefusal(observation["error"], into);
+        }
+
         foreach (var (clause, expected) in expect)
         {
             switch (clause)
@@ -56,6 +68,19 @@ internal static class Checker
                     break;
             }
         }
+    }
+
+    /// <summary>
+    /// The step under test succeeded: it produced no refusal (<c>RUNNER.md</c> §5.3).
+    /// </summary>
+    private static void CheckNoRefusal(JsonNode? observed, List<Mismatch> into)
+    {
+        if (observed is null) return;
+
+        into.Add(Mismatch.Said(
+            "error",
+            "no refusal: the fixture states none, which asserts the act succeeded",
+            observed.ToJsonString()));
     }
 
     /// <summary>
