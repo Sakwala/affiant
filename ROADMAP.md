@@ -1,6 +1,6 @@
 # Affiant roadmap
 
-Last updated: 2026-09-04 · Current release: 1.0.0-beta.1 (2026-08-23)
+Last updated: 2026-09-05 · Current release: 1.0.0-beta.3 (2026-09-05)
 
 This file is canonical. It is mirrored at [affiant.dev/roadmap/](https://affiant.dev/roadmap/); if the two ever differ, this file wins.
 
@@ -68,25 +68,27 @@ No dates, ever: a solo-maintained project cannot promise a delivery date without
   `@affiant/core`, built and tested on Node, Cloudflare workerd and Bun from its first
   commit rather than made portable afterwards. `@affiant/core` goes to npm only once two
   things are true: a public parity report for the .NET packages exists, and the TypeScript
-  conformance driver is green and merge-blocking in CI. The .NET packages will be made to
-  pass that same fixture suite in a later `beta.3` conformance release, which also puts the
-  attestation record — who or what approved a write — on the Docket entry; until then the
-  parity report states exactly which fixtures the shipped packages fail, and why. State:
-  in progress. Links: issue: to be filed;
+  conformance driver is green and merge-blocking in CI. The first is now true: the
+  `1.0.0-beta.3` conformance release (2026-09-05) made the .NET packages pass that same
+  fixture suite — all 63 fixtures at the rulebook's `v0.1.2` tag — and put the attestation
+  record — who or what approved a write — on the Docket entry; the parity manifest is now
+  empty. State: in progress. Links: issue: to be filed;
   [affiant-protocol](https://github.com/Sakwala/affiant-protocol),
   [affiant-ts](https://github.com/Sakwala/affiant-ts).
-- **Path to 1.0: stabilise the beta API** `[stability]` — Three releases come before `1.0`:
-  a narrow point release, `1.0.0-beta.1.1`; `1.0.0-beta.2`, the stabilisation scope listed
-  below; and `1.0.0-beta.3`, the conformance release described in the TypeScript item above,
-  after which the parity manifest is empty; `1.0.0` follows once the list below is clear. What "stable" will mean is already defined in
+- **Path to 1.0: stabilise the beta API** `[stability]` — Two of the three releases that
+  come before `1.0` have shipped: `1.0.0-beta.1.1` (2026-09-04), a narrow point release,
+  and `1.0.0-beta.3` (2026-09-05), the conformance release described in the TypeScript
+  item above, after which the parity manifest is empty. `1.0.0-beta.2`, the stabilisation
+  scope listed below, is the one release left before `1.0`, which follows once that list
+  is clear. What "stable" will mean is already defined in
   [Versioning & compatibility](README.md#versioning--compatibility). `1.0.0-beta.1.1`
-  raises one floor and nothing else: with the stock defaults, a [Standing
+  raised one floor and nothing else: with the stock defaults, a [Standing
   Order](https://affiant.dev/concepts/review-gate-and-write-executors/) written by the
-  book can never auto-approve, because the default risk calculator never returns `Low`
-  while the default threshold is `Low`. The fix removes the stock formula — the risk
-  scorer becomes host-supplied, and the framework keeps only the comparison. Also in
-  flight: conversation-scope isolation when no `ConversationId` is supplied — one fix at
-  host wiring, not three per-adapter fixes, because the Microsoft Agent Framework and
+  book could never auto-approve, because the default risk calculator never returned `Low`
+  while the default threshold was `Low`. The fix removed the stock formula — the risk
+  scorer is now host-supplied, and the framework keeps only the comparison. Still in
+  flight for beta.2: conversation-scope isolation when no `ConversationId` is supplied —
+  one fix at host wiring, not three per-adapter fixes, because the Microsoft Agent Framework and
   Microsoft.Extensions.AI legs share `FunctionInvokingChatClient` (the Semantic Kernel leg
   is unverified against that fix) — SQLite/PostgreSQL store parity gaps, the
   review-outcome state machine (a card a reviewer *refers* to someone else can today land
@@ -227,6 +229,22 @@ No dates, ever: a solo-maintained project cannot promise a delivery date without
 
 ## Recently shipped
 
+- 2026-09-05 — `1.0.0-beta.3`: the conformance release. The .NET packages pass all 63
+  fixtures at the rulebook's
+  [`v0.1.2`](https://github.com/Sakwala/affiant-protocol/releases/tag/v0.1.2) tag, so the
+  parity manifest is now empty; the release also ships the compliance harness's fixture
+  runner (`Affiant.Testing.ComplianceHarness.ConformanceSuite`), so a host's own
+  compliance tests run the same rulebook suite the framework runs, and puts the
+  attestation record — who or what approved a write — on the Docket entry.
+  [Release](https://github.com/Sakwala/affiant/releases/tag/v1.0.0-beta.3),
+  [CHANGELOG](CHANGELOG.md).
+- 2026-09-04 — `1.0.0-beta.1.1`: the risk floor fix. With the stock defaults a Standing
+  Order written by the book could never auto-approve, because the default risk
+  calculator never returned `Low` while the default threshold was `Low`; the stock
+  formula is removed, so the risk scorer is now host-supplied and the framework keeps
+  only the comparison.
+  [Release](https://github.com/Sakwala/affiant/releases/tag/v1.0.0-beta.1.1),
+  [CHANGELOG](CHANGELOG.md).
 - 2026-09-04 — Front door for contributors shipped: `CONTRIBUTING.md`, `SECURITY.md` (a
   disclosure path), `CODE_OF_CONDUCT.md`, and issue and pull-request templates, alongside
   GitHub Discussions and the `roadmap` label.
