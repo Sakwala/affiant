@@ -36,7 +36,7 @@ No delivery dates, ever: a solo-maintained project cannot promise one without it
 
 ## What will not change
 
-1. **The invariant.** Every Affidavit field carries provenance, no exceptions; nothing commits without evidence, nothing writes without approval. Enforced by two things at once: the [ComplianceHarness](https://affiant.dev/guides/compliance-harness/) — the test harness every .NET adapter must pass — and the conformance suite in [affiant-protocol](https://github.com/Sakwala/affiant-protocol), which has shipped and which every implementation runs. Its 63 fixtures are what each implementation's parity manifest is read against: the .NET line passes 63 of 63 at the rulebook's [`v0.1.2`](https://github.com/Sakwala/affiant-protocol/releases/tag/v0.1.2) tag with eleven declared exemptions, and the TypeScript line passes 63 of 63 at `v0.1.1`, exempting the same eleven rules on its own grounds and asserting the identical result on Node, Bun and workerd.
+1. **The invariant.** Every Affidavit field carries provenance, no exceptions; nothing commits without evidence, nothing writes without approval. Enforced by two things at once: the [ComplianceHarness](https://affiant.dev/guides/compliance-harness/) — the test harness every .NET adapter must pass — and the conformance suite in [affiant-protocol](https://github.com/Sakwala/affiant-protocol), which has shipped and which every implementation runs. Its 63 fixtures are what each implementation's parity manifest is read against: the .NET line passes 63 of 63 at the rulebook's [`v0.1.2`](https://github.com/Sakwala/affiant-protocol/releases/tag/v0.1.2) tag with eleven declared exemptions, and the TypeScript line passes 63 of 63 at that same `v0.1.2` tag, exempting the same eleven rules on its own grounds and asserting the identical result on Node, Bun and workerd. Both readings are the ones published on the rulebook's default branch; the parity snapshots frozen inside the `v0.1.2` tag itself were cut before that republish and still name the tag before it.
 2. **Field-level, not call-level.** Approval of a whole tool call is commodity; Affiant's unit is the field and its provenance chain.
 3. **The honest boundary.** Affiant only swears to writes it can intercept in-process. It will not claim otherwise.
 4. **Library, not service.** Affiant runs inside the adopter's process. There is no hosted component, no licence server, and no phone-home.
@@ -100,23 +100,28 @@ No delivery dates, ever: a solo-maintained project cannot promise one without it
   scorer is now host-supplied, and the framework keeps only the comparison.
   Still in flight for beta.2: conversation-scope isolation when no `ConversationId` is
   supplied. Each adapter hands the neutral pipeline whatever service provider it has at
-  hand: the Semantic Kernel adapter reads it straight off the Kernel, while the Agent
-  Framework and Extensions.AI adapters both read the provider the invoking client attaches
-  to the function-call arguments. In the documented host wirings all three of those are
-  the same object — the application root provider — so all three resolve the scoped
-  conversation state to one process-global instance shared by every conversation, and the
-  degradation is backend-neutral rather than one backend's quirk: the fallback that then
-  keys inference idempotency on that shared object's identity lives in the core, not in
-  any adapter. A Semantic Kernel host that instead resolves its Kernel from a per-request
-  scope gets a per-request fabric, because that adapter's provider comes from the Kernel
-  rather than from the invoking client. The fix is per-turn scoping at host wiring — one
-  fix that holds on every backend, not three per-adapter ones — and setting a
-  `ConversationId` per conversation closes the idempotency half of it today. Also in
-  flight for beta.2: SQLite/PostgreSQL store parity gaps, the review-outcome state machine
-  (a card a reviewer *refers* to someone else today files `Pending` with a blocked marker
-  and refuses every decision on it — referral's own semantics remain roadmap work), a
-  test-isolation flake, and one removal already announced in the CHANGELOG —
-  `IDeterministicFieldSource`, `[Obsolete]` today, removed no earlier than beta.2. Trust
+  hand, and the two sources differ. The Agent Framework and Extensions.AI adapters both
+  read the provider the invoking client attaches to the function-call arguments, which in
+  their documented host wirings is the application root provider, so both resolve the
+  scoped conversation state to one process-global instance shared by every conversation.
+  The Semantic Kernel adapter reads the Kernel's own services instead, and the documented
+  Semantic Kernel wiring resolves the Kernel from the per-request scope — the
+  [tool-authoring guide](docs/tool-authoring-guide.md) says in as many words that
+  resolving it from the root provider defeats the isolation, and the shipped
+  [`samples/quickstart-host`](samples/quickstart-host/) injects the Kernel into a SignalR
+  hub, one scope per invocation — so that adapter gets a per-turn fabric by the book. A
+  Semantic Kernel host that resolved a root Kernel would share the defect. Where the
+  defect does land it is not one backend's quirk: the fallback that then keys inference
+  idempotency on the shared object's identity lives in the core, not in any adapter. The
+  fix is per-turn scoping at host wiring — one fix that holds on every backend, not three
+  per-adapter ones — and setting a `ConversationId` per conversation closes the
+  idempotency half of it today. Also in flight for beta.2: SQLite/PostgreSQL store parity
+  gaps, the review-outcome state machine (a card the approval-policy chain *refers* to a
+  named reviewer today files `Pending` carrying a `RequirementNotImplemented` marker and
+  refuses every decision on it; a reviewer's own decision is approve or reject, and
+  referral's own semantics remain roadmap work), a test-isolation flake, and one removal
+  already announced in the CHANGELOG — `IDeterministicFieldSource`, `[Obsolete]` today,
+  removed no earlier than beta.2. Trust
   the invariant; expect the API to move until 1.0 — this is exactly what is moving. State:
   in progress. Links:
   [affiant#41](https://github.com/Sakwala/affiant/issues/41),
@@ -279,11 +284,15 @@ No delivery dates, ever: a solo-maintained project cannot promise one without it
 - 2026-09-05 — The on-ramp shipped: a runnable sample host, and a Quickstart that ends at a
   rendered card. `1.0.0-beta.3` ships
   [`samples/quickstart-host`](samples/quickstart-host/) — one domain (leave requests), one
-  read tool, two write tools (request and amend), SQLite behind both the Docket and the
-  domain rows, and the `<affiant-evidence-card>` Web Component served from the host's own
-  `wwwroot/`. Run it, open the URL it prints, and the last thing on screen is the thing the
-  framework exists for: an Evidence Card in a browser tab, one row per field, each row naming
-  where its value came from — approve it, amend a field first, or reject it, and only then
+  read tool, two write tools (request and amend), SQLite behind the domain rows, an
+  in-memory Docket, and the `<affiant-evidence-card>` Web Component served from the host's
+  own `wwwroot/`. The two stores are deliberate and the sample says so in place: it
+  registers the SQLite store first and the in-memory Docket store last, so the in-memory
+  one is the one that resolves; a host that wants review state to survive a restart drops
+  that last argument and lets the SQLite store stand. Run it, open the URL it prints, and
+  the last thing on screen is the thing the framework exists for: an Evidence Card in a
+  browser tab, one row per field, each row naming where its value came from — approve it,
+  amend a field first, or reject it, and only then
   does a row appear in the database. A development-only seam files the same proposal with one
   `curl`, so the whole review lifecycle is reachable with no model key. The Playwright deck in
   the sample's `e2e/` declares eight specs — approve, reject, typed inputs, a live-data picker,
