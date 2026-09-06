@@ -250,9 +250,7 @@ No delivery dates, ever: a solo-maintained project cannot promise one without it
   Boundary](https://affiant.dev/reference/honest-boundary/). Keep such writes read-only,
   or route them through a reviewed path.
 - **A LangChain (tryAGI) adapter** — Researched: there is no pre-execution interception
-  seam in that stack, and its maintainer recommends Microsoft.Extensions.AI or Semantic
-  Kernel for .NET — both of which Affiant already supports. Would be revisited only if the
-  stack gains a seam.
+  seam in that stack. Would be revisited only if the stack gains a seam.
 - **A hosted Affiant service (SaaS console or evidence vault)** — Affiant is a library
   that sits in an adopter's write path; a hosted service in that path would need 24/7
   operation the project cannot promise. The attestation export planned in Later covers the
