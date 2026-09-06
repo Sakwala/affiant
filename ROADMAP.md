@@ -209,12 +209,23 @@ No delivery dates, ever: a solo-maintained project cannot promise one without it
   real-time transport Affiant ships); the sound design needs a decision channel separate
   from the blocked connection, and no implementation is planned until the design settles.
   Links: [affiant#29](https://github.com/Sakwala/affiant/issues/29).
-- **Provenance integrity and what confidence measures** `[stability]` — Harden source
-  attribution so a field can never be attributed to the wrong tool, and define — then test
-  — what an Affidavit's
-  [`AggregateConfidence`](https://affiant.dev/concepts/affidavits-and-provenance/)
-  measures. This sharpens the core claim ("sworn"); it is not a defect being fixed. Links:
-  issue: to be filed.
+- **Provenance integrity** `[stability]` — Harden source attribution so a field can never be
+  attributed to the wrong tool. This sharpens the core claim ("sworn"); it is not a defect being
+  fixed. What an Affidavit's
+  [`AggregateConfidence`](https://affiant.dev/concepts/affidavits-and-provenance/) measures is
+  settled and no longer on this list: rule AF-2 of the rulebook defines it normatively — the
+  minimum over every proposed field's current provenance tag, an `Empty` field counting as 0, so
+  it reads 0 exactly when some proposed field has unknown provenance — and `1.0.0-beta.3`
+  (2026-09-05) made the shipped projection compute that minimum in place of the mean it computed
+  before. It is tested on both sides: ten unit facts over the three numbers in
+  `Affiant.Abstractions.Tests`, and seven conformance fixtures that assert AF-2 across the gate,
+  sequence and canonical suites — AF-2 is not among the eleven rules the .NET parity manifest
+  exempts, so those fixtures are run rather than waived. What stays undefined is deliberate
+  rather than pending: neither the rulebook nor a core package sets a threshold on any of the
+  three numbers. A host policy floor predicates on `PopulatedConfidence` and `EmptyFieldCount`,
+  never on the aggregate, which is the safety number a fixture pins. Links: issue: to be filed;
+  [`conformance/parity/dotnet-v0.1.json`](conformance/parity/dotnet-v0.1.json),
+  [CHANGELOG](CHANGELOG.md).
 - **Provider failover in the framework, for all three adapters** `[stability]` — Normative
   [Rule 5](https://affiant.dev/rules/seven-normative-rules/) promises graceful degradation
   when a provider fails. Today the framework ships the configuration shape for a
