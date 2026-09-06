@@ -115,15 +115,16 @@ No delivery dates, ever: a solo-maintained project cannot promise one without it
   idempotency on the shared object's identity lives in the core, not in any adapter. The
   fix is per-turn scoping at host wiring — one fix that holds on every backend, not three
   per-adapter ones — and setting a `ConversationId` per conversation closes the
-  idempotency half of it today. Also in flight for beta.2: SQLite/PostgreSQL store parity
-  gaps, the review-outcome state machine (a card the approval-policy chain *refers* to a
-  named reviewer today files `Pending` carrying a `RequirementNotImplemented` marker and
-  refuses every decision on it; a reviewer's own decision is approve or reject, and
-  referral's own semantics remain roadmap work), a test-isolation flake, and one removal
-  already announced in the CHANGELOG — `IDeterministicFieldSource`, `[Obsolete]` today,
-  removed no earlier than beta.2. Trust
-  the invariant; expect the API to move until 1.0 — this is exactly what is moving. State:
-  in progress. Links:
+  idempotency half for a provider that echoes the id back; with a provider that returns
+  none, the host's id reaches only the turn's first round of tool calls (the framework
+  issue is tracked). Also in flight for beta.2: SQLite/PostgreSQL store parity gaps, the
+  review-outcome state machine (a card the approval-policy chain *refers* to a named
+  reviewer today files `Pending` carrying a `RequirementNotImplemented` marker and refuses
+  every decision on it; a reviewer's own decision is approve or reject, and referral's own
+  semantics remain roadmap work), a test-isolation flake, and one removal already
+  announced in the CHANGELOG — `IDeterministicFieldSource`, `[Obsolete]` today, removed no
+  earlier than beta.2. Trust the invariant; expect the API to move until 1.0 — this is
+  exactly what is moving. State: in progress. Links:
   [affiant#41](https://github.com/Sakwala/affiant/issues/41),
   [affiant#33](https://github.com/Sakwala/affiant/issues/33),
   [affiant#34](https://github.com/Sakwala/affiant/issues/34),
