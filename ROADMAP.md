@@ -67,7 +67,7 @@ No delivery dates, ever: a solo-maintained project cannot promise one without it
   does this build satisfy" has an exact answer.
   [`affiant-ts`](https://github.com/Sakwala/affiant-ts) is the TypeScript implementation.
   `@affiant/contract` and the Web Component above were its first artifacts; `@affiant/core`
-  exists alongside them, at `0.1.0-alpha.0` and not published to npm, built and tested on
+  exists alongside them, at `0.1.0-alpha.0` and published to npm, built and tested on
   Node, Cloudflare workerd and Bun from its first commit rather than made portable
   afterwards. The rulebook's fixture suite was promoted out of that package byte for byte —
   the fixtures every implementation is now measured against are the ones the TypeScript
@@ -81,8 +81,9 @@ No delivery dates, ever: a solo-maintained project cannot promise one without it
   on the Docket entry; its parity manifest declares an empty failing list and eleven rulebook
   exemptions, itemised under [Recently shipped](#recently-shipped). And `affiant-ts` runs the
   driver on all three runtimes in a CI job named `conformance`, which is a required status
-  check on `main`: a red run cannot merge. So neither gate stands in the way any more; the
-  package is still unpublished, and publishing it is now a decision rather than a blocker.
+  check on `main`: a red run cannot merge. So neither gate stood in the way, and on 2026-09-06
+  `@affiant/core`, `@affiant/contract` and `@affiant/evidence-card` were published to npm at
+  `0.1.0-alpha.0` under the `alpha` dist-tag, with SLSA provenance.
   State: in progress. Links: issue: to be filed;
   [affiant-protocol](https://github.com/Sakwala/affiant-protocol),
   [affiant-ts](https://github.com/Sakwala/affiant-ts).
