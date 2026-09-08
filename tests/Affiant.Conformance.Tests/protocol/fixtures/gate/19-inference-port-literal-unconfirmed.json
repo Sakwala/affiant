@@ -1,0 +1,83 @@
+{
+  "id": "gate/inference-port-literal-unconfirmed",
+  "rules": ["GT-1", "PV-1", "PV-3", "AF-1", "AF-2"],
+  "title": "The port reports presence \"literal\" and a span for a value that is not in the utterance: the claim is not confirmed, so the grade is Inferred and there is no binding (PV-3). A port informs; the implementation decides.",
+  "given": {
+    "clock": "2026-09-08T09:00:00.000Z",
+    "store": "memory",
+    "gate": {
+      "defaultTtlMs": 1800000,
+      "authorization": {
+        "allow": ["*"]
+      },
+      "inference": {
+        "priority": {
+          "value": "Critical",
+          "confidence": 0.7,
+          "presence": "literal",
+          "utteranceSpan": {
+            "start": 0,
+            "end": 8
+          }
+        }
+      }
+    },
+    "ctx": {
+      "tenantId": "tenant-a",
+      "conversationId": "conv-1",
+      "channel": "chat",
+      "principal": {
+        "kind": "member",
+        "id": "member-1"
+      },
+      "utterance": "Raise a work order for the left engine",
+      "messageId": "msg-1"
+    },
+    "prior": [],
+    "step": {
+      "kind": "file",
+      "toolName": "relay_capture",
+      "operation": {
+        "kind": "create",
+        "entityType": "WorkOrder",
+        "entityId": null,
+        "fields": ["priority"]
+      },
+      "schema": [
+        {
+          "name": "priority",
+          "kind": "text",
+          "description": "How urgent the work is"
+        }
+      ]
+    }
+  },
+  "expect": {
+    "entry": {
+      "status": "pending",
+      "requirement": "ReviewerConfirmation",
+      "execution": null,
+      "blocked": null,
+      "expiresAtOffsetMs": 1800000,
+      "attestation": null,
+      "toolName": "relay_capture",
+      "affidavit": {
+        "operationType": "create",
+        "entityId": null,
+        "aggregateConfidence": 0.7,
+        "populatedConfidence": 0.7,
+        "emptyFieldCount": 0,
+        "fields": [
+          {
+            "name": "priority",
+            "value": "Critical",
+            "previousValue": null,
+            "source": "Inferred",
+            "bound": false,
+            "bindingKind": null
+          }
+        ]
+      }
+    }
+  }
+}

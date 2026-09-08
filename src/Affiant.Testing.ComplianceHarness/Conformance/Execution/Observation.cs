@@ -227,9 +227,19 @@ internal static class Observation
             ["confidence"] = current.Confidence,
 
             // `bound` is whether the tag in force points at something an auditor can re-check
-            // (PV-2, PV-4); `bindingKind` is which kind it points with.
+            // (PV-2, PV-4); `bindingKind` is which kind it points with; `utteranceSpan` is the
+            // binding itself where it is one, so a fixture can pin WHICH occurrence the finder
+            // found and that the digest is over the utterance's own bytes (PV-3, RUNNER.md §5).
             ["bound"] = current.Binding is not null,
             ["bindingKind"] = current.Binding?.Kind,
+            ["utteranceSpan"] = current.Binding is ProvenanceBinding.UtteranceSpan span
+                ? new JsonObject
+                {
+                    ["offset"] = span.Ref.Offset,
+                    ["length"] = span.Ref.Length,
+                    ["hash"] = span.Ref.Hash,
+                }
+                : null,
             ["priorSources"] = prior,
         };
     }

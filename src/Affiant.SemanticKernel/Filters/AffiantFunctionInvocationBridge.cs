@@ -1,10 +1,8 @@
 namespace Affiant.SemanticKernel.Filters;
 
-using Affiant.Abstractions.Models;
 using Affiant.Core.Filters;
 using Affiant.Core.Services;
 using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.ChatCompletion;
 
 /// <summary>
 /// Semantic Kernel bridge for the invocation-stage segment of the neutral tool-invocation
@@ -31,7 +29,7 @@ public sealed class AffiantFunctionInvocationBridge(ToolInvocationPipeline pipel
         {
             ConversationId = ReadConversationId(context.Kernel),
             TurnNumber = ReadTurnNumber(context.Kernel),
-            History = ReadHistory(context.Kernel),
+            History = SkMessageConversions.HistoryOf(context.Kernel),
         };
 
         object? toolProduced = null;
@@ -80,9 +78,4 @@ public sealed class AffiantFunctionInvocationBridge(ToolInvocationPipeline pipel
             _ => 0
         };
     }
-
-    private static IReadOnlyList<AffiantChatMessage> ReadHistory(Kernel kernel) =>
-        kernel.Data.TryGetValue("ChatHistory", out var histObj) && histObj is ChatHistory history
-            ? SkMessageConversions.ToNeutral(history)
-            : [];
 }

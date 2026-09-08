@@ -1,6 +1,8 @@
-The 56 declarative fixtures under gate/, decide/, sequence-a/ and sequence-c/ and the
-seven canonical byte vectors under canonical/ were promoted — copied unchanged in id,
-file name and content — from the TypeScript reference implementation.
+Fifty-six of the 61 declarative fixtures under gate/, decide/, sequence-a/ and sequence-c/,
+and all seven canonical byte vectors under canonical/, were promoted — copied in id, file
+name and content — from the TypeScript reference implementation. The other five were authored
+here; the section "Authored here, not promoted" below says which and why. One of the fifty-six
+has since been amended in place rather than re-promoted: "Amended here at v0.1.3", below.
 
   repository  Sakwala/affiant-ts   https://github.com/Sakwala/affiant-ts
   commit      aa485f2946e4678a357544e0a115dc88536cca44
@@ -59,11 +61,70 @@ set of bytes says nothing about another. Every run published under conformance/r
 on its own record the ref it was produced against, which is how a reader tells which set of
 bytes a given claim is about.
 
-Byte-identical, and deliberately so. A parity manifest cites a fixture by its id, so a
-rename silently changes what a published document refers to; and a fixture edited on
-the way in would no longer be the document the reference implementation is green
-against, which is the only thing that makes "this implementation passes it and that one
-does not" a comparison rather than an opinion.
+Authored here, not promoted (v0.1.3):
+
+  gate/18-inference-presence-computed-from-the-utterance.json
+  gate/19-inference-port-literal-unconfirmed.json
+  gate/20-inference-port-span-fails-the-boundary.json
+  gate/21-inference-case-folds-and-the-digest-is-the-utterances.json
+  gate/22-inference-empty-value-is-nothing-reported.json
+
+PV-3 at v0.1.3 states that an implementation establishes presence from the unmodified
+utterance itself, and that the inference port's `presence` and `utteranceSpan` are hints it
+verifies the same way. Neither implementation did that when the rule was amended — the .NET
+step graded `Conversation` only where the port's JSON said `presence: "literal"`, and no
+shipped inference port asks a model for `presence` at all — so there was no reference
+behaviour to promote. The first four are the amendment's negative oracle instead: all four must
+fail against Sakwala/affiant 1.0.0-beta.3, and conformance/ORACLE.md says why each does.
+
+The fifth, gate/22, is not on that list and is not evidence about the release. It pins the
+half of the rule that says what a port did NOT report: a value of null, an object, an array or
+the empty string is not a value a field can carry, so nothing is merged, the field stays Empty,
+and a proposal whose only field is Empty is refused by GT-3. 1.0.0-beta.3 already skips an
+empty value text (src/Affiant.Core/Filters/TaskInferenceStep.cs at that tag, the guard on
+ReadScalarText) and so passes it; the implementation the fixture is aimed at is the TypeScript
+core, which admitted the empty string as Inferred at the port's confidence and would file the
+proposal instead of refusing it (packages/core/src/gate/pipeline.ts at 0.1.0-alpha.0). It is
+authored here for the same reason as the other four: no implementation had the behaviour to
+copy.
+
+Amended here at v0.1.3, not re-promoted:
+
+  sequence-a/04-picker-external-binding.json
+
+This one was promoted with the other fifty-five and its bytes have now moved, so the diff
+below reports it. What changed is the `status` field's expectation, and only that: it pinned
+
+  { "name": "status", "value": "Active", "source": "Conversation", "bound": false }
+
+over an utterance that reads "Set invoice INV-2 to Active and give it to the person I picked",
+with the scripted port reporting `presence: "literal"` and `utteranceSpan: null`. `bound: false`
+was the shipped behaviour of both implementations — a binding only where the port named a span
+— and not the rule. Under PV-3 at v0.1.3 the implementation finds "Active" itself, at offset 21
+for six UTF-16 code units, so the field is bound to the span it was read from. The expectation
+now pins `bound: true`, `bindingKind: "utterance-span"` and the span itself, digest included,
+which is also the first place in the suite that states which occurrence was found and that the
+digest is taken over the utterance's own bytes.
+
+It was amended rather than re-promoted because the TypeScript reference does not implement the
+amended rule yet; there is nothing to re-promote from. When it does, this fixture is expected
+to be identical to the reference's own again, and the diff below should fall silent for it.
+The amendment also puts this fixture on the beta.3 oracle list (conformance/ORACLE.md): the
+release mints no binding where the port named no span, so it now fails, which is what a
+negative oracle is for.
+
+A fixture authored here is held to the same bar as a promoted one: it is listed in
+MANIFEST.json, validated against conformance/fixture.schema.json by the lint, named on the
+rule it checks, and cited back from that rule's *Checked by* line. What it cannot claim is
+the thing promotion buys — that a working implementation is green against these exact bytes
+— which is why the oracle rows matter more here, not less.
+
+Byte-identical, and deliberately so — the one amendment above aside. A parity
+manifest cites a fixture by its id, so a rename silently changes what a
+published document refers to; and a fixture edited on the way in would no longer
+be the document the reference implementation is green against, which is the only
+thing that makes "this implementation passes it and that one does not" a
+comparison rather than an opinion.
 
 The format these documents are written in is conformance/RUNNER.md; the schema they are
 checked against is conformance/fixture.schema.json; the index that says which rules each
@@ -77,3 +138,6 @@ To verify the promotion, from a checkout of both repositories:
   diff -r <affiant-ts>/packages/core/test/fixtures/sequence-a conformance/fixtures/sequence-a
   diff -r <affiant-ts>/packages/core/test/fixtures/sequence-c conformance/fixtures/sequence-c
   diff -r <affiant-ts>/packages/core/test/fixtures/canonical  conformance/fixtures/canonical
+
+The gate/ diff reports the five files authored here as extra, and the sequence-a/ diff reports
+04-picker-external-binding.json as differing; every other file is identical.

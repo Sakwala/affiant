@@ -1,0 +1,129 @@
+{
+  "id": "gate/inference-presence-computed-from-the-utterance",
+  "rules": ["GT-1", "PV-1", "PV-3", "AF-1", "AF-2"],
+  "title": "The port reports value and confidence and says nothing about presence: the implementation establishes it from the utterance itself (PV-3). Two values that are in the turn are Conversation, bound to the span they were read from - the spans are pinned, so the fixture also states WHICH occurrence was found and that the digest is over the utterance's own bytes; the estimated hours hit the 6 the person typed and not the 6 inside 2026. A value that occurs only inside a longer number is not present and is Inferred, unbound.",
+  "given": {
+    "clock": "2026-09-08T09:00:00.000Z",
+    "store": "memory",
+    "gate": {
+      "defaultTtlMs": 1800000,
+      "authorization": {
+        "allow": ["*"]
+      },
+      "inference": {
+        "title": {
+          "value": "oil pressure check",
+          "confidence": 0.9
+        },
+        "estimatedHours": {
+          "value": 6,
+          "confidence": 0.8
+        },
+        "crewSize": {
+          "value": 20,
+          "confidence": 0.5
+        }
+      },
+      "entities": {
+        "WorkOrder/wo-1": {
+          "title": "Unscheduled maintenance",
+          "estimatedHours": 4,
+          "crewSize": 2
+        }
+      }
+    },
+    "ctx": {
+      "tenantId": "tenant-a",
+      "conversationId": "conv-1",
+      "channel": "chat",
+      "principal": {
+        "kind": "member",
+        "id": "member-1"
+      },
+      "utterance": "Log the oil pressure check, estimated 6 hours, due 2026-09-08",
+      "messageId": "msg-1"
+    },
+    "prior": [],
+    "step": {
+      "kind": "file",
+      "toolName": "relay_capture",
+      "operation": {
+        "kind": "update",
+        "entityType": "WorkOrder",
+        "entityId": "wo-1",
+        "fields": ["title", "estimatedHours", "crewSize"]
+      },
+      "schema": [
+        {
+          "name": "title",
+          "kind": "text",
+          "description": "What the work order is for"
+        },
+        {
+          "name": "estimatedHours",
+          "kind": "number",
+          "description": "How long the work is expected to take"
+        },
+        {
+          "name": "crewSize",
+          "kind": "number",
+          "description": "How many people the work needs"
+        }
+      ]
+    }
+  },
+  "expect": {
+    "entry": {
+      "status": "pending",
+      "requirement": "ReviewerConfirmation",
+      "execution": null,
+      "blocked": null,
+      "expiresAtOffsetMs": 1800000,
+      "attestation": null,
+      "toolName": "relay_capture",
+      "affidavit": {
+        "operationType": "update",
+        "entityId": "wo-1",
+        "aggregateConfidence": 0.5,
+        "populatedConfidence": 0.5,
+        "emptyFieldCount": 0,
+        "fields": [
+          {
+            "name": "title",
+            "value": "oil pressure check",
+            "previousValue": "Unscheduled maintenance",
+            "source": "Conversation",
+            "bound": true,
+            "bindingKind": "utterance-span",
+            "utteranceSpan": {
+              "offset": 8,
+              "length": 18,
+              "hash": "cc3d6e69b3a763a76c701acdf1dcaa031397eecb59ef9a2ad9bdb358dc9843e3"
+            }
+          },
+          {
+            "name": "estimatedHours",
+            "value": 6,
+            "previousValue": 4,
+            "source": "Conversation",
+            "bound": true,
+            "bindingKind": "utterance-span",
+            "utteranceSpan": {
+              "offset": 38,
+              "length": 1,
+              "hash": "e7f6c011776e8db7cd330b54174fd76f7d0216b612387a5ffcfb81e6f0919683"
+            }
+          },
+          {
+            "name": "crewSize",
+            "value": 20,
+            "previousValue": 2,
+            "source": "Inferred",
+            "bound": false,
+            "bindingKind": null
+          }
+        ]
+      }
+    }
+  }
+}

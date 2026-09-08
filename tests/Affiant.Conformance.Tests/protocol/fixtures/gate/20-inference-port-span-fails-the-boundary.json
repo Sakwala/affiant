@@ -1,0 +1,83 @@
+{
+  "id": "gate/inference-port-span-fails-the-boundary",
+  "rules": ["GT-1", "PV-1", "PV-3", "AF-1", "AF-2"],
+  "title": "The port reports presence \"literal\" and a span whose substring IS the value text, but the span sits inside a longer token: the 20 at the start of 2026-09-08. A span verifies only when it is itself a hit, and this one's right-hand neighbour is a digit, so the span is discarded, the finder searches the utterance and finds no other occurrence, and the grade is Inferred with no binding (PV-3). A port cannot name an occurrence the finder's own boundary rule rejects.",
+  "given": {
+    "clock": "2026-09-08T09:00:00.000Z",
+    "store": "memory",
+    "gate": {
+      "defaultTtlMs": 1800000,
+      "authorization": {
+        "allow": ["*"]
+      },
+      "inference": {
+        "crewSize": {
+          "value": 20,
+          "confidence": 0.5,
+          "presence": "literal",
+          "utteranceSpan": {
+            "start": 32,
+            "end": 34
+          }
+        }
+      }
+    },
+    "ctx": {
+      "tenantId": "tenant-a",
+      "conversationId": "conv-1",
+      "channel": "chat",
+      "principal": {
+        "kind": "member",
+        "id": "member-1"
+      },
+      "utterance": "Log the oil pressure check, due 2026-09-08",
+      "messageId": "msg-1"
+    },
+    "prior": [],
+    "step": {
+      "kind": "file",
+      "toolName": "relay_capture",
+      "operation": {
+        "kind": "create",
+        "entityType": "WorkOrder",
+        "entityId": null,
+        "fields": ["crewSize"]
+      },
+      "schema": [
+        {
+          "name": "crewSize",
+          "kind": "number",
+          "description": "How many people the work needs"
+        }
+      ]
+    }
+  },
+  "expect": {
+    "entry": {
+      "status": "pending",
+      "requirement": "ReviewerConfirmation",
+      "execution": null,
+      "blocked": null,
+      "expiresAtOffsetMs": 1800000,
+      "attestation": null,
+      "toolName": "relay_capture",
+      "affidavit": {
+        "operationType": "create",
+        "entityId": null,
+        "aggregateConfidence": 0.5,
+        "populatedConfidence": 0.5,
+        "emptyFieldCount": 0,
+        "fields": [
+          {
+            "name": "crewSize",
+            "value": 20,
+            "previousValue": null,
+            "source": "Inferred",
+            "bound": false,
+            "bindingKind": null
+          }
+        ]
+      }
+    }
+  }
+}

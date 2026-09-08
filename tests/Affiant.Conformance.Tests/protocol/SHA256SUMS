@@ -1,8 +1,8 @@
-b08619a896f9b1d4cf85e05a2cb221d8bef2f1a5faacf0dff2ee49d7c003eae4  ./README.md
+34c2254a4ad98a1e968d038ecfb7bdfbd1e1736cb8dbe3eae86ecbd3c3b8599e  ./README.md
 27b0fe061c0555db77ca017e7605634fe97d1095ab13c306764da3af7bd0ce2f  ./canonical-vector.schema.json
-2cdbc829c841ae931bc3aa5606c8029471574ba694641a08cf3bdfedfa50ff70  ./fixture.schema.json
-8d0ec4d16db18938a24307a0dee4a515dad50121012f9d25f9533d0140e027da  ./fixtures/MANIFEST.json
-ad296ea9208b2ce97b3978eec7d64a4fd35c0c6e21bd7910aaba2f889633d24f  ./fixtures/PROMOTED_FROM
+6d184462d684f1978ec4fb5b46ed4a25e749cd64cf3f1088ee56e5777c59f826  ./fixture.schema.json
+980af74dae7dad1ea1761d234dc048c0f6acff1135a1a5cd35e19a5e1b70112b  ./fixtures/MANIFEST.json
+05e45e977524fc099a274fc48b5c02386bcfbf9fae7bc1478fdb72e638154dad  ./fixtures/PROMOTED_FROM
 8c63f93b455e095f45b072ceb1299b8652e5b26763c907dc14a41d590122993c  ./fixtures/canonical/01-create-shaped.json
 db06019e78fce0097be4e7973a4f08602acf078f0ad4ce5047498c2b901e012d  ./fixtures/canonical/02-update-shaped.json
 5e71bc6d4c2b73cdae8bf32e43c9fbbd3e920c1d28a1fbe8ee4e8c05c01350a0  ./fixtures/canonical/03-wire-evidence-card-request.json
@@ -47,10 +47,15 @@ f146ff72f56aa34fb89d14accf40f0ec12341b46f3cdf7d3a0fd363e6584376e  ./fixtures/gat
 27311f914d517ec6b87771335b27ed8cf5acb93f5e0206503162a4528d84e43f  ./fixtures/gate/15-create-null-previous-values.json
 8e23ce8b05aa24b7eb1365abaa58d77ea01fb1f2fce4ac9a38f559ac6eb2d5dc  ./fixtures/gate/16-inference-conversation-and-inferred.json
 270b1d5d1818d1827b698a866351c131bef19fc01aaf4aec241c4c832edb7c94  ./fixtures/gate/17-threshold-without-scorer.json
+0de3ece24b388384a3efc424509ec8a063cc05afc0f9c1616fd4603d51a2ae0d  ./fixtures/gate/18-inference-presence-computed-from-the-utterance.json
+19cfc21908cdc6336068c1fead4d892cc3d38273cbd301a7dbd1537d335d0b4a  ./fixtures/gate/19-inference-port-literal-unconfirmed.json
+e547f0c45a5b477265428534578f5f23293608ccba97987e74efa5c766a88ca1  ./fixtures/gate/20-inference-port-span-fails-the-boundary.json
+fbffdebc838921a5379ef418d9f5ab544c517e091f9af8ecc279a1c138e3070a  ./fixtures/gate/21-inference-case-folds-and-the-digest-is-the-utterances.json
+b6e3ef482292bc87999805cf04c8a70defcf1322d1365c769ed1903ecd2e070d  ./fixtures/gate/22-inference-empty-value-is-nothing-reported.json
 25d6bf1a0cbe784c70950adf2e9873e18eb7e90afd23da15aef766f0ff531250  ./fixtures/sequence-a/01-approve-round-trip.json
 4746364993b6a09bb1f76127df5c1254412a124ceab104ffdf503eac6c0f8ef6  ./fixtures/sequence-a/02-reject-round-trip.json
 399cb28aae86d45ac559eac282b7493814a0abc4c5c3f1543fd5607dafb99078  ./fixtures/sequence-a/03-typed-inputs-on-the-card.json
-279323ca258b0d6bfdfe9d7d88db8dd947563e63b2d1491473aa07143a441335  ./fixtures/sequence-a/04-picker-external-binding.json
+9019d7dda59ed3d18c7a426c0287900425ed6c6e01d1b8b59d167ec3b8d5b9cf  ./fixtures/sequence-a/04-picker-external-binding.json
 c475e35784ddd0df9b948b45e4a128e20961eca5f955aa187f3037e19bada7b2  ./fixtures/sequence-a/05-mandatory-field-left-empty.json
 433ec43980b7f708c6d96c2c71fc35cc5909f3391b4868b2f2874a7b359522f2  ./fixtures/sequence-a/06-mandatory-field-reviewer-approves.json
 f25ee3e23ee52bd053ab9f9394aab9cea88a8886020ade35e224631cf3e5296c  ./fixtures/sequence-a/07-expiry-then-resubmit.json
@@ -145,5 +150,5 @@ ae6abd8e0d5e25a3a82c84f4c8b325dbf3d9523fd2db4bb565618a91e2dd3c86  ./fixtures/wir
 de50501c546a809f8646175912368e556560fa6f6b72b1a39a4d4389fc22a47e  ./fixtures/wire/session-rehydrated.json
 4fb391fab218ece90fbb69e5c2fcdced8491732a265a3c6c80242b8f8faa577f  ./fixtures/wire/system-notification.json
 3c119a82d6a1a15e957e4efd7faff4966799d702a8fb538acbae48b74dfd07d5  ./lint/coverage-exemptions.json
-6e8e0321a0918c294be4f1aed31b385437af0f14f24075c050824c4b81816012  ./parity/MANIFEST.schema.json
+6eef27168584e7e78bc745a0cf310008914889e28cc1bae6090775c99d4d463d  ./parity/MANIFEST.schema.json
 0df9309f82234450fa7dfe007087b6740e70639973c036af630ed0382fb3c0ea  ./results.schema.json

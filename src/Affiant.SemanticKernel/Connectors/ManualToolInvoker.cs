@@ -79,7 +79,14 @@ public class ManualToolInvoker(
         // and auto paths are mutually exclusive by design (manual runs only when the provider lacks
         // native auto-invocation), and kernel.InvokeAsync above never drives the completion stage.
         var completionRequest = new ToolInvocationRequest(
-            functionName, pluginName, new Dictionary<string, object?>());
+            functionName, pluginName, new Dictionary<string, object?>())
+        {
+            // The turn the completion stage grades against (PV-3), read exactly as the
+            // invocation-stage bridge reads it. TaskInferenceMergeFilter establishes presence from
+            // the person's own words, and a degraded path that withheld the history would grade the
+            // same tool result differently from the auto-invocation path.
+            History = SkMessageConversions.HistoryOf(kernel),
+        };
 
         var completed = await pipeline.RunAsync(
             completionRequest,
