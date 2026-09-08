@@ -16,19 +16,23 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
 ### Fixed
 
 - **A declared write tool that returned nothing passed through unrefused** (affiant#119, closing
-  affiant#75). `ReviewGateFilter` refuses a registry-declared write tool whose result is not a
-  `WriteProposal`, but its empty-result early return ran *before* the registry was consulted — so a
+  the fail-open branches inside the filter that affiant#75 opened). `ReviewGateFilter` refuses a
+  registry-declared write tool whose result is not a `WriteProposal`, but its empty-result early
+  return ran *before* the registry was consulted — so a
   `void`/`Task`-returning `[KernelFunction]`, or a null-returning function on the Agent Framework or
   Extensions.AI, filed no proposal, drew no refusal and left the model free to report the write as
   done. The registry is now consulted first: nothing is a non-proposal result like any other. A read
-  tool's empty result still passes through untouched.
+  tool's empty result still passes through untouched. The other half of affiant#75 — a tool that
+  performs the write inside its own body and returns a plain success string — is unchanged: the
+  filter runs after the tool body, and that boundary is stated in `ReviewGateFilter`'s own remarks
+  rather than enforced by it.
 - **`Affiant.SemanticKernel`'s `[KernelFunction]` walker stripped a trailing `Async` from
   synchronous methods** (affiant#101). Semantic Kernel drops the suffix only from a method returning
   `Task`, `ValueTask` or `IAsyncEnumerable`, so `[KernelFunction] string LookupThingAsync()` was
   registered as the descriptor `LookupThing` while SK exposed `LookupThingAsync`, and
   `AffiantStartupValidator` then refused the wiring at boot. The walker now applies SK's own
   return-type condition, which is the condition `Affiant.AgentFramework`'s catalog already inherits
-  from `AIFunctionFactory` — one naming rule on every backend.
+  from `AIFunctionFactory` — the same trailing-`Async` rule on every backend.
 
 ## [1.0.0-beta.3] — 2026-09-05
 

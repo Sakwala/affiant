@@ -64,6 +64,20 @@ public class AddAffiantPluginsFromTypeTests
         public Task SaveThingAsync() => Task.CompletedTask;
 
         [KernelFunction]
+        public ValueTask BareValueTaskAsync() => ValueTask.CompletedTask;
+
+        [KernelFunction]
+        public async IAsyncEnumerable<string> StreamAsync()
+        {
+            await Task.Yield();
+            yield return "{}";
+        }
+
+        // "Async" is the whole name: SK keeps it.
+        [KernelFunction]
+        public Task Async() => Task.CompletedTask;
+
+        [KernelFunction]
         public string CountThings() => "1";
     }
 
@@ -247,12 +261,27 @@ public class AddAffiantPluginsFromTypeTests
         Assert.NotNull(registry.Find("FetchThing", "TestPluginWithAsyncSuffixShapes"));
         Assert.NotNull(registry.Find("LoadThing", "TestPluginWithAsyncSuffixShapes"));
         Assert.NotNull(registry.Find("SaveThing", "TestPluginWithAsyncSuffixShapes"));
+        Assert.NotNull(registry.Find("BareValueTask", "TestPluginWithAsyncSuffixShapes"));
+        Assert.NotNull(registry.Find("Stream", "TestPluginWithAsyncSuffixShapes"));
+    }
+
+    /// <summary>
+    /// affiant#101: SK keeps the name of a method called <c>Async</c> — the suffix is never the
+    /// whole name — so the walker's length guard is what stops it registering an empty name.
+    /// </summary>
+    [Fact]
+    public void DoesNotStripAsync_WhenAsyncIsTheWholeName()
+    {
+        var sp = BuildServiceProvider<TestPluginWithAsyncSuffixShapes>();
+        var registry = sp.GetRequiredService<IAffiantToolRegistry>();
+
+        Assert.NotNull(registry.Find("Async", "TestPluginWithAsyncSuffixShapes"));
     }
 
     /// <summary>
     /// The load-bearing assertion for affiant#101: the descriptor names the walker registers are
     /// the names Semantic Kernel itself gives the same methods. Compared against a real SK plugin
-    /// built from the same type, so the two cannot drift.
+    /// built from the same type, so the trailing-<c>Async</c> rule cannot drift.
     /// </summary>
     [Fact]
     public void SkWalkerNames_MatchSemanticKernelsOwnFunctionNames()

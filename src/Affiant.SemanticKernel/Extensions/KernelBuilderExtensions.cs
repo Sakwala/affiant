@@ -142,7 +142,10 @@ public static class KernelBuilderExtensions
     // method's name, so stripping it unconditionally named the descriptor LookupThing while SK
     // exposed LookupThingAsync and AffiantStartupValidator refused the wiring at boot
     // (affiant#101). Affiant.AgentFramework's catalog already sources its name from
-    // AIFunctionFactory, which applies the same return-type condition — one rule on every backend.
+    // AIFunctionFactory, which applies the same return-type condition — the same trailing-"Async"
+    // rule on every backend — only that rule: SK and AIFunctionFactory both sanitize a name to
+    // [0-9A-Za-z_] before stripping and this walker does not, so a method name outside that set
+    // still registers here under a spelling SK does not expose.
     private static string StripAsyncSuffix(MethodInfo method) =>
         IsAsyncReturn(method.ReturnType)
         && method.Name.Length > "Async".Length
