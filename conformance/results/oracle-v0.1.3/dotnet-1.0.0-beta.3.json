@@ -1,0 +1,440 @@
+{
+  "schemaVersion": "0.1.0",
+  "implementation": {
+    "name": "dotnet",
+    "version": "1.0.0-beta.3",
+    "commit": "436c5e23822b44a2857fb2a0232df900545a72f8",
+    "runtime": "net10.0"
+  },
+  "protocolTag": "v0.1.3",
+  "producedAt": "2026-09-08T16:53:28.211Z",
+  "summary": {
+    "total": 68,
+    "passed": 62,
+    "failed": 3,
+    "errored": 3,
+    "skipped": 0,
+    "durationMs": 682.677
+  },
+  "results": [
+    {
+      "id": "gate/substance-hollow-refused",
+      "outcome": "pass",
+      "durationMs": 282.972
+    },
+    {
+      "id": "gate/substance-zero-field-refused",
+      "outcome": "pass",
+      "durationMs": 3.804
+    },
+    {
+      "id": "gate/ttl-from-verdict",
+      "outcome": "pass",
+      "durationMs": 34.774
+    },
+    {
+      "id": "gate/ttl-from-policy-default",
+      "outcome": "pass",
+      "durationMs": 2.193
+    },
+    {
+      "id": "gate/ttl-from-gate-default",
+      "outcome": "pass",
+      "durationMs": 1.545
+    },
+    {
+      "id": "gate/standing-order-by-the-book",
+      "outcome": "pass",
+      "durationMs": 6.055
+    },
+    {
+      "id": "gate/standing-order-threshold-under",
+      "outcome": "pass",
+      "durationMs": 2.304
+    },
+    {
+      "id": "gate/standing-order-threshold-over",
+      "outcome": "pass",
+      "durationMs": 3.164
+    },
+    {
+      "id": "gate/standing-order-unbound-input",
+      "outcome": "pass",
+      "durationMs": 3.802
+    },
+    {
+      "id": "gate/standing-order-bound-input",
+      "outcome": "pass",
+      "durationMs": 13.838
+    },
+    {
+      "id": "gate/multiparty-blocked",
+      "outcome": "pass",
+      "durationMs": 8.38
+    },
+    {
+      "id": "gate/referral-blocked",
+      "outcome": "pass",
+      "durationMs": 1.541
+    },
+    {
+      "id": "gate/coverage-refused-declared",
+      "outcome": "pass",
+      "durationMs": 2.716
+    },
+    {
+      "id": "gate/update-previous-values",
+      "outcome": "pass",
+      "durationMs": 3.927
+    },
+    {
+      "id": "gate/create-null-previous-values",
+      "outcome": "pass",
+      "durationMs": 2.044
+    },
+    {
+      "id": "gate/inference-conversation-and-inferred",
+      "outcome": "pass",
+      "durationMs": 20.1
+    },
+    {
+      "id": "gate/threshold-without-scorer",
+      "outcome": "pass",
+      "durationMs": 1.726
+    },
+    {
+      "id": "gate/inference-presence-computed-from-the-utterance",
+      "outcome": "error",
+      "durationMs": 3.529,
+      "diff": [
+        {
+          "at": "driver",
+          "expected": "the fixture runs",
+          "actual": "NullReferenceException: Object reference not set to an instance of an object."
+        }
+      ],
+      "reason": "NullReferenceException: Object reference not set to an instance of an object."
+    },
+    {
+      "id": "gate/inference-port-literal-unconfirmed",
+      "outcome": "fail",
+      "durationMs": 2.2,
+      "diff": [
+        {
+          "at": "entry.affidavit.fields[0].source",
+          "expected": "Inferred",
+          "actual": "Conversation"
+        },
+        {
+          "at": "entry.affidavit.fields[0].bound",
+          "expected": false,
+          "actual": true
+        },
+        {
+          "at": "entry.affidavit.fields[0].bindingKind",
+          "expected": null,
+          "actual": "utterance-span"
+        }
+      ]
+    },
+    {
+      "id": "gate/inference-port-span-fails-the-boundary",
+      "outcome": "fail",
+      "durationMs": 1.427,
+      "diff": [
+        {
+          "at": "entry.affidavit.fields[0].source",
+          "expected": "Inferred",
+          "actual": "Conversation"
+        },
+        {
+          "at": "entry.affidavit.fields[0].bound",
+          "expected": false,
+          "actual": true
+        },
+        {
+          "at": "entry.affidavit.fields[0].bindingKind",
+          "expected": null,
+          "actual": "utterance-span"
+        }
+      ]
+    },
+    {
+      "id": "gate/inference-case-folds-and-the-digest-is-the-utterances",
+      "outcome": "error",
+      "durationMs": 1.585,
+      "diff": [
+        {
+          "at": "driver",
+          "expected": "the fixture runs",
+          "actual": "NullReferenceException: Object reference not set to an instance of an object."
+        }
+      ],
+      "reason": "NullReferenceException: Object reference not set to an instance of an object."
+    },
+    {
+      "id": "gate/inference-empty-value-is-nothing-reported",
+      "outcome": "error",
+      "durationMs": 1.04,
+      "diff": [
+        {
+          "at": "driver",
+          "expected": "the fixture runs",
+          "actual": "NullReferenceException: Object reference not set to an instance of an object."
+        }
+      ],
+      "reason": "NullReferenceException: Object reference not set to an instance of an object."
+    },
+    {
+      "id": "decide/approve",
+      "outcome": "pass",
+      "durationMs": 11.281
+    },
+    {
+      "id": "decide/reject",
+      "outcome": "pass",
+      "durationMs": 2.979
+    },
+    {
+      "id": "decide/second-decision-refused",
+      "outcome": "pass",
+      "durationMs": 7.929
+    },
+    {
+      "id": "decide/expired-amendments-preserved",
+      "outcome": "pass",
+      "durationMs": 10.162
+    },
+    {
+      "id": "decide/blocked-refused",
+      "outcome": "pass",
+      "durationMs": 3.324
+    },
+    {
+      "id": "decide/amend-recompute",
+      "outcome": "pass",
+      "durationMs": 66.605
+    },
+    {
+      "id": "decide/unresolved-identity",
+      "outcome": "pass",
+      "durationMs": 3.427
+    },
+    {
+      "id": "decide/wrong-tenant",
+      "outcome": "pass",
+      "durationMs": 2.641
+    },
+    {
+      "id": "decide/authorization-declined",
+      "outcome": "pass",
+      "durationMs": 2.823
+    },
+    {
+      "id": "decide/relay-member-via-relay",
+      "outcome": "pass",
+      "durationMs": 4.774
+    },
+    {
+      "id": "decide/relay-without-assertion-refused",
+      "outcome": "pass",
+      "durationMs": 6.583
+    },
+    {
+      "id": "decide/execution-executed",
+      "outcome": "pass",
+      "durationMs": 6.793
+    },
+    {
+      "id": "decide/execution-failed",
+      "outcome": "pass",
+      "durationMs": 3.423
+    },
+    {
+      "id": "decide/execution-on-pending-refused",
+      "outcome": "pass",
+      "durationMs": 3.146
+    },
+    {
+      "id": "decide/resubmit-prefills",
+      "outcome": "pass",
+      "durationMs": 11.333
+    },
+    {
+      "id": "decide/executed-only-through-a-report",
+      "outcome": "pass",
+      "durationMs": 5.486
+    },
+    {
+      "id": "decide/authorization-throws",
+      "outcome": "pass",
+      "durationMs": 5.858
+    },
+    {
+      "id": "decide/execution-recorded-once",
+      "outcome": "pass",
+      "durationMs": 4.542
+    },
+    {
+      "id": "decide/execution-second-report-refused",
+      "outcome": "pass",
+      "durationMs": 4.153
+    },
+    {
+      "id": "sequence-a/approve-round-trip",
+      "outcome": "pass",
+      "durationMs": 12.812
+    },
+    {
+      "id": "sequence-a/reject-round-trip",
+      "outcome": "pass",
+      "durationMs": 3.106
+    },
+    {
+      "id": "sequence-a/typed-inputs-on-the-card",
+      "outcome": "pass",
+      "durationMs": 7.898
+    },
+    {
+      "id": "sequence-a/picker-external-binding",
+      "outcome": "fail",
+      "durationMs": 3.43,
+      "diff": [
+        {
+          "at": "entry.affidavit.fields[0].bound",
+          "expected": true,
+          "actual": false
+        },
+        {
+          "at": "entry.affidavit.fields[0].bindingKind",
+          "expected": "utterance-span",
+          "actual": null
+        },
+        {
+          "at": "entry.affidavit.fields[0].utteranceSpan",
+          "expected": {
+            "offset": 21,
+            "length": 6,
+            "hash": "92340695899bd2d86223e4a007620e0d6502fc0e08809773634c7e0743764a9c"
+          },
+          "actual": "(absent)"
+        }
+      ]
+    },
+    {
+      "id": "sequence-a/mandatory-field-left-empty",
+      "outcome": "pass",
+      "durationMs": 1.757
+    },
+    {
+      "id": "sequence-a/mandatory-field-reviewer-approves",
+      "outcome": "pass",
+      "durationMs": 4.53
+    },
+    {
+      "id": "sequence-a/expiry-then-resubmit",
+      "outcome": "pass",
+      "durationMs": 2.452
+    },
+    {
+      "id": "sequence-a/late-amendments-preserved",
+      "outcome": "pass",
+      "durationMs": 2.954
+    },
+    {
+      "id": "sequence-a/interleaved-conversations",
+      "outcome": "pass",
+      "durationMs": 2.653
+    },
+    {
+      "id": "sequence-a/replay-keeps-the-deadline",
+      "outcome": "pass",
+      "durationMs": 2.789
+    },
+    {
+      "id": "sequence-a/sweep-pages",
+      "outcome": "pass",
+      "durationMs": 10.553
+    },
+    {
+      "id": "sequence-a/rehydration-order",
+      "outcome": "pass",
+      "durationMs": 9.299
+    },
+    {
+      "id": "sequence-a/coverage-refused-at-wire-up",
+      "outcome": "pass",
+      "durationMs": 2.492
+    },
+    {
+      "id": "sequence-a/mandatory-field-empty-blocks-standing-order",
+      "outcome": "pass",
+      "durationMs": 2.007
+    },
+    {
+      "id": "sequence-a/optional-field-empty-standing-order-fires",
+      "outcome": "pass",
+      "durationMs": 1.643
+    },
+    {
+      "id": "sequence-c/relay-auto-approve-bound-external",
+      "outcome": "pass",
+      "durationMs": 1.751
+    },
+    {
+      "id": "sequence-c/relayed-decision-member-via-relay",
+      "outcome": "pass",
+      "durationMs": 3.716
+    },
+    {
+      "id": "sequence-c/unbound-external-asks-a-person",
+      "outcome": "pass",
+      "durationMs": 1.452
+    },
+    {
+      "id": "sequence-c/relay-may-not-attest-member",
+      "outcome": "pass",
+      "durationMs": 2.017
+    },
+    {
+      "id": "sequence-c/relay-decision-other-tenant-not-found",
+      "outcome": "pass",
+      "durationMs": 2.287
+    },
+    {
+      "id": "canonical/create-shaped",
+      "outcome": "pass",
+      "durationMs": 4.757
+    },
+    {
+      "id": "canonical/update-shaped",
+      "outcome": "pass",
+      "durationMs": 0.478
+    },
+    {
+      "id": "canonical/wire-evidence-card-request",
+      "outcome": "pass",
+      "durationMs": 0.261
+    },
+    {
+      "id": "canonical/wire-evidence-card-request-amended",
+      "outcome": "pass",
+      "durationMs": 4.14
+    },
+    {
+      "id": "canonical/key-order-stress",
+      "outcome": "pass",
+      "durationMs": 0.378
+    },
+    {
+      "id": "canonical/number-forms",
+      "outcome": "pass",
+      "durationMs": 0.514
+    },
+    {
+      "id": "canonical/money-and-escapes",
+      "outcome": "pass",
+      "durationMs": 0.418
+    }
+  ]
+}
