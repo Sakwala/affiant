@@ -1,5 +1,6 @@
 namespace Affiant.Core.Services;
 
+using System.Globalization;
 using System.Text;
 
 /// <summary>
@@ -13,17 +14,27 @@ using System.Text;
 /// </para>
 /// <para>
 /// <b>The rule, stated once so a second implementation can implement the same sentence.</b> A
-/// <i>hit</i> is an occurrence of the value text in the utterance under an ordinal, case-insensitive
-/// comparison, whose neighbouring characters are absent or are neither letters nor digits (Unicode
-/// categories L* and Nd). The first hit wins unless the port supplied a span that verifies — the
-/// utterance at that span equals the value text under the same comparison. Whitespace-only or empty
-/// value text never hits.
+/// <i>hit</i> is an occurrence of the value text in the utterance under the case-insensitive
+/// comparison below, whose neighbouring code points are absent or are none of: a letter (L*), a mark
+/// (M*), a decimal digit (Nd), connector punctuation (Pc). The first hit wins unless the port
+/// supplied a span that is itself a hit. Whitespace-only or empty value text never hits.
+/// </para>
+/// <para>
+/// <b>The case table.</b> Two code points match when they are equal or their <i>simple</i> uppercase
+/// mappings are equal — the single-code-point mapping, so a fold never changes length, no culture is
+/// consulted, nothing is normalised and no character is ignorable. That is exactly
+/// <see cref="StringComparison.OrdinalIgnoreCase"/>, which is why no other comparison appears in
+/// this file. Full case mappings are not applied: <c>STRAẞE</c> does not match <c>Straße</c>, and a
+/// ligature does not match the letters it draws.
 /// </para>
 /// <para>
 /// Offsets and lengths are in UTF-16 code units, which is what the <c>utterance-span</c> binding
 /// records. A neighbouring character is a code point, not a code unit: a surrogate pair is read as
 /// the one character it is, so a value abutting a letter outside the Basic Multilingual Plane is not
-/// a hit for the same reason it would not be beside an ASCII letter.
+/// a hit for the same reason it would not be beside an ASCII letter. A combining mark blocks a hit
+/// too — the grapheme the utterance draws there is not the word the value spells (<c>Cafe</c> inside
+/// a decomposed <c>Café</c>), and <c>_</c> blocks one because it joins an identifier
+/// (<c>WZ_BRN</c>).
 /// </para>
 /// </remarks>
 internal static class UtterancePresence
@@ -37,8 +48,8 @@ internal static class UtterancePresence
     /// </summary>
     /// <param name="utterance">The current turn's user text, unmodified.</param>
     /// <param name="valueText">
-    /// The text the span digest is taken over: the string itself, or the raw JSON token for a number
-    /// or a boolean.
+    /// The text the span digest is taken over: a string is itself, a number its SR-1 canonical
+    /// rendering, a boolean <c>true</c> or <c>false</c>.
     /// </param>
     /// <param name="hintedOffset">An offset the port reported, or <see langword="null"/>.</param>
     /// <param name="hintedLength">A length the port reported, or <see langword="null"/>.</param>
@@ -49,15 +60,18 @@ internal static class UtterancePresence
         if (string.IsNullOrWhiteSpace(valueText))
             return null;
 
-        // The port's span, when it verifies against the text: the port names an occurrence, the
-        // framework checks that the utterance at that place says what the port said it says. A span
-        // that does not verify is discarded rather than trusted — the whole point of D1.
+        // The port's span, when it is itself a hit: the port names an occurrence, and the framework
+        // accepts it only on the terms it would have accepted its own — the utterance there says
+        // what the port said it says, and the neighbours leave it a whole token. A span that is not
+        // a hit is discarded and the finder runs from the start, so a port cannot bind a value to a
+        // fragment of a longer token ("20" inside "2026-09-08") the finder itself refuses.
         if (hintedOffset is { } offset
             && hintedLength is { } length
             && offset >= 0
             && length >= 0
             && offset <= utterance.Length - length
-            && utterance.AsSpan(offset, length).Equals(valueText, StringComparison.OrdinalIgnoreCase))
+            && utterance.AsSpan(offset, length).Equals(valueText, StringComparison.OrdinalIgnoreCase)
+            && IsWholeToken(utterance, offset, length))
         {
             return new Span(offset, length);
         }
@@ -89,7 +103,7 @@ internal static class UtterancePresence
 
     /// <summary>
     /// Whether the occurrence at <paramref name="at"/> is bounded on both sides: nothing there, or a
-    /// character that is neither a letter nor a digit.
+    /// code point that is none of L*, M*, Nd, Pc.
     /// </summary>
     private static bool IsWholeToken(string utterance, int at, int length) =>
         IsBoundaryBefore(utterance, at) && IsBoundaryAfter(utterance, at + length);
@@ -111,6 +125,22 @@ internal static class UtterancePresence
     private static bool IsBoundaryAfter(string utterance, int end) =>
         end >= utterance.Length || IsBoundary(utterance, end);
 
+    /// <summary>
+    /// A code point that does not join what stands beside it into one word. The four categories are
+    /// the rule's, read the same way in both implementations:
+    /// <see cref="CharUnicodeInfo.GetUnicodeCategory(string, int)"/> reads a surrogate pair as the
+    /// one code point it is.
+    /// </summary>
     private static bool IsBoundary(string utterance, int index) =>
-        !char.IsLetter(utterance, index) && !char.IsDigit(utterance, index);
+        CharUnicodeInfo.GetUnicodeCategory(utterance, index) is not (
+            UnicodeCategory.UppercaseLetter
+            or UnicodeCategory.LowercaseLetter
+            or UnicodeCategory.TitlecaseLetter
+            or UnicodeCategory.ModifierLetter
+            or UnicodeCategory.OtherLetter
+            or UnicodeCategory.NonSpacingMark
+            or UnicodeCategory.SpacingCombiningMark
+            or UnicodeCategory.EnclosingMark
+            or UnicodeCategory.DecimalDigitNumber
+            or UnicodeCategory.ConnectorPunctuation);
 }
