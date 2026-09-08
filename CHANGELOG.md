@@ -11,6 +11,26 @@ in lockstep as of 2026-07-05 (`Affiant.Extensions.AI` joined the set 2026-08-20)
 plus the bare `Affiant` meta-ID, are reserved on nuget.org (the last two, `Affiant.AgentFramework`
 and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectively).
 
+## [Unreleased]
+
+### Documentation
+
+- Quickstart sample XML docs describe 1.0.0-beta.3's fail-closed review wiring (`wireup-invalid`)
+  in place of the pre-beta.3 silent skip, and state where the scoped-plugin failure actually throws
+  (affiant#106).
+- `AffiantToolCatalog.ResolveTarget`'s exception guidance and the `Affiant.AgentFramework` /
+  `Affiant.Extensions.AI` READMEs now describe a wiring that runs under scope validation - the chat
+  client and agent built from a per-turn scope, not the application root (affiant#112).
+- `Affiant.Docket`'s README configures `ExpirySweepBatchesPerTick` and `SweepScope` by registering
+  `AffiantDocketOptions` ahead of `AddAffiantDocket` - a snippet that compiles against the shipped
+  types - and no longer contradicts itself on whether `AddAffiantDocket` is required for the expiry
+  sweep (affiant#116).
+- Seven source comments and the quickstart sample's README corrected to match the code beside them:
+  `AffidavitSubstance`'s actual two callers, the enum-as-string history that never regressed,
+  `ToolArgumentCaptureFilter`'s captured `EntityRef` (not a provenance chain), the quickstart
+  Docket's expiry-on-read behaviour, the run-time substance refusal `ReviewGate` already ships,
+  `IWriteExecutor`'s actual call path, and the re-entrancy guard's actual scope (affiant#118).
+
 ## [1.0.0-beta.3] — 2026-09-05
 
 ### Decisions, attestation and identity as the rulebook defines them
