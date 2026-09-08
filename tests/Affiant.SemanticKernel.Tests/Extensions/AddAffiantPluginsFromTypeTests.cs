@@ -44,6 +44,29 @@ public class AddAffiantPluginsFromTypeTests
         public string GetContext() => "context";
     }
 
+    // affiant#101: one method per shape SK's own default-naming fallback distinguishes. The
+    // walker's descriptor name must equal the name SK gives the same method — asserted against
+    // SK itself in SkWalkerNames_MatchSemanticKernelsOwnFunctionNames below, so the pin survives
+    // a change in SK's convention rather than freezing this test's reading of it.
+    private sealed class TestPluginWithAsyncSuffixShapes
+    {
+        // Synchronous: SK keeps the suffix.
+        [KernelFunction]
+        public string LookupThingAsync() => "{}";
+
+        [KernelFunction]
+        public Task<string> FetchThingAsync() => Task.FromResult("{}");
+
+        [KernelFunction]
+        public ValueTask<string> LoadThingAsync() => ValueTask.FromResult("{}");
+
+        [KernelFunction]
+        public Task SaveThingAsync() => Task.CompletedTask;
+
+        [KernelFunction]
+        public string CountThings() => "1";
+    }
+
     private sealed class FakeStrategy : ITaskInferenceStrategy
     {
         public string EntityName => "TestEntity";
@@ -197,5 +220,55 @@ public class AddAffiantPluginsFromTypeTests
         var registry = sp.GetRequiredService<IAffiantToolRegistry>();
 
         Assert.Equal(3, registry.All.Count());
+    }
+
+    /// <summary>
+    /// affiant#101: a synchronous method whose name ends in "Async" keeps its name. SK's own
+    /// default-naming fallback strips the suffix only from an async-returning method, so a walker
+    /// that stripped it unconditionally registered <c>LookupThing</c> against an SK function named
+    /// <c>LookupThingAsync</c> and <c>AffiantStartupValidator</c> refused the wiring at boot.
+    /// </summary>
+    [Fact]
+    public void DoesNotStripAsync_FromSynchronousMethod()
+    {
+        var sp = BuildServiceProvider<TestPluginWithAsyncSuffixShapes>();
+        var registry = sp.GetRequiredService<IAffiantToolRegistry>();
+
+        Assert.NotNull(registry.Find("LookupThingAsync", "TestPluginWithAsyncSuffixShapes"));
+        Assert.Null(registry.Find("LookupThing", "TestPluginWithAsyncSuffixShapes"));
+    }
+
+    [Fact]
+    public void StripsAsync_FromTask_ValueTask_AndBareTaskReturningMethods()
+    {
+        var sp = BuildServiceProvider<TestPluginWithAsyncSuffixShapes>();
+        var registry = sp.GetRequiredService<IAffiantToolRegistry>();
+
+        Assert.NotNull(registry.Find("FetchThing", "TestPluginWithAsyncSuffixShapes"));
+        Assert.NotNull(registry.Find("LoadThing", "TestPluginWithAsyncSuffixShapes"));
+        Assert.NotNull(registry.Find("SaveThing", "TestPluginWithAsyncSuffixShapes"));
+    }
+
+    /// <summary>
+    /// The load-bearing assertion for affiant#101: the descriptor names the walker registers are
+    /// the names Semantic Kernel itself gives the same methods. Compared against a real SK plugin
+    /// built from the same type, so the two cannot drift.
+    /// </summary>
+    [Fact]
+    public void SkWalkerNames_MatchSemanticKernelsOwnFunctionNames()
+    {
+        var skNames = KernelPluginFactory
+            .CreateFromObject(new TestPluginWithAsyncSuffixShapes(), nameof(TestPluginWithAsyncSuffixShapes))
+            .Select(f => f.Name)
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .ToArray();
+
+        var sp = BuildServiceProvider<TestPluginWithAsyncSuffixShapes>();
+        var affiantNames = sp.GetRequiredService<IAffiantToolRegistry>().All
+            .Select(d => d.FunctionName)
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(skNames, affiantNames);
     }
 }

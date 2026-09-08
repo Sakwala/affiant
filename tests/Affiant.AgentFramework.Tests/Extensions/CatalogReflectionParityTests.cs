@@ -15,9 +15,9 @@ using Xunit;
 /// must register the same <see cref="AffiantToolDescriptor"/> set as
 /// <c>Affiant.SemanticKernel.Extensions.KernelBuilderExtensions.AddAffiantPluginsFromType{T}</c>
 /// (SK) — same function names, plugin name, operation, entity type, and inference strategy.
-/// The fixture type below avoids the one documented naming asymmetry between backends (SK strips
-/// a bare trailing "Async" from [KernelFunction] methods with no explicit name; MAF's
-/// AIFunctionFactory does not) by using method names with no "Async" suffix.
+/// The fixture type below uses method names with no "Async" suffix, so the trailing-"Async" rule
+/// is not what this check exercises; it is pinned on each backend's own suite. Since affiant#101
+/// the two backends apply the same rule — the suffix comes off only an async-returning method.
 /// </summary>
 public class CatalogReflectionParityTests
 {
