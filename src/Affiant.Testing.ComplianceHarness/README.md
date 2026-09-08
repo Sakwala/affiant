@@ -30,6 +30,13 @@ If `result.Passed` is `false`, either:
 - A write strategy is missing a compliance fixture (`MissingFixtures`), or
 - A fixture case's assertion failed (`FixtureFailures`)
 
+**One strategy, two write tools.** A fixture pairs with a *strategy*, so when one strategy backs
+more than one write tool the harness verifies it against one of them: the first by function name,
+then by plugin name, both ordinal. That choice is the same in every process — it used to follow the
+registry's `ConcurrentDictionary` enumeration order and varied between runs. A fixture whose cases
+do not fit the tool that wins — a create-shaped case against an update-shaped tool, say — therefore
+fails every run rather than some.
+
 ## API Reference
 
 | Type | Role |

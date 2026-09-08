@@ -88,6 +88,13 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
   `AffiantStartupValidator` then refused the wiring at boot. The walker now applies SK's own
   return-type condition, which is the condition `Affiant.AgentFramework`'s catalog already inherits
   from `AIFunctionFactory` — the same trailing-`Async` rule on every backend.
+- `Sakwala/affiant#105` — the EF stores wrote the Docket's JSON columns under serializer options of
+  their own, so a stored row and the wire form of the same record were different bytes; both call
+  sites now go through `AffiantJson`.
+- `Sakwala/affiant#107` — `ComplianceHarness.Verify` paired a fixture with whichever descriptor the
+  registry's `ConcurrentDictionary` happened to yield first, so a strategy behind two write tools
+  was verified against a different tool from process to process; the pairing is now the first
+  descriptor by function name, then by plugin name.
 
 ### Documentation
 
