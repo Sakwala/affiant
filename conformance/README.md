@@ -5,7 +5,7 @@ the measurement is published.
 
 The protocol lives in [`Sakwala/affiant-protocol`](https://github.com/Sakwala/affiant-protocol): the
 numbered invariants in prose (`INVARIANTS.md`), the JSON Schemas for the wire, and a suite of
-**declarative conformance fixtures** — 56 documents that each state a wiring, a sequence of acts and
+**declarative conformance fixtures** — 61 documents that each state a wiring, a sequence of acts and
 what must then be true, plus 7 canonical byte vectors. The fixtures name no class, no file and no
 language. The thing that binds them to this implementation is the **driver**,
 `tests/Affiant.Conformance.Tests`, and the thing the driver produces is a **parity report** naming

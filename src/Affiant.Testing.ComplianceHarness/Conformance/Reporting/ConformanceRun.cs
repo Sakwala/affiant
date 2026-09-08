@@ -20,7 +20,7 @@ internal sealed record FixtureResult(string Id, string Outcome, IReadOnlyList<Mi
 /// </summary>
 /// <remarks>
 /// The suite runs once per process and is shared by every assertion in the project, because running
-/// 63 documents per test would say the same thing five times over and take five times as long.
+/// 68 documents per test would say the same thing five times over and take five times as long.
 /// </remarks>
 internal sealed class ConformanceRun
 {
