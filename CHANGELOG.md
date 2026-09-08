@@ -11,6 +11,43 @@ in lockstep as of 2026-07-05 (`Affiant.Extensions.AI` joined the set 2026-08-20)
 plus the bare `Affiant` meta-ID, are reserved on nuget.org (the last two, `Affiant.AgentFramework`
 and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectively).
 
+## [Unreleased]
+
+### The quickstart sample
+
+#### Fixed
+
+- **The quickstart's hub writes the record the gate produced, not one it folded itself
+  (Sakwala/affiant#99).** `ChatHub.ApproveEntry` handed the write executor the filed proposal plus the
+  reviewer's raw amendment map, and `LeaveWriteExecutor` merged the two field by field — a second
+  implementation of the fold `AffidavitAmendments.Apply` already performed when the decision was
+  recorded, which is exactly what the beta.3 migration note tells a host to stop doing. It now passes
+  `DocketEntry.AmendedAffidavit ?? DocketEntry.Envelope` and the executor reads values off that
+  record only. The two folds disagree when the map names a field the Affidavit does not propose: the
+  gate then keeps no amended record and the old path still wrote the map's other values, so the row
+  held a value nothing on the Docket swore to.
+- **The quickstart's previous-value source is keyed the way a projection asks
+  (Sakwala/affiant#120).** `HrPreviousValueSource` answered with camelCase keys while
+  `SchemaDrivenAffidavitProjection` looks each field up by the strategy's declared
+  `TaskInferenceField.Name` on an ordinal dictionary, so every lookup missed in silence and an
+  update-shaped Affidavit built with the shipped projection reached the reviewer with no before/after
+  at all. The sample's own projection supplies previous values itself and hid it; a host that copied
+  the source did not have that cover.
+- **The quickstart's vendored Evidence Card renders a provenance tag's note again
+  (Sakwala/affiant#113).** The vendored build read `tag.evidence`, the pre-beta.3 wire spelling;
+  `ProvenanceTag.Evidence` has serialised as `note` since `1.0.0-beta.3`, so the guard saw
+  `undefined` and every tag's sentence rendered as nothing. It now reads `note` with the older
+  spelling as a fallback, as the package's own source does, and the Playwright deck asserts a
+  rendered note so the next wire rename cannot pass in silence.
+
+#### Documentation
+
+- **The quickstart projection stops calling its aggregate stricter than the framework's
+  (Sakwala/affiant#96).** `LeaveAffidavitProjection` described its aggregate as stricter than the
+  default and the framework's `PopulatedConfidence` as a mean over the sourced fields. Since
+  `1.0.0-beta.3` `AffidavitConfidence.Compute` takes the minimum for both numbers, so the override
+  changes nothing and the two comments contradicted each other. Both now state the shipped rule.
+
 ## [1.0.0-beta.3] — 2026-09-05
 
 ### Decisions, attestation and identity as the rulebook defines them
