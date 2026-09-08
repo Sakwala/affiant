@@ -11,6 +11,25 @@ in lockstep as of 2026-07-05 (`Affiant.Extensions.AI` joined the set 2026-08-20)
 plus the bare `Affiant` meta-ID, are reserved on nuget.org (the last two, `Affiant.AgentFramework`
 and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectively).
 
+## [Unreleased]
+
+### Documentation
+
+- **The beta.3 docket section's breaking-change 8** now describes `ReviewGate.HandleDecisionAsync`
+  and `ResubmitAsync`'s new `DecisionContext` parameter accurately: one declaration each, with the
+  old signature removed and the new one added, not split into explicit overloads (affiant#89).
+- **`ReviewOutcome.Approved`'s XML remarks** now say the amended Affidavit is persisted on the
+  Docket row, as `DocketEntry.AmendedAffidavit`, and not only carried beside the outcome
+  (affiant#90).
+- **The beta.3 docket section's breaking-change 4** now names only the two decision cases that
+  actually stopped returning `Expired` — a missing entry and an already-decided entry. A decision
+  that lost a race already returned the winner's real outcome at `1.0.0-beta.1.1`, and a decision on
+  a blocked entry could not arise before this release, since `BlockedMarker` did not exist
+  (affiant#95).
+- **`Affidavit.AggregateConfidence`'s XML doc** no longer states that 0 is reachable only through an
+  unknown-provenance (`Empty`) field — a known-provenance field the inference port itself rated at 0
+  confidence also drives the minimum to 0 (affiant#100).
+
 ## [1.0.0-beta.3] — 2026-09-05
 
 ### Decisions, attestation and identity as the rulebook defines them
@@ -704,9 +723,11 @@ here. Nothing below changes what a conforming host already does; each is a chang
    relay, or a Standing Order — where `ReviewerUserId` can only name one id. Removed in the release
    after this one.
 4. **`ReviewGate.HandleDecisionAsync` returns `ReviewOutcome.Refused` where it used to return
-   `ReviewOutcome.Expired`** for a decision on a missing entry, a decision on an already-decided
-   entry, a decision that lost a race, and a decision on a blocked entry. A host that branched on
-   `Expired` for any of those adds a `Refused` arm and reads `Code`; `ReviewOutcome.Expired.
+   `ReviewOutcome.Expired`** for a decision on a missing entry and a decision on an already-decided
+   entry. (A decision that lost a race already returned the winner's real outcome at
+   `1.0.0-beta.1.1`, not `Expired`; a decision on a blocked entry could not arise before this
+   release, since `BlockedMarker` did not exist.) A host that branched on `Expired` for either
+   surviving case adds a `Refused` arm and reads `Code`; `ReviewOutcome.Expired.
    AmendmentsPreserved` is replaced by `Refused.Detail == "amendments-preserved"`.
 5. **A `MultiParty` or `ReferralRequired` verdict returns `ReviewOutcome.Refused`**, not
    `ReviewOutcome.Approved` (via a single reviewer) or `ReviewOutcome.Referral`. No entry is written
@@ -721,8 +742,11 @@ here. Nothing below changes what a conforming host already does; each is a chang
    `Amendments`: what an approval *accepted* and what a refused caller *typed* are different facts,
    and a resubmission that presented the second as the first would show a refused caller's
    corrections as an approval's.
-8. **`ReviewGate.HandleDecisionAsync`'s optional parameters are now explicit overloads.** Existing
-   call sites keep compiling; a call that relied on named arguments past `amendments` does not.
+8. **`ReviewGate.HandleDecisionAsync` and `ResubmitAsync` gained a required `DecisionContext context`
+   parameter.** Each keeps one declaration — `amendments`/`cancellationToken` on `HandleDecisionAsync`
+   and `cancellationToken` on `ResubmitAsync` stay optional — with the old signature removed and the
+   new one added, not split into overloads. No existing call site keeps compiling unchanged; each
+   must now pass a `DecisionContext`.
 9. **The store refuses what the gate refuses, on all three backends.** `FileDocketEntryAsync` takes
    a row that is `Pending` and nothing else: a decided row filed directly would put a state nobody
    agreed to in front of the host's executor without ever passing the guarded transition that checks
