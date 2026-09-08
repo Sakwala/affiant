@@ -23,6 +23,13 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
   sequential multi-step review does not exist at runtime. The section and the type's own summary now
   say that, and point a host that needs several approvers at `DocketEntry.CompositeRef`, which is
   where multi-party approval is composed today. (affiant#69)
+- **SR-4 is no longer cited for the Standing Order card broadcast.** SR-4 is "every envelope carries
+  `protocolVersion`" and says nothing about cards; no numbered v0.1 invariant states that an
+  auto-approval still shows one. The `1.0.0-beta.3` entry below, `ReviewGate`'s comment at the
+  Standing Order branch and the mutation table's M2 now cite the fixture that pins the behaviour,
+  `sequence-c/relay-auto-approve-bound-external`; M3, which is about the filing broadcast rather than
+  the Standing Order one, cites RUNNER §4.2 — the card facts a driver checks on every filing whether
+  a fixture states them or not. (affiant#92)
 
 ## [1.0.0-beta.3] — 2026-09-05
 
@@ -994,8 +1001,8 @@ delivered its own `EvidenceCardResponse` unblocked the waiter and the row was wr
 - **An inference reports whether the value was literally in the turn, and which span it read**, so a
   value read verbatim is graded `Conversation` and carries an utterance-span binding.
 - **A Standing Order approval broadcasts its Evidence Card**, with `requiresConfirmation` false
-  (SR-4), and a blocked row's card carries the row's own marker and says in words why no decision will
-  be accepted.
+  (`sequence-c/relay-auto-approve-bound-external`), and a blocked row's card carries the row's own
+  marker and says in words why no decision will be accepted (AZ-4, CV-4).
 - **`standing-order.fired` is emitted by the gate**, where the write is actually approved with no
   person present and where the entry id exists to name.
 - **`ApprovalPolicyEvaluator` measures a review window against the injected `TimeProvider`** (GT-4),

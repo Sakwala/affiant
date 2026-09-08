@@ -13,8 +13,8 @@ the tree this file was written against.
 | # | Substitution | What it breaks | Fixtures red |
 |---|---|---|---|
 | M1 | `new Attestation(attestor, decidedAt, entryId)` → `Guid.NewGuid()` for the entry id (`ReviewGate`) | AZ-1: an attestation names the entry it attests to | 14 |
-| M2 | delete the Standing Order card broadcast (`ReviewGate`) | SR-4: an auto-approval still shows a card | 5 |
-| M3 | delete the ReviewerConfirmation card broadcast (`ReviewGate`) | SR-4/AZ-4: a filing broadcasts a card | 43 |
+| M2 | delete the Standing Order card broadcast (`ReviewGate`) | `sequence-c/relay-auto-approve-bound-external`: an auto-approval still shows a card | 5 |
+| M3 | delete the ReviewerConfirmation card broadcast (`ReviewGate`) | RUNNER §4.2: a filing produces a card, and its facts are checked whether a fixture states them or not | 43 |
 | M4 | `RefuseBlocked` returns `entry-not-found` instead of `decision-not-pending` (`ReviewGate`) | AZ-4: a blocked row says why | 1 |
 | M5 | the row is filed `ReviewerConfirmation` whatever the chain resolved (`ReviewGate`) | DK-1: the row records the requirement in force | 9 |
 | M6 | a prepared field with no provenance is tagged `Default` at 0.5 instead of `Empty` (the runner's own port) | AF-1: a field with nothing behind it is sworn Empty at 0 | 2 |
