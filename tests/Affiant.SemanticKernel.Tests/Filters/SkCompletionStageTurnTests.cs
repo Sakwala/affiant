@@ -171,6 +171,40 @@ public class SkCompletionStageTurnTests
     }
 
     /// <summary>
+    /// A25, the half a "non-empty history wins" reading would have missed: a host that puts a
+    /// system-prompt-only <c>ChatHistory</c> on the kernel has adopted the convention badly rather
+    /// than not at all. That history holds no turn of a person's, so the bridge asks whether the
+    /// kernel's reading carries a user message rather than whether it is non-empty, and falls back
+    /// to the history Semantic Kernel hands it — which does carry the turn.
+    /// </summary>
+    [Fact]
+    public async Task TheAutoInvocationBridge_WithASystemOnlyKernelHistory_ReadsSksOwn()
+    {
+        var (services, fabric, pipeline) = Build();
+        using var _ = services;
+        var kernel = new Kernel(services);
+        kernel.Data["ChatHistory"] = new ChatHistory("You are a maintenance assistant");
+        var skHistory = new ChatHistory();
+        skHistory.AddUserMessage(Utterance);
+        var function = KernelFunctionFactory.CreateFromMethod(() => ToolResult, "CreateThing", "ThingPlugin");
+        var context = new AutoFunctionInvocationContext(
+            kernel,
+            function,
+            new FunctionResult(function, ToolResult),
+            skHistory,
+            new ChatMessageContent(AuthorRole.Assistant, "calling CreateThing"));
+
+        var bridge = new AffiantAutoFunctionInvocationBridge(pipeline);
+        await bridge.OnAutoFunctionInvocationAsync(context, _ => Task.CompletedTask);
+
+        var tag = fabric.GetFieldChain("Priority")!.Current;
+        Assert.Equal(ProvenanceSource.Conversation, tag.Source);
+        var span = Assert.IsType<ProvenanceBinding.UtteranceSpan>(tag.Binding).Ref;
+        Assert.Equal(9, span.Offset);
+        Assert.Equal("Critical", Utterance.Substring(span.Offset, span.Length));
+    }
+
+    /// <summary>
     /// A16: the degraded path — the manual invoker a provider without SK's auto-invocation loop
     /// takes — runs the same completion stage and now reads the same history, so the same tool
     /// result on the same turn grades the same way on both paths.

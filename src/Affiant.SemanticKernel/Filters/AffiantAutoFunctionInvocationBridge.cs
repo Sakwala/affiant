@@ -21,6 +21,8 @@ public sealed class AffiantAutoFunctionInvocationBridge(ToolInvocationPipeline p
         AutoFunctionInvocationContext context,
         Func<AutoFunctionInvocationContext, Task> next)
     {
+        var onKernel = SkMessageConversions.HistoryOf(context.Kernel);
+
         // Completion-stage filters (merge, review gate) key off the result, function identity, and
         // termination — not the arguments. AutoFunctionInvocationContext.Arguments can also throw
         // when the loop did not supply KernelArguments, so we deliberately do not read it here.
@@ -48,7 +50,11 @@ public sealed class AffiantAutoFunctionInvocationBridge(ToolInvocationPipeline p
             // populates, so when the host has not adopted it this seam falls back to the history SK
             // itself hands the filter on every auto-invocation call, converted the same way — the
             // two readings cannot differ. A caller with neither still takes the no-turn path.
-            History = SkMessageConversions.HistoryOf(context.Kernel) is { Count: > 0 } onKernel
+            // The question asked of the kernel's reading is whether it carries a PERSON'S turn, not
+            // whether it is non-empty: a host that puts a system-message-only ChatHistory there has
+            // adopted the convention badly rather than not at all, and reading that as a turn would
+            // beat SK's own history with one the finder has nothing to search.
+            History = SkMessageConversions.CarriesUserTurn(onKernel)
                 ? onKernel
                 : SkMessageConversions.ToNeutral(context.ChatHistory),
         };

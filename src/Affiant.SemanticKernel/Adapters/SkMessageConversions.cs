@@ -97,8 +97,8 @@ internal static class SkMessageConversions
     /// <remarks>
     /// A kernel with nothing under <c>ChatHistory</c> yields an empty list. The convention is a host
     /// contract — nothing in this framework writes <c>kernel.Data["ChatHistory"]</c> — so a caller
-    /// that gets an empty list from here has a second reading to try before it concludes there is no
-    /// turn: <see cref="AutoFunctionInvocationContext.ChatHistory"/>, which Semantic Kernel hands the
+    /// that gets no turn from here has a second reading to try before it concludes there is none:
+    /// <see cref="AutoFunctionInvocationContext.ChatHistory"/>, which Semantic Kernel hands the
     /// auto-invocation bridge on every call (design record A25). Only a caller with neither reads
     /// "no turn in hand", and then the port's own presence report stands, unverified.
     /// </remarks>
@@ -106,6 +106,24 @@ internal static class SkMessageConversions
         kernel.Data.TryGetValue("ChatHistory", out var history) && history is ChatHistory chat
             ? ToNeutral(chat)
             : [];
+
+    /// <summary>
+    /// Whether a neutral history carries a message in a person's role, which is the only thing the
+    /// completion stage takes from it: the turn is the last user message, and a history holding none
+    /// is read as no turn at all (PV-3).
+    /// </summary>
+    /// <remarks>
+    /// The test a caller of <see cref="HistoryOf"/> applies before preferring the kernel's reading
+    /// over Semantic Kernel's own. Non-empty is not the same question: a host that puts a
+    /// system-message-only <see cref="ChatHistory"/> on the kernel has adopted the convention badly
+    /// rather than not at all, and a caller that read that as a turn would beat the history SK hands
+    /// the bridge with one that has nothing to grade against — the no-turn path A25 closes.
+    /// </remarks>
+    public static bool CarriesUserTurn(IReadOnlyList<AffiantChatMessage> history) =>
+        // The same role and the same comparison Affiant.Core's ConversationTurn uses to pick the
+        // turn out of this history; it is internal to that assembly, so the reading is restated
+        // rather than called. AuthorRole.User.Label is "user".
+        history.Any(m => string.Equals(m.Role, AuthorRole.User.Label, StringComparison.OrdinalIgnoreCase));
 
     private static string? SerializeArguments(KernelArguments? arguments) =>
         arguments is null

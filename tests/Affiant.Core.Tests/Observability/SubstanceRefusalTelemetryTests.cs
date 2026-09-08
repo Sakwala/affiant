@@ -55,10 +55,11 @@ public class SubstanceRefusalTelemetryTests
     }
 
     /// <summary>
-    /// The deprecated alias keeps firing for one release. An operator's dashboard built on
-    /// <c>affidavit.projected</c> must not go dark the moment they upgrade — that is the whole point
-    /// of a deprecation window, and this test is what makes the window real rather than a promise in
-    /// a changelog.
+    /// The deprecated alias keeps firing through the <c>1.0.0-beta.3</c> line — its point releases
+    /// included — and is removed at the next release that is not a point release of it. An
+    /// operator's dashboard built on <c>affidavit.projected</c> must not go dark the moment they
+    /// upgrade — that is the whole point of a deprecation window, and this test is what makes the
+    /// window real rather than a promise in a changelog.
     /// </summary>
     [Fact]
     public void TheDeprecatedProjectedEvent_IsStillEmittedAlongside()

@@ -59,9 +59,10 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
   at the invocation stage and at the completion stage, and on all three backends. That reading is
   `kernel.Data["ChatHistory"]`, which is a **host** contract — nothing in this framework writes it —
   so a host that never adopted the convention would still have reached the merge filter with no turn.
-  Where the kernel carries no history, `AffiantAutoFunctionInvocationBridge` now falls back to the
-  `ChatHistory` Semantic Kernel itself hands the filter on every auto-invocation call, converted the
-  same way; `ManualToolInvoker`, which has no such context, keeps the kernel reading alone.
+  Where the kernel carries no turn of a person's — the convention unadopted, or a history holding
+  only a system prompt — `AffiantAutoFunctionInvocationBridge` now falls back to the `ChatHistory`
+  Semantic Kernel itself hands the filter on every auto-invocation call, converted the same way;
+  `ManualToolInvoker`, which has no such context, keeps the kernel reading alone.
 
 #### Changed
 
