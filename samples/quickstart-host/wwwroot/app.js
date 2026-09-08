@@ -239,10 +239,18 @@ async function decide(entry, detail) {
         : await connection.invoke("ApproveEntry", entry.request.docketId, detail.amendments);
 
     // Terminal state comes from the server's answer, never from the click. A decision that lost a
-    // race with the deadline comes back "expired" — and no row is written.
+    // race with the deadline comes back "expired" — and no row is written. Whether the edits it
+    // carried survived is the server's answer too, not this page's assumption.
     setState(entry.request.docketId, ack.outcome, entry);
     if (ack.outcome === "expired") {
-      notice("warning", "That entry had already expired. Nothing was written; its amendments were kept.");
+      notice(
+        "warning",
+        ack.amendmentsPreserved
+          ? "That entry had already expired. Nothing was written; its amendments were kept."
+          : "That entry had already expired. Nothing was written.",
+      );
+    } else if (ack.outcome === "refused") {
+      notice("warning", "The gate refused that decision. Nothing was written.");
     }
   } catch (error) {
     setState(entry.request.docketId, "pending", entry);
@@ -267,6 +275,7 @@ const STATE_LABELS = {
   rejected: "Rejected",
   expired: "Expired",
   referred: "Referred",
+  refused: "Refused",
 };
 
 function setState(docketId, state, known) {

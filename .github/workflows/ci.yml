@@ -5,7 +5,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-  # The sample's browser deck is manual-only — see the `sample-review-deck` job below.
+  # Every job here also runs on demand from the Actions tab; nothing is dispatch-only.
   workflow_dispatch:
 
 jobs:
@@ -42,30 +42,19 @@ jobs:
           echo "Produced $count packages"
           [ "$count" -eq 10 ] || (echo "Expected 10 packages, got $count" && exit 1)
 
-  # The quickstart sample's own tests: its affidavit projection, its development seam's filing
-  # path, the expiry transition, and the seam's environment gate. Its own job so a sample failure
-  # reads as a sample failure rather than as a framework one.
+  # The quickstart sample's own tests and its browser deck: the affidavit projection, the
+  # development seam's filing path, the expiry transition, the seam's environment gate, how a
+  # proposal's values are graded — then the eight behaviours the review lifecycle is locked by, in a
+  # browser, against a host this job starts. Its own job so a sample failure reads as a sample
+  # failure rather than as a framework one.
+  #
+  # The deck ran on `workflow_dispatch` only until 1.0.0-beta.3.1, on the argument that two of its
+  # specs wait out the framework's 30-second expiry sweep and are a poor gate for an unrelated push.
+  # What that bought was a deck nobody ran: one spec had been failing since the docket stores began
+  # projecting expiry onto every read, and the 1.0.0-beta.3 tag was green anyway (affiant#111). It
+  # runs here, so a green tag means the deck passed. The specs that wait on the sweep are why this
+  # job is minutes rather than seconds.
   sample-quickstart-host:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v6
-        with:
-          global-json-file: global.json
-
-      - name: Test the quickstart sample host
-        run: dotnet test samples/quickstart-host/tests/QuickstartHost.Tests/QuickstartHost.Tests.csproj -c Release
-
-  # The sample's seven-behaviour browser deck. Manual only, deliberately: two of its specs wait on
-  # the framework's 30-second expiry sweep, which makes them slow and timing-sensitive — a real
-  # behaviour worth locking, and a poor gate for every unrelated push. Run it from the Actions tab
-  # before touching the review lifecycle, the transport, or the sample's page. It is not
-  # continue-on-error: when it runs, a failure is a failure.
-  sample-review-deck:
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -80,6 +69,9 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
+
+      - name: Test the quickstart sample host
+        run: dotnet test samples/quickstart-host/tests/QuickstartHost.Tests/QuickstartHost.Tests.csproj -c Release
 
       - name: Build the sample host
         run: dotnet build samples/quickstart-host/QuickstartHost.csproj -c Release

@@ -106,9 +106,13 @@ public static class DevSeamEndpoints
             .Where(pair => !string.IsNullOrWhiteSpace(pair.Value))
             .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
 
+        // A person states the values on this route, not a model — on a create the canned defaults
+        // stand in for what they would otherwise have typed — which is why what this request files
+        // is sworn UserStated, bound to the request it arrived in. A write tool's arguments are not:
+        // see LeaveProposalBuilder.Build.
         var affidavit = request?.EntityId is { } entityId
-            ? proposals.BuildUpdate(entityId, nonBlank)
-            : proposals.BuildCreate(nonBlank);
+            ? proposals.BuildUpdate(entityId, nonBlank, ProposalOrigin.DevSeamRequest)
+            : proposals.BuildCreate(nonBlank, ProposalOrigin.DevSeamRequest);
 
         if (request?.EntityId is { } missing && affidavit.EntityId is null)
         {
@@ -176,12 +180,13 @@ public static class DevSeamEndpoints
     /// "the store already says this" before the client has caught up.
     ///
     /// <para>
-    /// <b>Status is what the store holds, not what the clock implies.</b> An entry past its deadline
-    /// still reads <c>Pending</c> here until the framework's 30-second sweep writes <c>Expired</c>.
-    /// INVARIANTS.md DK-1 requires expiry to be queryable state — an entry past its deadline reads
-    /// as expired whether or not a sweep has run — and the shipped .NET docket stores do not yet
-    /// compute it on read. That gap is inherited, not introduced here; it is why the deck's expiry
-    /// specs wait out a sweep tick rather than the deadline.
+    /// <b>Status is what the clock implies, not only what the row holds.</b> Since 1.0.0-beta.3 the
+    /// shipped docket stores project expiry onto every read, so an entry past its deadline reads
+    /// <c>Expired</c> here whether or not the 30-second sweep has committed the transition —
+    /// INVARIANTS.md DK-1, expiry as queryable state. The row itself stays <c>Pending</c> until the
+    /// sweep, a decision or a resubmission writes the transition, which is why a reviewer whose page
+    /// has not been told yet can still send the late decision the deck's late-amendments spec
+    /// exercises.
     /// </para>
     /// </summary>
     private static async Task<IResult> GetDocketAsync(
@@ -191,7 +196,10 @@ public static class DevSeamEndpoints
         return entry is null
             ? Results.NotFound()
             : Results.Ok(new DevDocketResponse(
-                entry.Status.ToString(), entry.ExpiresAt, entry.Amendments));
+                entry.Status.ToString(),
+                entry.ExpiresAt,
+                entry.Amendments,
+                entry.PreservedAmendments?.Amendments));
     }
 }
 
@@ -245,8 +253,18 @@ public sealed record DevProposeRequest(
 /// <summary>What the seam hands back: the session the card went to, and the entry's id.</summary>
 public sealed record DevProposeResponse(string SessionId, Guid DocketId);
 
-/// <summary>One entry's server-side state. <c>status</c> is the framework's own review status.</summary>
+/// <summary>
+/// One entry's server-side state. <c>status</c> is the framework's own review status.
+///
+/// <para>
+/// The two amendment maps are two different facts and the framework keeps them apart:
+/// <c>amendments</c> is what an approval accepted, <c>preservedAmendments</c> is what a decision
+/// the gate refused was carrying — a late one, whose edits are kept on the row for a resubmission
+/// even though nobody accepted them.
+/// </para>
+/// </summary>
 public sealed record DevDocketResponse(
     string Status,
     DateTimeOffset ExpiresAt,
-    IReadOnlyDictionary<string, object?>? Amendments);
+    IReadOnlyDictionary<string, object?>? Amendments,
+    IReadOnlyDictionary<string, object?>? PreservedAmendments);

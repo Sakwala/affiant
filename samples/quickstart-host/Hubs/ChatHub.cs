@@ -206,6 +206,17 @@ public sealed record DecisionAck(string EntryId, string Outcome, bool Amendments
         ReviewOutcome.Rejected => new DecisionAck(entryId.ToString(), "rejected", false),
         ReviewOutcome.Expired expired => new DecisionAck(entryId.ToString(), "expired", expired.AmendmentsPreserved),
         ReviewOutcome.Referral => new DecisionAck(entryId.ToString(), "referred", false),
+        // A decision the gate refuses is not an outcome the reviewer asked for, and since
+        // 1.0.0-beta.3 a late decision is a refusal — ReviewOutcome.Refused with the code
+        // decision-expired — rather than ReviewOutcome.Expired. Without this arm every refusal fell
+        // through to "pending" below: the card went back to awaiting a decision that had already
+        // been refused, and the reviewer was told nothing. decision-expired is reported as expired
+        // because that is what happened to the entry, and Detail says whether the amendments the
+        // late decision carried were kept; any other code is reported as a refusal.
+        ReviewOutcome.Refused refused => new DecisionAck(
+            entryId.ToString(),
+            refused.Code == DocketRefusalCodes.DecisionExpired ? "expired" : "refused",
+            refused is { Code: DocketRefusalCodes.DecisionExpired, Detail: "amendments-preserved" }),
         // Null means a call inside the framework is awaiting the decision and owns the outcome.
         // This host never files that way, so it cannot happen here.
         _ => new DecisionAck(entryId.ToString(), "pending", false),

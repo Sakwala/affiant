@@ -81,6 +81,28 @@ async function docketStatus(page: Page, docketId: string): Promise<string> {
   return (await response.json()).status;
 }
 
+/**
+ * Waits until the store's own read reports the entry as Expired. Since 1.0.0-beta.3 that read
+ * projects expiry, so it flips the moment the deadline passes and long before the 30-second sweep
+ * commits the transition. Polling it beats timing from this process's clock: the deadline is
+ * stamped server-side when the entry is filed, not when the test asked for it.
+ */
+async function waitForProjectedExpiry(
+  page: Page,
+  docketId: string,
+  timeout: number,
+): Promise<void> {
+  const giveUpAt = Date.now() + timeout;
+  for (;;) {
+    if ((await docketStatus(page, docketId)) === "Expired") return;
+    expect(
+      Date.now(),
+      "the store never reported the entry as Expired within the window",
+    ).toBeLessThan(giveUpAt);
+    await page.waitForTimeout(250);
+  }
+}
+
 async function leaveRequests(page: Page, reason: string) {
   const response = await page.request.get(
     `/api/leave-requests?search=${encodeURIComponent(reason)}`,
@@ -297,7 +319,6 @@ test.describe("review lifecycle", () => {
 
     // Employee is supplied here: this spec is about the late-decision race, not the mandatory
     // gate, and a blocked Approve button could never produce the late click.
-    const filedAt = Date.now();
     const { docketId } = await propose(
       page,
       sessionId,
@@ -315,34 +336,40 @@ test.describe("review lifecycle", () => {
     // guarantees. That is a second thing this spec locks, and it is locked here only incidentally —
     // the "redelivery is not a redraw" spec below asserts on it directly and in a second.
 
-    // Wait until the deadline has passed. The gate reads the wall clock itself, so a decision is
-    // late the moment the deadline passes — independent of whether the sweep has ticked. The
-    // window between "late server-side" and "the sweep has reaped it" is the race this locks.
-    const lateAt = filedAt + 45_500;
-    while (Date.now() < lateAt) {
-      await page.waitForTimeout(Math.min(1_000, lateAt - Date.now()));
-    }
+    // Wait for the deadline, as the server keeps it. The gate reads the wall clock itself, so a
+    // decision is late the moment the deadline passes — independent of whether the sweep has
+    // ticked — and since 1.0.0-beta.3 the store's own read projects that expiry, which is the
+    // earliest signal the race is open. The row is still Pending underneath; what has not happened
+    // yet is the sweep's broadcast, so this page is still showing a live card with an armed Approve
+    // button. That gap — expired on read, and the reviewer not yet told — is the race this locks.
+    await waitForProjectedExpiry(page, docketId, 90_000);
 
-    // Confirm the race is real before exploiting it: past the deadline, still Pending in the store.
-    // If the sweep happened to land in that half-second the assertion fails loudly rather than
-    // quietly testing something else.
-    expect(
-      await docketStatus(page, docketId),
-      "expected the entry to still read Pending in the store at the moment of the late click",
-    ).toBe("Pending");
+    // The other half of the race, asserted rather than assumed: if the sweep reached the page first
+    // the button is gone, and this fails loudly rather than quietly testing an ordinary decision.
+    const approve = entry.getByTestId("approve-action-button");
+    await expect(approve).toBeEnabled({ timeout: 1_000 });
 
-    await entry.getByTestId("approve-action-button").click();
+    await approve.click();
 
-    // The framework answers "expired", not "approved". No row is written, and the page says so.
+    // The gate refuses the decision as decision-expired rather than approving it: no row is
+    // written, the reviewer is told, and the page hears it from the server's own answer — the
+    // notice below is only rendered for an ack that says the entry had expired.
     await expect(entry.getByTestId("entry-status")).toHaveText("Expired", { timeout: 20_000 });
     await expect(page.getByTestId("notice").first()).toContainText(/already expired/i);
+    // amendments-preserved travels on that same ack, and the page says which of the two happened.
+    await expect(page.getByTestId("notice").first()).toContainText(/amendments were kept/i);
     expect(await leaveRequests(page, reason)).toHaveLength(0);
 
-    // But the edit is not lost: the framework persisted it onto the expired entry.
+    // But the edit is not lost: the framework persisted it onto the expired entry — as *preserved*
+    // amendments, which is a different fact from the amendments an approval accepted and lives in a
+    // different place on the row. Nobody accepted this one; it is kept for the resubmission.
     const expired = await page.request.get(`/api/dev/docket/${docketId}`);
-    expect(((await expired.json()) as { amendments: Record<string, string> }).amendments.EndDate).toBe(
-      amendedEndDate,
-    );
+    const state = (await expired.json()) as {
+      amendments: Record<string, string> | null;
+      preservedAmendments: Record<string, string> | null;
+    };
+    expect(state.preservedAmendments?.EndDate).toBe(amendedEndDate);
+    expect(state.amendments, "nothing was accepted, so nothing is an accepted amendment").toBeNull();
 
     // Resubmit files a fresh entry cloning the expired one, and its card carries what the first
     // reviewer had already agreed.

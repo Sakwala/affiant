@@ -11,6 +11,40 @@ in lockstep as of 2026-07-05 (`Affiant.Extensions.AI` joined the set 2026-08-20)
 plus the bare `Affiant` meta-ID, are reserved on nuget.org (the last two, `Affiant.AgentFramework`
 and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectively).
 
+## [Unreleased]
+
+### Fixed
+
+- **The quickstart sample swore a model's tool arguments `UserStated`.**
+  `samples/quickstart-host/Agent/LeaveProposalBuilder.cs` tagged every value a proposal carried
+  `UserStated` at confidence 1.0, bound to a `form-input` control the sample does not have — so on
+  the model path, where the "caller's own arguments" are what the model extracted from the
+  conversation, a date nobody typed read "You said this" on the Evidence Card. The builder now
+  grades by the path the values took: a write tool's arguments are an inference and carry
+  `Inferred` with no binding, and only the development seam, where a person writes the values into
+  the request, mints `UserStated` — bound to that request rather than to a control. PV-3 makes
+  `UserStated` unreachable from an inference, and `ProvenanceTag.FromInference` cannot name it;
+  the sample now teaches that instead of working around it. `docs/tool-authoring-guide.md` taught
+  the same over-grade in the code a host copies — its worked example, its skeleton, its entity
+  mapper and its plugin test all tagged a tool parameter `UserStated`, two hundred lines below the
+  rule saying not to — and now matches the rule it states, with a persisted value read back out of
+  the store graded `External` and bound to its row. Sample and documentation only; no framework
+  behaviour changed. (#110)
+- **The sample's browser deck failed one of its eight specs, and nothing ran it.** The
+  late-amendments spec asserted that an entry past its deadline still reads `Pending` in the store
+  until the sweep commits it — true before 1.0.0-beta.3, and false since the docket stores began
+  projecting expiry onto every read. The spec now waits for that projected expiry, which is also a
+  better signal than counting seconds against a deadline the server stamped, and then exercises the
+  behaviour it was written for: the still-armed card, the refused decision, the amendments kept and
+  the resubmission that carries them. Doing so surfaced a second stale expectation in the sample:
+  `ChatHub`'s `DecisionAck` still mapped only `ReviewOutcome.Expired`, so a late decision — a
+  `Refused` outcome carrying `decision-expired` since 1.0.0-beta.3 — acked as "pending" and the
+  reviewer was told nothing at all. The ack now reads the refusal and its `amendments-preserved`
+  detail, and the page says which of the two happened. The deck moves into the
+  `sample-quickstart-host` CI job, which runs on every push, so a green tag means the deck passed;
+  it had been `workflow_dispatch`-only, which is how a release was tagged with a failing spec.
+  (#111)
+
 ## [1.0.0-beta.3] — 2026-09-05
 
 ### Decisions, attestation and identity as the rulebook defines them
@@ -2461,6 +2495,7 @@ pre-1.0 clean break, not a deprecation — there is no compatibility shim:
   Mapping), and §5 (Framework Boundary Contract, new Seam 4) corrected/rewritten to describe this
   architecture; see those sections for full detail.
 
-[1.0.0-beta.3]: https://github.com/Sakwala/affiant/compare/v1.0.0-beta.1.1...HEAD
+[Unreleased]: https://github.com/Sakwala/affiant/compare/v1.0.0-beta.3...HEAD
+[1.0.0-beta.3]: https://github.com/Sakwala/affiant/releases/tag/v1.0.0-beta.3
 [1.0.0-beta.1.1]: https://github.com/Sakwala/affiant/releases/tag/v1.0.0-beta.1.1
 [1.0.0-beta.1]: https://github.com/Sakwala/affiant/releases/tag/v1.0.0-beta.1

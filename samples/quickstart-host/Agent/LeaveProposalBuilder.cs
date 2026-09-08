@@ -5,8 +5,28 @@ using Affiant.Abstractions.Models;
 using Affiant.Core.Services;
 
 /// <summary>
-/// The one place this sample turns a caller's stated values into an <c>Affidavit</c>: it records
-/// them on a <c>ContextFabric</c> with the provenance they actually have, then asks the registered
+/// Where a proposal's values came from — the one thing that decides how they are graded.
+/// </summary>
+public enum ProposalOrigin
+{
+    /// <summary>
+    /// A model produced the values as a write tool's arguments: it read the conversation and filled
+    /// the tool's parameters. Nobody typed them, so nothing here may be graded
+    /// <c>UserStated</c> (PV-3).
+    /// </summary>
+    ModelArguments,
+
+    /// <summary>
+    /// A person stated the values directly in a development-seam request
+    /// (<c>POST /api/dev/propose</c>) — the one path in this sample where the caller and the person
+    /// are the same.
+    /// </summary>
+    DevSeamRequest,
+}
+
+/// <summary>
+/// The one place this sample turns a caller's values into an <c>Affidavit</c>: it records them on a
+/// <c>ContextFabric</c> with the provenance they actually have, then asks the registered
 /// <c>IAffidavitProjection</c> for this entity type to project the affidavit.
 ///
 /// <para>
@@ -16,10 +36,18 @@ using Affiant.Core.Services;
 /// </para>
 ///
 /// <para>
+/// <b>Provenance follows the path, not the caller.</b> Both callers hand this type the same
+/// dictionary of field values, and the two paths differ in the only way that matters: on
+/// <see cref="ProposalOrigin.ModelArguments"/> a model extracted the values from the conversation,
+/// on <see cref="ProposalOrigin.DevSeamRequest"/> a person wrote them into the request. So the
+/// caller names its path and this type grades accordingly — see <c>Build</c>.
+/// </para>
+///
+/// <para>
 /// <b>Why a fresh fabric per proposal.</b> The framework registers a conversation-scoped
 /// <c>IContextFabric</c> that accumulates state across a turn, and a host using deferred inference
 /// would build its proposal from that instance. This host does not: every value on the card comes
-/// straight off the tool call's own arguments, so there is nothing accumulating and no reason to
+/// straight off the call's own arguments, so there is nothing accumulating and no reason to
 /// reach outside the one proposal being built. It also keeps this type free of scoped
 /// dependencies, which matters because Semantic Kernel creates a plugin instance once, from the
 /// root service provider — a plugin whose dependency chain reaches a scoped service does not
@@ -40,6 +68,21 @@ public sealed class LeaveProposalBuilder(IEnumerable<IAffidavitProjection> proje
     /// <summary>The <c>Affidavit.OperationType</c> for a proposal that changes an existing row.</summary>
     public const string UpdateOperation = "update";
 
+    /// <summary>
+    /// The surface a <see cref="ProposalOrigin.DevSeamRequest"/> value arrived on, as the binding
+    /// names it: the seam route, then the affidavit field the request stated. An auditor resolves it
+    /// to a request this host answered, which is more than the name of a form control this sample
+    /// does not have.
+    /// </summary>
+    public const string DevSeamSurface = "POST /api/dev/propose";
+
+    /// <summary>
+    /// The confidence this host defends for a value a model put in a write tool's argument: the
+    /// framework's own default for an inference tag. The host watched nobody type the value and has
+    /// nothing better to say about it than that a model produced it.
+    /// </summary>
+    public const float ModelArgumentConfidence = 0.6f;
+
     private IAffidavitProjection Projection =>
         projections.FirstOrDefault(p => p.EntityType == LeaveTaskInferenceStrategy.LeaveRequestEntity)
         ?? throw new InvalidOperationException(
@@ -48,23 +91,32 @@ public sealed class LeaveProposalBuilder(IEnumerable<IAffidavitProjection> proje
             "services.AddAffidavitProjection<LeaveAffidavitProjection>() during DI setup.");
 
     /// <summary>
-    /// Records a create's stated field values and projects the affidavit. No entity id, so the
+    /// Records a create's field values and projects the affidavit. No entity id, so the
     /// projection leaves it and every previous value null.
     /// </summary>
-    public Affidavit BuildCreate(IReadOnlyDictionary<string, string> statedFields) =>
-        Build(CreateOperation, statedFields, leaveRequestId: null);
+    /// <param name="fields">The proposed values, by affidavit field name.</param>
+    /// <param name="origin">Where those values came from; it decides how each one is graded.</param>
+    public Affidavit BuildCreate(IReadOnlyDictionary<string, string> fields, ProposalOrigin origin) =>
+        Build(CreateOperation, fields, origin, leaveRequestId: null);
 
     /// <summary>
-    /// Records an update's stated field values against an existing row and projects the affidavit.
+    /// Records an update's field values against an existing row and projects the affidavit.
     /// The projection reads that row, so the resulting card carries the entity's id and, per field,
     /// the value the database holds today.
     /// </summary>
-    public Affidavit BuildUpdate(int leaveRequestId, IReadOnlyDictionary<string, string> statedFields) =>
-        Build(UpdateOperation, statedFields, leaveRequestId);
+    /// <param name="leaveRequestId">The row the update targets.</param>
+    /// <param name="fields">The proposed values, by affidavit field name.</param>
+    /// <param name="origin">Where those values came from; it decides how each one is graded.</param>
+    public Affidavit BuildUpdate(
+        int leaveRequestId,
+        IReadOnlyDictionary<string, string> fields,
+        ProposalOrigin origin) =>
+        Build(UpdateOperation, fields, origin, leaveRequestId);
 
     private Affidavit Build(
         string operationType,
         IReadOnlyDictionary<string, string> statedFields,
+        ProposalOrigin origin,
         int? leaveRequestId)
     {
         ArgumentNullException.ThrowIfNull(statedFields);
@@ -87,14 +139,30 @@ public sealed class LeaveProposalBuilder(IEnumerable<IAffidavitProjection> proje
             DisplayName: "Leave request",
             Fields: entityFields));
 
-        // Every value here came straight off the caller's own arguments, so every tag is UserStated
-        // and binds to the control the person typed into (PV-3). A field the caller said nothing
-        // about gets no chain at all, and the projection decides between the record's current value
-        // and ProvenanceTag.Empty.
+        // How a value is graded follows from where it came from, and from nothing else (PV-3).
+        //
+        // ModelArguments: a write tool's arguments are what a model extracted from the conversation,
+        // so the strongest grade they can carry is an inference — UserStated is not reachable from
+        // here, and ProvenanceTag.FromInference cannot name it. This host establishes nothing about
+        // where in the turn a value appeared, so the grade is Inferred and the tag carries no
+        // binding: there is no artifact to point an auditor at. A host that does establish that the
+        // value is literally present in the turn mints InferenceSource.Conversation with an
+        // utterance-span binding instead.
+        //
+        // DevSeamRequest: a person wrote these values into the request themselves, so UserStated,
+        // bound to the seam route and the field they arrived in.
+        //
+        // A field the caller said nothing about gets no chain at all, and the projection decides
+        // between the record's current value and ProvenanceTag.Empty.
         foreach (var name in statedFields.Keys)
         {
-            fabric.SetFieldChain(name, ProvenanceChain.From(
-                ProvenanceTag.FromUser(name, new ProvenanceBinding.FormInput(new FormInputRef(name)))));
+            var tag = origin == ProposalOrigin.DevSeamRequest
+                ? ProvenanceTag.FromUser(
+                    name, new ProvenanceBinding.FormInput(new FormInputRef($"{DevSeamSurface}#{name}")))
+                : ProvenanceTag.FromInference(
+                    InferenceSource.Inferred, name, ModelArgumentConfidence);
+
+            fabric.SetFieldChain(name, ProvenanceChain.From(tag));
         }
 
         return Projection.Project(

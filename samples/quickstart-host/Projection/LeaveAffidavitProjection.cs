@@ -32,7 +32,9 @@ using QuickstartHost.Data;
 ///
 /// <para>
 /// <b>Provenance on an update.</b> A field the caller actually asked to change carries whatever
-/// chain the caller recorded in the fabric (<c>UserStated</c>, for a tool call's own arguments).
+/// chain the caller recorded in the fabric — <c>Inferred</c> for a write tool's own arguments,
+/// which a model produced, and <c>UserStated</c> only where a person stated the value
+/// (<c>LeaveProposalBuilder</c>).
 /// A field the caller said nothing about is still proposed — an affidavit describes the whole row
 /// after the write, not a patch — and carries an <c>External</c> tag naming the database as its
 /// source. That is Rule 7 in practice (nothing is omitted; an unsourced field is tagged
