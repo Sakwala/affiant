@@ -39,15 +39,17 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
   says so under `derivedFrom.framework` — and an `EvidenceCardRequest` there carries four
   properties: `docketId`, `affidavit`, `requiredBy` and `priorAmendments`. The envelope this tree
   serialises carries those four and, on every card, `populatedConfidence`, `emptyFieldCount`,
-  `requiresConfirmation`, `blocked` and `protocolVersion`, plus `presentation`, `warnings` and
-  `hostOperation` when the host supplied them — those three are omitted when null, the rest are
-  written even when null. An assertion that the emitted key set
+  `requiresConfirmation`, `blocked` and `protocolVersion`, plus `presentation` (computed from the
+  Affidavit's own per-field hints), `warnings` (lifted off `affidavit.Warnings`) and `hostOperation`
+  (the caller's own argument) — those three are omitted when null, the rest are written even when
+  null. An assertion that the emitted key set
   *equals* a fixture's therefore fails the moment the framework carries a new property, and that is
   expected rather than a regression: the fixtures pin the shape a beta.1 host had to produce, not a
   ceiling on what a later envelope may carry. Assert that every key a fixture names is present with
   the value it gives, and allow-list the rest — the framework's own
   `SeedWireFixtureTests.AnEvidenceCardGainsTheEnvelopesNewPropertiesAndLosesNone` is that assertion
-  written down, naming each added key and asserting that none was removed. The fixtures' own
+  written down, asserting that none was removed and naming seven of the eight added keys — it does
+  not name `warnings`, so a host copying its list as an allow-list adds that key itself. The fixtures' own
   staleness is filed on the rulebook as Sakwala/affiant-protocol#24 and closes when the wire set is
   re-promoted at the next protocol tag. (affiant#91)
 
