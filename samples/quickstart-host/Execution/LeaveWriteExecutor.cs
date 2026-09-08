@@ -30,8 +30,8 @@ public sealed class LeaveWriteExecutor(HrDbContext db) : IWriteExecutor
     /// corrected anything, the filed proposal when they did not.
     /// </param>
     /// <param name="amendments">
-    /// Unread. The contract offers the raw map for a host that has not yet moved to the gate's own
-    /// fold; this sample has, so its caller passes <c>null</c>.
+    /// Unread: this sample's caller passes <c>null</c>, because the gate folded the reviewer's
+    /// amendments into <paramref name="affidavit"/> before it got here.
     /// </param>
     /// <param name="ct">Cancels the database work.</param>
     public async Task<string?> ExecuteAsync(
@@ -81,15 +81,30 @@ public sealed class LeaveWriteExecutor(HrDbContext db) : IWriteExecutor
     }
 
     /// <summary>
-    /// What the sworn record says this field should hold: its value, or the empty string when the
-    /// field is proposed with no value — a reviewer cleared it, which this sample expresses as an
-    /// empty string. A field the record does not propose at all reads <c>null</c>, and the caller
-    /// leaves the row's current value alone.
+    /// What the sworn record says this field should hold, or <c>null</c> when it says to leave the
+    /// row's current value alone.
+    ///
+    /// <para>
+    /// A field proposed with no value has two causes, and only one of them is an instruction to
+    /// blank the column. A reviewer's clear carries their act on the field's current tag
+    /// (<c>AffidavitAmendments.AmendmentTag</c> gives a cleared field a
+    /// <c>ProvenanceBinding.ReviewerAct</c>), and this sample expresses that as the empty string. A
+    /// field nobody has sourced carries a bare <c>ProvenanceTag.Empty</c> with no binding — the
+    /// projection tags an unknown field that way — and reads <c>null</c>, as does a field the record
+    /// does not propose at all.
+    /// </para>
     /// </summary>
     private static string? ReadField(Affidavit affidavit, string name)
     {
         var field = affidavit.Fields.FirstOrDefault(f => f.Name == name);
-        return field is null ? null : field.Value?.ToString() ?? string.Empty;
+        if (field is null)
+            return null;
+        if (field.Value is not null)
+            return field.Value.ToString();
+
+        return field.Provenance.Current.Binding is ProvenanceBinding.ReviewerAct
+            ? string.Empty
+            : null;
     }
 
     private static DateOnly ParseDate(string? value, DateOnly fallback) =>

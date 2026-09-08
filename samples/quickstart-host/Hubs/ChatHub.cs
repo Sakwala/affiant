@@ -99,8 +99,9 @@ public sealed class ChatHub(
     /// the raw amendment map instead would make it fold them a second time, and two folds of the
     /// same amendments can disagree: when the map names a field the Affidavit does not propose the
     /// gate produces no amended record at all, and a second fold would still write the map's other
-    /// values — values no record on the Docket swears to. It is null exactly when nothing was
-    /// amended, which is why the proposal is the fallback.
+    /// values — values no record on the Docket swears to. It is null whenever the decision produced
+    /// no amended record — nothing was amended, or the fold refused the map — which is why the
+    /// proposal is the fallback.
     /// </para>
     /// </summary>
     public async Task<DecisionAck> ApproveEntry(Guid entryId, Dictionary<string, object?>? amendments)

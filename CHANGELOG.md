@@ -23,13 +23,15 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
   implementation of the fold `AffidavitAmendments.Apply` already performed when the decision was
   recorded, which is exactly what the beta.3 migration note tells a host to stop doing. It now passes
   `DocketEntry.AmendedAffidavit ?? DocketEntry.Envelope` and the executor reads values off that
-  record only. The two folds disagree when the map names a field the Affidavit does not propose: the
+  record only, blanking a column for a field proposed with no value only when that field's current
+  tag carries the reviewer's act — a field nobody sourced leaves the row alone. The two folds disagree when the map names a field the Affidavit does not propose: the
   gate then keeps no amended record and the old path still wrote the map's other values, so the row
   held a value nothing on the Docket swore to.
 - **The quickstart's previous-value source is keyed the way a projection asks
   (Sakwala/affiant#120).** `HrPreviousValueSource` answered with camelCase keys while
   `SchemaDrivenAffidavitProjection` looks each field up by the strategy's declared
-  `TaskInferenceField.Name` on an ordinal dictionary, so every lookup missed in silence and an
+  `TaskInferenceField.Name` on the ordinal dictionary the source returned, so every lookup missed in
+  silence and an
   update-shaped Affidavit built with the shipped projection reached the reviewer with no before/after
   at all. The sample's own projection supplies previous values itself and hid it; a host that copied
   the source did not have that cover.
@@ -2498,6 +2500,7 @@ pre-1.0 clean break, not a deprecation — there is no compatibility shim:
   Mapping), and §5 (Framework Boundary Contract, new Seam 4) corrected/rewritten to describe this
   architecture; see those sections for full detail.
 
-[1.0.0-beta.3]: https://github.com/Sakwala/affiant/compare/v1.0.0-beta.1.1...HEAD
+[Unreleased]: https://github.com/Sakwala/affiant/compare/v1.0.0-beta.3...HEAD
+[1.0.0-beta.3]: https://github.com/Sakwala/affiant/compare/v1.0.0-beta.1.1...v1.0.0-beta.3
 [1.0.0-beta.1.1]: https://github.com/Sakwala/affiant/releases/tag/v1.0.0-beta.1.1
 [1.0.0-beta.1]: https://github.com/Sakwala/affiant/releases/tag/v1.0.0-beta.1

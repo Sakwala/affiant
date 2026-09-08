@@ -23,10 +23,11 @@ using QuickstartHost.Data;
 ///
 /// <para>
 /// <b>The keys are the strategy's declared field names.</b> A projection looks a previous value up
-/// by <c>TaskInferenceField.Name</c> — the framework's own
-/// <c>SchemaDrivenAffidavitProjection</c> does it on an ordinal dictionary — so a key spelled any
-/// other way misses silently and every field reaches the reviewer with a null previous value. The
-/// names come from <see cref="LeaveTaskInferenceStrategy.Fields"/> and nowhere else.
+/// by <c>TaskInferenceField.Name</c> — the framework's own <c>SchemaDrivenAffidavitProjection</c>
+/// does a bare <c>TryGetValue</c> on whatever dictionary this port returns, imposing no comparer of
+/// its own — so with the ordinal dictionary returned below, a key spelled any other way misses
+/// silently and every field reaches the reviewer with a null previous value. The names come from
+/// <see cref="LeaveTaskInferenceStrategy.Fields"/> and nowhere else.
 /// </para>
 /// </summary>
 public sealed class HrPreviousValueSource(IServiceScopeFactory scopeFactory) : IPreviousValueSource

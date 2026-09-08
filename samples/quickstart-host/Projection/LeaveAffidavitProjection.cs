@@ -189,13 +189,10 @@ public sealed class LeaveAffidavitProjection(
     /// have a source, and how many have none — stated as a line a reviewer can read.
     ///
     /// <para>
-    /// They cannot travel on the affidavit itself. The 1.0.0-beta.1 <c>Affidavit</c> is a sealed
-    /// record carrying <c>AggregateConfidence</c> and no companions
-    /// (<c>src/Affiant.Abstractions/Models/Affidavit.cs</c>), and a host cannot add properties to a
-    /// type it does not own. <c>Warnings</c> is the one channel the shipped shape leaves open, and
-    /// the Evidence Card renders it. The card element already reads <c>populatedConfidence</c> and
-    /// <c>emptyFieldCount</c> off an affidavit when they are there, so a release that widens the
-    /// record moves these two onto it and this note goes away.
+    /// The record carries both numbers itself since <c>1.0.0-beta.3</c> —
+    /// <c>Affidavit.PopulatedConfidence</c> and <c>Affidavit.EmptyFieldCount</c>, computed by
+    /// <c>Affidavit.Create</c> — so this line restates them rather than supplying them, in the one
+    /// channel that reaches a reviewer as a sentence.
     /// </para>
     /// </summary>
     private static string ConfidenceNote(AffidavitField[] fields, float aggregateConfidence)

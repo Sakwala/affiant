@@ -16,9 +16,9 @@ using Xunit;
 /// <summary>
 /// What the host's previous-value source answers has to be keyed the way a projection asks. The
 /// framework's own <c>SchemaDrivenAffidavitProjection</c> looks each field up by the strategy's
-/// declared <c>TaskInferenceField.Name</c> on an ordinal dictionary, so this sample is exercised
-/// against that projection rather than against the sample's own — which supplies previous values
-/// itself and would mask a key that never matches.
+/// declared <c>TaskInferenceField.Name</c>, on the dictionary this port returns — ordinal here — so
+/// this sample is exercised against that projection rather than against the sample's own, which
+/// supplies previous values itself and would mask a key that never matches.
 /// </summary>
 public sealed class HrPreviousValueSourceTests : IDisposable
 {
@@ -54,6 +54,9 @@ public sealed class HrPreviousValueSourceTests : IDisposable
 
         var declared = new LeaveTaskInferenceStrategy().Fields.Select(f => f.Name).ToArray();
         Assert.All(previous.Keys, key => Assert.Contains(key, declared));
+        // Both directions: a key the strategy does not declare is dead, and a declared field the
+        // source omits reaches the reviewer with a null previous value.
+        Assert.All(declared, name => Assert.Contains(name, previous.Keys));
     }
 
     [Fact]
