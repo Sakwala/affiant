@@ -29,19 +29,22 @@ An entry past its `ExpiresAt` reads as `Expired` — from `GetDocketEntryAsync`,
 
 `DocketExpiryService` owns a schedule; the **store** owns the sweep. Each tick calls `IDocketStore.ExpireDueAsync(now, scope, limit)` — which finds the due rows, commits their transitions under one guard, and reports whether more remain — until the store says no more remain or the tick's own cap is reached. So a tick is bounded twice, and a backlog larger than the product drains over the ticks that follow:
 
+`ExpirySweepBatchSize` and `ExpirySweepBatchesPerTick` are runtime knobs on `AffiantDocketOptions`, not on the `AddAffiantDocket` builder — register the instance first (`AddAffiantDocket`'s own registration is a `TryAdd`, so it fills in only what a host left unset):
+
 ```csharp
-builder.Services.AddAffiantDocket(docket =>
+builder.Services.AddSingleton(new AffiantDocketOptions
 {
-    docket.UseInMemory();
-    docket.ExpirySweepBatchSize = 500;        // rows per store call — default: 100
-    docket.ExpirySweepBatchesPerTick = 4;     // store calls per tick   — default: 10
+    ExpirySweepBatchSize = 500,        // rows per store call — default: 100
+    ExpirySweepBatchesPerTick = 4,     // store calls per tick   — default: 10
 });
+builder.Services.AddAffiantDocket(docket => docket.UseInMemory());
 ```
 
-A deployment that partitions its Docket — one process per tenant, one worker per region — narrows what its sweep reaches so two processes never contend for the same rows:
+A deployment that partitions its Docket — one process per tenant, one worker per region — narrows what its sweep reaches so two processes never contend for the same rows, the same way:
 
 ```csharp
-builder.Services.AddAffiantDocket(docket => docket.SweepScope = DocketScope.Tenant(tenantId));
+builder.Services.AddSingleton(new AffiantDocketOptions { SweepScope = DocketScope.Tenant(tenantId) });
+builder.Services.AddAffiantDocket();
 ```
 
 A host that would rather schedule the sweep itself — a serverless deployment with no long-lived process, a cron entry, a queue worker — does not register `AddAffiantDocket`'s hosted service at all and calls `ExpireDueAsync` on its own cadence. No framework package owns a timer that expiry depends on.
