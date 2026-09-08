@@ -31,6 +31,26 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
   the Standing Order one, cites RUNNER §4.2 — the card facts a driver checks on every filing whether
   a fixture states them or not. (affiant#92)
 
+### Upgrade note
+
+- **A host that byte-pins its wire assertions to the rulebook's `wire/` fixtures asserts the
+  additions through an allow-list, not through envelope equality.** The fixtures under
+  `conformance/fixtures/wire/` were derived from `1.0.0-beta.1` — `conformance/fixtures/MANIFEST.json`
+  says so under `derivedFrom.framework` — and an `EvidenceCardRequest` there carries four
+  properties: `docketId`, `affidavit`, `requiredBy` and `priorAmendments`. The envelope this tree
+  serialises carries those four and, on every card, `populatedConfidence`, `emptyFieldCount`,
+  `requiresConfirmation`, `blocked` and `protocolVersion`, plus `presentation`, `warnings` and
+  `hostOperation` when the host supplied them — those three are omitted when null, the rest are
+  written even when null. An assertion that the emitted key set
+  *equals* a fixture's therefore fails the moment the framework carries a new property, and that is
+  expected rather than a regression: the fixtures pin the shape a beta.1 host had to produce, not a
+  ceiling on what a later envelope may carry. Assert that every key a fixture names is present with
+  the value it gives, and allow-list the rest — the framework's own
+  `SeedWireFixtureTests.AnEvidenceCardGainsTheEnvelopesNewPropertiesAndLosesNone` is that assertion
+  written down, naming each added key and asserting that none was removed. The fixtures' own
+  staleness is filed on the rulebook as Sakwala/affiant-protocol#24 and closes when the wire set is
+  re-promoted at the next protocol tag. (affiant#91)
+
 ## [1.0.0-beta.3] — 2026-09-05
 
 ### Decisions, attestation and identity as the rulebook defines them
