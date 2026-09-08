@@ -22,6 +22,7 @@ import { test, expect, type Locator, type Page } from "@playwright/test";
  *   approve-action-button / reject-action-button   the element's Approve and Reject buttons
  *   amend-field-<Name>                             the element's amendment input for one field
  *   field-<Name>, field-kind-<Name>, …             one field's row and its metadata
+ *   field-note-<Name>                              the sentence on that field's provenance tag
  *   prior-amendments                               the resubmission note, when there is one
  *
  * Everything else is the host's own: entry, entry-status, employee-picker,
@@ -192,6 +193,12 @@ test.describe("review lifecycle", () => {
 
     // And so is where each value came from.
     await expect(entry.getByTestId("field-source-Reason")).toHaveText("UserStated");
+
+    // The tag's own sentence reaches the card. It travels as `note` — the wire spelling since
+    // 1.0.0-beta.3 — and the vendored card read the older `evidence`, so every note silently
+    // rendered as nothing (#113). Asserting it here is what stops the next wire rename passing
+    // this deck in silence.
+    await expect(entry.getByTestId("field-note-Reason")).toHaveText("User stated: Reason");
   });
 
   test("employee picker: a field's value can come from a live read endpoint, and that value is what gets written", async ({

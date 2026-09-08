@@ -151,6 +151,7 @@ function stampTestIds(card) {
     stamp(row, ".mandatory", `field-required-${name}`);
     stamp(row, ".value:not(.previous) .value-text", `field-value-${name}`);
     stamp(row, ".value.previous .value-text", `field-previous-${name}`);
+    stamp(row, ".evidence", `field-note-${name}`);
   }
 }
 
