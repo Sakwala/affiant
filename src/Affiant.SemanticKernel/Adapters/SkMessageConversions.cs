@@ -95,10 +95,12 @@ internal static class SkMessageConversions
     /// of one turn cannot see two different histories (PV-3).
     /// </summary>
     /// <remarks>
-    /// A kernel with nothing under <c>ChatHistory</c> yields an empty list, which the step reads as
-    /// "no turn in hand": the port's own presence report then stands, unverified. Every host that
-    /// wants presence established from what the person typed puts the history there, which is what
-    /// the framework's own SK wiring does.
+    /// A kernel with nothing under <c>ChatHistory</c> yields an empty list. The convention is a host
+    /// contract — nothing in this framework writes <c>kernel.Data["ChatHistory"]</c> — so a caller
+    /// that gets an empty list from here has a second reading to try before it concludes there is no
+    /// turn: <see cref="AutoFunctionInvocationContext.ChatHistory"/>, which Semantic Kernel hands the
+    /// auto-invocation bridge on every call (design record A25). Only a caller with neither reads
+    /// "no turn in hand", and then the port's own presence report stands, unverified.
     /// </remarks>
     public static IReadOnlyList<AffiantChatMessage> HistoryOf(Kernel kernel) =>
         kernel.Data.TryGetValue("ChatHistory", out var history) && history is ChatHistory chat
