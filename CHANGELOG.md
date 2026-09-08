@@ -22,10 +22,10 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
   Docket row, as `DocketEntry.AmendedAffidavit`, and not only carried beside the outcome
   (affiant#90).
 - **The beta.3 docket section's breaking-change 4** now names only the two decision cases that
-  actually stopped returning `Expired` — a missing entry and an already-decided entry. A decision
-  that lost a race already returned the winner's real outcome at `1.0.0-beta.1.1`, and a decision on
-  a blocked entry could not arise before this release, since `BlockedMarker` did not exist
-  (affiant#95).
+  actually stopped returning `Expired` — a missing entry and an already-decided entry — and states
+  the lost-race case separately, since it returned the winner's own outcome at `1.0.0-beta.1.1` and
+  returns `Refused` with `decision-lost-race` here. A decision on a blocked entry could not arise
+  before this release, since `BlockedMarker` did not exist (affiant#95).
 - **`Affidavit.AggregateConfidence`'s XML doc** no longer states that 0 is reachable only through an
   unknown-provenance (`Empty`) field — a known-provenance field the inference port itself rated at 0
   confidence also drives the minimum to 0 (affiant#100).
@@ -724,11 +724,14 @@ here. Nothing below changes what a conforming host already does; each is a chang
    after this one.
 4. **`ReviewGate.HandleDecisionAsync` returns `ReviewOutcome.Refused` where it used to return
    `ReviewOutcome.Expired`** for a decision on a missing entry and a decision on an already-decided
-   entry. (A decision that lost a race already returned the winner's real outcome at
-   `1.0.0-beta.1.1`, not `Expired`; a decision on a blocked entry could not arise before this
-   release, since `BlockedMarker` did not exist.) A host that branched on `Expired` for either
-   surviving case adds a `Refused` arm and reads `Code`; `ReviewOutcome.Expired.
-   AmendmentsPreserved` is replaced by `Refused.Detail == "amendments-preserved"`.
+   entry. (A decision on a blocked entry could not arise before this release, since `BlockedMarker`
+   did not exist.) A host that branched on `Expired` for either surviving case adds a `Refused` arm
+   and reads `Code`; `ReviewOutcome.Expired.AmendmentsPreserved` is replaced by
+   `Refused.Detail == "amendments-preserved"`. **A decision that lost the transition race** never
+   returned `Expired`: at `1.0.0-beta.1.1` the losing caller received the winner's own outcome — an
+   `Approved` when the winner approved — and now receives `ReviewOutcome.Refused` with
+   `Code == DocketRefusalCodes.DecisionLostRace` (`"decision-lost-race"`). A host that read the
+   loser's outcome as its own decision's result reads `Code` instead.
 5. **A `MultiParty` or `ReferralRequired` verdict returns `ReviewOutcome.Refused`**, not
    `ReviewOutcome.Approved` (via a single reviewer) or `ReviewOutcome.Referral`. No entry is written
    `ReviewStatus.Deferred` any more. A host that treated `Referral` as an escalation hand-off should
