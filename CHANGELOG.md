@@ -11,6 +11,14 @@ in lockstep as of 2026-07-05 (`Affiant.Extensions.AI` joined the set 2026-08-20)
 plus the bare `Affiant` meta-ID, are reserved on nuget.org (the last two, `Affiant.AgentFramework`
 and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectively).
 
+## [Unreleased]
+
+### Fixed
+
+- `Sakwala/affiant#105` — the EF stores wrote the Docket's JSON columns under serializer options of
+  their own, so a stored row and the wire form of the same record were different bytes; both call
+  sites now go through `AffiantJson`.
+
 ## [1.0.0-beta.3] — 2026-09-05
 
 ### Decisions, attestation and identity as the rulebook defines them

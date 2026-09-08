@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Affiant.Abstractions.Models;
+using Affiant.Abstractions.Serialization;
 
 namespace Affiant.EntityFramework.Stores;
 
@@ -21,14 +22,14 @@ namespace Affiant.EntityFramework.Stores;
 /// attestation failed to read would be a row that says nobody agreed to a write somebody did agree
 /// to.
 /// </para>
+/// <para>
+/// Any value these documents carry through the serializer — an amendment map's values — is written
+/// with <see cref="AffiantJson.SerializerOptions"/>, so it is spelled here exactly as the wire
+/// spells it (SR-3).
+/// </para>
 /// </remarks>
 internal static class DocketRowSerialization
 {
-    private static readonly JsonSerializerOptions s_options = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
-
     // ── Attestation ─────────────────────────────────────────────────────────
 
     public static string? WriteAttestation(Attestation? attestation)
@@ -69,7 +70,7 @@ internal static class DocketRowSerialization
             ["by"] = by,
             ["at"] = Instant(attestation.At),
             ["entryId"] = attestation.EntryId.ToString()
-        }.ToJsonString(s_options);
+        }.ToJsonString(AffiantJson.SerializerOptions);
     }
 
     public static Attestation? ReadAttestation(string? json)
@@ -125,13 +126,13 @@ internal static class DocketRowSerialization
         {
             ["code"] = "requirement-not-implemented",
             ["level"] = r.Level.ToString()
-        }.ToJsonString(s_options),
+        }.ToJsonString(AffiantJson.SerializerOptions),
         BlockedMarker.CoverageRefused c => new JsonObject
         {
             ["code"] = "coverage-refused",
             ["category"] = CategoryName(c.Category),
             ["toolName"] = c.ToolName
-        }.ToJsonString(s_options),
+        }.ToJsonString(AffiantJson.SerializerOptions),
         _ => throw new InvalidOperationException($"Unknown blocked code '{blocked.Code}'.")
     };
 
@@ -180,7 +181,7 @@ internal static class DocketRowSerialization
                 ["kind"] = decision.Kind == DecisionKind.Approve ? "approve" : "reject",
                 ["reason"] = decision.Reason,
                 ["at"] = Instant(decision.At)
-            }.ToJsonString(s_options);
+            }.ToJsonString(AffiantJson.SerializerOptions);
 
     public static DecisionRecord? ReadDecision(string? json)
     {
@@ -203,13 +204,13 @@ internal static class DocketRowSerialization
     {
         if (preserved is null) return null;
 
-        var amendments = JsonNode.Parse(JsonSerializer.Serialize(preserved.Amendments, s_options));
+        var amendments = JsonNode.Parse(JsonSerializer.Serialize(preserved.Amendments, AffiantJson.SerializerOptions));
         return new JsonObject
         {
             ["amendments"] = amendments,
             ["at"] = Instant(preserved.At),
             ["by"] = preserved.By
-        }.ToJsonString(s_options);
+        }.ToJsonString(AffiantJson.SerializerOptions);
     }
 
     public static PreservedAmendments? ReadPreservedAmendments(string? json)
@@ -240,7 +241,7 @@ internal static class DocketRowSerialization
     {
         if (string.IsNullOrEmpty(json)) return null;
 
-        var raw = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json, s_options);
+        var raw = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json, AffiantJson.SerializerOptions);
         if (raw is null) return null;
 
         var result = new Dictionary<string, object?>(raw.Count, StringComparer.Ordinal);
@@ -251,7 +252,7 @@ internal static class DocketRowSerialization
     }
 
     public static string? WriteAmendments(IReadOnlyDictionary<string, object?>? amendments) =>
-        amendments is null ? null : JsonSerializer.Serialize(amendments, s_options);
+        amendments is null ? null : JsonSerializer.Serialize(amendments, AffiantJson.SerializerOptions);
 
     // ── Instants ────────────────────────────────────────────────────────────
 
