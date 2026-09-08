@@ -454,20 +454,29 @@ operator-visible failure mode rather than compensated with an automatic rollback
 would itself need to race safely against a subsequent resubmit attempt — reopening the exact problem
 the guard exists to close. See `ReviewGate.ResubmitAsync`'s remarks for the full contract.
 
-### 2.8 ReviewStep (Record) — Multi-Step Reviews
+### 2.8 ReviewStep (Record)
 
-For operations requiring sequential review steps (Phase 2+). The ReviewGate processes steps sequentially, sending one Evidence Card at a time. This is a state machine, not a workflow engine.
+> Corrected 2026-09-08 (affiant#69): this section documented a six-field
+> `StepId`/`Description`/`Fields`/`Status`/`ReviewedBy`/`ReviewedAt` shape that never shipped, and
+> stated that the ReviewGate "processes steps sequentially, sending one Evidence Card at a time".
+> No gate path does. The text below is the record as it ships in
+> `src/Affiant.Abstractions/Models/DocketEntry.cs`.
 
 ```csharp
-public sealed record ReviewStep(
-    string StepId,
-    string Description,
-    AffidavitField[] Fields,
+public record ReviewStep(
+    string ReviewerId,
     ReviewStatus Status,
-    string? ReviewedBy,
-    DateTimeOffset? ReviewedAt
-);
+    DateTimeOffset ReviewedAt,
+    string? Comment = null);
 ```
+
+Nothing in the framework constructs one: no C# file under `src/`, `tests/` or `samples/` names
+`ReviewStep` other than the declaration above, so no gate path mints one, no `DocketEntry` member
+holds a sequence of them and no `IDocketStore` implementation persists one. Sequential multi-step
+review does not exist at runtime at `1.0.0-beta.3`. A host that needs several approvers composes
+that above the gate, as `DocketEntry.CompositeRef` describes: one entry per approver, all naming the
+same composite, each card stating on its face that it is one of N, and no constituent's approval
+alone reaching the executor.
 
 ### 2.9 GuidableElement (Record) — UI Bridge
 

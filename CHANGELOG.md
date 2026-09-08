@@ -44,6 +44,43 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
   `ToolArgumentCaptureFilter`'s captured `EntityRef` (not a provenance chain), the quickstart
   Docket's expiry-on-read behaviour, the run-time substance refusal `ReviewGate` already ships,
   `IWriteExecutor`'s actual call path, and the re-entrancy guard's actual scope (affiant#118).
+- **The specification's `ReviewStep` section describes the record that ships.** §2.8 documented a
+  six-field `StepId`/`Description`/`Fields`/`Status`/`ReviewedBy`/`ReviewedAt` shape that was never
+  shipped, and said the ReviewGate "processes steps sequentially, sending one Evidence Card at a
+  time". The shipped record is four fields; no C# file under `src/`, `tests/` or `samples/` names
+  `ReviewStep` other than its own declaration, so nothing mints one and nothing persists one; and
+  sequential multi-step review does not exist at runtime. The section and the type's own summary now
+  say that, and point a host that needs several approvers at `DocketEntry.CompositeRef`, which is
+  where multi-party approval is composed today. (affiant#69)
+- **SR-4 is no longer cited for the Standing Order card broadcast.** SR-4 is "every envelope carries
+  `protocolVersion`" and says nothing about cards; no numbered v0.1 invariant states that an
+  auto-approval still shows one. The `1.0.0-beta.3` entry below, `ReviewGate`'s comment at the
+  Standing Order branch and the mutation table's M2 now cite the fixture that pins the behaviour,
+  `sequence-c/relay-auto-approve-bound-external`; M3, which is about the filing broadcast rather than
+  the Standing Order one, cites RUNNER §4.2 — the card facts a driver checks on every filing whether
+  a fixture states them or not. (affiant#92)
+
+### Upgrade note
+
+- **A host that byte-pins its wire assertions to the rulebook's `wire/` fixtures asserts the
+  additions through an allow-list, not through envelope equality.** The fixtures under
+  `conformance/fixtures/wire/` were derived from `1.0.0-beta.1` — `conformance/fixtures/MANIFEST.json`
+  says so under `derivedFrom.framework` — and an `EvidenceCardRequest` there carries four
+  properties: `docketId`, `affidavit`, `requiredBy` and `priorAmendments`. The envelope this tree
+  serialises carries those four and, on every card, `populatedConfidence`, `emptyFieldCount`,
+  `requiresConfirmation`, `blocked` and `protocolVersion`, plus `presentation` (computed from the
+  Affidavit's own per-field hints), `warnings` (lifted off `affidavit.Warnings`) and `hostOperation`
+  (the caller's own argument) — those three are omitted when null, the rest are written even when
+  null. An assertion that the emitted key set
+  *equals* a fixture's therefore fails the moment the framework carries a new property, and that is
+  expected rather than a regression: the fixtures pin the shape a beta.1 host had to produce, not a
+  ceiling on what a later envelope may carry. Assert that every key a fixture names is present with
+  the value it gives, and allow-list the rest — the framework's own
+  `SeedWireFixtureTests.AnEvidenceCardGainsTheEnvelopesNewPropertiesAndLosesNone` is that assertion
+  written down, asserting that none was removed and naming seven of the eight added keys — it does
+  not name `warnings`, so a host copying its list as an allow-list adds that key itself. The fixtures' own
+  staleness is filed on the rulebook as Sakwala/affiant-protocol#24 and closes when the wire set is
+  re-promoted at the next protocol tag. (affiant#91)
 
 ## [1.0.0-beta.3] — 2026-09-05
 
@@ -1023,8 +1060,8 @@ delivered its own `EvidenceCardResponse` unblocked the waiter and the row was wr
 - **An inference reports whether the value was literally in the turn, and which span it read**, so a
   value read verbatim is graded `Conversation` and carries an utterance-span binding.
 - **A Standing Order approval broadcasts its Evidence Card**, with `requiresConfirmation` false
-  (SR-4), and a blocked row's card carries the row's own marker and says in words why no decision will
-  be accepted.
+  (`sequence-c/relay-auto-approve-bound-external`), and a blocked row's card carries the row's own
+  marker and says in words why no decision will be accepted (AZ-4, CV-4).
 - **`standing-order.fired` is emitted by the gate**, where the write is actually approved with no
   person present and where the entry id exists to name.
 - **`ApprovalPolicyEvaluator` measures a review window against the injected `TimeProvider`** (GT-4),

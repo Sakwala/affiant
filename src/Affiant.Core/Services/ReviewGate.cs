@@ -702,11 +702,13 @@ public sealed class ReviewGate(
                     "StandingOrder {PolicyId} auto-approved DocketEntry {EntryId}",
                     attestation.By.Subject, entryId);
 
-                // SR-4: the card still goes out, and it says no confirmation is needed. A person was
-                // not asked, which is exactly why the reviewer surface has to be told what was
-                // approved in their name — a write that appears on no card is a write nobody can
-                // see. Built through the same factory and sent down the same retry path as every
-                // other branch, so the three cannot drift.
+                // The card still goes out, and it says no confirmation is needed
+                // (`sequence-c/relay-auto-approve-bound-external`, which pins
+                // `card.requiresConfirmation: false` on a Standing Order filing; no numbered v0.1
+                // invariant states this rule). A person was not asked, which is exactly why the
+                // reviewer surface has to be told what was approved in their name — a write that
+                // appears on no card is a write nobody can see. Built through the same factory and
+                // sent down the same retry path as every other branch, so the three cannot drift.
                 var approvedCard = await EvidenceCardRequestFactory.CreateAsync(
                     docketStore, entryId, sworn, expiresAt, cancellationToken,
                     requiresConfirmation: false);
