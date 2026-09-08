@@ -14,18 +14,19 @@ using System.Text;
 /// </para>
 /// <para>
 /// <b>The rule, stated once so a second implementation can implement the same sentence.</b> A
-/// <i>hit</i> is an occurrence of the value text in the utterance under the case-insensitive
-/// comparison below, whose neighbouring code points are absent or are none of: a letter (L*), a mark
-/// (M*), a decimal digit (Nd), connector punctuation (Pc). The first hit wins unless the port
-/// supplied a span that is itself a hit. Whitespace-only or empty value text never hits.
+/// <i>hit</i> is an occurrence of the value text in the utterance under the case fold below, whose
+/// neighbouring code points are absent or are none of: a letter (L*), a mark (M*), a decimal digit
+/// (Nd), connector punctuation (Pc). The first hit wins unless the port supplied a span that is
+/// itself a hit. Whitespace-only or empty value text never hits.
 /// </para>
 /// <para>
-/// <b>The case table.</b> Two code points match when they are equal or their <i>simple</i> uppercase
-/// mappings are equal — the single-code-point mapping, so a fold never changes length, no culture is
-/// consulted, nothing is normalised and no character is ignorable. That is exactly
-/// <see cref="StringComparison.OrdinalIgnoreCase"/>, which is why no other comparison appears in
-/// this file. Full case mappings are not applied: <c>STRAẞE</c> does not match <c>Straße</c>, and a
-/// ligature does not match the letters it draws.
+/// <b>The fold is ASCII.</b> Two code points match when they are equal, or when both are ASCII
+/// letters that differ only in case (<c>A</c>–<c>Z</c> against <c>a</c>–<c>z</c>). Every other code
+/// point compares exactly. No runtime case table is consulted, so the rule is one function in every
+/// implementation and in every runtime version: <c>STRAẞE</c> does not match <c>Straße</c>,
+/// <c>BAKIM</c> does not match <c>bakım</c>, a ligature does not match the letters it draws, and an
+/// exact echo in any script still hits. The cost is that a non-ASCII case variant grades
+/// <c>Inferred</c>.
 /// </para>
 /// <para>
 /// Offsets and lengths are in UTF-16 code units, which is what the <c>utterance-span</c> binding
@@ -34,7 +35,8 @@ using System.Text;
 /// a hit for the same reason it would not be beside an ASCII letter. A combining mark blocks a hit
 /// too — the grapheme the utterance draws there is not the word the value spells (<c>Cafe</c> inside
 /// a decomposed <c>Café</c>), and <c>_</c> blocks one because it joins an identifier
-/// (<c>WZ_BRN</c>).
+/// (<c>WZ_BRN</c>). A hit never starts or ends inside a surrogate pair either: an occurrence whose
+/// first or last code unit is one half of a pair would hash bytes the utterance does not contain.
 /// </para>
 /// </remarks>
 internal static class UtterancePresence
@@ -48,8 +50,8 @@ internal static class UtterancePresence
     /// </summary>
     /// <param name="utterance">The current turn's user text, unmodified.</param>
     /// <param name="valueText">
-    /// The text the span digest is taken over: a string is itself, a number its SR-1 canonical
-    /// rendering, a boolean <c>true</c> or <c>false</c>.
+    /// The text the span digest is taken over: a string is itself, a number the SR-1 canonical
+    /// rendering of the value the step files, a boolean <c>true</c> or <c>false</c>.
     /// </param>
     /// <param name="hintedOffset">An offset the port reported, or <see langword="null"/>.</param>
     /// <param name="hintedLength">A length the port reported, or <see langword="null"/>.</param>
@@ -64,28 +66,22 @@ internal static class UtterancePresence
         // accepts it only on the terms it would have accepted its own — the utterance there says
         // what the port said it says, and the neighbours leave it a whole token. A span that is not
         // a hit is discarded and the finder runs from the start, so a port cannot bind a value to a
-        // fragment of a longer token ("20" inside "2026-09-08") the finder itself refuses.
+        // fragment of a longer token ("20" inside "2026-09-08") the finder itself refuses. The fold
+        // never changes length, so a span of any other length cannot be the value text.
         if (hintedOffset is { } offset
             && hintedLength is { } length
             && offset >= 0
-            && length >= 0
+            && length == valueText.Length
             && offset <= utterance.Length - length
-            && utterance.AsSpan(offset, length).Equals(valueText, StringComparison.OrdinalIgnoreCase)
-            && IsWholeToken(utterance, offset, length))
+            && IsHitAt(utterance, offset, valueText))
         {
             return new Span(offset, length);
         }
 
-        for (var from = 0; from <= utterance.Length - valueText.Length;)
+        for (var at = 0; at <= utterance.Length - valueText.Length; at++)
         {
-            var at = utterance.IndexOf(valueText, from, StringComparison.OrdinalIgnoreCase);
-            if (at < 0)
-                return null;
-
-            if (IsWholeToken(utterance, at, valueText.Length))
+            if (IsHitAt(utterance, at, valueText))
                 return new Span(at, valueText.Length);
-
-            from = at + 1;
         }
 
         return null;
@@ -102,11 +98,54 @@ internal static class UtterancePresence
                 Encoding.UTF8.GetBytes(utterance.Substring(span.Offset, span.Length))));
 
     /// <summary>
+    /// Whether the occurrence of <paramref name="valueText"/> at <paramref name="at"/> is a hit: the
+    /// text matches under the ASCII fold, both neighbours are boundaries, and neither end cuts a
+    /// surrogate pair.
+    /// </summary>
+    private static bool IsHitAt(string utterance, int at, string valueText) =>
+        MatchesAt(utterance, at, valueText)
+        && IsWholeToken(utterance, at, valueText.Length)
+        && KeepsSurrogatePairsWhole(utterance, at, valueText.Length);
+
+    /// <summary>The ASCII fold, applied code unit by code unit — it never changes length.</summary>
+    private static bool MatchesAt(string utterance, int at, string valueText)
+    {
+        for (var i = 0; i < valueText.Length; i++)
+        {
+            var left = utterance[at + i];
+            var right = valueText[i];
+            if (left == right)
+                continue;
+
+            if (!char.IsAsciiLetter(left) || !char.IsAsciiLetter(right) || (left | 0x20) != (right | 0x20))
+                return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
     /// Whether the occurrence at <paramref name="at"/> is bounded on both sides: nothing there, or a
     /// code point that is none of L*, M*, Nd, Pc.
     /// </summary>
     private static bool IsWholeToken(string utterance, int at, int length) =>
         IsBoundaryBefore(utterance, at) && IsBoundaryAfter(utterance, at + length);
+
+    /// <summary>
+    /// Whether the occurrence's own ends are whole characters. A first code unit that is the
+    /// trailing half of a pair, or a last code unit that is the leading half of one, names half of a
+    /// character the utterance draws — the span would hash bytes that are not there.
+    /// </summary>
+    private static bool KeepsSurrogatePairsWhole(string utterance, int at, int length)
+    {
+        if (at > 0 && char.IsLowSurrogate(utterance[at]) && char.IsHighSurrogate(utterance[at - 1]))
+            return false;
+
+        var last = at + length - 1;
+        return !(char.IsHighSurrogate(utterance[last])
+            && last + 1 < utterance.Length
+            && char.IsLowSurrogate(utterance[last + 1]));
+    }
 
     private static bool IsBoundaryBefore(string utterance, int at)
     {
@@ -127,7 +166,7 @@ internal static class UtterancePresence
 
     /// <summary>
     /// A code point that does not join what stands beside it into one word. The four categories are
-    /// the rule's, read the same way in both implementations:
+    /// the rule's, read from this runtime's own Unicode database:
     /// <see cref="CharUnicodeInfo.GetUnicodeCategory(string, int)"/> reads a surrogate pair as the
     /// one code point it is.
     /// </summary>

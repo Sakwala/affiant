@@ -39,6 +39,12 @@ public sealed class AffiantAutoFunctionInvocationBridge(ToolInvocationPipeline p
             // retry by calling next() a second time, genuinely re-executing the tool for a failure
             // that had nothing to do with it. See ToolInvocationContext.NextIsToolBody's remarks.
             InitialNextIsToolBody = false,
+            // The turn the completion stage grades against (PV-3). TaskInferenceMergeFilter runs
+            // here, and it establishes presence from what the person actually typed — so this seam
+            // has to hand over the same history the invocation-stage bridge does, read the same way.
+            // Without it the filter received no turn on Semantic Kernel and fell back to taking the
+            // port's own word for presence, which is the defect Sakwala/affiant#123 is about.
+            History = SkMessageConversions.HistoryOf(context.Kernel),
         };
 
         object? toolProduced = null;

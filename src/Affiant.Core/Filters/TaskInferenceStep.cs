@@ -115,15 +115,17 @@ public sealed class TaskInferenceStep
             // is filed as a number: the field's `kind` is a rendering hint for a reviewer surface,
             // not a licence to re-type the value, and a card that showed "40" where the port said 40
             // would be showing a different value from the one the record swears to (AF-1, SR-2).
+            // A value a field cannot carry — JSON null, an object, an array, the empty string, a
+            // number with no canonical form — is nothing reported for that field: nothing is merged
+            // and the field stays whatever it was, Empty under AF-1 if nothing else set it.
             var newValue = ReadScalarValue(valueEl);
             if (newValue is null)
                 continue;
 
-            // The text the finder looks for: the string itself, or the value's SR-1 canonical
-            // rendering when the port reported a number or a boolean (D2 as amended by A3).
-            var newText = ReadScalarText(valueEl);
-            if (string.IsNullOrEmpty(newText))
-                continue;
+            // The text the finder looks for is the canonical rendering of the value THIS STEP FILES:
+            // an exact 64-bit integer as its digits, anything else SR-1's form. Rendering the raw
+            // token again would let the record swear to one number and bind to another.
+            var newText = CanonicalTextOf(newValue);
 
             float newConfidence;
             if (confEl.ValueKind == JsonValueKind.Number)
@@ -279,10 +281,15 @@ public sealed class TaskInferenceStep
 
     /// <summary>
     /// The offsets the port reported, if it reported any. The hint has one shape, the rulebook's:
-    /// <c>{ start, end }</c>, both integers. Anything else is not a span the schema names, and
-    /// reading a shape the sibling implementation does not read would let one port report be graded
-    /// two ways.
+    /// <c>{ start, end }</c>, both integer-valued JSON numbers. Anything else is not a span the
+    /// schema names, and reading a shape the sibling implementation does not read would let one port
+    /// report be graded two ways.
     /// </summary>
+    /// <remarks>
+    /// A coordinate is read as a number and accepted when it is integral, so a port's <c>4.0</c> is
+    /// the <c>4</c> a JavaScript implementation cannot tell it from once the token is parsed. A
+    /// fractional or non-numeric coordinate discards the hint rather than being rounded into one.
+    /// </remarks>
     private static (int? Offset, int? Length) SpanHintOf(JsonElement fieldEl)
     {
         if (!fieldEl.TryGetProperty("utteranceSpan", out var span)
@@ -291,19 +298,36 @@ public sealed class TaskInferenceStep
             return (null, null);
         }
 
-        if (!span.TryGetProperty("start", out var startEl) || !startEl.TryGetInt32(out var start))
+        if (!span.TryGetProperty("start", out var startEl) || Coordinate(startEl) is not { } start)
             return (null, null);
 
-        if (!span.TryGetProperty("end", out var endEl) || !endEl.TryGetInt32(out var end))
+        if (!span.TryGetProperty("end", out var endEl) || Coordinate(endEl) is not { } end)
             return (null, null);
 
         return (start, end - start);
     }
 
+    /// <summary>One integer-valued span coordinate, or <see langword="null"/> when it is not one.</summary>
+    private static int? Coordinate(JsonElement el)
+    {
+        if (el.ValueKind != JsonValueKind.Number || !el.TryGetDouble(out var number))
+            return null;
+
+        return double.IsInteger(number) && number >= int.MinValue && number <= int.MaxValue
+            ? (int)number
+            : null;
+    }
+
     /// <summary>
-    /// A field's <c>value</c> as the JSON type the port reported, or <see langword="null"/> for a
-    /// kind an Affidavit field cannot carry (object, array, JSON null).
+    /// A field's <c>value</c> as the JSON type the port reported, or <see langword="null"/> when the
+    /// port reported nothing a field can carry.
     /// </summary>
+    /// <remarks>
+    /// JSON null, an object, an array and the empty string are nothing reported for that field, and
+    /// so is a number the runtime parses to infinity or NaN: SR-1 refuses it a canonical form, so a
+    /// record could not swear to it and this step never throws over one. A whitespace-only string is
+    /// a value and is filed as reported.
+    /// </remarks>
     private static object? ReadScalarValue(JsonElement valueEl) => valueEl.ValueKind switch
     {
         JsonValueKind.String => valueEl.GetString() is { Length: > 0 } text ? text : null,
@@ -311,31 +335,36 @@ public sealed class TaskInferenceStep
         // would arrive on the card as a long and compare unequal to the number the port reported.
         JsonValueKind.Number => valueEl.TryGetInt64(out var whole)
             ? whole >= int.MinValue && whole <= int.MaxValue ? (object)(int)whole : whole
-            : valueEl.GetDouble(),
+            : valueEl.TryGetDouble(out var real) && double.IsFinite(real) ? real : null,
         JsonValueKind.True => true,
         JsonValueKind.False => false,
         _ => null,
     };
 
     /// <summary>
-    /// The same value as text — the string the finder looks for in the utterance, and what a span's
-    /// digest is taken over when there is no turn to take it over instead.
+    /// The value this step files, as text — the string the finder looks for in the utterance, and
+    /// what a span's digest is taken over when there is no turn to take it over instead.
     /// </summary>
     /// <remarks>
-    /// A number is rendered by <see cref="Serialization.CanonicalSerializer.Number(double)"/>: the
-    /// shortest round-trip decimal, positional, <c>-0</c> written <c>0</c> (SR-1). The raw JSON
-    /// token is not usable here, because a port that hands its runtime a parsed number has already
-    /// lost it — a JavaScript implementation reading the same report sees <c>6</c> where the wire
-    /// said <c>6.0</c> — and a rule two implementations cannot both apply is not a rule. So a port's
-    /// <c>6.0</c>, <c>6.00</c> and <c>6e0</c> all look for the <c>6</c> a person typed.
+    /// It is rendered from the value that was filed, not from the JSON token: a port's
+    /// <c>9007199254740993</c> is filed exactly and searched for exactly, where re-reading the token
+    /// as a double would look for a number the record does not carry and bind to text that is not
+    /// the value (PV-2). An integer is its digits; any other number is
+    /// <see cref="Serialization.CanonicalSerializer.Number(double)"/> — the shortest round-trip
+    /// decimal, positional, <c>-0</c> written <c>0</c> (SR-1) — so a port's <c>6.0</c>, <c>6.00</c>
+    /// and <c>6e0</c> all look for the <c>6</c> a person typed, which is also what a JavaScript
+    /// implementation that never saw the token looks for.
     /// </remarks>
-    private static string? ReadScalarText(JsonElement valueEl) => valueEl.ValueKind switch
+    private static string CanonicalTextOf(object value) => value switch
     {
-        JsonValueKind.String => valueEl.GetString(),
-        JsonValueKind.Number => Serialization.CanonicalSerializer.Number(valueEl.GetDouble()),
-        JsonValueKind.True => "true",
-        JsonValueKind.False => "false",
-        _ => null,
+        string text => text,
+        int whole => whole.ToString(CultureInfo.InvariantCulture),
+        long whole => whole.ToString(CultureInfo.InvariantCulture),
+        bool flag => flag ? "true" : "false",
+        double real => Serialization.CanonicalSerializer.Number(real),
+        // Unreachable: ReadScalarValue mints exactly the five kinds above. A value with no text
+        // finds nothing and is graded Inferred, which is the safe answer if that ever changes.
+        _ => string.Empty,
     };
 
     /// <summary>

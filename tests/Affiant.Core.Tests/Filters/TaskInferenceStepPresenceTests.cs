@@ -388,20 +388,30 @@ public class TaskInferenceStepPresenceTests
         Assert.Equal("Critical", utterance.Substring(span.Offset, span.Length));
     }
 
-    // --- A1: the case table is pinned (design record §6) ---
+    // --- A12: the fold is ASCII-only (design record §6) ---
 
     /// <summary>
-    /// A1: the fold is the simple, single-code-point uppercase mapping, so it never changes length
-    /// and a full mapping is never applied. <c>ß</c> does not become <c>SS</c>, so <c>STRAẞE</c>
-    /// (capital sharp s) is not <c>Straße</c> — the reading a full-mapping implementation would
-    /// take, and the one the rule refuses.
+    /// A12: the fold is ASCII, so no runtime case table is consulted at all — and every reading of a
+    /// non-ASCII case pair a table might have given is refused here, in one list. <c>ß</c> against
+    /// the capital sharp s (a full mapping would make it <c>SS</c>); the Turkish dotless and dotted
+    /// i in both directions (<c>UnicodeData.txt</c> maps ı to I, .NET's invariant table does not,
+    /// and JavaScript's <c>toUpperCase</c> does); the Kelvin sign against a plain K; and the fi
+    /// ligature against the letters it draws. Each is <c>Inferred</c>, unbound, in both
+    /// implementations, because neither implementation has a table to disagree about.
     /// </summary>
-    [Fact]
-    public async Task AFullCaseMappingIsNotApplied_SoStrasseDoesNotMatchTheCapitalSharpS()
+    [Theory]
+    [InlineData("\"Straße\"", "Adresse STRAẞE 5")]
+    [InlineData("\"bakım\"", "proje BAKIM listesi")]
+    [InlineData("\"BAKIM\"", "proje bakım listesi")]
+    [InlineData("\"kapalı\"", "durum KAPALI bugün")]
+    [InlineData("\"KAPALI\"", "durum kapalı bugün")]
+    [InlineData("\"K\"", "unit \u212A here")]
+    [InlineData("\"fi\"", "the \uFB01le")]
+    public async Task ANonAsciiCaseVariant_DoesNotHit(string reportedValue, string utterance)
     {
         var (fabric, step) = Build();
 
-        await step.ExecuteAsync(new OneFieldStrategy(), Silent("\"Straße\""), "Adresse STRAẞE 5", default);
+        await step.ExecuteAsync(new OneFieldStrategy(), Silent(reportedValue), utterance, default);
 
         var tag = fabric.GetFieldChain("Field")!.Current;
         Assert.Equal(ProvenanceSource.Inferred, tag.Source);
@@ -409,7 +419,26 @@ public class TaskInferenceStepPresenceTests
     }
 
     /// <summary>
-    /// A1: no culture is consulted and nothing is normalised, so a dotted capital I earlier in the
+    /// A12: what the ASCII fold still buys, and the whole reason the fold exists — the case fixture
+    /// the rulebook pins. <c>Client Lunch</c> hits a typed <c>client lunch</c>, and an exact echo in
+    /// any script hits whatever the case.
+    /// </summary>
+    [Theory]
+    [InlineData("\"Client Lunch\"", "File the expense for client lunch, 40 EUR", 21)]
+    [InlineData("\"kapalı\"", "durum kapalı bugün", 6)]
+    public async Task AnAsciiCaseVariantOrAnExactEcho_Hits(string reportedValue, string utterance, int offset)
+    {
+        var (fabric, step) = Build();
+
+        await step.ExecuteAsync(new OneFieldStrategy(), Silent(reportedValue), utterance, default);
+
+        var tag = fabric.GetFieldChain("Field")!.Current;
+        Assert.Equal(ProvenanceSource.Conversation, tag.Source);
+        Assert.Equal(offset, SpanOf(tag).Offset);
+    }
+
+    /// <summary>
+    /// A12: no culture is consulted and nothing is normalised, so a dotted capital I earlier in the
     /// turn neither folds away nor shifts the offsets the binding records — they stay UTF-16 code
     /// units of the utterance as typed.
     /// </summary>
@@ -662,6 +691,222 @@ public class TaskInferenceStepPresenceTests
         await step.ExecuteAsync(new OneFieldStrategy(), Silent("\"Critical\""), "Priority Critical please", default);
 
         Assert.DoesNotContain(logger.Entries, e => e.Message.Contains("no turn in hand", StringComparison.Ordinal));
+    }
+
+    // --- A15: the value text is the canonical rendering of the value the step files ---
+
+    /// <summary>
+    /// A15: the finder never searches for a number other than the one on the Affidavit. An integer
+    /// outside the range a double holds exactly is filed exactly, so it is searched for exactly —
+    /// reading the token back as a double would look for the rounded neighbour and, finding it, bind
+    /// the record to text that is not the value (PV-2).
+    /// </summary>
+    [Fact]
+    public async Task ALargeIntegerIsSearchedForAsTheIntegerItIsFiledAs()
+    {
+        const string utterance = "reference 9007199254740992 please";
+        var (fabric, step) = Build();
+
+        await step.ExecuteAsync(new OneFieldStrategy(), Silent("9007199254740993"), utterance, default);
+
+        var chain = fabric.GetFieldChain("Field")!;
+        Assert.Equal(ProvenanceSource.Inferred, chain.Current.Source);
+        Assert.Null(chain.Current.Binding);
+        Assert.Equal(9007199254740993L, fabric.GetByKey("Thing")!.Fields["Field"]);
+    }
+
+    /// <summary>
+    /// A15, the other direction: the same integer typed is found, and the span slices back to the
+    /// digits the record swears to.
+    /// </summary>
+    [Fact]
+    public async Task ALargeIntegerThatIsTypedIsFound_AndTheSpanIsTheValue()
+    {
+        const string utterance = "reference 9007199254740993 please";
+        var (fabric, step) = Build();
+
+        await step.ExecuteAsync(new OneFieldStrategy(), Silent("9007199254740993"), utterance, default);
+
+        var span = SpanOf(fabric.GetFieldChain("Field")!.Current);
+        Assert.Equal("9007199254740993", utterance.Substring(span.Offset, span.Length));
+    }
+
+    // --- A17: a value a field cannot carry is nothing reported ---
+
+    /// <summary>
+    /// A17: the empty string is not a value a field can carry, so the port reported nothing for that
+    /// field: nothing is merged, no tag is minted, and the field stays whatever it was — <c>Empty</c>
+    /// under AF-1 when nothing else set it. A confidence is not a substitute for a value.
+    /// </summary>
+    [Fact]
+    public async Task AnEmptyStringIsNothingReported()
+    {
+        var (fabric, step) = Build();
+
+        var result = await step.ExecuteAsync(
+            new OneFieldStrategy(), Silent("\"\""), "there is nothing to say here", default);
+
+        Assert.Null(fabric.GetFieldChain("Field"));
+        Assert.Empty(result.MergedFields);
+    }
+
+    /// <summary>
+    /// A17: a whitespace-only string IS a value, and is filed as the port reported it. It never
+    /// hits — whitespace-only value text is not searched for — so it is <c>Inferred</c> and unbound
+    /// even over a turn full of spaces.
+    /// </summary>
+    [Fact]
+    public async Task AWhitespaceOnlyStringIsAValue_FiledAsReported()
+    {
+        var (fabric, step) = Build();
+
+        await step.ExecuteAsync(new OneFieldStrategy(), Silent("\"   \""), "a   b", default);
+
+        var tag = fabric.GetFieldChain("Field")!.Current;
+        Assert.Equal(ProvenanceSource.Inferred, tag.Source);
+        Assert.Null(tag.Binding);
+    }
+
+    // --- A18: a non-finite number is nothing reported, never an exception ---
+
+    /// <summary>
+    /// A18: a JSON number the runtime parses to infinity has no canonical form — SR-1 refuses it, so
+    /// a record could not swear to it. It is nothing reported for that field, and the step returns
+    /// rather than throwing the canonicaliser's exception out through a shipped caller.
+    /// </summary>
+    [Theory]
+    [InlineData("1e400")]
+    [InlineData("-1e400")]
+    public async Task ANonFiniteNumberIsNothingReported(string reportedNumber)
+    {
+        var (fabric, step) = Build();
+
+        var result = await step.ExecuteAsync(
+            new OneFieldStrategy(), Silent(reportedNumber), "estimated 6 hours", default);
+
+        Assert.Null(fabric.GetFieldChain("Field"));
+        Assert.Empty(result.MergedFields);
+    }
+
+    /// <summary>
+    /// A18: and it does not take the rest of the report down with it — a second field the port did
+    /// report a value for is merged exactly as it would have been.
+    /// </summary>
+    [Fact]
+    public async Task ANonFiniteNumber_DoesNotStopTheFieldsBesideIt()
+    {
+        var fabric = new ContextFabric();
+        var step = new TaskInferenceStep(fabric, NullLogger<TaskInferenceStep>.Instance);
+        var reported = Reported("""
+            {
+              "AircraftId":     { "value": 1e400,    "confidence": 0.9 },
+              "Title":          { "value": "Left engine oil pressure fluctuation", "confidence": 0.9 }
+            }
+            """);
+
+        await step.ExecuteAsync(new WorkOrderStrategy(), reported, MeridianUtterance, default);
+
+        Assert.Null(fabric.GetFieldChain("AircraftId"));
+        Assert.Equal(ProvenanceSource.Conversation, fabric.GetFieldChain("Title")!.Current.Source);
+    }
+
+    // --- A19: span coordinates are integer-valued, and a hit keeps surrogate pairs whole ---
+
+    /// <summary>
+    /// A19: a span coordinate is an integer-valued JSON number, so a port's <c>4.0</c> is the
+    /// <c>4</c> a JavaScript implementation cannot tell it from once the token is parsed. The hint
+    /// here names the second occurrence, and it is honoured — which it could not be if the shape
+    /// were refused.
+    /// </summary>
+    [Fact]
+    public async Task ASpanCoordinateWrittenWithADecimalPoint_IsRead()
+    {
+        const string utterance = "AOG then AOG again";
+        var (fabric, step) = Build();
+        var reported = Reported("""
+            {
+              "Field": {
+                "value": "AOG",
+                "confidence": 0.9,
+                "utteranceSpan": { "start": 9.0, "end": 12.0 }
+              }
+            }
+            """);
+
+        await step.ExecuteAsync(new OneFieldStrategy(), reported, utterance, default);
+
+        var tag = fabric.GetFieldChain("Field")!.Current;
+        Assert.Equal(ProvenanceSource.Conversation, tag.Source);
+        Assert.Equal(9, SpanOf(tag).Offset);
+    }
+
+    /// <summary>
+    /// A19: a fractional coordinate names no span the rule can read, so the hint is discarded rather
+    /// than rounded into one — and the finder runs, taking the first hit.
+    /// </summary>
+    [Fact]
+    public async Task AFractionalSpanCoordinate_DiscardsTheHint()
+    {
+        const string utterance = "AOG then AOG again";
+        var (fabric, step) = Build();
+        var reported = Reported("""
+            {
+              "Field": {
+                "value": "AOG",
+                "confidence": 0.9,
+                "utteranceSpan": { "start": 9.5, "end": 12.5 }
+              }
+            }
+            """);
+
+        await step.ExecuteAsync(new OneFieldStrategy(), reported, utterance, default);
+
+        Assert.Equal(0, SpanOf(fabric.GetFieldChain("Field")!.Current).Offset);
+    }
+
+    /// <summary>
+    /// A19: a hit never starts or ends inside a surrogate pair. A lone surrogate as the value text
+    /// matched the leading half of a character the utterance draws, and the binding then hashed
+    /// bytes the utterance does not contain — half of a code point is not text.
+    /// </summary>
+    /// <remarks>
+    /// Asserted on the finder rather than through the step, because on .NET the port's report cannot
+    /// carry the input: <c>System.Text.Json</c> refuses an unpaired surrogate when it reads the
+    /// string ("Cannot read incomplete UTF-16 JSON text as string with missing low surrogate"), so
+    /// this value never reaches the merge on this implementation. The guard is here anyway, and
+    /// tested here, because the rule is one sentence both implementations hold to and a JavaScript
+    /// string carries a lone surrogate happily. A <c>[Fact]</c> and not a <c>[Theory]</c>: xUnit
+    /// serializes theory arguments and a lone surrogate does not survive the round trip.
+    /// </remarks>
+    [Fact]
+    public void AnOccurrenceThatCutsASurrogatePair_IsNotAHit()
+    {
+        const string utterance = "helicopter \U0001F681 grounded";
+        const string leadingHalf = "\ud83d";
+        const string trailingHalf = "\ude81";
+
+        // Both halves are in the utterance, and neither is a hit: one would end inside the pair,
+        // the other would start inside it.
+        Assert.Contains(leadingHalf, utterance, StringComparison.Ordinal);
+        Assert.Contains(trailingHalf, utterance, StringComparison.Ordinal);
+        Assert.Null(UtterancePresence.Locate(utterance, leadingHalf, null, null));
+        Assert.Null(UtterancePresence.Locate(utterance, trailingHalf, null, null));
+    }
+
+    /// <summary>
+    /// A19: the whole character is still found, so the rule refuses half of a pair and nothing more.
+    /// </summary>
+    [Fact]
+    public async Task AWholeNonBmpCharacter_IsAHit()
+    {
+        const string utterance = "helicopter \U0001F681 grounded";
+        var (fabric, step) = Build();
+
+        await step.ExecuteAsync(new OneFieldStrategy(), Silent("\"\U0001F681\""), utterance, default);
+
+        var span = SpanOf(fabric.GetFieldChain("Field")!.Current);
+        Assert.Equal("\U0001F681", utterance.Substring(span.Offset, span.Length));
+        Assert.Equal(Sha256OfUtf8("\U0001F681"), span.Hash);
     }
 
     /// <summary>Records every log call so a test can assert on level and message without a mocking library.</summary>

@@ -58,7 +58,7 @@ def run_log():
 # "planned": the gap is measured, written down and on the schedule for a named release. That is a
 # different statement from "ignored" (nothing is being done) and the rulebook's parity format has a
 # value for each -- see affiant-protocol conformance/PARITY.md.
-PLANNED_FOR = "1.0.0-beta.3"
+PLANNED_FOR = "1.0.0-beta.3.1"
 
 # disposition, detail, and the extra key that disposition requires. Empty: this tree passes every
 # fixture in the vendored suite, so there is no row to attribute. A fixture that starts failing stops
@@ -134,7 +134,20 @@ def main():
         "producedAt": run["producedAt"],
         "runLog": f"conformance/results/{results.name} (Sakwala/affiant)",
         "failing": failing,
-        "runtimes": [{"name": "net10.0", "version": "10.0", "claimed": True}],
+        "runtimes": [
+            {
+                "name": "net10.0",
+                "version": "10.0",
+                "claimed": True,
+                # PV-3's neighbour test reads General_Category from the runtime's own character
+                # database (the rule's A13 clause), so a run says which database that was. The
+                # rulebook's lint requires this key of every manifest at protocolTag v0.1.3 or
+                # later. Determined by probe rather than declared: every code point assigned up to
+                # and including Unicode 16.0 -- U+0870 (14.0), U+11F00 (15.0), U+1E030 (15.1),
+                # U+105C0 and U+116D0 (16.0) -- reads as assigned on this runtime, .NET 10.0.11.
+                "unicodeVersion": "16.0",
+            }
+        ],
         "exemptions": [
             {
                 "rule": e["rule"],
@@ -169,25 +182,37 @@ CHECKED_INSTEAD = {
 
 NOTES = (
     "The .NET conformance driver, run by this repository's own test suite against the packages this "
-    "tree builds, read at the rulebook's v0.1.2. ALL SIXTY-THREE FIXTURES PASS: the failing list is "
-    "empty, which is what this release's acceptance asks for. "
-    "Three things a reader of this document alone should know. "
-    "(1) WHAT THIS RUN IS. It is a BRANCH BUILD of the 1.0.0-beta.3 candidate, not a shipped "
+    "tree builds, read at the rulebook's v0.1.3. ALL SIXTY-EIGHT DOCUMENTS PASS -- the sixty-one "
+    "declarative fixtures and the seven canonical byte vectors -- so the failing list is empty, "
+    "which is what this release's acceptance asks for. "
+    "Four things a reader of this document alone should know. "
+    "(1) WHAT THIS RUN IS. It is a BRANCH BUILD of the 1.0.0-beta.3.1 candidate, not a shipped "
     "release: the version here names what the tree builds, and nothing carrying it has been "
-    "published. "
-    "(2) THE CANONICAL FORM AND THE ENTRY ID ARE THE PROTOCOL'S. Every byte vector is reproduced "
+    "published. The five fixtures the rulebook's negative oracle lists against the SHIPPED "
+    "1.0.0-beta.3 -- the four PV-3 fixtures authored at v0.1.3 and sequence-a/picker-external-binding "
+    "-- pass here, which is the half of that oracle this repository is responsible for: the release "
+    "they were listed against fails them, and the branch that fixes Sakwala/affiant#123 passes them. "
+    "(2) PRESENCE IS ESTABLISHED FROM THE UTTERANCE. PV-3 at v0.1.3 grades an inferred field "
+    "Conversation when the value is literally present in the turn, and that is a property of two "
+    "strings: this implementation locates the value's text in the utterance itself under an "
+    "ASCII-only case fold, and a port's presence and utteranceSpan are hints it verifies the same "
+    "way. The driver passes given.ctx.utterance to the inference step, and the empty string where a "
+    "fixture states none, so the finder is what the suite measures. The neighbour test reads "
+    "General_Category from this runtime's own Unicode database; the version it carries is stated in "
+    "`runtimes`. "
+    "(3) THE CANONICAL FORM AND THE ENTRY ID ARE THE PROTOCOL'S. Every byte vector is reproduced "
     "through the SHIPPED serializer -- the same exported helper a host calls to mint an execution "
     "grant -- and never through a canonicaliser written beside the test: the rule says a driver "
     "reproduces the bytes and the digest rather than re-deriving them. The amended vector's sworn "
     "form is folded by the shipped amendment fold and checked against the accepted state the vector "
     "writes down before its bytes are compared, and every vector is validated against "
     "canonical-vector.schema.json before it runs. The form is over the Affidavit as the schema "
-    "defines it, protocol version included (SR-1 at v0.1.2). A Docket entry id is derived from the "
+    "defines it, protocol version included (SR-1). A Docket entry id is derived from the "
     "tenant, the conversation, the tool and the canonical form of the operation and its arguments, "
     "digested and laid out as GT-4 states, so an id minted here and an id minted by another "
     "implementation for the same proposal are the same id -- which they must be, because the id "
     "travels inside the record and therefore inside the hash a grant binds to. "
-    "(3) WHAT THE DRIVER CHECKS WITHOUT BEING ASKED. Every filing a fixture performs -- prior steps "
+    "(4) WHAT THE DRIVER CHECKS WITHOUT BEING ASKED. Every filing a fixture performs -- prior steps "
     "included -- is card-checked: the card points at its row, carries that row's deadline and "
     "protocol version, repeats the record's three confidence numbers, and says on its face when the "
     "row is blocked. Every attestation is checked to name the entry it attests to. `wrap-execute` "

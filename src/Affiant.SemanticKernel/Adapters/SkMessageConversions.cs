@@ -89,6 +89,22 @@ internal static class SkMessageConversions
         return history;
     }
 
+    /// <summary>
+    /// The conversation history a kernel carries, in neutral form — the one reading every seam that
+    /// builds a <c>ToolInvocationRequest</c> uses, so the invocation stage and the completion stage
+    /// of one turn cannot see two different histories (PV-3).
+    /// </summary>
+    /// <remarks>
+    /// A kernel with nothing under <c>ChatHistory</c> yields an empty list, which the step reads as
+    /// "no turn in hand": the port's own presence report then stands, unverified. Every host that
+    /// wants presence established from what the person typed puts the history there, which is what
+    /// the framework's own SK wiring does.
+    /// </remarks>
+    public static IReadOnlyList<AffiantChatMessage> HistoryOf(Kernel kernel) =>
+        kernel.Data.TryGetValue("ChatHistory", out var history) && history is ChatHistory chat
+            ? ToNeutral(chat)
+            : [];
+
     private static string? SerializeArguments(KernelArguments? arguments) =>
         arguments is null
             ? null

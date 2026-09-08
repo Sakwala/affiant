@@ -1,7 +1,7 @@
 # The affiant-protocol ref this repository's conformance driver is pinned to.
 #
 # Versions of the rulebook (https://github.com/Sakwala/affiant-protocol) are git tags.
-# The pin is the v0.1.2 tag, and `commit` records what that tag points at, so a reader
+# The pin is the v0.1.3 tag, and `commit` records what that tag points at, so a reader
 # can check one against the other with no network. While a version's text is on the
 # rulebook's default branch and its tag has not been cut, `tag` is empty and the COMMIT
 # is the pin: a commit is as immutable as a tag and, unlike a tag, cannot be moved
@@ -15,7 +15,7 @@
 # which is what CI runs, so a local edit to a vendored fixture cannot pass unnoticed.
 
 repository=https://github.com/Sakwala/affiant-protocol
-commit=d803fb0740c4b86dd6560c8614d7eb9e47b5b333
-tag=v0.1.2
-tag_note=v0.1.2 was cut on the commit above on 2026-09-05: SR-1 now states that the canonical form is taken over the Affidavit as the schema defines it, protocolVersion included; the two conformance fixtures that pin a content hash (sequence-a/approve-round-trip, decide/amend-recompute) carry hashes regenerated from the corrected reference, because the ones published at v0.1.1 came from a runtime whose model did not carry that property and so disagreed with the schema and with all seven canonical byte vectors; and GT-4 now states the entry-id derivation - the tenant, the conversation, the tool and the canonical form of the operation and its arguments, digested and laid out as a version-8 UUID - which was previously left to an implementation and is inside every content hash through a reviewer-act binding. The 0.1.0 wire schemas are unchanged.
+commit=cfb476431aa4d6bbaef9cacbce5bab75053e67c8
+tag=v0.1.3
+tag_note=v0.1.3 was cut on the commit above on 2026-09-08: PV-3 now says WHO establishes presence. "The value is literally present in the utterance" is a property of two strings, so the implementation establishes it from the unmodified turn - a hit is an occurrence of the value text under an ASCII-only case fold (A-Z against a-z; every other code point compares exactly) whose neighbouring code points are none of L*, M*, Nd, Pc - and grades Conversation, bound to an utterance-span whose offsets are UTF-16 code units of the utterance and whose hash is SHA-256 over the UTF-8 bytes of the utterance's own substring at that span. A port's `presence` and `utteranceSpan` become optional in the fixture schema and are hints the implementation verifies the same way: a span is used only when it is itself a hit, an unconfirmed `literal` is Inferred, and a value the port said nothing about is Conversation when it is there to read. A value that is null, an object, an array, the empty string or a non-finite number is nothing reported for that field. Five gate fixtures are authored at this tag and one, sequence-a/picker-external-binding, is amended; the field matcher gains `utteranceSpan`; conformance/ORACLE.md gains a second table, the negative oracle against dotnet 1.0.0-beta.3.
 vendored=tests/Affiant.Conformance.Tests/protocol

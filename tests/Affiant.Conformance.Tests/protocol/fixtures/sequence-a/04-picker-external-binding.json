@@ -103,7 +103,13 @@
             "name": "status",
             "value": "Active",
             "source": "Conversation",
-            "bound": false
+            "bound": true,
+            "bindingKind": "utterance-span",
+            "utteranceSpan": {
+              "offset": 21,
+              "length": 6,
+              "hash": "92340695899bd2d86223e4a007620e0d6502fc0e08809773634c7e0743764a9c"
+            }
           },
           {
             "name": "owner",
