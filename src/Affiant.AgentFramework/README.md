@@ -15,6 +15,8 @@ AIAgent agent = new ChatClientAgent(chatClient, instructions: "...", tools: cata
     .WithAffiant(serviceProvider, catalog);
 ```
 
+`serviceProvider` above must be a scope built per turn (`using var scope = rootProvider.CreateScope(); ... services: scope.ServiceProvider`), not the application root — a tool type registered Scoped throws `InvalidOperationException` when `FromType<T>()`'s resolver is reached from the root provider under scope validation.
+
 `WithAffiant(...)` is the only supported way to attach Affiant to an `AIAgent`: it registers the catalog's tool descriptors, attaches the neutral pipeline as MAF function-calling middleware, audits the agent's tool set for hosted/provider-side tools Affiant cannot see (refusing by default — see `AgentFrameworkOptions.AcknowledgeUncoveredTools`), and returns the wrapped agent. Hosts must use the returned instance; the pre-wrap agent bypasses Affiant entirely.
 
 ## Package contents

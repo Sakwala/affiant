@@ -245,12 +245,12 @@ public sealed class SchemaDrivenAffidavitProjection : IAffidavitProjection
             ?? Activity.Current?.GetBaggageItem("conversationId")
             ?? string.Empty;
 
-        // TL-1 `affidavit.refused.substance` (GT-3). This release does not yet REFUSE a hollow
-        // proposal at run time — the runtime refusal lands with the gate-pipeline change — so what
-        // this event records today is the detection, on the same seam the refusal will be raised
-        // from, with the same reason text. An operator can therefore build the alert now and see it
-        // start refusing rather than start firing. The compliance harness's test-time check
-        // (ComplianceHarness.AssertProvenanceIsSubstantive) uses the same three conditions.
+        // TL-1 `affidavit.refused.substance` (GT-3). ReviewGate.RefuseProposalWithoutSubstance
+        // refuses a hollow proposal at run time on this same detection, with the same reason text —
+        // so this event fires on the seam the refusal is actually raised from, telemetry alongside
+        // the refusal rather than ahead of it. The compliance harness's test-time check
+        // (ComplianceHarness.AssertProvenanceIsSubstantive) re-implements its own four conditions,
+        // not this predicate.
         var substanceRefusal = AffidavitSubstance.DescribeFailure(affidavit);
         if (substanceRefusal is not null)
         {

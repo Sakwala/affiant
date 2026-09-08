@@ -55,8 +55,10 @@ using Microsoft.Extensions.AI;
 /// succeed. This wrapper therefore also refuses at <em>invoke</em> time: an ambient
 /// <c>AsyncLocal</c> records that an onion is already running for the call in flight, and a nested
 /// wrapper entered under the same <see cref="FunctionInvocationContext"/> throws instead of running
-/// the onion a second time. That catches every nesting shape the marker cannot see, including
-/// <c>Affiant.AgentFramework</c> wrapped over the same tools. Pinned by
+/// the onion a second time. This guard is armed only on this leg: it catches this wrapper nested
+/// under itself through intervening host middleware, not nesting under a different adapter's own
+/// wrapper — <c>Affiant.AgentFramework</c> carries no equivalent <c>AsyncLocal</c>, so a tool
+/// wrapped by both adapters is not caught here (tracked separately, see affiant#108). Pinned by
 /// <c>Affiant.Extensions.AI.Tests.Filters.NestedWrapperReentrancyTests</c>; see also
 /// <c>ChatOptionsExtensions</c> and the package README's "One Affiant adapter per tool catalog".
 /// </para>
@@ -226,8 +228,10 @@ public sealed class AffiantDelegatingAIFunction : DelegatingAIFunction, IAffiant
                 // Filters/ConversationScopeBleedAtTheSeamTests: InferenceTriggerFilter's idempotency key
                 // falls back to that fabric's identity hash when ConversationId above is null, so the
                 // second and every later conversation silently skips write-tool inference; and
-                // ToolArgumentCaptureFilter's provenance chains, keyed on the bare argument name, are
-                // overwritten across conversations. Setting ChatOptions.ConversationId fixes the first,
+                // ToolArgumentCaptureFilter's captured EntityRef, keyed in the fabric on the
+                // descriptor's EntityType (it mints no provenance chain — an argument is a value, not
+                // provenance, PV-1; the argument names key only the Fields dictionary inside that
+                // entity), is overwritten across conversations. Setting ChatOptions.ConversationId fixes the first,
                 // and the README and WithAffiant both say so. The real fix — a per-turn scope, or
                 // namespacing provenance by conversation — is framework-wide: Affiant.AgentFramework's
                 // AffiantFunctionInvocationMiddleware and Affiant.SemanticKernel's

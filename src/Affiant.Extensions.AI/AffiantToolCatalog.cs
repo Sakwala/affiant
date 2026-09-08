@@ -131,7 +131,9 @@ public sealed record AffiantToolCatalog(
             ?? throw new InvalidOperationException(
                 $"AffiantToolCatalog.FromType<{typeof(T).Name}>(): no {typeof(T).Name} instance was resolvable " +
                 $"from the invocation's service provider. Register {typeof(T).Name} in the host's DI container " +
-                "and make that provider reachable from the invocation — Microsoft.Extensions.AI carries it on " +
-                "AIFunctionArguments.Services, which FunctionInvokingChatClient populates from the " +
-                "ChatOptions/agent wiring the host supplies.");
+                "and make a per-turn scope reachable from the invocation, not the application root — " +
+                "Microsoft.Extensions.AI carries it on AIFunctionArguments.Services, which " +
+                "FunctionInvokingChatClient populates from the ChatOptions/agent wiring the host supplies; " +
+                "build that wiring from a scope the host creates per turn, or resolve the tool type through a " +
+                "scope the adapter creates per invocation.");
 }

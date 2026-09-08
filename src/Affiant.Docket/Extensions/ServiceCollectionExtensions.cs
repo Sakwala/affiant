@@ -39,7 +39,9 @@ public static class ServiceCollectionExtensions
     /// <list type="bullet">
     /// <item>In-memory host: <c>AddAffiantDocket(d =&gt; d.UseInMemory())</c> — nothing else needed.</item>
     /// <item>SQL-backed host: <c>AddAffiantEntityFramework(ef =&gt; ef.UseSqlite(cs))</c> registers the
-    /// store; <c>AddAffiantDocket()</c> is still required for the expiry sweep below.</item>
+    /// store; <c>AddAffiantDocket()</c> registers the scheduled expiry sweep below — call it too
+    /// unless the host would rather schedule <c>IDocketStore.ExpireDueAsync</c> itself (see
+    /// <see cref="DocketExpiryService"/>'s remarks), in which case it is not needed at all.</item>
     /// </list>
     /// <para>
     /// <b>Why this method no longer throws when no store is selected.</b> It used to demand exactly one

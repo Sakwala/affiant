@@ -21,8 +21,13 @@ using QuickstartHost.Data;
 ///
 /// <para>
 /// It takes a scope factory rather than a <c>DbContext</c> because Semantic Kernel builds a plugin
-/// instance once, from the root service provider: a plugin that injects a scoped service does not
-/// start. A scope per call is the cost of that, and it is the right lifetime for a read anyway.
+/// instance once, from the provider the <c>Kernel</c> is built from. A scoped service injected
+/// directly is not refused at registration: it throws where that single instance is constructed
+/// from the root provider under scope validation (<c>InvalidOperationException: Cannot resolve
+/// scoped service … from root provider</c>) — which is why Affiant's own SK startup validator
+/// resolves the <c>Kernel</c> inside a scope; with scope validation off the plugin silently shares
+/// one instance across conversations instead. A scope per call avoids both, and it is the right
+/// lifetime for a read anyway.
 /// </para>
 /// </summary>
 public sealed class LeaveLookupPlugin(IServiceScopeFactory scopeFactory)
