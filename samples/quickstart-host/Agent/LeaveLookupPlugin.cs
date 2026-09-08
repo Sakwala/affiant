@@ -21,8 +21,12 @@ using QuickstartHost.Data;
 ///
 /// <para>
 /// It takes a scope factory rather than a <c>DbContext</c> because Semantic Kernel builds a plugin
-/// instance once, from the root service provider: a plugin that injects a scoped service does not
-/// start. A scope per call is the cost of that, and it is the right lifetime for a read anyway.
+/// instance once, from the root service provider. The host still starts with a scoped service
+/// injected directly: the throw comes later, at the first <c>Kernel</c> resolution — which the
+/// startup validator forces during host start-up under scope validation
+/// (<c>InvalidOperationException: Cannot resolve scoped service … from root provider</c>); with
+/// scope validation off the plugin silently shares one instance across conversations instead. A
+/// scope per call avoids both, and it is the right lifetime for a read anyway.
 /// </para>
 /// </summary>
 public sealed class LeaveLookupPlugin(IServiceScopeFactory scopeFactory)
