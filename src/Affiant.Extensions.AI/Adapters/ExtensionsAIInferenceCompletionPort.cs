@@ -84,8 +84,11 @@ public sealed class ExtensionsAIInferenceCompletionPort : IInferenceCompletionPo
             using var doc = JsonDocument.Parse(content);
             return doc.RootElement.Clone();
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            // The caller's own cancellation is not a failure to report (affiant#102). A
+            // cancellation the caller did not ask for — a provider timeout — is, and falls to the
+            // logged rethrow below, where TaskInferenceRunner's fail-safe takes it from here.
             throw;
         }
         catch (Exception ex)

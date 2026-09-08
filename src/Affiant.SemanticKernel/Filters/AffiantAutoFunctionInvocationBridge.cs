@@ -21,13 +21,14 @@ public sealed class AffiantAutoFunctionInvocationBridge(ToolInvocationPipeline p
         AutoFunctionInvocationContext context,
         Func<AutoFunctionInvocationContext, Task> next)
     {
-        // Completion-stage filters (merge, review gate) key off the result, function identity, and
-        // termination — not the arguments. AutoFunctionInvocationContext.Arguments can also throw
-        // when the loop did not supply KernelArguments, so we deliberately do not read it here.
+        // affiant#114: the review gate runs here, at the completion stage, and it is the seam that
+        // attaches the call's arguments to a WriteProposal — they are part of the entry-id material
+        // (GT-4). Passing an empty set gave SK a different id from every other backend for the same
+        // logical proposal, and gave two SK calls that differ only in their arguments the same id.
         var request = new ToolInvocationRequest(
             context.Function.Name,
             context.Function.PluginName ?? string.Empty,
-            new Dictionary<string, object?>())
+            ReadArguments(context))
         {
             InitialTerminate = context.Terminate,
             // Area-3 P2 fix round (corrects the disproven "structurally impossible" claim from
@@ -88,5 +89,40 @@ public sealed class AffiantAutoFunctionInvocationBridge(ToolInvocationPipeline p
         // kernel.AutoFunctionInvocationFilters.Insert(0, ...) (running its filter BEFORE this
         // bridge instead of after, the normal position).
         context.Terminate = resultContext.Terminate || downstreamTerminate;
+    }
+
+    /// <summary>
+    /// The arguments SK holds for this call, or an empty set when it holds none this bridge can read.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="AutoFunctionInvocationContext.Arguments"/> is documented to throw
+    /// <see cref="InvalidOperationException"/> when the auto-invocation loop's arguments are not a
+    /// <see cref="KernelArguments"/>, so the read is guarded rather than skipped. The empty set is
+    /// what this bridge passed unconditionally before affiant#114, so a loop that cannot hand its
+    /// arguments over is no worse off than it was.
+    /// <para>
+    /// What comes back is Semantic Kernel's own live <see cref="KernelArguments"/> for this call, not
+    /// a copy: SK's auto-invocation loop invokes the function with that same instance after every
+    /// completion-stage filter's pre-<c>next</c> code has run, so a host filter that writes to
+    /// <c>ToolInvocationContext.Arguments</c> here changes what the tool executes with — the same
+    /// contract the invocation seam already states (<c>ToolInvocationContext</c>: "Mutable
+    /// pre-invocation"). Before affiant#114 this stage's dictionary was a throwaway and such a write
+    /// was inert.
+    /// </para>
+    /// </remarks>
+    private static IDictionary<string, object?> ReadArguments(AutoFunctionInvocationContext context)
+    {
+        try
+        {
+            var arguments = context.Arguments;
+            if (arguments is not null)
+                return arguments;
+        }
+        catch (InvalidOperationException)
+        {
+            // Falls through to the empty set below.
+        }
+
+        return new Dictionary<string, object?>();
     }
 }

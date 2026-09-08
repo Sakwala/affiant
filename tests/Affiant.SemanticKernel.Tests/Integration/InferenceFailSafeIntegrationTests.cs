@@ -13,7 +13,9 @@ using static IntegrationTestPipelineFactory;
 /// fires. OTel events are captured via InMemoryExporterHelper registered in the pipeline.
 ///
 /// Failure mode taxonomy (per TaskInferenceRunner's catch ordering):
-///   OperationCanceledException → inference.failed(cancelled) + re-throw
+///   OperationCanceledException, caller's token signalled → inference.failed(cancelled) + re-throw
+///   OperationCanceledException, caller's token not signalled (a provider timeout, affiant#102)
+///                               → inference.failed(provider_outage) + return empty result
 ///   JsonException               → inference.failed(json_parse) + return empty result
 ///   Other Exception             → inference.failed(provider_outage) + return empty result
 ///   Non-object JSON (InvalidOperationException from TryGetProperty) → provider_outage
@@ -102,18 +104,23 @@ public class InferenceFailSafeIntegrationTests
     }
 
     [Fact]
-    public async Task PortThrowsCancelled_InferenceFailedEmittedWithCancelledKind_AndPropagates()
+    public async Task CallerCancels_InferenceFailedEmittedWithCancelledKind_AndPropagates()
     {
-        // The port throws OperationCanceledException explicitly.
+        // The caller's own token is signalled while the port is running, and the port throws for it.
         // Per 16.2's runner contract: inference.failed(cancelled) is emitted, then re-thrown.
-        // InferenceTriggerFilter re-throws OperationCanceledException; ToolErrorFilter also re-throws.
+        // InferenceTriggerFilter re-throws it; ToolErrorFilter also re-throws.
+        using var cts = new CancellationTokenSource();
         var (kernel, exporter, _) = BuildPipeline(
-            portImpl: (req, ct) => throw new OperationCanceledException("simulated cancellation"));
+            portImpl: (req, ct) =>
+            {
+                cts.Cancel();
+                throw new OperationCanceledException("simulated caller cancellation", cts.Token);
+            });
 
         // SK wraps OperationCanceledException in KernelFunctionCanceledException (a subclass),
         // so ThrowsAnyAsync<T> is used to accept derived types.
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => kernel.InvokeAsync("ThingPlugin", "CreateThing"));
+            () => kernel.InvokeAsync("ThingPlugin", "CreateThing", cancellationToken: cts.Token));
 
         // ToolTracingFilter's finally block disposes the execute_tool activity (exports it)
         // BEFORE the exception propagates — the event must be in the exported list.
@@ -123,5 +130,27 @@ public class InferenceFailSafeIntegrationTests
         var failed = events.Single(e => e.Name == "inference.failed");
         var tags = failed.Tags.ToDictionary(kv => kv.Key, kv => kv.Value);
         Assert.Equal("cancelled", tags["affiant.error.kind"]?.ToString());
+    }
+
+    [Fact]
+    public async Task ProviderTimesOut_InferenceFailedWithProviderOutageKind_TurnCompletes()
+    {
+        // affiant#102: an HttpClient timeout surfaces as TaskCanceledException, which derives from
+        // OperationCanceledException, while the caller's token is never signalled. It is a provider
+        // failure, so the turn completes with an empty inference result; before the fix the runner
+        // re-threw it and the tool never ran.
+        var (kernel, exporter, _) = BuildPipeline(
+            portImpl: (req, ct) => throw new TaskCanceledException("simulated provider timeout"));
+
+        var result = await kernel.InvokeAsync("ThingPlugin", "CreateThing");
+
+        Assert.NotNull(result);
+        var events = exporter.ExportedActivities.SelectMany(a => a.Events).ToList();
+        Assert.True(events.Any(e => e.Name == "inference.failed"),
+            "Expected inference.failed event to be emitted");
+        var failed = events.Single(e => e.Name == "inference.failed");
+        var tags = failed.Tags.ToDictionary(kv => kv.Key, kv => kv.Value);
+        Assert.Equal("provider_outage", tags["affiant.error.kind"]?.ToString());
+        Assert.Equal("CreateThing", tags["affiant.function.name"]?.ToString());
     }
 }

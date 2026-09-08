@@ -95,6 +95,26 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
   registry's `ConcurrentDictionary` happened to yield first, so a strategy behind two write tools
   was verified against a different tool from process to process; the pairing is now the first
   descriptor by function name, then by plugin name.
+- **On Semantic Kernel a filed proposal now carries the arguments the model passed (#114).** The
+  completion-stage bridge built its neutral request with an empty argument set, so
+  `WriteProposal.Arguments` — part of the material an entry id derives from (GT-4) — was attached on
+  the Agent Framework and Microsoft.Extensions.AI backends and never on SK. The same logical proposal
+  derived a different id per backend, and two SK calls in one conversation that differed only in their
+  arguments derived the same id, so the second was treated as a replay of the first. The bridge reads
+  `AutoFunctionInvocationContext.Arguments`, guarding the `InvalidOperationException` Semantic Kernel
+  raises when the auto-invocation loop holds no `KernelArguments`; `ManualToolInvoker`, the fallback
+  invocation path for connectors without native auto-invocation, passes the arguments it invoked the
+  tool with. Upgrading changes the ids an SK host derives: a row filed at `1.0.0-beta.3` derived its
+  id with no arguments in the material, so the gate's replay lookup does not find it after the
+  upgrade and a retried call files a second row for the same proposal.
+- **A provider's timeout degrades like every other inference failure (#102).** An `HttpClient`
+  timeout arrives as a `TaskCanceledException`, which is an `OperationCanceledException` — and the
+  runner, the trigger filter and all three inference ports re-threw every one of those on the grounds
+  that cancellation is the caller's word. The commonest provider failure of all therefore escaped the
+  fail-safe: the tool never ran, no proposal was filed, and the model answered without the tool
+  instead of proceeding on an empty inference result. Cancellation is re-thrown only when the caller's
+  own `CancellationToken` is signalled; every other one is a provider failure — a logged warning, an
+  `inference.failed` event and an empty result, with the tool call proceeding.
 
 ### Documentation
 
