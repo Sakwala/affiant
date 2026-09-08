@@ -20,6 +20,14 @@ using QuickstartHost.Data;
 /// "nothing to project", and the projection swears the fields without previous values rather than
 /// swearing that every one of them was blank.
 /// </para>
+///
+/// <para>
+/// <b>The keys are the strategy's declared field names.</b> A projection looks a previous value up
+/// by <c>TaskInferenceField.Name</c> — the framework's own
+/// <c>SchemaDrivenAffidavitProjection</c> does it on an ordinal dictionary — so a key spelled any
+/// other way misses silently and every field reaches the reviewer with a null previous value. The
+/// names come from <see cref="LeaveTaskInferenceStrategy.Fields"/> and nowhere else.
+/// </para>
 /// </summary>
 public sealed class HrPreviousValueSource(IServiceScopeFactory scopeFactory) : IPreviousValueSource
 {
@@ -42,12 +50,12 @@ public sealed class HrPreviousValueSource(IServiceScopeFactory scopeFactory) : I
 
         return new Dictionary<string, object?>(StringComparer.Ordinal)
         {
-            ["employee"] = row.Employee,
-            ["startDate"] = row.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-            ["endDate"] = row.EndDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-            ["leaveType"] = row.LeaveType,
-            ["days"] = row.Days,
-            ["reason"] = row.Reason,
+            ["Employee"] = row.Employee,
+            ["StartDate"] = row.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            ["EndDate"] = row.EndDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            ["LeaveType"] = row.LeaveType,
+            ["Days"] = row.Days,
+            ["Reason"] = row.Reason,
         };
     }
 }
