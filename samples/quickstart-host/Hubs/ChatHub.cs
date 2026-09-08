@@ -90,6 +90,18 @@ public sealed class ChatHub(
     /// nothing, but the reviewer's amendments are still preserved on the entry so a resubmission
     /// can carry them forward. That is the framework's behaviour, not this hub's: the check for it
     /// is the returned outcome, never a client-side guess.
+    ///
+    /// <para>
+    /// <b>The record the write is performed from is the gate's, not this hub's.</b>
+    /// <c>DocketEntry.AmendedAffidavit</c> is the state the accepted amendments produced — one fold,
+    /// performed once when the decision was recorded, with the reviewer's provenance on each amended
+    /// field and all three confidence numbers recomputed. Handing the executor the raw proposal plus
+    /// the raw amendment map instead would make it fold them a second time, and two folds of the
+    /// same amendments can disagree: when the map names a field the Affidavit does not propose the
+    /// gate produces no amended record at all, and a second fold would still write the map's other
+    /// values — values no record on the Docket swears to. It is null exactly when nothing was
+    /// amended, which is why the proposal is the fallback.
+    /// </para>
     /// </summary>
     public async Task<DecisionAck> ApproveEntry(Guid entryId, Dictionary<string, object?>? amendments)
     {
@@ -103,7 +115,7 @@ public sealed class ChatHub(
         if (entry is { Status: ReviewStatus.Approved })
         {
             var recordId = await writeExecutor.ExecuteAsync(
-                entry.Envelope, entry.Amendments, Context.ConnectionAborted);
+                entry.AmendedAffidavit ?? entry.Envelope, amendments: null, Context.ConnectionAborted);
             logger.LogInformation(
                 "Approved DocketEntry {EntryId} wrote leave request {RecordId}", entryId, recordId);
         }

@@ -14,15 +14,26 @@ using QuickstartHost.Data;
 /// exactly once in this sample, here.
 ///
 /// <para>
-/// <b>Amendments.</b> A reviewer's edits arrive alongside the affidavit. A key present with a
-/// <c>null</c> value means the reviewer cleared that field, which is different from the key being
-/// absent (leave it alone) — <see cref="ReadField"/> keeps the two apart. The framework has
-/// already persisted these onto the docket entry; a host with its own audit trail would also
-/// append a <c>UserStated</c> provenance tag per amended field before the value lands.
+/// <b>Amendments are already folded in.</b> This executor never merges an amendment map itself. The
+/// gate folds a reviewer's accepted edits once, when the decision is recorded, and keeps the result
+/// on <c>DocketEntry.AmendedAffidavit</c>; <see cref="Hubs.ChatHub.ApproveEntry"/> hands that record
+/// here. The Affidavit therefore already states the two meanings a map carries: a cleared mandatory
+/// field is present with no value, and a cleared optional field is absent from the field list
+/// entirely because the write no longer proposes it. A second fold in here would be a second
+/// implementation of the same merge, free to drift from the one the reviewer's card was built from.
 /// </para>
 /// </summary>
 public sealed class LeaveWriteExecutor(HrDbContext db) : IWriteExecutor
 {
+    /// <param name="affidavit">
+    /// The record to write, already amended: the gate's <c>AmendedAffidavit</c> when a reviewer
+    /// corrected anything, the filed proposal when they did not.
+    /// </param>
+    /// <param name="amendments">
+    /// Unread. The contract offers the raw map for a host that has not yet moved to the gate's own
+    /// fold; this sample has, so its caller passes <c>null</c>.
+    /// </param>
+    /// <param name="ct">Cancels the database work.</param>
     public async Task<string?> ExecuteAsync(
         Affidavit affidavit,
         IReadOnlyDictionary<string, object?>? amendments,
@@ -38,12 +49,12 @@ public sealed class LeaveWriteExecutor(HrDbContext db) : IWriteExecutor
 
         var record = await ResolveRecordAsync(affidavit, ct);
 
-        record.Employee = ReadField(affidavit, amendments, "Employee") ?? record.Employee;
-        record.StartDate = ParseDate(ReadField(affidavit, amendments, "StartDate"), record.StartDate);
-        record.EndDate = ParseDate(ReadField(affidavit, amendments, "EndDate"), record.EndDate);
-        record.LeaveType = ReadField(affidavit, amendments, "LeaveType") ?? record.LeaveType;
-        record.Days = ParseInt(ReadField(affidavit, amendments, "Days"), record.Days);
-        record.Reason = ReadField(affidavit, amendments, "Reason") ?? record.Reason;
+        record.Employee = ReadField(affidavit, "Employee") ?? record.Employee;
+        record.StartDate = ParseDate(ReadField(affidavit, "StartDate"), record.StartDate);
+        record.EndDate = ParseDate(ReadField(affidavit, "EndDate"), record.EndDate);
+        record.LeaveType = ReadField(affidavit, "LeaveType") ?? record.LeaveType;
+        record.Days = ParseInt(ReadField(affidavit, "Days"), record.Days);
+        record.Reason = ReadField(affidavit, "Reason") ?? record.Reason;
 
         // SaveChanges happens ONLY here — never in a write tool, never in the projection.
         await db.SaveChangesAsync(ct);
@@ -70,20 +81,15 @@ public sealed class LeaveWriteExecutor(HrDbContext db) : IWriteExecutor
     }
 
     /// <summary>
-    /// A reviewer's amendment wins over the sworn value; an amendment present with a <c>null</c>
-    /// value clears the field, which this sample expresses as an empty string. A field the
-    /// reviewer did not touch falls back to the affidavit's own value.
+    /// What the sworn record says this field should hold: its value, or the empty string when the
+    /// field is proposed with no value — a reviewer cleared it, which this sample expresses as an
+    /// empty string. A field the record does not propose at all reads <c>null</c>, and the caller
+    /// leaves the row's current value alone.
     /// </summary>
-    private static string? ReadField(
-        Affidavit affidavit,
-        IReadOnlyDictionary<string, object?>? amendments,
-        string name)
+    private static string? ReadField(Affidavit affidavit, string name)
     {
-        if (amendments is not null && amendments.TryGetValue(name, out var amended))
-            return amended?.ToString() ?? string.Empty;
-
         var field = affidavit.Fields.FirstOrDefault(f => f.Name == name);
-        return field?.Value?.ToString();
+        return field is null ? null : field.Value?.ToString() ?? string.Empty;
     }
 
     private static DateOnly ParseDate(string? value, DateOnly fallback) =>
