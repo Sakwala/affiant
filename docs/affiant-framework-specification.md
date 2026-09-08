@@ -1321,9 +1321,10 @@ All 12 attribute key strings are constants in `Affiant.Core.Observability.L2Tele
 
 > **`affidavit.projected` is deprecated as of `1.0.0-beta.3`** in favour of the telemetry-key
 > registry's `affidavit.filed` (§8), with the hollow-Affidavit case moving to
-> `affidavit.refused.substance`, emitted from this same projection seam. It keeps being emitted for
-> one release so an existing alert does not go dark on upgrade, and is removed in the release after
-> `1.0.0-beta.3`. The `inference.*` events above are **not** deprecated — the registry does not
+> `affidavit.refused.substance`, emitted from this same projection seam. It keeps being emitted
+> through the `1.0.0-beta.3` line, its point releases included, so an existing alert does not go dark
+> on upgrade, and is removed at the next release that is not a point release of `1.0.0-beta.3`. The
+> `inference.*` events above are **not** deprecated — the registry does not
 > cover the inference step's own progress, and they keep their names.
 
 **Typed event publication.** After projection, `SchemaDrivenAffidavitProjection` publishes a typed `AffidavitEmittedEvent` record through `IObservabilityEventStream<AffidavitEmittedEvent>`. The event carries `ConversationId`, `AffidavitId`, `OperationType`, `EntityType`, `PopulatedFieldCount`, `AggregateConfidence`, and `EmptyProvenanceFieldCount`. The Phase 3.5 Validator subscribes to this stream to perform quality audits without coupling to OTel infrastructure; hosts that want dashboard-level monitoring subscribe to the OTel span events instead.
@@ -1951,9 +1952,10 @@ chain), and `execution`, `decision.kind` where no decision drove the transition,
 and `principal.kind` are absent because this release has no execution-outcome state, no attestation
 record and no principal on the decision surface.
 
-**Deprecated for one release.** `affidavit.projected` is superseded by `affidavit.filed` (and, for
-the hollow case, `affidavit.refused.substance`). It is still emitted through `1.0.0-beta.3` and is
-removed in the release after it. The framework's other event names — `affiant.tool_error`,
+**Deprecated through the `1.0.0-beta.3` line.** `affidavit.projected` is superseded by
+`affidavit.filed` (and, for the hollow case, `affidavit.refused.substance`). It is still emitted
+through that line, its point releases included, and is removed at the next release that is not a
+point release of `1.0.0-beta.3`. The framework's other event names — `affiant.tool_error`,
 `affiant.review.filing_failed`, `affiant.review.broadcast_failed`, `affiant.extractor.failed` and
 the `inference.*` family — are not deprecated: they name things the registry does not cover.
 

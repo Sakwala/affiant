@@ -110,11 +110,12 @@ public class SkCompletionStageTurnTests
     }
 
     /// <summary>
-    /// The control: a kernel carrying no history is a caller with no turn, and the step says so
-    /// rather than inventing one. Without the fix above every SK turn looked like this one.
+    /// The control: neither reading has a turn — no history on the kernel and an empty
+    /// <see cref="AutoFunctionInvocationContext.ChatHistory"/> — and the step says so rather than
+    /// inventing one. Without the fix above every SK turn looked like this one.
     /// </summary>
     [Fact]
-    public async Task TheAutoInvocationBridge_WithNoHistoryOnTheKernel_HasNoTurn()
+    public async Task TheAutoInvocationBridge_WithNeitherHistory_HasNoTurn()
     {
         var (services, fabric, pipeline) = Build();
         using var _ = services;
@@ -133,6 +134,40 @@ public class SkCompletionStageTurnTests
         var tag = fabric.GetFieldChain("Priority")!.Current;
         Assert.Equal(ProvenanceSource.Inferred, tag.Source);
         Assert.Null(tag.Binding);
+    }
+
+    /// <summary>
+    /// A25: the kernel convention is a host contract nothing in the framework populates, so a host
+    /// that never adopted it used to reach the merge filter with no turn — #123 unfixed for that
+    /// host. Semantic Kernel hands the bridge its own <c>ChatHistory</c> on every auto-invocation
+    /// call; with nothing under <c>kernel.Data["ChatHistory"]</c> the bridge reads that instead, and
+    /// the value the person typed is graded from the text and bound to where it was read.
+    /// </summary>
+    [Fact]
+    public async Task TheAutoInvocationBridge_WithOnlySksOwnHistory_IsConversation()
+    {
+        var (services, fabric, pipeline) = Build();
+        using var _ = services;
+        var kernel = KernelWithTurn(services, utterance: null);
+        Assert.False(kernel.Data.ContainsKey("ChatHistory"));
+        var skHistory = new ChatHistory();
+        skHistory.AddUserMessage(Utterance);
+        var function = KernelFunctionFactory.CreateFromMethod(() => ToolResult, "CreateThing", "ThingPlugin");
+        var context = new AutoFunctionInvocationContext(
+            kernel,
+            function,
+            new FunctionResult(function, ToolResult),
+            skHistory,
+            new ChatMessageContent(AuthorRole.Assistant, "calling CreateThing"));
+
+        var bridge = new AffiantAutoFunctionInvocationBridge(pipeline);
+        await bridge.OnAutoFunctionInvocationAsync(context, _ => Task.CompletedTask);
+
+        var tag = fabric.GetFieldChain("Priority")!.Current;
+        Assert.Equal(ProvenanceSource.Conversation, tag.Source);
+        var span = Assert.IsType<ProvenanceBinding.UtteranceSpan>(tag.Binding).Ref;
+        Assert.Equal(9, span.Offset);
+        Assert.Equal("Critical", Utterance.Substring(span.Offset, span.Length));
     }
 
     /// <summary>

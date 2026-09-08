@@ -56,7 +56,12 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
   Kernel `TaskInferenceMergeFilter` — the post-tool caller of the merge step — received no turn and
   fell back to the port's own presence report, whatever the host had put on the kernel. Both now read
   the history exactly as `AffiantFunctionInvocationBridge` does, so a tool result grades the same way
-  at the invocation stage and at the completion stage, and on all three backends.
+  at the invocation stage and at the completion stage, and on all three backends. That reading is
+  `kernel.Data["ChatHistory"]`, which is a **host** contract — nothing in this framework writes it —
+  so a host that never adopted the convention would still have reached the merge filter with no turn.
+  Where the kernel carries no history, `AffiantAutoFunctionInvocationBridge` now falls back to the
+  `ChatHistory` Semantic Kernel itself hands the filter on every auto-invocation call, converted the
+  same way; `ManualToolInvoker`, which has no such context, keeps the kernel reading alone.
 
 #### Changed
 
@@ -76,6 +81,14 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
   and `Affiant.Testing.ComplianceHarness` implements the field matcher's new `utteranceSpan` key
   (`offset`, `length`, `hash`), so a fixture can pin which occurrence was found and that the digest is
   the utterance's own. All 68 documents pass: `conformance/results/dotnet-1.0.0-beta.3.1.json`.
+
+- **The deprecation window for `affidavit.projected` survives a point release.** The
+  `DeprecatedTelemetryKeys` summary, its `[Obsolete]` message and the emitting site in
+  `SchemaDrivenAffidavitProjection` promised removal "in the release after `1.0.0-beta.3`" — a
+  sentence this release falsifies by being `1.0.0-beta.3.1` and still emitting the alias. They now
+  say what is true and what an operator can plan against: the name is emitted through the
+  `1.0.0-beta.3` line, its point releases included, and is removed at the next release that is not a
+  point release of it.
 
 ## [1.0.0-beta.3] — 2026-09-05
 

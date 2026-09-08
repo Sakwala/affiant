@@ -44,7 +44,13 @@ public sealed class AffiantAutoFunctionInvocationBridge(ToolInvocationPipeline p
             // has to hand over the same history the invocation-stage bridge does, read the same way.
             // Without it the filter received no turn on Semantic Kernel and fell back to taking the
             // port's own word for presence, which is the defect Sakwala/affiant#123 is about.
-            History = SkMessageConversions.HistoryOf(context.Kernel),
+            // Design record A25: the kernel convention is a HOST contract nothing in the framework
+            // populates, so when the host has not adopted it this seam falls back to the history SK
+            // itself hands the filter on every auto-invocation call, converted the same way — the
+            // two readings cannot differ. A caller with neither still takes the no-turn path.
+            History = SkMessageConversions.HistoryOf(context.Kernel) is { Count: > 0 } onKernel
+                ? onKernel
+                : SkMessageConversions.ToNeutral(context.ChatHistory),
         };
 
         object? toolProduced = null;
