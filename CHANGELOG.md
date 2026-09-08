@@ -11,6 +11,19 @@ in lockstep as of 2026-07-05 (`Affiant.Extensions.AI` joined the set 2026-08-20)
 plus the bare `Affiant` meta-ID, are reserved on nuget.org (the last two, `Affiant.AgentFramework`
 and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectively).
 
+## [Unreleased]
+
+### Fixed
+
+- **On Semantic Kernel a filed proposal now carries the arguments the model passed (#114).** The
+  completion-stage bridge built its neutral request with an empty argument set, so
+  `WriteProposal.Arguments` — part of the material an entry id derives from (GT-4) — was attached on
+  the Agent Framework and Microsoft.Extensions.AI backends and never on SK. The same logical proposal
+  derived a different id per backend, and two SK calls in one conversation that differed only in their
+  arguments derived the same id, so the second was treated as a replay of the first. The bridge reads
+  `AutoFunctionInvocationContext.Arguments`, guarding the `InvalidOperationException` Semantic Kernel
+  raises when the auto-invocation loop holds no `KernelArguments`.
+
 ## [1.0.0-beta.3] — 2026-09-05
 
 ### Decisions, attestation and identity as the rulebook defines them
