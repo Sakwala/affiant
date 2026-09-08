@@ -133,9 +133,10 @@ Response: `{ "sessionId": "…", "docketId": "<guid>" }`.
 the page is derived from a still-pending entry's deadline.
 
 `status` reflects the deadline, not just what the store holds: the shipped .NET docket stores
-project expiry onto every read (`EfDocketOperations`), so an entry past its deadline reads `Expired`
-here whether or not the 30-second sweep has reached it. INVARIANTS.md DK-1 requires exactly that —
-expiry as queryable state.
+project expiry onto every read — this sample's `InMemoryDocketStore`, and `EfDocketOperations` for
+the SQL-backed stores — so an entry past its deadline reads `Expired` here whether or not the
+30-second sweep has reached it. INVARIANTS.md DK-1 requires exactly that — expiry as queryable
+state.
 
 **A create and an update state different things.** A bare `POST` files a create from a canned set of
 defaults, so one request produces a complete card. An update states only what `overrides` names: the
@@ -288,11 +289,12 @@ differs per rule:
   shipped `ReviewGate` stamps one host-wide default before the policy chain. The seam's second
   `ReviewGate` is the workaround that follows from it, and is labelled as such where it is built.
 - **DK-1 — expiry is queryable state.** Met, by the shipped .NET docket stores: every read projects
-  the deadline (`EfDocketOperations`), so an entry past its deadline reads `Expired` whether or not
-  the 30-second sweep has reached it.
+  the deadline — this sample's `InMemoryDocketStore`, and `EfDocketOperations` for the SQL-backed
+  stores — so an entry past its deadline reads `Expired` whether or not the 30-second sweep has
+  reached it.
 
-The two gaps are the framework's, not the sample's, and neither is hidden behind sample code: the
-sample runs on the shipped packages as published.
+The one remaining gap is the framework's, not the sample's, and it is not hidden behind sample code:
+the sample runs on the shipped packages as published.
 
 ## What is deliberately simple
 

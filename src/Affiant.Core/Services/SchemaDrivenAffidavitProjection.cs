@@ -249,7 +249,7 @@ public sealed class SchemaDrivenAffidavitProjection : IAffidavitProjection
         // refuses a hollow proposal at run time on this same detection, with the same reason text —
         // so this event fires on the seam the refusal is actually raised from, telemetry alongside
         // the refusal rather than ahead of it. The compliance harness's test-time check
-        // (ComplianceHarness.AssertProvenanceIsSubstantive) re-implements its own three conditions,
+        // (ComplianceHarness.AssertProvenanceIsSubstantive) re-implements its own four conditions,
         // not this predicate.
         var substanceRefusal = AffidavitSubstance.DescribeFailure(affidavit);
         if (substanceRefusal is not null)

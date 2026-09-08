@@ -228,9 +228,10 @@ public sealed class AffiantDelegatingAIFunction : DelegatingAIFunction, IAffiant
                 // Filters/ConversationScopeBleedAtTheSeamTests: InferenceTriggerFilter's idempotency key
                 // falls back to that fabric's identity hash when ConversationId above is null, so the
                 // second and every later conversation silently skips write-tool inference; and
-                // ToolArgumentCaptureFilter's captured EntityRef, keyed on the bare argument name (it
-                // mints no provenance chain — an argument is a value, not provenance, PV-1), is
-                // overwritten across conversations. Setting ChatOptions.ConversationId fixes the first,
+                // ToolArgumentCaptureFilter's captured EntityRef, keyed in the fabric on the
+                // descriptor's EntityType (it mints no provenance chain — an argument is a value, not
+                // provenance, PV-1; the argument names key only the Fields dictionary inside that
+                // entity), is overwritten across conversations. Setting ChatOptions.ConversationId fixes the first,
                 // and the README and WithAffiant both say so. The real fix — a per-turn scope, or
                 // namespacing provenance by conversation — is framework-wide: Affiant.AgentFramework's
                 // AffiantFunctionInvocationMiddleware and Affiant.SemanticKernel's
