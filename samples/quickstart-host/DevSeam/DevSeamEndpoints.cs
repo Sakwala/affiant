@@ -21,6 +21,16 @@ using QuickstartHost.Agent;
 /// </para>
 ///
 /// <para>
+/// <b>One thing does differ, and it is the grading.</b> The values a person writes into this route
+/// are <c>UserStated</c> and the canned defaults are <c>Default</c>, where the same six values
+/// arriving as a write tool's arguments are <c>Inferred</c> at
+/// <see cref="LeaveProposalBuilder.ModelArgumentConfidence"/> — the same builder, the same
+/// projection, a different provenance, because the values came from somewhere else. The card the
+/// seam puts up is therefore not the card a model turn produces, and the aggregate confidence under
+/// it differs too.
+/// </para>
+///
+/// <para>
 /// <b>The gate.</b> Both routes are refused unless the host is running in Development
 /// <em>and</em> <c>DevSeam:Enabled</c> is true. The routes are mapped unconditionally and the gate
 /// is an endpoint filter rather than a conditional <c>MapPost</c>, so a request that arrives with
@@ -106,13 +116,22 @@ public static class DevSeamEndpoints
             .Where(pair => !string.IsNullOrWhiteSpace(pair.Value))
             .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
 
-        // A person states the values on this route, not a model — on a create the canned defaults
-        // stand in for what they would otherwise have typed — which is why what this request files
-        // is sworn UserStated, bound to the request it arrived in. A write tool's arguments are not:
-        // see LeaveProposalBuilder.Build.
+        // Which of these values a person actually stated. An override is one: somebody wrote it
+        // into this request, so it is sworn UserStated, bound to the route it arrived on. A canned
+        // default is not: it is a constant in this file that nobody typed, so it is graded Default
+        // — the grade for a value the host supplied when nobody stated one — and swearing it
+        // UserStated would be the same over-grade as swearing a model's tool arguments are a
+        // person's (PV-3; a write tool's arguments are graded in LeaveProposalBuilder.Build).
+        var statedByAPerson = request?.Overrides is null
+            ? new HashSet<string>(StringComparer.Ordinal)
+            : new HashSet<string>(request.Overrides.Keys, StringComparer.Ordinal);
+        var hostDefaults = nonBlank.Keys
+            .Where(name => !statedByAPerson.Contains(name))
+            .ToHashSet(StringComparer.Ordinal);
+
         var affidavit = request?.EntityId is { } entityId
-            ? proposals.BuildUpdate(entityId, nonBlank, ProposalOrigin.DevSeamRequest)
-            : proposals.BuildCreate(nonBlank, ProposalOrigin.DevSeamRequest);
+            ? proposals.BuildUpdate(entityId, nonBlank, ProposalOrigin.DevSeamRequest, hostDefaults)
+            : proposals.BuildCreate(nonBlank, ProposalOrigin.DevSeamRequest, hostDefaults);
 
         if (request?.EntityId is { } missing && affidavit.EntityId is null)
         {
@@ -229,10 +248,12 @@ public sealed class DevSeamGateFilter(IHostEnvironment environment, IConfigurati
 /// the id the page is already joined to if you want to see the card.
 /// </param>
 /// <param name="Overrides">
-/// Affidavit field name to stated value, e.g. <c>{"Employee": "Amara Silva"}</c>. On a create these
-/// override the canned defaults, and a blank value clears the field, leaving it tagged with no
-/// provenance. On an update these are the <em>only</em> stated values: every other field is read off
-/// the row and tagged <c>External</c>, and a blank value here means "leave the row's value alone".
+/// Affidavit field name to stated value, e.g. <c>{"Employee": "Amara Silva"}</c>. These are the
+/// values a person stated, and the only ones sworn <c>UserStated</c>. On a create they override the
+/// canned defaults — which are graded <c>Default</c>, nobody having typed them — and a blank value
+/// clears the field, leaving it tagged with no provenance. On an update they are the only stated
+/// values at all: every other field is read off the row and tagged <c>External</c>, and a blank
+/// value here means "leave the row's value alone".
 /// </param>
 /// <param name="TtlSeconds">
 /// How long the filed entry stays pending. Defaults to the host's own docket TTL. Set it low to

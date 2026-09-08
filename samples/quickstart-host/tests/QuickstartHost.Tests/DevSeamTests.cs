@@ -55,6 +55,49 @@ public sealed class DevSeamTests
         Assert.Equal(ProvenanceSource.Empty, employee.Provenance.Current.Source);
     }
 
+    /// <summary>
+    /// The canned proposal is a constant in the host, not a person's act. A create the caller did
+    /// not override states five values nobody typed, so they are graded <c>Default</c>; only the
+    /// values the request itself carried are <c>UserStated</c> (PV-3).
+    /// </summary>
+    [Fact]
+    public async Task A_canned_default_is_graded_Default_and_only_an_override_is_UserStated()
+    {
+        using var host = Host("Development", seamEnabled: true);
+        using var client = host.CreateClient();
+        var store = host.Services.GetRequiredService<IDocketStore>();
+
+        var response = await client.PostAsJsonAsync(
+            "/api/dev/propose",
+            new
+            {
+                sessionId = "canned-grading",
+                overrides = new Dictionary<string, string> { ["Employee"] = "Amara Silva" },
+            });
+        response.EnsureSuccessStatusCode();
+        var filed = await response.Content.ReadFromJsonAsync<ProposeResponse>(Json);
+        Assert.NotNull(filed);
+
+        var entry = await store.GetDocketEntryAsync(filed.DocketId, CancellationToken.None);
+        Assert.NotNull(entry);
+
+        // The one value a person wrote into the request.
+        var employee = entry.Envelope.Fields.Single(f => f.Name == "Employee");
+        Assert.Equal(ProvenanceSource.UserStated, employee.Provenance.Current.Source);
+        Assert.IsType<ProvenanceBinding.FormInput>(employee.Provenance.Current.Binding);
+
+        // The five that came out of DevSeamEndpoints.CannedProposal.
+        foreach (var name in new[] { "StartDate", "EndDate", "LeaveType", "Days", "Reason" })
+        {
+            var field = entry.Envelope.Fields.Single(f => f.Name == name);
+            Assert.Equal(ProvenanceSource.Default, field.Provenance.Current.Source);
+
+            // Nothing to point an auditor at: no act, and a form-input binding would name a control
+            // nobody touched (PV-2).
+            Assert.Null(field.Provenance.Current.Binding);
+        }
+    }
+
     [Fact]
     public async Task An_unreviewed_entry_expires_as_state_not_as_a_timeout()
     {

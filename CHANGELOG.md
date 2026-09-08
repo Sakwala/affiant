@@ -24,7 +24,9 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
   `Inferred` with no binding, and only the development seam, where a person writes the values into
   the request, mints `UserStated` — bound to that request rather than to a control. PV-3 makes
   `UserStated` unreachable from an inference, and `ProvenanceTag.FromInference` cannot name it;
-  the sample now teaches that instead of working around it. `docs/tool-authoring-guide.md` taught
+  the sample now teaches that instead of working around it. The seam's own canned defaults are not
+  a person's act either — they are constants in the host, stated by nobody — so a create the caller
+  did not override files them `Default` rather than swearing five values a reviewer never typed. `docs/tool-authoring-guide.md` taught
   the same over-grade in the code a host copies — its worked example, its skeleton, its entity
   mapper and its plugin test all tagged a tool parameter `UserStated`, two hundred lines below the
   rule saying not to — and now matches the rule it states, with a persisted value read back out of
@@ -41,9 +43,9 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
   `Refused` outcome carrying `decision-expired` since 1.0.0-beta.3 — acked as "pending" and the
   reviewer was told nothing at all. The ack now reads the refusal and its `amendments-preserved`
   detail, and the page says which of the two happened. The deck moves into the
-  `sample-quickstart-host` CI job, which runs on every push, so a green tag means the deck passed;
-  it had been `workflow_dispatch`-only, which is how a release was tagged with a failing spec.
-  (#111)
+  `sample-quickstart-host` CI job, which the workflow runs on a push to `main`, on a pull request
+  based on `main`, and on demand — so a commit green on `main` is one the deck passed. It had been
+  `workflow_dispatch`-only, which is how a release was tagged with a failing spec. (#111)
 
 ## [1.0.0-beta.3] — 2026-09-05
 

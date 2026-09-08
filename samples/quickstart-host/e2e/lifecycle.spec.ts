@@ -344,8 +344,16 @@ test.describe("review lifecycle", () => {
     // button. That gap — expired on read, and the reviewer not yet told — is the race this locks.
     await waitForProjectedExpiry(page, docketId, 90_000);
 
-    // The other half of the race, asserted rather than assumed: if the sweep reached the page first
-    // the button is gone, and this fails loudly rather than quietly testing an ordinary decision.
+    // The other half of the race, asserted rather than assumed: the click has to land while the
+    // page still shows an armed card. If DocketExpired reached the page first the action row is
+    // gone and this assertion fails.
+    //
+    // That failure is the race, not a product defect. The sweep ticks every 30 s on a phase fixed
+    // at host start (Affiant.Docket's DocketExpiryService), the entry's TTL is the 45 s set above,
+    // and the window between the deadline and this click is the poll's <=250 ms plus this
+    // assertion — so a tick can land inside it, rarely and by coincidence. A failure here on an
+    // unchanged branch means the tick fell in that window: re-run it. Closing the race for good
+    // needs a seam that holds the sweep, which the sample does not have.
     const approve = entry.getByTestId("approve-action-button");
     await expect(approve).toBeEnabled({ timeout: 1_000 });
 

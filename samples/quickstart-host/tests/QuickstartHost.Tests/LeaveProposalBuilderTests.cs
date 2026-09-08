@@ -79,6 +79,24 @@ public sealed class LeaveProposalBuilderTests : IDisposable
     }
 
     [Fact]
+    public void A_value_the_host_supplied_is_Default_whatever_the_origin_says()
+    {
+        var affidavit = Builder().BuildCreate(
+            ModelExtracted,
+            ProposalOrigin.DevSeamRequest,
+            new HashSet<string>(StringComparer.Ordinal) { "StartDate" });
+
+        // Named as a host default, so the seam origin does not make it a person's act.
+        var startDate = affidavit.Fields.Single(f => f.Name == "StartDate").Provenance.Current;
+        Assert.Equal(ProvenanceSource.Default, startDate.Source);
+        Assert.Null(startDate.Binding);
+
+        // Everything else on the same call is still what the origin says it is.
+        var reason = affidavit.Fields.Single(f => f.Name == "Reason").Provenance.Current;
+        Assert.Equal(ProvenanceSource.UserStated, reason.Source);
+    }
+
+    [Fact]
     public void An_update_grades_the_model_s_own_argument_and_reads_the_rest_off_the_row()
     {
         var recordId = SeedLeaveRequest();

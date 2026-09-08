@@ -19,7 +19,8 @@ public enum ProposalOrigin
     /// <summary>
     /// A person stated the values directly in a development-seam request
     /// (<c>POST /api/dev/propose</c>) — the one path in this sample where the caller and the person
-    /// are the same.
+    /// are the same. It applies to the values that request carried; a value the host supplied
+    /// because the request named none is graded <c>Default</c> instead, whatever the origin.
     /// </summary>
     DevSeamRequest,
 }
@@ -39,8 +40,10 @@ public enum ProposalOrigin
 /// <b>Provenance follows the path, not the caller.</b> Both callers hand this type the same
 /// dictionary of field values, and the two paths differ in the only way that matters: on
 /// <see cref="ProposalOrigin.ModelArguments"/> a model extracted the values from the conversation,
-/// on <see cref="ProposalOrigin.DevSeamRequest"/> a person wrote them into the request. So the
-/// caller names its path and this type grades accordingly — see <c>Build</c>.
+/// on <see cref="ProposalOrigin.DevSeamRequest"/> a person wrote them into the request. A caller
+/// that filled some fields in itself names those separately, and they are graded
+/// <c>Default</c> — the host's own value, which no origin makes a person's act. So the caller names
+/// its path and this type grades accordingly — see <c>Build</c>.
 /// </para>
 ///
 /// <para>
@@ -96,8 +99,16 @@ public sealed class LeaveProposalBuilder(IEnumerable<IAffidavitProjection> proje
     /// </summary>
     /// <param name="fields">The proposed values, by affidavit field name.</param>
     /// <param name="origin">Where those values came from; it decides how each one is graded.</param>
-    public Affidavit BuildCreate(IReadOnlyDictionary<string, string> fields, ProposalOrigin origin) =>
-        Build(CreateOperation, fields, origin, leaveRequestId: null);
+    /// <param name="hostDefaults">
+    /// The names in <paramref name="fields"/> the host supplied itself because the caller stated no
+    /// value. They are graded <see cref="ProvenanceSource.Default"/> whatever
+    /// <paramref name="origin"/> says.
+    /// </param>
+    public Affidavit BuildCreate(
+        IReadOnlyDictionary<string, string> fields,
+        ProposalOrigin origin,
+        IReadOnlySet<string>? hostDefaults = null) =>
+        Build(CreateOperation, fields, origin, leaveRequestId: null, hostDefaults);
 
     /// <summary>
     /// Records an update's field values against an existing row and projects the affidavit.
@@ -107,17 +118,24 @@ public sealed class LeaveProposalBuilder(IEnumerable<IAffidavitProjection> proje
     /// <param name="leaveRequestId">The row the update targets.</param>
     /// <param name="fields">The proposed values, by affidavit field name.</param>
     /// <param name="origin">Where those values came from; it decides how each one is graded.</param>
+    /// <param name="hostDefaults">
+    /// The names in <paramref name="fields"/> the host supplied itself because the caller stated no
+    /// value. They are graded <see cref="ProvenanceSource.Default"/> whatever
+    /// <paramref name="origin"/> says.
+    /// </param>
     public Affidavit BuildUpdate(
         int leaveRequestId,
         IReadOnlyDictionary<string, string> fields,
-        ProposalOrigin origin) =>
-        Build(UpdateOperation, fields, origin, leaveRequestId);
+        ProposalOrigin origin,
+        IReadOnlySet<string>? hostDefaults = null) =>
+        Build(UpdateOperation, fields, origin, leaveRequestId, hostDefaults);
 
     private Affidavit Build(
         string operationType,
         IReadOnlyDictionary<string, string> statedFields,
         ProposalOrigin origin,
-        int? leaveRequestId)
+        int? leaveRequestId,
+        IReadOnlySet<string>? hostDefaults)
     {
         ArgumentNullException.ThrowIfNull(statedFields);
 
@@ -152,15 +170,23 @@ public sealed class LeaveProposalBuilder(IEnumerable<IAffidavitProjection> proje
         // DevSeamRequest: a person wrote these values into the request themselves, so UserStated,
         // bound to the seam route and the field they arrived in.
         //
+        // hostDefaults overrides both: a value the host filled in because nobody stated one is the
+        // host's own, so it is Default — the grade for a value applied when there was no basis to
+        // read one from. It carries no binding: there is no act and no artifact to point at, and a
+        // FormInput naming a control nobody touched would be a binding an auditor cannot resolve
+        // (PV-2).
+        //
         // A field the caller said nothing about gets no chain at all, and the projection decides
         // between the record's current value and ProvenanceTag.Empty.
         foreach (var name in statedFields.Keys)
         {
-            var tag = origin == ProposalOrigin.DevSeamRequest
-                ? ProvenanceTag.FromUser(
-                    name, new ProvenanceBinding.FormInput(new FormInputRef($"{DevSeamSurface}#{name}")))
-                : ProvenanceTag.FromInference(
-                    InferenceSource.Inferred, name, ModelArgumentConfidence);
+            var tag = hostDefaults?.Contains(name) == true
+                ? ProvenanceTag.FromDefault($"Host default, stated by nobody: {name}")
+                : origin == ProposalOrigin.DevSeamRequest
+                    ? ProvenanceTag.FromUser(
+                        name, new ProvenanceBinding.FormInput(new FormInputRef($"{DevSeamSurface}#{name}")))
+                    : ProvenanceTag.FromInference(
+                        InferenceSource.Inferred, name, ModelArgumentConfidence);
 
             fabric.SetFieldChain(name, ProvenanceChain.From(tag));
         }

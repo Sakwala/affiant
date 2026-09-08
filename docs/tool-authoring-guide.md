@@ -582,9 +582,13 @@ public class LeaveRequestFieldMapper(ILogger<LeaveRequestFieldMapper> logger) : 
         // Every value here was read back out of the store, so the store is what it rests on:
         // External, bound to the row it came from (PV-2). Whoever originally stated it said so on
         // the affidavit that was approved; this record is a read of the row, not a re-hearing of
-        // the person.
-        var fromRecord = new ProvenanceBinding.ExternalRef(
-            new ExternalRecordRef("HrDb", $"LeaveRequest/{entity.RequestId}"));
+        // the person. An entity that has not been persisted has no row to bind to — RequestId 0,
+        // the same case the entityId below tests — and a binding an auditor cannot re-fetch is not
+        // a binding (PV-2), so it gets none.
+        ProvenanceBinding? fromRecord = entity.RequestId == 0
+            ? null
+            : new ProvenanceBinding.ExternalRef(
+                new ExternalRecordRef("HrDb", $"LeaveRequest/{entity.RequestId}"));
 
         AffidavitField FromRow(string name, string? value) =>
             new(name, value, null, ProvenanceChain.From(new ProvenanceTag(
