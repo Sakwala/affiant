@@ -103,6 +103,8 @@ public sealed record AffiantToolCatalog(
             ?? throw new InvalidOperationException(
                 $"AffiantToolCatalog.FromType<{typeof(T).Name}>(): no {typeof(T).Name} instance was resolvable " +
                 $"from the invocation's service provider. Register {typeof(T).Name} in the host's DI container " +
-                "(e.g. services.AddScoped<...>()) and construct the agent with that service provider " +
-                "(new ChatClientAgent(chatClient, ..., services: serviceProvider)).");
+                "and construct the agent per turn from a scope, not the application root " +
+                "(using var scope = rootProvider.CreateScope(); new ChatClientAgent(chatClient, ..., " +
+                "services: scope.ServiceProvider)) — a Scoped registration resolved from the root provider " +
+                "throws under scope validation.");
 }

@@ -28,6 +28,8 @@ chatOptions.ConversationId = conversationId;
 var response = await client.GetResponseAsync(messages, chatOptions);
 ```
 
+`serviceProvider` above must be a scope built per turn (`using var scope = rootProvider.CreateScope(); ...`), not the application root, when `MyTools` is registered Scoped — `FunctionInvokingChatClient` carries whatever provider built the client onto `AIFunctionArguments.Services`, so resolving a Scoped tool type from the root throws `InvalidOperationException` under scope validation instead of yielding a per-call instance.
+
 `WithAffiant(...)` is the only supported way to attach Affiant here. It registers the catalog's tool descriptors, audits the tool list for hosted/provider-side tools Affiant cannot see (refusing by default — see `ExtensionsAIOptions.AcknowledgeUncoveredTools`), wraps every client-invoked `AIFunction`, and returns a **new** `ChatOptions`. Hosts must use the returned instance; the pre-wrap options bypass Affiant entirely.
 
 ## Set `ConversationId` — omitting it silently degrades inference
