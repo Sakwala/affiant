@@ -94,7 +94,7 @@ public class TaskInferenceRunnerTests
         Assert.Empty(result.MergedFields);
     }
 
-    // --- Test 3: OperationCanceledException re-throws ---
+    // --- Test 3: the caller's own cancellation re-throws ---
 
     [Fact]
     public async Task RunAsync_PortThrowsCancellation_Rethrows()
@@ -111,6 +111,28 @@ public class TaskInferenceRunnerTests
                 "CreateThing",
                 new Dictionary<string, object?>(),
                 cts.Token));
+    }
+
+    // --- Test 3b: a cancellation the caller did not ask for → fail-safe (affiant#102) ---
+
+    [Fact]
+    public async Task RunAsync_PortTimesOutWithoutCallerCancellation_ReturnsEmptyResult()
+    {
+        // An HttpClient timeout surfaces as TaskCanceledException — an OperationCanceledException
+        // raised while the caller's token is unsignalled. It is a provider failure, not the
+        // caller's word; before the fix it was re-thrown and broke the tool call.
+        var (runner, _) = BuildRunner(PortThrowing(new TaskCanceledException("provider timeout")));
+
+        var result = await runner.RunAsync(
+            new ThreeFieldStrategy(),
+            Array.Empty<AffiantChatMessage>(),
+            "CreateThing",
+            new Dictionary<string, object?>(),
+            CancellationToken.None);
+
+        Assert.Equal(3, result.TotalFieldsInSchema);
+        Assert.Equal(0, result.FieldsInLlmResponse);
+        Assert.Empty(result.MergedFields);
     }
 
     // --- Test 4: JsonException from port → fail-safe ---

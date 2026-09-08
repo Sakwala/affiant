@@ -20,7 +20,8 @@ using Microsoft.Extensions.Logging;
 ///   2. Idempotency check — once per (ConversationId, FunctionName, TurnNumber).
 ///      Bookkeeping anchored on IContextFabric via reserved entity key "inference_idempotency".
 ///   3. Strategy resolution — from IAffiantToolRegistry + the per-invocation service scope.
-///   4. Run inference — fail-safe: any non-cancellation exception logs a warning + continues.
+///   4. Run inference — fail-safe: every exception but the caller's own cancellation logs a
+///      warning + continues.
 ///   5. Tool call — next(context) always fires in every path.
 /// </summary>
 public sealed class InferenceTriggerFilter : IToolInvocationFilter
@@ -172,8 +173,10 @@ public sealed class InferenceTriggerFilter : IToolInvocationFilter
             await _runner.RunAsync(strategy, context.History, context.FunctionName, args, cancellationToken)
                 .ConfigureAwait(false);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            // The caller asked for this one — it propagates (affiant#102). A cancellation the
+            // caller did not ask for is a provider failure and falls to the fail-safe below.
             throw;
         }
         catch (Exception ex)

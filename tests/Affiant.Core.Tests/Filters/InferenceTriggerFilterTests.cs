@@ -159,12 +159,30 @@ public class InferenceTriggerFilterTests
     // ── Cancellation ─────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task RunnerThrowsCancellation_ExceptionPropagates_NextDoesNotFire()
+    public async Task CallerCancels_ExceptionPropagates_NextDoesNotFire()
     {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
         var h = BuildHarness(triggerResult: true, withDescriptor: true,
-            port: new ThrowingPort(new OperationCanceledException()));
+            port: new ThrowingPort(new OperationCanceledException(cts.Token)));
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => h.RunAsync("conv-cancel", 0));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => h.RunAsync("conv-cancel", 0, cts.Token));
+    }
+
+    [Fact]
+    public async Task ProviderCancels_CallerDidNot_LogsWarning_ContinuesToNextAndReturnsResult()
+    {
+        // affiant#102: an HttpClient timeout surfaces as TaskCanceledException — an
+        // OperationCanceledException the caller never asked for. It is a provider failure, so the
+        // tool call proceeds; before the fix it propagated and next() never fired.
+        var h = BuildHarness(triggerResult: true, withDescriptor: true,
+            port: new ThrowingPort(new TaskCanceledException("simulated provider timeout")));
+
+        var (nextRan, result) = await h.RunAsync("conv-provider-timeout", 0);
+
+        Assert.True(nextRan);
+        Assert.Equal("fn-result", result);
     }
 
     // ── Next always fires ─────────────────────────────────────────────────────

@@ -13,6 +13,12 @@ using Microsoft.Extensions.Logging;
 /// Builds an <see cref="InferenceCompletionRequest"/>, calls the port, and forwards the
 /// resulting JSON to <see cref="TaskInferenceStep"/> for confidence-based merge.
 /// Idempotency (once-per-turn) is the caller's responsibility — see 16.3's InferenceTriggerFilter.
+///
+/// <para>
+/// Every failure of the inference call degrades to an empty result, with one exception: the
+/// caller's own cancellation, which propagates. A cancellation the caller did not ask for — a
+/// provider's timeout — is a provider failure like any other (affiant#102).
+/// </para>
 /// </summary>
 public sealed class TaskInferenceRunner
 {
@@ -57,7 +63,12 @@ public sealed class TaskInferenceRunner
 
             return result;
         }
-        catch (OperationCanceledException)
+        // affiant#102: only the caller's own cancellation propagates. A provider timeout arrives as
+        // a TaskCanceledException — an OperationCanceledException — with the caller's token never
+        // signalled; rethrowing that broke the turn on the most common provider failure of all,
+        // which is exactly what the fail-safe below exists to prevent. It falls to the general
+        // catch instead: a warning, an inference.failed event, and an empty result.
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             Activity.Current?.AddEvent(new ActivityEvent(
                 "inference.failed",

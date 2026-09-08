@@ -23,6 +23,14 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
   arguments derived the same id, so the second was treated as a replay of the first. The bridge reads
   `AutoFunctionInvocationContext.Arguments`, guarding the `InvalidOperationException` Semantic Kernel
   raises when the auto-invocation loop holds no `KernelArguments`.
+- **A provider's timeout degrades like every other inference failure (#102).** An `HttpClient`
+  timeout arrives as a `TaskCanceledException`, which is an `OperationCanceledException` — and the
+  runner, the trigger filter and all three inference ports re-threw every one of those on the grounds
+  that cancellation is the caller's word. The commonest provider failure of all therefore escaped the
+  fail-safe: the tool never ran, no proposal was filed, and the model answered without the tool
+  instead of proceeding on an empty inference result. Cancellation is re-thrown only when the caller's
+  own `CancellationToken` is signalled; every other one is a provider failure — a logged warning, an
+  `inference.failed` event and an empty result, with the tool call proceeding.
 
 ## [1.0.0-beta.3] — 2026-09-05
 
