@@ -70,8 +70,8 @@ public sealed record AffidavitField(
 /// <see cref="ProvenanceSource.Empty"/> field lets a mostly-empty Affidavit report high confidence:
 /// a ten-field record with nine unknown fields and one field at 1.0 scores a perfect 1.0. That is
 /// the exact hole once provenance authorises writes, so the aggregate is the <b>minimum</b> over
-/// every proposed field with an <c>Empty</c> field counting as 0 — making it 0 if and only if some
-/// proposed field has unknown provenance.
+/// every proposed field with an <c>Empty</c> field counting as 0 — reaching 0 when some proposed
+/// field has unknown provenance, or when a known-provenance field's own confidence is itself 0.
 /// </para>
 ///
 /// <para>
