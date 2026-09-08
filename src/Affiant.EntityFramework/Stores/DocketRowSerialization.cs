@@ -27,6 +27,17 @@ namespace Affiant.EntityFramework.Stores;
 /// with <see cref="AffiantJson.SerializerOptions"/>, so it is spelled here exactly as the wire
 /// spells it (SR-3).
 /// </para>
+/// <para>
+/// The instants these documents state themselves are the exception, and deliberately so. <c>Instant</c>
+/// below writes seven fractional digits, where the wire writes three
+/// (<see cref="Affiant.Abstractions.Serialization.IsoInstantJsonConverter.Format"/>): the wire
+/// spelling truncates below a millisecond, and <c>IDocketStore</c>'s contract is that a decision, an
+/// attestation and a preserved act come back with the instant the caller supplied — pinned for the
+/// in-memory store and both SQL stores alike by <c>DocketStoreContractTests</c>. Storing the wire
+/// spelling here would make the SQL stores answer that contract differently from the in-memory one.
+/// So a stored fact's instant is the same point in time as the wire's, at finer precision, not the
+/// same bytes.
+/// </para>
 /// </remarks>
 internal static class DocketRowSerialization
 {
