@@ -16,7 +16,13 @@ public enum ReviewStatus
 
 /// <summary>
 /// A single step in the review history of an affidavit.
-/// Populated as reviewers respond to a <see cref="DocketEntry"/>.
+/// <para>
+/// Nothing in the framework constructs one at <c>1.0.0-beta.3</c>: no gate path mints a
+/// <c>ReviewStep</c>, no <see cref="DocketEntry"/> member holds a sequence of them, and no
+/// <see cref="Interfaces.IDocketStore"/> implementation persists one. Sequential multi-step review
+/// does not exist at runtime; a host that needs several approvers composes that above the gate —
+/// see <see cref="DocketEntry.CompositeRef"/>. Framework specification §2.8 (affiant#69).
+/// </para>
 /// </summary>
 public record ReviewStep(
     string ReviewerId,

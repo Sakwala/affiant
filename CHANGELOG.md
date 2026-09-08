@@ -11,6 +11,19 @@ in lockstep as of 2026-07-05 (`Affiant.Extensions.AI` joined the set 2026-08-20)
 plus the bare `Affiant` meta-ID, are reserved on nuget.org (the last two, `Affiant.AgentFramework`
 and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectively).
 
+## [Unreleased]
+
+### Documentation
+
+- **The specification's `ReviewStep` section describes the record that ships.** §2.8 documented a
+  six-field `StepId`/`Description`/`Fields`/`Status`/`ReviewedBy`/`ReviewedAt` shape that was never
+  shipped, and said the ReviewGate "processes steps sequentially, sending one Evidence Card at a
+  time". The shipped record is four fields; no C# file under `src/`, `tests/` or `samples/` names
+  `ReviewStep` other than its own declaration, so nothing mints one and nothing persists one; and
+  sequential multi-step review does not exist at runtime. The section and the type's own summary now
+  say that, and point a host that needs several approvers at `DocketEntry.CompositeRef`, which is
+  where multi-party approval is composed today. (affiant#69)
+
 ## [1.0.0-beta.3] — 2026-09-05
 
 ### Decisions, attestation and identity as the rulebook defines them
