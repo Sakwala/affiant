@@ -21,15 +21,6 @@ public sealed class TaskInferenceRunner
     private readonly TaskInferenceStep _mergeStep;
     private readonly ILogger<TaskInferenceRunner> _logger;
 
-    /// <summary>
-    /// The role a person's turn carries in the neutral history. Every shipped bridge writes it:
-    /// Semantic Kernel converts <c>AuthorRole.User.Label</c> and Extensions.AI (with the Agent
-    /// Framework on top of it) converts <c>ChatRole.User.Value</c>, and both of those are "user".
-    /// Matched case-insensitively because a host may build an <see cref="AffiantChatMessage"/> by
-    /// hand.
-    /// </summary>
-    private const string UserRole = "user";
-
     public TaskInferenceRunner(
         IInferenceCompletionPort port,
         IContextFabric fabric,
@@ -57,9 +48,10 @@ public sealed class TaskInferenceRunner
             // PV-3: the grade is a fact about the turn, so the step is given the turn. The utterance
             // is the last thing the person said in this history, unmodified — no earlier turn, since
             // an `utterance-span` binding names no message and a hit in an earlier turn could not be
-            // bound to one.
+            // bound to one. `ConversationTurn` is the one reading of that, shared with the
+            // completion-stage filter so the two shipped callers cannot read a history two ways.
             var result = await _mergeStep
-                .ExecuteAsync(strategy, json, LatestUtterance(history), cancellationToken)
+                .ExecuteAsync(strategy, json, ConversationTurn.LatestUtterance(history), cancellationToken)
                 .ConfigureAwait(false);
 
             Activity.Current?.AddEvent(new ActivityEvent(
@@ -114,21 +106,5 @@ public sealed class TaskInferenceRunner
                 FieldsInLlmResponse: 0,
                 MergedFields: new Dictionary<string, TaskInferenceMergeOutcome>());
         }
-    }
-
-    /// <summary>
-    /// The current turn's user text, or <see langword="null"/> when this history holds no turn of a
-    /// person's — in which case the step has nothing to establish presence against and the port's
-    /// own report stands.
-    /// </summary>
-    private static string? LatestUtterance(IReadOnlyList<AffiantChatMessage> history)
-    {
-        for (var i = history.Count - 1; i >= 0; i--)
-        {
-            if (string.Equals(history[i].Role, UserRole, StringComparison.OrdinalIgnoreCase))
-                return history[i].Content;
-        }
-
-        return null;
     }
 }

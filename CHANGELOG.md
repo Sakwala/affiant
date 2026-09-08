@@ -22,17 +22,27 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
   `Inferred` otherwise. None of the three shipped ports asks a model for that, so every value a person
   typed in chat was sworn "AI suggested" — the framework hiding the one distinction the Evidence Card
   exists to draw. Presence is a property of two strings, so the framework now establishes it: the step
-  locates the value's text in the turn itself — an ordinal, case-insensitive match whose neighbouring
-  characters are neither letters nor digits — and grades `Conversation` on a hit, bound to an
+  locates the value's text in the turn itself and grades `Conversation` on a hit, bound to an
   `utterance-span` whose offsets and length are in UTF-16 code units and whose hash is SHA-256 over
-  the UTF-8 bytes of the utterance at that span (PV-2). A port's `presence` and `utteranceSpan` are
-  hints: a span is used when the utterance there says what the port said it says, a claimed `literal`
-  the text cannot confirm is `Inferred`, and a value the port said nothing about is `Conversation` when
-  it is there to read. No port asks a model for presence or for offsets, and none is changed here — a
-  model's claim about its own literalness is itself an inference. `TaskInferenceStep.ExecuteAsync`
-  gains an overload taking the turn; the shipped three-argument signature forwards with no turn and
-  keeps the old behaviour, which no shipped caller reaches because `TaskInferenceRunner` always has
-  the history and passes the last user message's text.
+  the UTF-8 bytes of the utterance at that span (PV-2). A hit is an occurrence under a case fold that
+  is `StringComparison.OrdinalIgnoreCase` and nothing else — the simple, single-code-point uppercase
+  mapping, so it never changes length, consults no culture and normalises nothing — whose neighbouring
+  code points are absent or are none of: a letter, a mark, a decimal digit, connector punctuation. The
+  text looked for is the string itself, a boolean's `true`/`false`, or a number's canonical rendering
+  (SR-1: shortest round-trip decimal, positional), so a port's `6.0` finds the `6` a person typed and
+  a JavaScript implementation that never saw the raw token grades it the same way. A port's `presence`
+  and `utteranceSpan` are hints and are read in the rulebook's shapes alone — `presence` exactly
+  `"literal"`, a span exactly `{ start, end }`: a span is used only when it is itself a hit, so a
+  claim can never bind a value to a fragment of a longer token the finder would refuse; a claimed
+  `literal` the text cannot confirm is `Inferred`; and a value the port said nothing about is
+  `Conversation` when it is there to read. No port asks a model for presence or for offsets, and none
+  is changed here — a model's claim about its own literalness is itself an inference.
+  `TaskInferenceStep.ExecuteAsync` gains an overload taking the turn, and both shipped callers —
+  `TaskInferenceRunner` before the tool and `TaskInferenceMergeFilter` after it — pass the last user
+  message's text, through one shared reading of the history. A user message with no content is an
+  empty turn, in which nothing is found; only a history with no user message at all falls back to the
+  shipped three-argument signature's behaviour, where the port's own report stands, and the step logs
+  at `Debug` when it does.
 
 ## [1.0.0-beta.3] — 2026-09-05
 

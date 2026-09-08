@@ -212,6 +212,39 @@ public class TaskInferenceRunnerTests
         Assert.Equal(ProvenanceSource.Conversation, fabric.GetFieldChain("Priority")!.Current.Source);
     }
 
+    /// <summary>
+    /// A10: a user message whose <c>Content</c> is null is an empty utterance, not a missing one.
+    /// The person's turn is there, so the finder stays in charge and finds nothing — rather than
+    /// collapsing to the no-turn path and letting the port's unverifiable claim mint a binding over
+    /// a turn with no text in it.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_AUserTurnWithNullContent_IsAnEmptyUtterance_NotAMissingOne()
+    {
+        var json = JsonDocument.Parse("""
+            {
+              "Priority": {
+                "value": "Critical",
+                "confidence": 0.9,
+                "presence": "literal",
+                "utteranceSpan": { "start": 0, "end": 8 }
+              }
+            }
+            """).RootElement;
+
+        var (runner, fabric) = BuildRunner(PortReturning(json));
+
+        await runner.RunAsync(
+            new ThreeFieldStrategy(),
+            [new AffiantChatMessage("user", null!)],
+            "CreateThing",
+            new Dictionary<string, object?>());
+
+        var tag = fabric.GetFieldChain("Priority")!.Current;
+        Assert.Equal(ProvenanceSource.Inferred, tag.Source);
+        Assert.Null(tag.Binding);
+    }
+
     // --- Test 6: constructor null guards ---
 
     [Fact]

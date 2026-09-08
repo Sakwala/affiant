@@ -63,9 +63,10 @@ public sealed class TaskInferenceStep
     ///
     /// <para>
     /// This overload has no turn in hand, so the port's <c>presence</c> and <c>utteranceSpan</c>
-    /// stand as reported. Every shipped bridge reaches the step through
-    /// <see cref="Services.TaskInferenceRunner"/>, which has the history and passes the utterance to
-    /// the overload that verifies (PV-3).
+    /// stand as reported (PV-3, D4). The framework's own callers do not use it: both
+    /// <see cref="Services.TaskInferenceRunner"/> and <see cref="TaskInferenceMergeFilter"/> hold
+    /// the conversation history and pass its last user message's text to the overload that
+    /// verifies.
     /// </para>
     /// </summary>
     // RS0027 wants the overload carrying optional parameters to be the longest one. Here the
@@ -118,7 +119,8 @@ public sealed class TaskInferenceStep
             if (newValue is null)
                 continue;
 
-            // The text the span digest is taken over: what the port says was there to read.
+            // The text the finder looks for: the string itself, or the value's SR-1 canonical
+            // rendering when the port reported a number or a boolean (D2 as amended by A3).
             var newText = ReadScalarText(valueEl);
             if (string.IsNullOrEmpty(newText))
                 continue;
@@ -149,9 +151,9 @@ public sealed class TaskInferenceStep
             // port's `presence` and `utteranceSpan` are hints — a span is used when the utterance at
             // that span says what the port said it says, a claimed `literal` the text does not
             // confirm is Inferred, and a value the port said nothing about is Conversation when it
-            // is there to read. With no turn (no shipped caller: the runner always has the history)
-            // the port's report is all there is, and stands.
-            var (presence, binding) = Grade(fieldEl, newText, utterance);
+            // is there to read. With no turn the port's report is all there is, and stands; the
+            // step says at Debug that it took that path.
+            var (presence, binding) = Grade(fieldEl, field.Name, newText, utterance);
 
             var candidateTag = ProvenanceTag.FromInference(
                 presence, field.Name, newConfidence, binding, _time.GetUtcNow());
@@ -224,28 +226,39 @@ public sealed class TaskInferenceStep
     /// one.
     /// </para>
     /// <para>
-    /// With no turn, the port's <c>presence</c> and <c>utteranceSpan</c> are all there is and stand
-    /// as reported; the digest is then over the value the port reported, which is what it says the
-    /// span contained.
+    /// With no turn — a history with no user message in it at all — the port's <c>presence</c> and
+    /// <c>utteranceSpan</c> are all there is and stand as reported; the digest is then over the
+    /// value the port reported, which is what it says the span contained. The step logs at
+    /// <see cref="LogLevel.Debug"/> when it takes that path, because a shipped bridge that reaches
+    /// it has handed over a history with nothing a person said in it.
     /// </para>
     /// </remarks>
-    private static (InferenceSource Presence, ProvenanceBinding? Binding) Grade(
-        JsonElement fieldEl, string valueText, string? utterance)
+    private (InferenceSource Presence, ProvenanceBinding? Binding) Grade(
+        JsonElement fieldEl, string fieldName, string valueText, string? utterance)
     {
-        var (hintedOffset, hintedLength) = SpanHintOf(fieldEl, valueText);
+        var (hintedOffset, hintedLength) = SpanHintOf(fieldEl);
 
         if (utterance is null)
         {
+            _logger.LogDebug(
+                "TaskInferenceStep graded {FieldName} with no turn in hand: the port's own presence " +
+                "report stands, unverified",
+                fieldName);
+
+            // The rulebook's enum is lowercase, and a second implementation comparing it does so
+            // exactly; anything else the port wrote is not the token the schema names.
             var presence =
                 fieldEl.TryGetProperty("presence", out var presenceEl)
-                && string.Equals(presenceEl.GetString(), "literal", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(presenceEl.GetString(), "literal", StringComparison.Ordinal)
                     ? InferenceSource.Conversation
                     : InferenceSource.Inferred;
 
             // The digest is the canonical form's own — SHA-256 as 64 lowercase hexadecimal
             // characters, and nothing else — because a second implementation checking this span has
-            // to produce the same string from the same bytes (SR-1, PV-2).
-            var reported = hintedOffset is { } start && hintedLength is { } stated
+            // to produce the same string from the same bytes (SR-1, PV-2). A reported offset or
+            // length below zero names no span at all and is filed as no binding rather than as a
+            // binding nothing can check.
+            var reported = hintedOffset is { } start && hintedLength is { } stated && start >= 0 && stated >= 0
                 ? new ProvenanceBinding.UtteranceSpan(new UtteranceSpanRef(
                     start,
                     stated,
@@ -265,10 +278,12 @@ public sealed class TaskInferenceStep
     }
 
     /// <summary>
-    /// The offsets the port reported, if it reported any: <c>start</c> with either <c>end</c> or
-    /// <c>length</c>, and <paramref name="valueText"/>'s own length when it named neither.
+    /// The offsets the port reported, if it reported any. The hint has one shape, the rulebook's:
+    /// <c>{ start, end }</c>, both integers. Anything else is not a span the schema names, and
+    /// reading a shape the sibling implementation does not read would let one port report be graded
+    /// two ways.
     /// </summary>
-    private static (int? Offset, int? Length) SpanHintOf(JsonElement fieldEl, string valueText)
+    private static (int? Offset, int? Length) SpanHintOf(JsonElement fieldEl)
     {
         if (!fieldEl.TryGetProperty("utteranceSpan", out var span)
             || span.ValueKind != JsonValueKind.Object)
@@ -279,12 +294,10 @@ public sealed class TaskInferenceStep
         if (!span.TryGetProperty("start", out var startEl) || !startEl.TryGetInt32(out var start))
             return (null, null);
 
-        var length =
-            span.TryGetProperty("end", out var endEl) && endEl.TryGetInt32(out var end) ? end - start
-            : span.TryGetProperty("length", out var lengthEl) && lengthEl.TryGetInt32(out var stated) ? stated
-            : valueText.Length;
+        if (!span.TryGetProperty("end", out var endEl) || !endEl.TryGetInt32(out var end))
+            return (null, null);
 
-        return (start, length);
+        return (start, end - start);
     }
 
     /// <summary>
@@ -308,10 +321,20 @@ public sealed class TaskInferenceStep
     /// The same value as text — the string the finder looks for in the utterance, and what a span's
     /// digest is taken over when there is no turn to take it over instead.
     /// </summary>
+    /// <remarks>
+    /// A number is rendered by <see cref="Serialization.CanonicalSerializer.Number(double)"/>: the
+    /// shortest round-trip decimal, positional, <c>-0</c> written <c>0</c> (SR-1). The raw JSON
+    /// token is not usable here, because a port that hands its runtime a parsed number has already
+    /// lost it — a JavaScript implementation reading the same report sees <c>6</c> where the wire
+    /// said <c>6.0</c> — and a rule two implementations cannot both apply is not a rule. So a port's
+    /// <c>6.0</c>, <c>6.00</c> and <c>6e0</c> all look for the <c>6</c> a person typed.
+    /// </remarks>
     private static string? ReadScalarText(JsonElement valueEl) => valueEl.ValueKind switch
     {
         JsonValueKind.String => valueEl.GetString(),
-        JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False => valueEl.GetRawText(),
+        JsonValueKind.Number => Serialization.CanonicalSerializer.Number(valueEl.GetDouble()),
+        JsonValueKind.True => "true",
+        JsonValueKind.False => "false",
         _ => null,
     };
 
