@@ -1,10 +1,17 @@
 @affiant/evidence-card 0.1.0-alpha.0
 Sakwala/affiant-ts@a20a43c
 
-The four .js files beside this one are that package's built output, copied verbatim from
+The four .js files beside this one are that package's built output, copied from
 packages/evidence-card/dist/ with the sourceMappingURL comments removed (the .map files are not
 vendored). They are ES modules with no dependencies of any kind — importing register.js defines
 <affiant-evidence-card>.
+
+element.js carries one local patch, backported from the package's own source rather than written
+here (Sakwala/affiant#113): a provenance tag's reviewer-facing sentence is read from `note`, the
+wire spelling since 1.0.0-beta.3, falling back to the older `evidence`. The vendored build read
+`evidence` only, so no tag note ever rendered. Refreshing from the pin above reinstates the bug: at
+Sakwala/affiant-ts@a20a43c the element reads `tag.evidence` only. The fallback landed upstream later,
+in affiant-ts 1263cad, so re-apply the patch unless you refresh from 1263cad or later.
 
 Vendored rather than installed because the package is not on npm yet, and because this sample
 should run from a clone with no package manager involved. When it publishes, replace this

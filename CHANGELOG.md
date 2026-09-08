@@ -13,6 +13,33 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
 
 ## [Unreleased]
 
+### Fixed
+
+- **The quickstart's hub writes the record the gate produced, not one it folded itself
+  (Sakwala/affiant#99).** `ChatHub.ApproveEntry` handed the write executor the filed proposal plus the
+  reviewer's raw amendment map, and `LeaveWriteExecutor` merged the two field by field — a second
+  implementation of the fold `AffidavitAmendments.Apply` already performed when the decision was
+  recorded, which is exactly what the beta.3 migration note tells a host to stop doing. It now passes
+  `DocketEntry.AmendedAffidavit ?? DocketEntry.Envelope` and the executor reads values off that
+  record only, blanking a column for a field proposed with no value only when that field's current
+  tag carries the reviewer's act — a field nobody sourced leaves the row alone. The two folds disagree when the map names a field the Affidavit does not propose: the
+  gate then keeps no amended record and the old path still wrote the map's other values, so the row
+  held a value nothing on the Docket swore to.
+- **The quickstart's previous-value source is keyed the way a projection asks
+  (Sakwala/affiant#120).** `HrPreviousValueSource` answered with camelCase keys while
+  `SchemaDrivenAffidavitProjection` looks each field up by the strategy's declared
+  `TaskInferenceField.Name` on the ordinal dictionary the source returned, so every lookup missed in
+  silence and an
+  update-shaped Affidavit built with the shipped projection reached the reviewer with no before/after
+  at all. The sample's own projection supplies previous values itself and hid it; a host that copied
+  the source did not have that cover.
+- **The quickstart's vendored Evidence Card renders a provenance tag's note again
+  (Sakwala/affiant#113).** The vendored build read `tag.evidence`, the pre-beta.3 wire spelling;
+  `ProvenanceTag.Evidence` has serialised as `note` since `1.0.0-beta.3`, so the guard saw
+  `undefined` and every tag's sentence rendered as nothing. It now reads `note` with the older
+  spelling as a fallback, as the package's own source does, and the Playwright deck asserts a
+  rendered note so the next wire rename cannot pass in silence.
+
 ### Documentation
 
 - **The beta.3 docket section's breaking-change 8** now describes `ReviewGate.HandleDecisionAsync`
@@ -59,6 +86,11 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
   `sequence-c/relay-auto-approve-bound-external`; M3, which is about the filing broadcast rather than
   the Standing Order one, cites RUNNER §4.2 — the card facts a driver checks on every filing whether
   a fixture states them or not. (affiant#92)
+- **The quickstart projection stops calling its aggregate stricter than the framework's
+  (Sakwala/affiant#96).** `LeaveAffidavitProjection` described its aggregate as stricter than the
+  default and the framework's `PopulatedConfidence` as a mean over the sourced fields. Since
+  `1.0.0-beta.3` `AffidavitConfidence.Compute` takes the minimum for both numbers, so the override
+  changes nothing and the two comments contradicted each other. Both now state the shipped rule.
 
 ### Upgrade note
 
@@ -2540,6 +2572,7 @@ pre-1.0 clean break, not a deprecation — there is no compatibility shim:
   Mapping), and §5 (Framework Boundary Contract, new Seam 4) corrected/rewritten to describe this
   architecture; see those sections for full detail.
 
-[1.0.0-beta.3]: https://github.com/Sakwala/affiant/compare/v1.0.0-beta.1.1...HEAD
+[Unreleased]: https://github.com/Sakwala/affiant/compare/v1.0.0-beta.3...HEAD
+[1.0.0-beta.3]: https://github.com/Sakwala/affiant/compare/v1.0.0-beta.1.1...v1.0.0-beta.3
 [1.0.0-beta.1.1]: https://github.com/Sakwala/affiant/releases/tag/v1.0.0-beta.1.1
 [1.0.0-beta.1]: https://github.com/Sakwala/affiant/releases/tag/v1.0.0-beta.1
