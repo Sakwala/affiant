@@ -22,7 +22,11 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
   derived a different id per backend, and two SK calls in one conversation that differed only in their
   arguments derived the same id, so the second was treated as a replay of the first. The bridge reads
   `AutoFunctionInvocationContext.Arguments`, guarding the `InvalidOperationException` Semantic Kernel
-  raises when the auto-invocation loop holds no `KernelArguments`.
+  raises when the auto-invocation loop holds no `KernelArguments`; `ManualToolInvoker`, the fallback
+  invocation path for connectors without native auto-invocation, passes the arguments it invoked the
+  tool with. Upgrading changes the ids an SK host derives: a row filed at `1.0.0-beta.3` derived its
+  id with no arguments in the material, so the gate's replay lookup does not find it after the
+  upgrade and a retried call files a second row for the same proposal.
 - **A provider's timeout degrades like every other inference failure (#102).** An `HttpClient`
   timeout arrives as a `TaskCanceledException`, which is an `OperationCanceledException` — and the
   runner, the trigger filter and all three inference ports re-threw every one of those on the grounds

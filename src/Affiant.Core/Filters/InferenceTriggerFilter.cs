@@ -149,7 +149,11 @@ public sealed class InferenceTriggerFilter : IToolInvocationFilter
         {
             strategy = context.Services.GetRequiredService(descriptor.InferenceStrategy) as ITaskInferenceStrategy;
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        // affiant#102 again: resolving the strategy can reach the provider (a factory that hands the
+        // strategy a warmed client), and a timeout there arrives as a TaskCanceledException with the
+        // caller's token unsignalled. Only the caller's own cancellation breaks the turn; every other
+        // one is a resolution failure the filter skips inference for.
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
             _logger.LogWarning(ex,
                 "InferenceTriggerFilter: could not resolve strategy {Type} for {FunctionName}; skipping inference",

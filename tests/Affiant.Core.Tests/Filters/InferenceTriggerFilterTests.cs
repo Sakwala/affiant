@@ -47,7 +47,8 @@ public class InferenceTriggerFilterTests
         bool triggerResult = false,
         bool withDescriptor = false,
         IInferenceCompletionPort? port = null,
-        IEnumerable<IInferenceTrigger>? triggers = null)
+        IEnumerable<IInferenceTrigger>? triggers = null,
+        Func<IServiceProvider, StubStrategy>? strategyFactory = null)
     {
         var invCount = new[] { 0 };
         var capturePort = port ?? new CapturingPort(invCount,
@@ -66,7 +67,10 @@ public class InferenceTriggerFilterTests
         var services = new ServiceCollection();
         services.AddSingleton<IContextFabric>(fabric);
         services.AddSingleton<ITaskInferenceStrategy>(strategy);
-        services.AddSingleton<StubStrategy>(strategy);
+        if (strategyFactory is null)
+            services.AddSingleton<StubStrategy>(strategy);
+        else
+            services.AddSingleton<StubStrategy>(strategyFactory);
         var sp = services.BuildServiceProvider();
 
         var triggerList = triggers ?? [new FakeTrigger(_ => triggerResult)];
@@ -183,6 +187,35 @@ public class InferenceTriggerFilterTests
 
         Assert.True(nextRan);
         Assert.Equal("fn-result", result);
+    }
+
+    [Fact]
+    public async Task StrategyResolutionCancels_CallerDidNot_SkipsInference_AndTheToolCallProceeds()
+    {
+        // affiant#102 at the second cancellation site on the inference path: resolving the strategy
+        // runs the host's DI factory, which can reach the provider, and a timeout there is also a
+        // TaskCanceledException with the caller's token unsignalled. Before the fix the resolution
+        // catch excluded every OperationCanceledException, so this one escaped the filter and next()
+        // never fired.
+        var h = BuildHarness(triggerResult: true, withDescriptor: true,
+            strategyFactory: _ => throw new TaskCanceledException("simulated provider timeout"));
+
+        var (nextRan, result) = await h.RunAsync("conv-resolve-timeout", 0);
+
+        Assert.True(nextRan);
+        Assert.Equal("fn-result", result);
+    }
+
+    [Fact]
+    public async Task StrategyResolutionCancels_BecauseTheCallerAskedTo_Propagates()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+        var h = BuildHarness(triggerResult: true, withDescriptor: true,
+            strategyFactory: _ => throw new OperationCanceledException(cts.Token));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => h.RunAsync("conv-resolve-cancel", 0, cts.Token));
     }
 
     // ── Next always fires ─────────────────────────────────────────────────────

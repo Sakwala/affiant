@@ -100,6 +100,15 @@ public sealed class AffiantAutoFunctionInvocationBridge(ToolInvocationPipeline p
     /// <see cref="KernelArguments"/>, so the read is guarded rather than skipped. The empty set is
     /// what this bridge passed unconditionally before affiant#114, so a loop that cannot hand its
     /// arguments over is no worse off than it was.
+    /// <para>
+    /// What comes back is Semantic Kernel's own live <see cref="KernelArguments"/> for this call, not
+    /// a copy: SK's auto-invocation loop invokes the function with that same instance after every
+    /// completion-stage filter's pre-<c>next</c> code has run, so a host filter that writes to
+    /// <c>ToolInvocationContext.Arguments</c> here changes what the tool executes with — the same
+    /// contract the invocation seam already states (<c>ToolInvocationContext</c>: "Mutable
+    /// pre-invocation"). Before affiant#114 this stage's dictionary was a throwaway and such a write
+    /// was inert.
+    /// </para>
     /// </remarks>
     private static IDictionary<string, object?> ReadArguments(AutoFunctionInvocationContext context)
     {

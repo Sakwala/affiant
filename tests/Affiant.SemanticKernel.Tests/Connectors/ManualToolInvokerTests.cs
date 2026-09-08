@@ -127,6 +127,40 @@ public class ManualToolInvokerTests
         Assert.Equal("DoWrite", filed.OperationType);
     }
 
+    /// <summary>
+    /// affiant#114 at the fallback seam. <c>ReviewGateFilter</c> runs in the completion segment this
+    /// invoker drives itself, and it attaches <see cref="WriteProposal.Arguments"/> from
+    /// <c>ToolInvocationContext.Arguments</c> — material an entry id derives from (GT-4). The
+    /// invoker built that segment's request with an empty dictionary, so a proposal filed through
+    /// the manual path carried no arguments even after the auto-invocation bridge was fixed.
+    /// </summary>
+    [Fact]
+    public async Task ManualInvocation_PassesTheCallsArguments_ToTheCompletionStage()
+    {
+        var recorder = new ArgumentRecordingFilter();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IToolInvocationFilter>(recorder);
+        var sp = services.BuildServiceProvider();
+
+        var pipeline = new ToolInvocationPipeline(sp.GetRequiredService<IServiceScopeFactory>());
+        var kernel = new Kernel(sp);
+        kernel.Plugins.Add(KernelPluginFactory.CreateFromFunctions("WritePlugin",
+            [KernelFunctionFactory.CreateFromMethod((string title) => "filed", "DoWrite")]));
+
+        var invoker = new ManualToolInvoker(pipeline, NullLogger<ManualToolInvoker>.Instance);
+        var call = new FunctionCallContent(
+            functionName: "DoWrite",
+            pluginName: "WritePlugin",
+            id: "call-args-1",
+            arguments: new KernelArguments { ["title"] = "Q3 report" });
+
+        await invoker.CaptureAndInvokeAsync(call, kernel, CancellationToken.None);
+
+        Assert.NotNull(recorder.Seen);
+        Assert.Equal("Q3 report", recorder.Seen!["title"]);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private static ServiceProvider BuildReviewStack(FakeDocketStore docketStore)
@@ -164,6 +198,24 @@ public class ManualToolInvokerTests
             EmptyFieldCount: 0,
             Warnings: [],
             RequiresConfirmation: false));
+
+    /// <summary>
+    /// Stands where <c>ReviewGateFilter</c> stands — a completion-stage filter — and records the
+    /// arguments the neutral context carried when the segment ran.
+    /// </summary>
+    private sealed class ArgumentRecordingFilter : IToolInvocationFilter, ICompletionStageFilter
+    {
+        public IDictionary<string, object?>? Seen { get; private set; }
+
+        public Task OnToolInvocationAsync(
+            ToolInvocationContext context,
+            Func<ToolInvocationContext, Task> next,
+            CancellationToken cancellationToken = default)
+        {
+            Seen = context.Arguments;
+            return next(context);
+        }
+    }
 
     private sealed class ConstantReviewContextProvider(ReviewContext context) : IReviewContextProvider
     {
