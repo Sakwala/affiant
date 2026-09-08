@@ -371,9 +371,12 @@ public sealed class ConformanceDriverTests(ITestOutputHelper output)
     /// <remarks>
     /// <para>
     /// The oracle is a statement about a <em>named</em> release, and the vendored suite names two:
-    /// <c>dotnet@1.0.0-beta.1</c> on nineteen fixtures, and <c>dotnet@1.0.0-beta.3</c> on the five
-    /// the rulebook's <c>v0.1.3</c> presence amendment authored or amended. Each fixture speaks only
-    /// about the release it names, so this check asserts the set that names the version under test
+    /// <c>dotnet@1.0.0-beta.1</c> on nineteen fixtures, and <c>dotnet@1.0.0-beta.3</c> on five — the
+    /// four PV-3 gate fixtures the rulebook's <c>v0.1.3</c> presence amendment authored, and
+    /// <c>sequence-a/picker-external-binding</c>, which it amended. The amendment authored a fifth
+    /// gate fixture, <c>gate/inference-empty-value-is-nothing-reported</c>, which names no release
+    /// and carries no oracle entry. Each fixture speaks only about the release it names, so this
+    /// check asserts the set that names the version under test
     /// and no other. Running it against a version no entry names answers a question nobody asked: a
     /// release that fixes those rules is supposed to pass those fixtures, and reporting that as a
     /// broken oracle would turn every correction into a red build. So on any such version this

@@ -17,8 +17,8 @@ Nothing commits without evidence. Nothing writes without approval.
 > [affiant.dev/start/live-demo](https://affiant.dev/start/live-demo/).
 
 > **Beta.** `1.0.0-beta.3.1` is the current version in this tree — all ten packages, co-versioned;
-> `1.0.0-beta.3` is the latest one published to nuget.org. It passes the protocol's whole conformance
-> suite, 68 of 68, at the rulebook's
+> `1.0.0-beta.3` is the latest one published to nuget.org. This tree's build passes the protocol's
+> whole conformance suite, 68 of 68, at the rulebook's
 > [`v0.1.3`](https://github.com/Sakwala/affiant-protocol/releases/tag/v0.1.3) tag; the run and the
 > parity manifest it rests on are in `conformance/`. The public API has been validated by two
 > first-party host applications but has not yet reached 1.0 GA. Read
@@ -694,8 +694,10 @@ per-release detail are in the [CHANGELOG](CHANGELOG.md)'s header; not repeated h
   carries `PublicAPI.Shipped.txt`/`PublicAPI.Unshipped.txt` baselines and references
   `Microsoft.CodeAnalysis.PublicApiAnalyzers` — an undeclared or silently-deleted public member
   fails the build (`RS0016`/`RS0017`). `EnablePackageValidation` is on for all ten packages,
-  diffing the packed public surface against `PackageValidationBaselineVersion` once one is set
-  (deliberately unset today — there is no published version yet to diff against). Together these
+  diffing the packed public surface against `PackageValidationBaselineVersion`, which
+  `Directory.Build.props` sets to `1.0.0-beta.1.1`: `pack` downloads that published package and
+  fails the build on a break against it unless the project's `CompatibilitySuppressions.xml`
+  declares it — nine of the ten carry one. Together these
   catch *accidental* drift; they do not and cannot enforce the *policy* above, which is about
   what a maintainer is allowed to change on purpose between tags — that's a human commitment,
   recorded here and in the CHANGELOG, not a build gate.
