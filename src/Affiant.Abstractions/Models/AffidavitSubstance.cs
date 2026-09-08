@@ -18,9 +18,11 @@ namespace Affiant.Abstractions.Models;
 /// </list>
 ///
 /// <para>
-/// One copy, three callers: the projection reports it as telemetry, the compliance harness asserts
-/// it at test time, and the gate refuses on it at run time. A second copy of this predicate would
-/// drift, and the shape of the drift would be that one of the three stopped catching the incident.
+/// One copy, two callers: the projection reports it as telemetry, and the gate refuses on it at run
+/// time. The compliance harness does not call this type — it re-implements its own substance check
+/// (with a null-chain check this predicate has no equivalent of, and a deliberate exception for an
+/// all-<see cref="ProvenanceSource.Empty"/> Affidavit) — so a second copy already exists there, kept
+/// separately on purpose.
 /// </para>
 /// </summary>
 public static class AffidavitSubstance

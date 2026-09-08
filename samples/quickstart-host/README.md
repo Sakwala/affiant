@@ -132,11 +132,10 @@ Response: `{ "sessionId": "…", "docketId": "<guid>" }`.
 `status` is the framework's own review status — there is no "expiring" value; "Expiring soon" on
 the page is derived from a still-pending entry's deadline.
 
-`status` is what the store holds, not what the clock implies: an entry past its deadline still
-reads `Pending` until the 30-second sweep writes `Expired`. INVARIANTS.md DK-1 requires expiry to be
-queryable state — an entry past its deadline reads as expired whether or not a sweep has run — and
-the shipped .NET docket stores do not yet compute it on read. The sample inherits that gap; it is
-why the deck's expiry specs wait out a sweep tick rather than the deadline.
+`status` reflects the deadline, not just what the store holds: the shipped .NET docket stores
+project expiry onto every read (`EfDocketOperations`), so an entry past its deadline reads `Expired`
+here whether or not the 30-second sweep has reached it. INVARIANTS.md DK-1 requires exactly that —
+expiry as queryable state.
 
 **A create and an update state different things.** A bare `POST` files a create from a canned set of
 defaults, so one request produces a complete card. An update states only what `overrides` names: the
@@ -288,9 +287,9 @@ differs per rule:
 - **GT-4 — time-to-live is computed after the approval policy runs.** Not met, and inherited: the
   shipped `ReviewGate` stamps one host-wide default before the policy chain. The seam's second
   `ReviewGate` is the workaround that follows from it, and is labelled as such where it is built.
-- **DK-1 — expiry is queryable state.** Not met, and inherited: an entry past its deadline reads
-  `Pending` from the shipped .NET docket stores until the 30-second sweep writes `Expired`. It is
-  why the deck's expiry specs wait out a sweep tick rather than the deadline.
+- **DK-1 — expiry is queryable state.** Met, by the shipped .NET docket stores: every read projects
+  the deadline (`EfDocketOperations`), so an entry past its deadline reads `Expired` whether or not
+  the 30-second sweep has reached it.
 
 The two gaps are the framework's, not the sample's, and neither is hidden behind sample code: the
 sample runs on the shipped packages as published.

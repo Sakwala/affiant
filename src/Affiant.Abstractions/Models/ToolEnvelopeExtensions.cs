@@ -17,9 +17,11 @@ public static class ToolEnvelopeExtensions
     /// (<see cref="AffiantJson.SerializerOptions"/>, SR-3).
     ///
     /// <para>
-    /// It used to configure its own options — camelCase, and nothing else — so an enum inside a tool
-    /// result crossed as an integer while the same enum inside an Evidence Card crossed as a string.
-    /// The two now agree.
+    /// It used to configure its own options — camelCase, and nothing else. No published version
+    /// crossed an enum inconsistently for it: <see cref="ProvenanceSource"/>, the only enum inside
+    /// an envelope, has always carried a type-level <c>[JsonConverter(typeof(JsonStringEnumConverter))]</c>
+    /// and so serialized as a string either way. This type now shares <see cref="AffiantJson"/>'s
+    /// options so a future enum in the envelope gets the same guarantee without repeating it here.
     /// </para>
     /// </summary>
     public static string ToJsonString(this ToolEnvelope envelope) =>
