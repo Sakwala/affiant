@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'release/**']
   pull_request:
-    branches: [main]
+    branches: [main, 'release/**']
   # Every job here also runs on demand from the Actions tab; nothing is dispatch-only.
   workflow_dispatch:
 
