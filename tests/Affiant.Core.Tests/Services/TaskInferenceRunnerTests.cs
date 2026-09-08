@@ -131,7 +131,88 @@ public class TaskInferenceRunnerTests
         Assert.Empty(result.MergedFields);
     }
 
-    // --- Test 5: constructor null guards ---
+    // --- Test 5: the turn reaches the step (Sakwala/affiant#123) ---
+
+    /// <summary>
+    /// The regression #123 was filed for: a port that reports only <c>{value, confidence}</c> — which
+    /// is what all three shipped ports report — over a history whose last user turn contains the
+    /// value. Before the fix the field was sworn "AI suggested"; PV-3 grades it from the turn.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_ASilentPort_AndAValueInTheLastUserTurn_MintsConversation()
+    {
+        var json = JsonDocument.Parse("""
+            { "Priority": { "value": "Critical", "confidence": 0.9 } }
+            """).RootElement;
+
+        var (runner, fabric) = BuildRunner(PortReturning(json));
+
+        await runner.RunAsync(
+            new ThreeFieldStrategy(),
+            [
+                new AffiantChatMessage("user", "hello"),
+                new AffiantChatMessage("assistant", "Which priority?"),
+                new AffiantChatMessage("user", "Priority Critical, please"),
+            ],
+            "CreateThing",
+            new Dictionary<string, object?>());
+
+        var tag = fabric.GetFieldChain("Priority")!.Current;
+        Assert.Equal(ProvenanceSource.Conversation, tag.Source);
+        Assert.NotNull(tag.Binding);
+    }
+
+    /// <summary>
+    /// The utterance is the CURRENT turn: a value typed two turns ago is not present in this one.
+    /// An `utterance-span` binding names no message, so a hit in an earlier turn could not be bound.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_AValueOnlyInAnEarlierTurn_StaysInferred()
+    {
+        var json = JsonDocument.Parse("""
+            { "Priority": { "value": "Critical", "confidence": 0.9 } }
+            """).RootElement;
+
+        var (runner, fabric) = BuildRunner(PortReturning(json));
+
+        await runner.RunAsync(
+            new ThreeFieldStrategy(),
+            [
+                new AffiantChatMessage("user", "Priority Critical, please"),
+                new AffiantChatMessage("assistant", "Noted."),
+                new AffiantChatMessage("user", "go ahead"),
+            ],
+            "CreateThing",
+            new Dictionary<string, object?>());
+
+        var tag = fabric.GetFieldChain("Priority")!.Current;
+        Assert.Equal(ProvenanceSource.Inferred, tag.Source);
+        Assert.Null(tag.Binding);
+    }
+
+    /// <summary>
+    /// A history with no turn of a person's leaves the step nothing to check against, so the port's
+    /// own report stands (D4) — the same answer beta.3 gave.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_AHistoryWithNoUserMessage_LeavesThePortsReportStanding()
+    {
+        var json = JsonDocument.Parse("""
+            { "Priority": { "value": "Critical", "confidence": 0.9, "presence": "literal" } }
+            """).RootElement;
+
+        var (runner, fabric) = BuildRunner(PortReturning(json));
+
+        await runner.RunAsync(
+            new ThreeFieldStrategy(),
+            [new AffiantChatMessage("system", "You are a helpful assistant.")],
+            "CreateThing",
+            new Dictionary<string, object?>());
+
+        Assert.Equal(ProvenanceSource.Conversation, fabric.GetFieldChain("Priority")!.Current.Source);
+    }
+
+    // --- Test 6: constructor null guards ---
 
     [Fact]
     public void Constructor_NullPort_Throws()

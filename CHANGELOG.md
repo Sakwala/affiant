@@ -11,6 +11,29 @@ in lockstep as of 2026-07-05 (`Affiant.Extensions.AI` joined the set 2026-08-20)
 plus the bare `Affiant` meta-ID, are reserved on nuget.org (the last two, `Affiant.AgentFramework`
 and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectively).
 
+## [Unreleased]
+
+#### Fixed
+
+- **Presence is established from the utterance, not from the model's claim about it**
+  (`Sakwala/affiant#123`). PV-3 grades an inferred field `Conversation` when "the value is literally
+  present in the utterance", and until this release the framework asked the inference port to say so:
+  a field was graded `Conversation` only when the port's JSON carried `"presence": "literal"`, and
+  `Inferred` otherwise. None of the three shipped ports asks a model for that, so every value a person
+  typed in chat was sworn "AI suggested" — the framework hiding the one distinction the Evidence Card
+  exists to draw. Presence is a property of two strings, so the framework now establishes it: the step
+  locates the value's text in the turn itself — an ordinal, case-insensitive match whose neighbouring
+  characters are neither letters nor digits — and grades `Conversation` on a hit, bound to an
+  `utterance-span` whose offsets and length are in UTF-16 code units and whose hash is SHA-256 over
+  the UTF-8 bytes of the utterance at that span (PV-2). A port's `presence` and `utteranceSpan` are
+  hints: a span is used when the utterance there says what the port said it says, a claimed `literal`
+  the text cannot confirm is `Inferred`, and a value the port said nothing about is `Conversation` when
+  it is there to read. No port asks a model for presence or for offsets, and none is changed here — a
+  model's claim about its own literalness is itself an inference. `TaskInferenceStep.ExecuteAsync`
+  gains an overload taking the turn; the shipped three-argument signature forwards with no turn and
+  keeps the old behaviour, which no shipped caller reaches because `TaskInferenceRunner` always has
+  the history and passes the last user message's text.
+
 ## [1.0.0-beta.3] — 2026-09-05
 
 ### Decisions, attestation and identity as the rulebook defines them

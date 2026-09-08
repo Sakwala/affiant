@@ -60,11 +60,41 @@ public sealed class TaskInferenceStep
     /// <paramref name="strategy"/>.Fields, with "value" (any JSON scalar — string, number, or
     /// boolean) and "confidence" (float or string) sub-properties. Fields absent from the JSON,
     /// carrying a non-scalar value, or below the threshold are skipped.
+    ///
+    /// <para>
+    /// This overload has no turn in hand, so the port's <c>presence</c> and <c>utteranceSpan</c>
+    /// stand as reported. Every shipped bridge reaches the step through
+    /// <see cref="Services.TaskInferenceRunner"/>, which has the history and passes the utterance to
+    /// the overload that verifies (PV-3).
+    /// </para>
     /// </summary>
+    // RS0027 wants the overload carrying optional parameters to be the longest one. Here the
+    // shipped shape is the shorter one, and it keeps its optional token: the utterance overload is
+    // additive, and taking this default away would break every caller compiled against beta.3.
+#pragma warning disable RS0027
     public Task<TaskInferenceResult> ExecuteAsync(
         ITaskInferenceStrategy strategy,
         JsonElement llmStructuredOutput,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        ExecuteAsync(strategy, llmStructuredOutput, utterance: null, cancellationToken);
+#pragma warning restore RS0027
+
+    /// <summary>
+    /// The same merge, with the turn the values are graded against.
+    /// </summary>
+    /// <param name="strategy">The field schema the JSON is read through.</param>
+    /// <param name="llmStructuredOutput">What the inference port reported, per field.</param>
+    /// <param name="utterance">
+    /// The current turn's user text, unmodified, or <see langword="null"/> when the caller has no
+    /// turn. With a turn, presence is established from it and the port's claim is only a hint; with
+    /// <see langword="null"/>, the port's <c>presence</c> and <c>utteranceSpan</c> stand as reported.
+    /// </param>
+    /// <param name="cancellationToken">Cancels the merge between fields.</param>
+    public Task<TaskInferenceResult> ExecuteAsync(
+        ITaskInferenceStrategy strategy,
+        JsonElement llmStructuredOutput,
+        string? utterance,
+        CancellationToken cancellationToken)
     {
         var mergedFields = new Dictionary<string, TaskInferenceMergeOutcome>();
         var winningValues = new Dictionary<string, object>();
@@ -113,18 +143,18 @@ public sealed class TaskInferenceStep
             // person's act, a system of record, a named rule — and an inference has none of them.
             // The restriction is structural, not a convention: there is no overload reachable from
             // here that could name them.
-            // `presence` is the port's own answer to "was this value literally in the turn, or did
-            // the model reason to it" (GT-1 step 3), and it is the difference between a Conversation
-            // grade and an Inferred one. Absent, it is Inferred: a port that does not say has not
-            // claimed the value was there to read.
-            var presence =
-                fieldEl.TryGetProperty("presence", out var presenceEl)
-                && string.Equals(presenceEl.GetString(), "literal", StringComparison.OrdinalIgnoreCase)
-                    ? InferenceSource.Conversation
-                    : InferenceSource.Inferred;
+            // PV-3's condition is "the value is literally present in the utterance", which is a
+            // property of two strings. With the turn in hand the framework looks: a hit is
+            // Conversation, bound to the place it was found, and anything else is Inferred. The
+            // port's `presence` and `utteranceSpan` are hints — a span is used when the utterance at
+            // that span says what the port said it says, a claimed `literal` the text does not
+            // confirm is Inferred, and a value the port said nothing about is Conversation when it
+            // is there to read. With no turn (no shipped caller: the runner always has the history)
+            // the port's report is all there is, and stands.
+            var (presence, binding) = Grade(fieldEl, newText, utterance);
 
             var candidateTag = ProvenanceTag.FromInference(
-                presence, field.Name, newConfidence, UtteranceSpanOf(fieldEl, newText), _time.GetUtcNow());
+                presence, field.Name, newConfidence, binding, _time.GetUtcNow());
             var currentChain = _contextFabric.GetFieldChain(field.Name);
 
             bool wins;
@@ -181,50 +211,80 @@ public sealed class TaskInferenceStep
     }
 
     /// <summary>
-    /// Reads a field's "value" as a string regardless of the JSON scalar kind the LLM emitted.
-    /// Structured-output models frequently return numeric or boolean fields as native JSON
-    /// numbers/booleans (e.g. <c>"EstimatedHours": { "value": 4 }</c>) rather than strings, so
-    /// calling <see cref="JsonElement.GetString"/> unconditionally throws and aborts the whole
-    /// merge. Non-scalar kinds (object, array, null) return null and the field is skipped.
-    /// </summary>
-    /// <summary>
-    /// The span of the unmodified turn a value was read from, when the port named one (PV-2).
+    /// The grade PV-3 gives one field, and the <c>utterance-span</c> binding that goes with it
+    /// (PV-2).
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Offset and length come from the port; the digest is over the value the port reported, which
-    /// is what it says the span contained. A binding points at something an auditor can go and
-    /// re-check, and this is the strongest such claim an inference can make: the turn is on the
-    /// record, the offsets say where to look, and the digest says what was there when it was read.
+    /// With a turn in hand the framework establishes presence itself, by
+    /// <see cref="UtterancePresence"/>: a hit is <see cref="InferenceSource.Conversation"/> bound to
+    /// the span it was found at, with the digest taken over the utterance's own bytes — what was
+    /// there when it was read. No hit is <see cref="InferenceSource.Inferred"/> and no binding: a tag
+    /// with no binding is a weaker claim, not a false one, and inventing a span would be the false
+    /// one.
     /// </para>
     /// <para>
-    /// A port that names no span produces no binding: a tag with no binding is a weaker claim, not
-    /// a false one, and inventing a span nobody reported would be the false one.
+    /// With no turn, the port's <c>presence</c> and <c>utteranceSpan</c> are all there is and stand
+    /// as reported; the digest is then over the value the port reported, which is what it says the
+    /// span contained.
     /// </para>
     /// </remarks>
-    private static ProvenanceBinding? UtteranceSpanOf(JsonElement fieldEl, string value)
+    private static (InferenceSource Presence, ProvenanceBinding? Binding) Grade(
+        JsonElement fieldEl, string valueText, string? utterance)
+    {
+        var (hintedOffset, hintedLength) = SpanHintOf(fieldEl, valueText);
+
+        if (utterance is null)
+        {
+            var presence =
+                fieldEl.TryGetProperty("presence", out var presenceEl)
+                && string.Equals(presenceEl.GetString(), "literal", StringComparison.OrdinalIgnoreCase)
+                    ? InferenceSource.Conversation
+                    : InferenceSource.Inferred;
+
+            // The digest is the canonical form's own — SHA-256 as 64 lowercase hexadecimal
+            // characters, and nothing else — because a second implementation checking this span has
+            // to produce the same string from the same bytes (SR-1, PV-2).
+            var reported = hintedOffset is { } start && hintedLength is { } stated
+                ? new ProvenanceBinding.UtteranceSpan(new UtteranceSpanRef(
+                    start,
+                    stated,
+                    Convert.ToHexStringLower(
+                        System.Security.Cryptography.SHA256.HashData(
+                            System.Text.Encoding.UTF8.GetBytes(valueText)))))
+                : null;
+
+            return (presence, reported);
+        }
+
+        return UtterancePresence.Locate(utterance, valueText, hintedOffset, hintedLength) is { } span
+            ? (InferenceSource.Conversation,
+                new ProvenanceBinding.UtteranceSpan(new UtteranceSpanRef(
+                    span.Offset, span.Length, UtterancePresence.DigestOf(utterance, span))))
+            : (InferenceSource.Inferred, null);
+    }
+
+    /// <summary>
+    /// The offsets the port reported, if it reported any: <c>start</c> with either <c>end</c> or
+    /// <c>length</c>, and <paramref name="valueText"/>'s own length when it named neither.
+    /// </summary>
+    private static (int? Offset, int? Length) SpanHintOf(JsonElement fieldEl, string valueText)
     {
         if (!fieldEl.TryGetProperty("utteranceSpan", out var span)
             || span.ValueKind != JsonValueKind.Object)
         {
-            return null;
+            return (null, null);
         }
 
         if (!span.TryGetProperty("start", out var startEl) || !startEl.TryGetInt32(out var start))
-            return null;
+            return (null, null);
 
         var length =
             span.TryGetProperty("end", out var endEl) && endEl.TryGetInt32(out var end) ? end - start
             : span.TryGetProperty("length", out var lengthEl) && lengthEl.TryGetInt32(out var stated) ? stated
-            : value.Length;
+            : valueText.Length;
 
-        // The digest is the canonical form's own — SHA-256 as 64 lowercase hexadecimal characters,
-        // and nothing else — because a second implementation checking this span has to produce the
-        // same string from the same bytes (SR-1, PV-2).
-        var digest = Convert.ToHexStringLower(
-            System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(value)));
-
-        return new ProvenanceBinding.UtteranceSpan(new UtteranceSpanRef(start, length, digest));
+        return (start, length);
     }
 
     /// <summary>
@@ -244,7 +304,10 @@ public sealed class TaskInferenceStep
         _ => null,
     };
 
-    /// <summary>The same value as text — what an utterance span's digest is taken over.</summary>
+    /// <summary>
+    /// The same value as text — the string the finder looks for in the utterance, and what a span's
+    /// digest is taken over when there is no turn to take it over instead.
+    /// </summary>
     private static string? ReadScalarText(JsonElement valueEl) => valueEl.ValueKind switch
     {
         JsonValueKind.String => valueEl.GetString(),
