@@ -21,6 +21,16 @@ using QuickstartHost.Agent;
 /// </para>
 ///
 /// <para>
+/// <b>One thing does differ, and it is the grading.</b> The values a person writes into this route
+/// are <c>UserStated</c> and the canned defaults are <c>Default</c>, where the same six values
+/// arriving as a write tool's arguments are <c>Inferred</c> at
+/// <see cref="LeaveProposalBuilder.ModelArgumentConfidence"/> — the same builder, the same
+/// projection, a different provenance, because the values came from somewhere else. The card the
+/// seam puts up is therefore not the card a model turn produces, and the aggregate confidence under
+/// it differs too.
+/// </para>
+///
+/// <para>
 /// <b>The gate.</b> Both routes are refused unless the host is running in Development
 /// <em>and</em> <c>DevSeam:Enabled</c> is true. The routes are mapped unconditionally and the gate
 /// is an endpoint filter rather than a conditional <c>MapPost</c>, so a request that arrives with
@@ -106,9 +116,22 @@ public static class DevSeamEndpoints
             .Where(pair => !string.IsNullOrWhiteSpace(pair.Value))
             .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
 
+        // Which of these values a person actually stated. An override is one: somebody wrote it
+        // into this request, so it is sworn UserStated, bound to the route it arrived on. A canned
+        // default is not: it is a constant in this file that nobody typed, so it is graded Default
+        // — the grade for a value the host supplied when nobody stated one — and swearing it
+        // UserStated would be the same over-grade as swearing a model's tool arguments are a
+        // person's (PV-3; a write tool's arguments are graded in LeaveProposalBuilder.Build).
+        var statedByAPerson = request?.Overrides is null
+            ? new HashSet<string>(StringComparer.Ordinal)
+            : new HashSet<string>(request.Overrides.Keys, StringComparer.Ordinal);
+        var hostDefaults = nonBlank.Keys
+            .Where(name => !statedByAPerson.Contains(name))
+            .ToHashSet(StringComparer.Ordinal);
+
         var affidavit = request?.EntityId is { } entityId
-            ? proposals.BuildUpdate(entityId, nonBlank)
-            : proposals.BuildCreate(nonBlank);
+            ? proposals.BuildUpdate(entityId, nonBlank, ProposalOrigin.DevSeamRequest, hostDefaults)
+            : proposals.BuildCreate(nonBlank, ProposalOrigin.DevSeamRequest, hostDefaults);
 
         if (request?.EntityId is { } missing && affidavit.EntityId is null)
         {
@@ -176,12 +199,13 @@ public static class DevSeamEndpoints
     /// "the store already says this" before the client has caught up.
     ///
     /// <para>
-    /// <b>Status is what the store holds, not what the clock implies.</b> An entry past its deadline
-    /// still reads <c>Pending</c> here until the framework's 30-second sweep writes <c>Expired</c>.
-    /// INVARIANTS.md DK-1 requires expiry to be queryable state — an entry past its deadline reads
-    /// as expired whether or not a sweep has run — and the shipped .NET docket stores do not yet
-    /// compute it on read. That gap is inherited, not introduced here; it is why the deck's expiry
-    /// specs wait out a sweep tick rather than the deadline.
+    /// <b>Status is what the clock implies, not only what the row holds.</b> Since 1.0.0-beta.3 the
+    /// shipped docket stores project expiry onto every read, so an entry past its deadline reads
+    /// <c>Expired</c> here whether or not the 30-second sweep has committed the transition —
+    /// INVARIANTS.md DK-1, expiry as queryable state. The row itself stays <c>Pending</c> until the
+    /// sweep, a decision or a resubmission writes the transition, which is why a reviewer whose page
+    /// has not been told yet can still send the late decision the deck's late-amendments spec
+    /// exercises.
     /// </para>
     /// </summary>
     private static async Task<IResult> GetDocketAsync(
@@ -191,7 +215,10 @@ public static class DevSeamEndpoints
         return entry is null
             ? Results.NotFound()
             : Results.Ok(new DevDocketResponse(
-                entry.Status.ToString(), entry.ExpiresAt, entry.Amendments));
+                entry.Status.ToString(),
+                entry.ExpiresAt,
+                entry.Amendments,
+                entry.PreservedAmendments?.Amendments));
     }
 }
 
@@ -221,10 +248,12 @@ public sealed class DevSeamGateFilter(IHostEnvironment environment, IConfigurati
 /// the id the page is already joined to if you want to see the card.
 /// </param>
 /// <param name="Overrides">
-/// Affidavit field name to stated value, e.g. <c>{"Employee": "Amara Silva"}</c>. On a create these
-/// override the canned defaults, and a blank value clears the field, leaving it tagged with no
-/// provenance. On an update these are the <em>only</em> stated values: every other field is read off
-/// the row and tagged <c>External</c>, and a blank value here means "leave the row's value alone".
+/// Affidavit field name to stated value, e.g. <c>{"Employee": "Amara Silva"}</c>. These are the
+/// values a person stated, and the only ones sworn <c>UserStated</c>. On a create they override the
+/// canned defaults — which are graded <c>Default</c>, nobody having typed them — and a blank value
+/// clears the field, leaving it tagged with no provenance. On an update they are the only stated
+/// values at all: every other field is read off the row and tagged <c>External</c>, and a blank
+/// value here means "leave the row's value alone".
 /// </param>
 /// <param name="TtlSeconds">
 /// How long the filed entry stays pending. Defaults to the host's own docket TTL. Set it low to
@@ -245,8 +274,18 @@ public sealed record DevProposeRequest(
 /// <summary>What the seam hands back: the session the card went to, and the entry's id.</summary>
 public sealed record DevProposeResponse(string SessionId, Guid DocketId);
 
-/// <summary>One entry's server-side state. <c>status</c> is the framework's own review status.</summary>
+/// <summary>
+/// One entry's server-side state. <c>status</c> is the framework's own review status.
+///
+/// <para>
+/// The two amendment maps are two different facts and the framework keeps them apart:
+/// <c>amendments</c> is what an approval accepted, <c>preservedAmendments</c> is what a decision
+/// the gate refused was carrying — a late one, whose edits are kept on the row for a resubmission
+/// even though nobody accepted them.
+/// </para>
+/// </summary>
 public sealed record DevDocketResponse(
     string Status,
     DateTimeOffset ExpiresAt,
-    IReadOnlyDictionary<string, object?>? Amendments);
+    IReadOnlyDictionary<string, object?>? Amendments,
+    IReadOnlyDictionary<string, object?>? PreservedAmendments);

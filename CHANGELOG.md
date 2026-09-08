@@ -39,6 +39,37 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
   `undefined` and every tag's sentence rendered as nothing. It now reads `note` with the older
   spelling as a fallback, as the package's own source does, and the Playwright deck asserts a
   rendered note so the next wire rename cannot pass in silence.
+- **The quickstart sample swore a model's tool arguments `UserStated`.**
+  `samples/quickstart-host/Agent/LeaveProposalBuilder.cs` tagged every value a proposal carried
+  `UserStated` at confidence 1.0, bound to a `form-input` control the sample does not have — so on
+  the model path, where the "caller's own arguments" are what the model extracted from the
+  conversation, a date nobody typed read "You said this" on the Evidence Card. The builder now
+  grades by the path the values took: a write tool's arguments are an inference and carry
+  `Inferred` with no binding, and only the development seam, where a person writes the values into
+  the request, mints `UserStated` — bound to that request rather than to a control. PV-3 makes
+  `UserStated` unreachable from an inference, and `ProvenanceTag.FromInference` cannot name it;
+  the sample now teaches that instead of working around it. The seam's own canned defaults are not
+  a person's act either — they are constants in the host, stated by nobody — so a create the caller
+  did not override files them `Default` rather than swearing five values a reviewer never typed. `docs/tool-authoring-guide.md` taught
+  the same over-grade in the code a host copies — its worked example, its skeleton, its entity
+  mapper and its plugin test all tagged a tool parameter `UserStated`, two hundred lines below the
+  rule saying not to — and now matches the rule it states, with a persisted value read back out of
+  the store graded `External` and bound to its row. Sample and documentation only; no framework
+  behaviour changed. (#110)
+- **The sample's browser deck failed one of its eight specs, and nothing ran it.** The
+  late-amendments spec asserted that an entry past its deadline still reads `Pending` in the store
+  until the sweep commits it — true before 1.0.0-beta.3, and false since the docket stores began
+  projecting expiry onto every read. The spec now waits for that projected expiry, which is also a
+  better signal than counting seconds against a deadline the server stamped, and then exercises the
+  behaviour it was written for: the still-armed card, the refused decision, the amendments kept and
+  the resubmission that carries them. Doing so surfaced a second stale expectation in the sample:
+  `ChatHub`'s `DecisionAck` still mapped only `ReviewOutcome.Expired`, so a late decision — a
+  `Refused` outcome carrying `decision-expired` since 1.0.0-beta.3 — acked as "pending" and the
+  reviewer was told nothing at all. The ack now reads the refusal and its `amendments-preserved`
+  detail, and the page says which of the two happened. The deck moves into the
+  `sample-quickstart-host` CI job, which the workflow runs on a push to `main`, on a pull request
+  based on `main`, and on demand — so a commit green on `main` is one the deck passed. It had been
+  `workflow_dispatch`-only, which is how a release was tagged with a failing spec. (#111)
 
 ### Documentation
 

@@ -28,9 +28,12 @@ public sealed class AmendLeavePlugin(LeaveProposalBuilder proposals)
         [Description("The id of the leave request to change.")] int leaveRequestId,
         [Description("The new last day of leave, inclusive, as yyyy-MM-dd.")] string endDate)
     {
+        // A model filled these parameters from the conversation, so the proposal is graded as an
+        // inference and nothing on it is sworn UserStated (PV-3) — see LeaveProposalBuilder.Build.
         var affidavit = proposals.BuildUpdate(
             leaveRequestId,
-            new Dictionary<string, string>(StringComparer.Ordinal) { ["EndDate"] = endDate });
+            new Dictionary<string, string>(StringComparer.Ordinal) { ["EndDate"] = endDate },
+            ProposalOrigin.ModelArguments);
 
         if (affidavit.EntityId is null)
         {
