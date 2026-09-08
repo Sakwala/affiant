@@ -47,7 +47,7 @@ public sealed class ConformanceDriverTests(ITestOutputHelper output)
         new(() => ProtocolSuite.At(ProtocolRoot), LazyThreadSafetyMode.ExecutionAndPublication);
 
     /// <summary>
-    /// The one run for this process. Running 63 documents per assertion would say the same thing
+    /// The one run for this process. Running 68 documents per assertion would say the same thing
     /// several times over and take several times as long.
     /// </summary>
     private static ConformanceRun Run => LazyRun.Value;
