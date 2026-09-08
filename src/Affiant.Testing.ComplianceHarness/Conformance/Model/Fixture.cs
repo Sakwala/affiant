@@ -72,8 +72,13 @@ internal sealed record InterceptedFieldSpec(
 /// <summary>The two binding kinds a machine may mint (PV-3).</summary>
 internal sealed record BindingSpec(string Kind, JsonObject Ref);
 
-/// <summary>What the host's inference reports for one field (GT-1 step 3). Scripted, never computed.</summary>
-internal sealed record InferredFieldSpec(JsonNode? Value, double Confidence, string Presence, JsonObject? UtteranceSpan);
+/// <summary>
+/// What the host's inference reports for one field (GT-1 step 3). The value and the confidence are
+/// scripted, never computed. <c>Presence</c> and <c>UtteranceSpan</c> are optional and are the
+/// port's report, which the implementation verifies against <c>given.ctx.utterance</c> (PV-3): a
+/// fixture that states neither is a port that said only what every shipped port says.
+/// </summary>
+internal sealed record InferredFieldSpec(JsonNode? Value, double Confidence, string? Presence, JsonObject? UtteranceSpan);
 
 /// <summary>A tool the host declared it cannot intercept (CV-4).</summary>
 internal sealed record UncoveredSpec(string Tool, string Category);

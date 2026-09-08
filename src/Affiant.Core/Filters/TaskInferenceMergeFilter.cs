@@ -20,7 +20,7 @@ using Microsoft.Extensions.Logging;
 /// <para>
 /// <b>Merge-failure policy (area-3 P2 ruling 3, gate ruling "surface-and-continue"):</b> this filter
 /// runs strictly after the tool already produced its result. Any non-cancellation exception from the
-/// merge attempt — malformed JSON, or a bug in <see cref="TaskInferenceStep.ExecuteAsync"/>/the
+/// merge attempt — malformed JSON, or a bug in <see cref="TaskInferenceStep.ExecuteAsync(ITaskInferenceStrategy, System.Text.Json.JsonElement, System.Threading.CancellationToken)"/>/the
 /// resolved <see cref="ITaskInferenceStrategy"/> — must never discard that result, never cause the
 /// tool to be re-executed, and never be reported to the model as a tool failure (V5: previously an
 /// uncaught non-<see cref="JsonException"/> here propagated into <c>ToolErrorFilter</c>'s

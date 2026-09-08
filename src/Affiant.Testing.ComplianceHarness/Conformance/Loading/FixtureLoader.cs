@@ -174,7 +174,7 @@ internal static class FixtureLoader
                 inference[name] = new InferredFieldSpec(
                     f["value"]?.DeepClone(),
                     f["confidence"]!.GetValue<double>(),
-                    f["presence"]!.GetValue<string>(),
+                    f["presence"]?.GetValue<string>(),
                     f["utteranceSpan"] as JsonObject);
             }
         }
