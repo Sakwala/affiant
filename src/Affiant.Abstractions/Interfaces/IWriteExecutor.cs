@@ -5,13 +5,17 @@ using Affiant.Abstractions.Models;
 /// <summary>
 /// The host's domain write port: the one place an approved <see cref="Affidavit"/> becomes a real
 /// mutation in the host's own system of record. The framework never writes domain data itself — it
-/// gates, files, and evidences the write, then hands the approved affidavit here.
+/// gates, files, and evidences the write and stops there; no framework code calls this interface
+/// (the compliance harness arms it as a GT-6 tripwire only).
 /// </summary>
 /// <remarks>
 /// <para>
-/// Implement this once per host and register it in DI. It is called only after a review has been
-/// granted (or auto-approved by a standing order), so an implementation may assume authorization
-/// has already happened and must not re-run policy.
+/// Implement this once per host and call it yourself after a review has been granted (or
+/// auto-approved by a standing order), so an implementation may assume authorization has already
+/// happened and must not re-run policy. Report the outcome back through
+/// <c>ReviewGate.MarkExecutedAsync</c> — never <see cref="IDocketStore.RecordExecutionAsync"/>
+/// directly, which is the store member the gate calls once it has refused an approved row carrying
+/// no attestation (AZ-5) — so the record shows the write actually happened.
 /// </para>
 /// <para>
 /// <b>Do not hand-roll the amendment fold.</b> <see cref="AffidavitAmendments.Apply"/> is the one
