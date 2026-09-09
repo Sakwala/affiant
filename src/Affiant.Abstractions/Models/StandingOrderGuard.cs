@@ -7,8 +7,9 @@ namespace Affiant.Abstractions.Models;
 /// reads of an <see cref="Affidavit"/>.
 ///
 /// <para>
-/// One copy, three callers, for the same reason <see cref="AffidavitSubstance"/> has one: the
-/// framework's Standing Order base class runs them before it spends a host's risk scorer, the
+/// One copy, three callers, kept singular for the same reason as <see cref="AffidavitSubstance"/>
+/// — a second copy would drift from the one callers actually run against: the framework's Standing
+/// Order base class runs them before it spends a host's risk scorer, the
 /// approval-policy chain runs them again over any verdict that reaches it from a policy written
 /// against the bare interface, and a fixture asks them directly without staging a policy at all. A
 /// second copy would drift, and the shape of the drift would be that one of the three stopped

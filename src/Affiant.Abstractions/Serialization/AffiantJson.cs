@@ -16,11 +16,11 @@ namespace Affiant.Abstractions.Serialization;
 /// <para>
 /// <b>Why one object and not a set of conventions each caller repeats.</b> Before this existed the
 /// framework had three: the SignalR hub protocol configured camelCase and string enums;
-/// <c>ToolEnvelopeExtensions</c> configured camelCase and nothing else, so an enum inside a tool
-/// result crossed as an integer while the same enum inside an Evidence Card crossed as a string;
-/// and anything a host serialized itself inherited whatever its own defaults were. Three spellings
-/// of one record is exactly the drift SR-3 names, and a canonical form (SR-1) computed under one of
-/// them does not match a hash computed under another.
+/// <c>ToolEnvelopeExtensions</c> configured camelCase and nothing else (its one enum,
+/// <see cref="ProvenanceSource"/>, already carried a type-level string converter, so this
+/// particular split never shipped); and anything a host serialized itself inherited whatever its
+/// own defaults were. Three spellings of one record is exactly the drift SR-3 names, and a
+/// canonical form (SR-1) computed under one of them does not match a hash computed under another.
 /// </para>
 ///
 /// <para>

@@ -6,8 +6,9 @@ using Affiant.Abstractions.Models;
 
 /// <summary>
 /// Tells the framework who is proposing a write and which session's reviewer should see it.
-/// Without this registration the framework's review filter logs a debug line and skips the write
-/// silently, so it is required, not optional.
+/// Without this registration the framework's startup validator refuses to build the host; a
+/// registered provider that returns no context for a call is refused by the review filter with
+/// <c>wireup-invalid</c> instead. It is required, not optional.
 ///
 /// <para>
 /// <b>Where the identity comes from.</b> Two callers reach this type. A chat turn runs inside a
@@ -22,8 +23,8 @@ using Affiant.Abstractions.Models;
 /// <b>No sign-in.</b> This sample has no authentication, so the user id falls back to a fixed
 /// demo value. A real host reads it from the authenticated principal and returns <c>null</c> from
 /// this method for an unauthenticated caller — returning <c>null</c> is how a host says "this
-/// request has no identity to file a review under", and the framework then skips filing rather
-/// than inventing a reviewer.
+/// request has no identity to file a review under", and the framework then refuses the write with
+/// <c>wireup-invalid</c> rather than inventing a reviewer.
 /// </para>
 /// </summary>
 public sealed class HttpReviewContextProvider(
