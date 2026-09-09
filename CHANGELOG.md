@@ -17,9 +17,14 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
 
 ### The grade a person's own words earn, and the seams that did not carry them
 
-A point release of `1.0.0-beta.3` carries corrections and nothing a host has to learn: one added
-overload, no other new surface, and every entry below a place where the framework did not do what
-the release already claimed. The largest is the grade a person's own words earn — PV-3 makes an
+A point release of `1.0.0-beta.3` is corrections: one added overload and no other new surface, and
+every entry below a place where the framework did not do what the release already claimed. Two
+things an upgrading host must read, both below: the *Upgrade note* (affiant#91) — a host that
+byte-pins its wire assertions to the rulebook's `wire/` fixtures asserts the envelope's additions
+through an allow-list rather than through envelope equality; and the entry id a Semantic Kernel host
+derives (affiant#114) — a row filed at `1.0.0-beta.3` derived its id with no arguments in the
+material, so the gate's replay lookup does not find it after the upgrade and a retried call files a
+second row for the same proposal. The largest is the grade a person's own words earn — PV-3 makes an
 inferred field `Conversation` when the value is literally present in the utterance, and the
 framework asked the inference port to say whether it was, a question no shipped port asks a model,
 so every value a person typed in chat was sworn "AI suggested", which is the one distinction an
@@ -154,7 +159,8 @@ framework does, and the documents and XML comments that described a shape the co
   tool's empty result still passes through untouched. The other half of affiant#75 — a tool that
   performs the write inside its own body and returns a plain success string — is unchanged: the
   filter runs after the tool body, and that boundary is stated in `ReviewGateFilter`'s own remarks
-  rather than enforced by it.
+  rather than enforced by it, so affiant#75 stays open, narrowed to that boundary — beside
+  affiant#73, which stays open narrowed to its unfixed redaction half. This release closes neither.
 - **`Affiant.SemanticKernel`'s `[KernelFunction]` walker stripped a trailing `Async` from
   synchronous methods** (affiant#101). Semantic Kernel drops the suffix only from a method returning
   `Task`, `ValueTask` or `IAsyncEnumerable`, so `[KernelFunction] string LookupThingAsync()` was
