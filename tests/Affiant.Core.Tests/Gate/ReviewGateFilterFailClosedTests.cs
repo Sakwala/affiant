@@ -21,6 +21,12 @@ using Xunit;
 /// at startup — see <c>WriteToolWireUpTests</c> — and this is the backstop for the second, which
 /// only a live request can know, and for a container that cannot be enumerated at startup.
 /// </para>
+///
+/// <para>
+/// A fourth shape closes here too (affiant#119): a declared write tool that hands back nothing at
+/// all. The empty-result early return used to run before the registry was consulted, so that one
+/// case escaped the refusal the other non-proposal results get.
+/// </para>
 /// </summary>
 public class ReviewGateFilterFailClosedTests
 {
@@ -91,6 +97,39 @@ public class ReviewGateFilterFailClosedTests
         var error = AssertError(result);
         Assert.Equal(ToolErrorCodes.WireUpInvalid, error.Code);
         Assert.Contains("declared write-capable", error.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// affiant#119: the empty-result early return used to precede the registry check, so a declared
+    /// write tool that handed back <see langword="null"/> or <c>""</c> — a <c>void</c>/<c>Task</c>
+    /// -returning <c>[KernelFunction]</c>, a null-returning function on the Agent Framework or
+    /// Extensions.AI — passed through with no proposal filed and no refusal, while every other
+    /// non-proposal result was refused.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public async Task ADeclaredWriteToolReturningNothing_IsRefused_NotSkipped(string? toolResult)
+    {
+        var services = Stack(new RecordingDocketStore(), declareWriteTool: true).BuildServiceProvider();
+        using var scope = services.CreateScope();
+
+        var result = await Run(scope.ServiceProvider, toolResult);
+
+        var error = AssertError(result);
+        Assert.Equal(ToolErrorCodes.WireUpInvalid, error.Code);
+        Assert.Contains("declared write-capable", error.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public async Task AReadToolsEmptyResult_StillPassesThroughUntouched(string? toolResult)
+    {
+        var services = Stack(new RecordingDocketStore(), declareReadTool: true).BuildServiceProvider();
+        using var scope = services.CreateScope();
+
+        Assert.Equal(toolResult, await Run(scope.ServiceProvider, toolResult));
     }
 
     [Fact]

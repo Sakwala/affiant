@@ -86,7 +86,9 @@ using Microsoft.Extensions.Logging;
 /// registry <em>does</em> declare it write-capable, the same result is a refusal: a write tool's
 /// declared result is a proposal (GT-6), and one that returned a bare success string either wrote
 /// something itself or lost its proposal, and neither may be reported to the model as a completed,
-/// reviewed write.
+/// reviewed write. <b>A null or empty result is a non-proposal result</b> (affiant#119): the
+/// registry is consulted before the empty-result early return, so a declared write tool that hands
+/// back nothing is refused on the same terms rather than passing through silently.
 /// </para>
 ///
 /// <para>
@@ -151,7 +153,16 @@ public sealed class ReviewGateFilter(
 
         var resultString = context.Result as string ?? context.Result?.ToString();
         if (string.IsNullOrEmpty(resultString))
+        {
+            // Nothing is not a proposal either (affiant#119). The registry is consulted BEFORE this
+            // early return, or a tool the registry declares write-capable that hands back null or ""
+            // — a void- or Task-returning [KernelFunction], a null-returning function on the Agent
+            // Framework or Extensions.AI — would pass through unrefused while every other
+            // non-proposal result is refused. A read tool's empty result still passes through.
+            if (DeclaredWriteTool(context) is { } emptyResultToolName)
+                RefuseWireUp(context, emptyResultToolName, NonProposalReason(emptyResultToolName));
             return;
+        }
 
         WriteProposal? proposal;
         try

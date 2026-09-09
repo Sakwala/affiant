@@ -31,7 +31,7 @@ public static class KernelBuilderExtensions
                 var kf = method.GetCustomAttribute<KernelFunctionAttribute>();
                 if (kf is null) continue;
 
-                var functionName = string.IsNullOrEmpty(kf.Name) ? StripAsyncSuffix(method.Name) : kf.Name;
+                var functionName = string.IsNullOrEmpty(kf.Name) ? StripAsyncSuffix(method) : kf.Name;
                 var write = method.GetCustomAttribute<AffiantWriteToolAttribute>();
 
                 var descriptor = write is null
@@ -118,7 +118,7 @@ public static class KernelBuilderExtensions
             var kf = method.GetCustomAttribute<KernelFunctionAttribute>();
             if (kf is null) continue;
 
-            var functionName = string.IsNullOrEmpty(kf.Name) ? StripAsyncSuffix(method.Name) : kf.Name;
+            var functionName = string.IsNullOrEmpty(kf.Name) ? StripAsyncSuffix(method) : kf.Name;
             var write = method.GetCustomAttribute<AffiantWriteToolAttribute>();
 
             var descriptor = write is null
@@ -135,12 +135,34 @@ public static class KernelBuilderExtensions
         return builder;
     }
 
-    // Strips a single trailing "Async" from a method name, matching SK's naming convention.
-    // Applied only when [KernelFunction] carries no explicit Name (the fallback path).
-    private static string StripAsyncSuffix(string methodName) =>
-        methodName.EndsWith("Async", StringComparison.Ordinal)
-            ? methodName[..^5]
-            : methodName;
+    // Strips a single trailing "Async" from a method name, matching SK's own default-naming
+    // fallback. Applied only when [KernelFunction] carries no explicit Name (the fallback path).
+    // The suffix comes off only when the method returns Task, ValueTask, Task<T>, ValueTask<T> or
+    // IAsyncEnumerable<T>, and never when "Async" is the whole name: SK keeps a SYNCHRONOUS
+    // method's name, so stripping it unconditionally named the descriptor LookupThing while SK
+    // exposed LookupThingAsync and AffiantStartupValidator refused the wiring at boot
+    // (affiant#101). Affiant.AgentFramework's catalog already sources its name from
+    // AIFunctionFactory, which applies the same return-type condition — the same trailing-"Async"
+    // rule on every backend — only that rule: SK and AIFunctionFactory both sanitize a name to
+    // [0-9A-Za-z_] before stripping and this walker does not, so a method name outside that set
+    // still registers here under a spelling SK does not expose.
+    private static string StripAsyncSuffix(MethodInfo method) =>
+        IsAsyncReturn(method.ReturnType)
+        && method.Name.Length > "Async".Length
+        && method.Name.EndsWith("Async", StringComparison.Ordinal)
+            ? method.Name[..^"Async".Length]
+            : method.Name;
+
+    private static bool IsAsyncReturn(Type returnType)
+    {
+        if (returnType == typeof(Task) || returnType == typeof(ValueTask)) return true;
+        if (!returnType.IsGenericType) return false;
+
+        var definition = returnType.GetGenericTypeDefinition();
+        return definition == typeof(Task<>)
+            || definition == typeof(ValueTask<>)
+            || definition == typeof(IAsyncEnumerable<>);
+    }
 
     // Best-effort — startup validator (15.5) is the load-bearing failure point, not the walker.
     private static IEnumerable<Type> TryGetTypes(Assembly assembly)
