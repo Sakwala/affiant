@@ -596,15 +596,18 @@ seven-behaviour Playwright deck that drives it through the framework's real `Rev
 handlers, no LLM key required.
 
 On 30 April 2026, during the extraction of the framework out of its first host application, a
-refactoring commit (`b72c1fa`) began shipping **empty Affidavits** — every proposed write
-carried fields tagged `ProvenanceSource.Empty` and no real values. The entire test suite —
-330 of 330 tests — stayed green, because those tests asserted the *shape* of an Affidavit,
-not the *substance* of its provenance. The regression surfaced only when a real user typed a
-real message and the review card came up blank.
+refactoring commit (`b72c1fa`) began shipping **empty Affidavits** — every proposed write reached
+the Docket with no fields at all, and every slot the review card rendered read
+`ProvenanceSource.Empty`. The test suite stayed green, because no test exercised the path from a
+chat message to a proposed write, and the parity check that closed the extraction two days later
+(330 tests, all green) compared the *shape* of what two host applications produced without asking
+whether either had produced anything. The regression surfaced on 5 May 2026, when the maintainer
+typed a message into the chat and the review card came up empty.
 
-It was found, fixed, and the whole extraction was then audited field-by-field to 100%
-closure. Out of that came the lesson the framework is now built to enforce: **a test suite
-can be 100% green and 0% truthful if it asserts structure, not meaning.** `Affiant.Testing.ComplianceHarness`
+Fixing it took six weeks and an architectural change: inference moved into the framework, the
+host-side form layer that had produced the hollow Affidavit was deleted, and the extraction was
+audited commit by commit. Out of that came the lesson the framework is now built to enforce: **a
+test suite can be 100% green and 0% truthful if it asserts structure, not meaning.** `Affiant.Testing.ComplianceHarness`
 exists so that provenance-substance is a CI gate — an unpaired or shape-only write strategy
 fails the build, in your project as well as ours. This is why the seventh rule ("every field
 carries provenance, no exceptions") is a hard invariant and not a guideline.
