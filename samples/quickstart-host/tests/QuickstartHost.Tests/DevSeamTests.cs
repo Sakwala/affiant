@@ -188,7 +188,7 @@ public sealed class DevSeamTests
         using var scope = host.Services.CreateScope();
         var executor = scope.ServiceProvider.GetRequiredService<IWriteExecutor>();
         var recordId = await executor.ExecuteAsync(
-            entry.Envelope, entry.Amendments, CancellationToken.None);
+            entry.AmendedAffidavit ?? entry.Envelope, amendments: null, CancellationToken.None);
         Assert.NotNull(recordId);
 
         return int.Parse(recordId, System.Globalization.CultureInfo.InvariantCulture);

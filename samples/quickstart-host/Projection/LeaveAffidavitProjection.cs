@@ -44,10 +44,10 @@ using QuickstartHost.Data;
 /// <para>
 /// <b>Confidence.</b> <c>AggregateConfidence</c> here is the <em>minimum</em> over every proposed
 /// field, an unsourced field counting 0.0 — so the number is 0.0 exactly when some proposed field
-/// has unknown provenance. The framework's own <c>SchemaDrivenAffidavitProjection</c> averages the
-/// fields that do have a source as <c>PopulatedConfidence</c> and takes the same minimum for
-/// <c>AggregateConfidence</c>, so this projection and the framework's agree on the number that
-/// matters. See INVARIANTS.md AF-2, linked from the sample's README.
+/// has unknown provenance. That is also the framework's own rule since <c>1.0.0-beta.3</c>:
+/// <c>AffidavitConfidence.Compute</c> takes the same minimum for <c>AggregateConfidence</c> and the
+/// minimum over the fields that do have a source for <c>PopulatedConfidence</c> — neither number is
+/// a mean. See INVARIANTS.md AF-2, linked from the sample's README.
 /// </para>
 ///
 /// <para>
@@ -128,10 +128,11 @@ public sealed class LeaveAffidavitProjection(
             warnings: allWarnings,
             requiresConfirmation: true) with
         {
-            // This host swears a stricter aggregate than the framework's own: the minimum over
-            // every proposed field, an unsourced one counting 0.0. The two companions stay as
-            // Affidavit.Create computed them, so the card's three numbers are still about the same
-            // field list (AF-2).
+            // Restating the framework's own rule, not overriding it: Affidavit.Create already
+            // computed this exact minimum through AffidavitConfidence.Compute. It is written out
+            // here because the number a reviewer rests on is worth stating in the host's own code
+            // (AF-2), and the two companions stay as Create computed them, so the card's three
+            // numbers are still about the same field list.
             AggregateConfidence = aggregateConfidence,
         };
     }
@@ -188,13 +189,10 @@ public sealed class LeaveAffidavitProjection(
     /// have a source, and how many have none — stated as a line a reviewer can read.
     ///
     /// <para>
-    /// They cannot travel on the affidavit itself. The 1.0.0-beta.1 <c>Affidavit</c> is a sealed
-    /// record carrying <c>AggregateConfidence</c> and no companions
-    /// (<c>src/Affiant.Abstractions/Models/Affidavit.cs</c>), and a host cannot add properties to a
-    /// type it does not own. <c>Warnings</c> is the one channel the shipped shape leaves open, and
-    /// the Evidence Card renders it. The card element already reads <c>populatedConfidence</c> and
-    /// <c>emptyFieldCount</c> off an affidavit when they are there, so a release that widens the
-    /// record moves these two onto it and this note goes away.
+    /// The record carries both numbers itself since <c>1.0.0-beta.3</c> —
+    /// <c>Affidavit.PopulatedConfidence</c> and <c>Affidavit.EmptyFieldCount</c>, computed by
+    /// <c>Affidavit.Create</c> — so this line restates them rather than supplying them, in the one
+    /// channel that reaches a reviewer as a sentence.
     /// </para>
     /// </summary>
     private static string ConfidenceNote(AffidavitField[] fields, float aggregateConfidence)
