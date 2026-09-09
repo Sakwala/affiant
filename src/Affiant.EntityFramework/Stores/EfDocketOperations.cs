@@ -1,4 +1,5 @@
 using Affiant.Abstractions;
+using Affiant.Abstractions.Serialization;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Affiant.Abstractions.Interfaces;
@@ -28,14 +29,13 @@ namespace Affiant.EntityFramework.Stores;
 /// Every guarded write here is a real conditional <c>UPDATE</c> — the guard is in the statement, never
 /// in surrounding C# — so of two decisions that race, exactly one affects a row.
 /// </para>
+/// <para>
+/// Every JSON column written here goes through <see cref="AffiantJson.SerializerOptions"/>, so a
+/// stored Affidavit is byte-identical to the same Affidavit on the wire (SR-3).
+/// </para>
 /// </remarks>
 internal sealed class EfDocketOperations(AffiantDbContext db, ILogger logger, TimeProvider time)
 {
-    private static readonly JsonSerializerOptions s_jsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
-
     private static readonly string s_pending = ReviewStatus.Pending.ToString();
     private static readonly string s_approved = ReviewStatus.Approved.ToString();
     private static readonly string s_expired = ReviewStatus.Expired.ToString();
@@ -47,7 +47,7 @@ internal sealed class EfDocketOperations(AffiantDbContext db, ILogger logger, Ti
     {
         ct.ThrowIfCancellationRequested();
 
-        var entitiesJson = JsonSerializer.Serialize(context.Entities, s_jsonOptions);
+        var entitiesJson = JsonSerializer.Serialize(context.Entities, AffiantJson.SerializerOptions);
 
         var existing = await db.ConversationContexts
             .FirstOrDefaultAsync(c => c.SessionId == sessionId, ct);
@@ -85,7 +85,7 @@ internal sealed class EfDocketOperations(AffiantDbContext db, ILogger logger, Ti
         if (entity is null) return null;
 
         var entities = JsonSerializer.Deserialize<Dictionary<string, EntityRef>>(
-            entity.EntitiesJson, s_jsonOptions) ?? new Dictionary<string, EntityRef>();
+            entity.EntitiesJson, AffiantJson.SerializerOptions) ?? new Dictionary<string, EntityRef>();
 
         return new AbstractConversationContext(sessionId, entities);
     }
@@ -214,7 +214,7 @@ internal sealed class EfDocketOperations(AffiantDbContext db, ILogger logger, Ti
         var amendmentsJson = DocketRowSerialization.WriteAmendments(patch.Amendments);
         var amendedJson = patch.AmendedAffidavit is null
             ? null
-            : JsonSerializer.Serialize(patch.AmendedAffidavit, s_jsonOptions);
+            : JsonSerializer.Serialize(patch.AmendedAffidavit, AffiantJson.SerializerOptions);
         var amendedChainsJson = patch.AmendedAffidavit is null
             ? null
             : SerializeProvenanceChains(patch.AmendedAffidavit.Fields);
@@ -661,12 +661,12 @@ internal sealed class EfDocketOperations(AffiantDbContext db, ILogger logger, Ti
         ToolName = entry.ToolName,
         Channel = entry.Channel,
         Requirement = entry.Requirement.ToString(),
-        AffidavitJson = JsonSerializer.Serialize(entry.Envelope, s_jsonOptions),
+        AffidavitJson = JsonSerializer.Serialize(entry.Envelope, AffiantJson.SerializerOptions),
         ProvenanceChainsJson = SerializeProvenanceChains(entry.Envelope.Fields),
         AmendmentsJson = DocketRowSerialization.WriteAmendments(entry.Amendments),
         AmendedAffidavitJson = entry.AmendedAffidavit is null
             ? null
-            : JsonSerializer.Serialize(entry.AmendedAffidavit, s_jsonOptions),
+            : JsonSerializer.Serialize(entry.AmendedAffidavit, AffiantJson.SerializerOptions),
         AmendedProvenanceChainsJson = entry.AmendedAffidavit is null
             ? null
             : SerializeProvenanceChains(entry.AmendedAffidavit.Fields),
@@ -748,7 +748,7 @@ internal sealed class EfDocketOperations(AffiantDbContext db, ILogger logger, Ti
     {
         if (string.IsNullOrEmpty(affidavitJson)) return null;
 
-        var affidavit = JsonSerializer.Deserialize<Affidavit>(affidavitJson, s_jsonOptions);
+        var affidavit = JsonSerializer.Deserialize<Affidavit>(affidavitJson, AffiantJson.SerializerOptions);
         if (affidavit is null) return null;
 
         var chains = DeserializeProvenanceChains(chainsJson);
@@ -761,7 +761,7 @@ internal sealed class EfDocketOperations(AffiantDbContext db, ILogger logger, Ti
     private static string SerializeProvenanceChains(AffidavitField[] fields)
     {
         var dict = fields.ToDictionary(f => f.Name, f => f.Provenance);
-        return JsonSerializer.Serialize(dict, s_jsonOptions);
+        return JsonSerializer.Serialize(dict, AffiantJson.SerializerOptions);
     }
 
     private static Dictionary<string, ProvenanceChain> DeserializeProvenanceChains(string? json)
@@ -769,7 +769,7 @@ internal sealed class EfDocketOperations(AffiantDbContext db, ILogger logger, Ti
         if (string.IsNullOrEmpty(json) || json is "[]" or "{}")
             return new Dictionary<string, ProvenanceChain>();
 
-        return JsonSerializer.Deserialize<Dictionary<string, ProvenanceChain>>(json, s_jsonOptions)
+        return JsonSerializer.Deserialize<Dictionary<string, ProvenanceChain>>(json, AffiantJson.SerializerOptions)
                ?? new Dictionary<string, ProvenanceChain>();
     }
 }
