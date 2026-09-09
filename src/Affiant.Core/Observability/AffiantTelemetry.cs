@@ -364,11 +364,12 @@ public static class AffiantTelemetry
 /// which a registry key now supersedes.
 ///
 /// <para>
-/// Each name here is still emitted, from the site that has always emitted it, for one release —
-/// <c>1.0.0-beta.3</c> — so an operator's existing alert keeps firing while they move it. Each is
-/// <see cref="ObsoleteAttribute"/>-marked with the registry key that replaces it. They are removed
-/// in the release after <c>1.0.0-beta.3</c>; a name that is removed here is gone from the emitted
-/// stream in the same release, which is why the deprecation window exists at all.
+/// Each name here is still emitted, from the site that has always emitted it, through the
+/// <c>1.0.0-beta.3</c> line — its point releases included — so an operator's existing alert keeps
+/// firing while they move it. Each is <see cref="ObsoleteAttribute"/>-marked with the registry key
+/// that replaces it. They are removed at the next release that is not a point release of
+/// <c>1.0.0-beta.3</c>; a name that is removed here is gone from the emitted stream in the same
+/// release, which is why the deprecation window exists at all.
 /// </para>
 ///
 /// <para>
@@ -391,7 +392,8 @@ public static class DeprecatedTelemetryKeys
     [Obsolete(
         "Superseded by TelemetryKeys.AffidavitFiled (\"affidavit.filed\"), emitted by ReviewGate at " +
         "filing, and by TelemetryKeys.AffidavitRefusedSubstance (\"affidavit.refused.substance\") for " +
-        "the hollow-Affidavit case. Still emitted through 1.0.0-beta.3; removed in the release after it.")]
+        "the hollow-Affidavit case. Still emitted through the 1.0.0-beta.3 line, point releases " +
+        "included; removed at the next release that is not a point release of it.")]
     public const string AffidavitProjected = "affidavit.projected";
 }
 

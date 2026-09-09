@@ -50,7 +50,15 @@ public sealed class TaskInferenceRunner
         {
             var request = new InferenceCompletionRequest(history, strategy, functionName, arguments);
             var json = await _port.CompleteStructuredAsync(request, cancellationToken).ConfigureAwait(false);
-            var result = await _mergeStep.ExecuteAsync(strategy, json, cancellationToken).ConfigureAwait(false);
+
+            // PV-3: the grade is a fact about the turn, so the step is given the turn. The utterance
+            // is the last thing the person said in this history, unmodified — no earlier turn, since
+            // an `utterance-span` binding names no message and a hit in an earlier turn could not be
+            // bound to one. `ConversationTurn` is the one reading of that, shared with the
+            // completion-stage filter so the two shipped callers cannot read a history two ways.
+            var result = await _mergeStep
+                .ExecuteAsync(strategy, json, ConversationTurn.LatestUtterance(history), cancellationToken)
+                .ConfigureAwait(false);
 
             Activity.Current?.AddEvent(new ActivityEvent(
                 "inference.completed",

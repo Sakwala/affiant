@@ -20,8 +20,11 @@ using Xunit;
 ///
 /// Contract under test (PRD §7.1): for a realistic user turn that triggers a
 /// WriteCreate tool, the framework MUST produce an Affidavit whose Fields[] is
-/// non-empty and whose per-field ProvenanceChain.Current.Source is one of
-/// { Inferred, UserStated } — never Empty. This is the L2 architectural invariant.
+/// non-empty and whose per-field ProvenanceChain.Current.Source is a rung the
+/// inference path can mint — { Conversation, Inferred } — never Empty. This is the
+/// L2 architectural invariant. PV-3 makes UserStated unreachable from this path
+/// structurally, and grades a value the turn contains Conversation: this turn says
+/// "high-priority" and "thing-7", so two of the three fields are graded from it.
 ///
 /// L2 lands in Epic 16 (Stories 16.1–16.7); this test ratifies the contract end-to-end
 /// via the real IAffidavitProjection (SchemaDrivenAffidavitProjection) and the pre-tool
@@ -125,8 +128,8 @@ public class TaskInferenceOrchestratorAffidavitParityTests
         {
             var source = field.Provenance.Current.Source;
             Assert.True(
-                source is ProvenanceSource.Inferred or ProvenanceSource.UserStated,
-                $"Field '{field.Name}' has ProvenanceSource.{source}; expected Inferred or UserStated.");
+                source is ProvenanceSource.Conversation or ProvenanceSource.Inferred,
+                $"Field '{field.Name}' has ProvenanceSource.{source}; expected Conversation or Inferred.");
         }
     }
 

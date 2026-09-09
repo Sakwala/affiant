@@ -20,7 +20,7 @@ using Microsoft.Extensions.Logging;
 /// <para>
 /// <b>Merge-failure policy (area-3 P2 ruling 3, gate ruling "surface-and-continue"):</b> this filter
 /// runs strictly after the tool already produced its result. Any non-cancellation exception from the
-/// merge attempt — malformed JSON, or a bug in <see cref="TaskInferenceStep.ExecuteAsync"/>/the
+/// merge attempt — malformed JSON, or a bug in <see cref="TaskInferenceStep.ExecuteAsync(ITaskInferenceStrategy, System.Text.Json.JsonElement, string, System.Threading.CancellationToken)"/>/the
 /// resolved <see cref="ITaskInferenceStrategy"/> — must never discard that result, never cause the
 /// tool to be re-executed, and never be reported to the model as a tool failure (V5: previously an
 /// uncaught non-<see cref="JsonException"/> here propagated into <c>ToolErrorFilter</c>'s
@@ -70,7 +70,16 @@ public sealed class TaskInferenceMergeFilter : ICompletionStageFilter
         try
         {
             using var doc = JsonDocument.Parse(resultString);
-            var result = await _step.ExecuteAsync(strategy, doc.RootElement, cancellationToken);
+
+            // PV-3: this filter holds the conversation history the bridge put on the context, so it
+            // grades the same way the pre-tool runner does — the step is given the current turn and
+            // establishes presence from it, rather than taking the port's own word for it.
+            // `ConversationTurn` is that one reading, shared with `TaskInferenceRunner`.
+            var result = await _step.ExecuteAsync(
+                strategy,
+                doc.RootElement,
+                ConversationTurn.LatestUtterance(context.History),
+                cancellationToken);
 
             var mergedCount = result.MergedFields.Count(kv => kv.Value.Merged);
             if (mergedCount > 0)

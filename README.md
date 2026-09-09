@@ -16,9 +16,10 @@ Nothing commits without evidence. Nothing writes without approval.
 > nightly. What to try and what you are looking at:
 > [affiant.dev/start/live-demo](https://affiant.dev/start/live-demo/).
 
-> **Beta.** `1.0.0-beta.3` — the conformance release — is the current version: all ten packages,
-> co-versioned. It passes the protocol's whole conformance suite, 63 of 63, at the rulebook's
-> [`v0.1.2`](https://github.com/Sakwala/affiant-protocol/releases/tag/v0.1.2) tag; the run and the
+> **Beta.** `1.0.0-beta.3.1` is the current version in this tree — all ten packages, co-versioned;
+> `1.0.0-beta.3` is the latest one published to nuget.org. This tree's build passes the protocol's
+> whole conformance suite, 68 of 68, at the rulebook's
+> [`v0.1.3`](https://github.com/Sakwala/affiant-protocol/releases/tag/v0.1.3) tag; the run and the
 > parity manifest it rests on are in `conformance/`. The public API has been validated by two
 > first-party host applications but has not yet reached 1.0 GA. Read
 > [Beta status](#beta-status) before adopting — trust the *invariant*, expect the *API* to evolve.
@@ -693,21 +694,24 @@ per-release detail are in the [CHANGELOG](CHANGELOG.md)'s header; not repeated h
   carries `PublicAPI.Shipped.txt`/`PublicAPI.Unshipped.txt` baselines and references
   `Microsoft.CodeAnalysis.PublicApiAnalyzers` — an undeclared or silently-deleted public member
   fails the build (`RS0016`/`RS0017`). `EnablePackageValidation` is on for all ten packages,
-  diffing the packed public surface against `PackageValidationBaselineVersion` once one is set
-  (deliberately unset today — there is no published version yet to diff against). Together these
+  diffing the packed public surface against `PackageValidationBaselineVersion`, which
+  `Directory.Build.props` sets to `1.0.0-beta.1.1`: `pack` downloads that published package and
+  fails the build on a break against it unless the project's `CompatibilitySuppressions.xml`
+  declares it — nine of the ten carry one. Together these
   catch *accidental* drift; they do not and cannot enforce the *policy* above, which is about
   what a maintainer is allowed to change on purpose between tags — that's a human commitment,
   recorded here and in the CHANGELOG, not a build gate.
 
 ## Beta status
 
-This is `1.0.0-beta.3`, the conformance release. `1.0.0-beta.1` was published on nuget.org on
-2026-08-23 (UTC) and `1.0.0-beta.1.1` on 2026-09-04; earlier `1.0.0-alpha.*` versions were internal
-and were never published.
+This tree builds `1.0.0-beta.3.1`, a point release of the conformance release `1.0.0-beta.3`.
+`1.0.0-beta.1` was published on nuget.org on 2026-08-23 (UTC) and `1.0.0-beta.1.1` on 2026-09-04;
+`1.0.0-beta.3` is the latest version published there. Earlier `1.0.0-alpha.*` versions were internal
+and were never published, and nothing carrying `1.0.0-beta.3.1` is published yet.
 
 Every package is installed with `--prerelease`, so the Quickstarts below need no version pin: they
-resolve to the latest prerelease, which is this one. Pin explicitly (`--version 1.0.0-beta.3`) where
-a build has to be reproducible.
+resolve to the latest published prerelease. Pin explicitly (`--version 1.0.0-beta.3`) where a build
+has to be reproducible.
 
 The API has been exercised by two independent first-party host applications, but it has not
 yet reached 1.0 GA. Adopt on this basis:

@@ -21,10 +21,15 @@ public sealed class AffiantAutoFunctionInvocationBridge(ToolInvocationPipeline p
         AutoFunctionInvocationContext context,
         Func<AutoFunctionInvocationContext, Task> next)
     {
+        var onKernel = SkMessageConversions.HistoryOf(context.Kernel);
+
         // affiant#114: the review gate runs here, at the completion stage, and it is the seam that
         // attaches the call's arguments to a WriteProposal — they are part of the entry-id material
         // (GT-4). Passing an empty set gave SK a different id from every other backend for the same
         // logical proposal, and gave two SK calls that differ only in their arguments the same id.
+        // AutoFunctionInvocationContext.Arguments can throw when the loop supplied no
+        // KernelArguments, so ReadArguments below reads it defensively and falls back to the empty
+        // set on that one exception.
         var request = new ToolInvocationRequest(
             context.Function.Name,
             context.Function.PluginName ?? string.Empty,
@@ -40,6 +45,22 @@ public sealed class AffiantAutoFunctionInvocationBridge(ToolInvocationPipeline p
             // retry by calling next() a second time, genuinely re-executing the tool for a failure
             // that had nothing to do with it. See ToolInvocationContext.NextIsToolBody's remarks.
             InitialNextIsToolBody = false,
+            // The turn the completion stage grades against (PV-3). TaskInferenceMergeFilter runs
+            // here, and it establishes presence from what the person actually typed — so this seam
+            // has to hand over the same history the invocation-stage bridge does, read the same way.
+            // Without it the filter received no turn on Semantic Kernel and fell back to taking the
+            // port's own word for presence, which is the defect Sakwala/affiant#123 is about.
+            // Design record A25: the kernel convention is a HOST contract nothing in the framework
+            // populates, so when the host has not adopted it this seam falls back to the history SK
+            // itself hands the filter on every auto-invocation call, converted the same way — the
+            // two readings cannot differ. A caller with neither still takes the no-turn path.
+            // The question asked of the kernel's reading is whether it carries a PERSON'S turn, not
+            // whether it is non-empty: a host that puts a system-message-only ChatHistory there has
+            // adopted the convention badly rather than not at all, and reading that as a turn would
+            // beat SK's own history with one the finder has nothing to search.
+            History = SkMessageConversions.CarriesUserTurn(onKernel)
+                ? onKernel
+                : SkMessageConversions.ToNeutral(context.ChatHistory),
         };
 
         object? toolProduced = null;

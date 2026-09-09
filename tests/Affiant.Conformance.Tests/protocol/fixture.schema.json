@@ -302,12 +302,12 @@
       "description": "One field the scripted inference port reports.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["value", "confidence", "presence"],
+      "required": ["value", "confidence"],
       "properties": {
         "value": { "$ref": "#/$defs/jsonValue" },
         "confidence": { "description": "How confident the port claims to be. Clamped by the pipeline (PV-1).", "type": "number" },
         "presence": {
-          "description": "Literally present in the turn (Conversation) or reasoned to (Inferred).",
+          "description": "The port's HINT about whether the value was literally in the turn. Optional, and never the grade: PV-3 has the implementation establish presence from `given.ctx.utterance` itself and verify this claim the same way, so a `literal` the utterance does not confirm is Inferred and an absent hint over a value the utterance does carry is Conversation.",
           "type": "string",
           "enum": ["literal", "inferred"]
         },
@@ -795,7 +795,7 @@
     },
 
     "fieldMatcher": {
-      "description": "A partial matcher over one sworn field. `source`, `bound`, `bindingKind` and `priorSources` are projections of the field's provenance chain, not properties of their own.",
+      "description": "A partial matcher over one sworn field. `source`, `bound`, `bindingKind`, `utteranceSpan` and `priorSources` are projections of the field's provenance chain, not properties of their own.",
       "type": "object",
       "additionalProperties": false,
       "required": ["name"],
@@ -808,6 +808,17 @@
         "source": { "$ref": "#/$defs/provenanceSource" },
         "bound": { "description": "Whether the tag in force points at something checkable (PV-2, PV-4).", "type": "boolean" },
         "bindingKind": { "oneOf": [{ "$ref": "#/$defs/bindingKind" }, { "type": "null" }] },
+        "utteranceSpan": {
+          "description": "The utterance-span binding the tag in force carries, stated exactly (PV-3 v0.1.3): `offset` and `length` in UTF-16 code units of `given.ctx.utterance`, and `hash` the SHA-256 of the UTF-8 bytes of the utterance's OWN substring at that span, 64 lowercase hexadecimal characters. Stating it pins which occurrence was found and that the digest is taken over the utterance rather than over the value the port reported. Absent asserts nothing about the span.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["offset", "length", "hash"],
+          "properties": {
+            "offset": { "type": "integer", "minimum": 0 },
+            "length": { "type": "integer", "minimum": 1 },
+            "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+          }
+        },
         "confidence": { "$ref": "#/$defs/unitInterval" },
         "priorSources": {
           "description": "The grades the chain displaced, newest first. Nothing is ever dropped from a chain.",

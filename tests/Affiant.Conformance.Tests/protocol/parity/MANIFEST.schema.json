@@ -127,6 +127,10 @@
             "description": "Whether the implementation CLAIMS this runtime. A runtime it does not claim is not a gap; a runtime it claims and does not run the suite on is.",
             "type": "boolean"
           },
+          "unicodeVersion": {
+            "description": "The Unicode version the runtime's own character database carries. PV-3's neighbour test reads General_Category from it, so two runtimes at two Unicode versions can differ on code points assigned since the older one; stating the version is how a reader tells which run that is. Optional in this schema, because the manifests published against earlier tags predate the key; the rulebook's lint REQUIRES it of every runtime in a manifest whose protocolTag is v0.1.3 or later.",
+            "type": "string"
+          },
           "note": { "type": "string" }
         }
       }

@@ -1,0 +1,83 @@
+{
+  "id": "gate/inference-case-folds-and-the-digest-is-the-utterances",
+  "rules": ["GT-1", "PV-1", "PV-3", "AF-1", "AF-2"],
+  "title": "The port reports value and confidence only, and the value it reports differs from the utterance in case alone: Client Lunch against a turn that says client lunch. The comparison folds ASCII case, so it is a hit and the grade is Conversation - and the binding is over the UTTERANCE, so the span's digest is the SHA-256 of client lunch as the person typed it, not of the value the port handed back (PV-3, PV-2).",
+  "given": {
+    "clock": "2026-09-08T09:00:00.000Z",
+    "store": "memory",
+    "gate": {
+      "defaultTtlMs": 1800000,
+      "authorization": {
+        "allow": ["*"]
+      },
+      "inference": {
+        "description": {
+          "value": "Client Lunch",
+          "confidence": 0.8
+        }
+      }
+    },
+    "ctx": {
+      "tenantId": "tenant-a",
+      "conversationId": "conv-1",
+      "channel": "chat",
+      "principal": {
+        "kind": "member",
+        "id": "member-1"
+      },
+      "utterance": "File the expense for client lunch, 40 EUR",
+      "messageId": "msg-1"
+    },
+    "prior": [],
+    "step": {
+      "kind": "file",
+      "toolName": "relay_capture",
+      "operation": {
+        "kind": "create",
+        "entityType": "ExpenseReport",
+        "entityId": null,
+        "fields": ["description"]
+      },
+      "schema": [
+        {
+          "name": "description",
+          "kind": "text",
+          "description": "What the expense was for"
+        }
+      ]
+    }
+  },
+  "expect": {
+    "entry": {
+      "status": "pending",
+      "requirement": "ReviewerConfirmation",
+      "execution": null,
+      "blocked": null,
+      "expiresAtOffsetMs": 1800000,
+      "attestation": null,
+      "toolName": "relay_capture",
+      "affidavit": {
+        "operationType": "create",
+        "entityId": null,
+        "aggregateConfidence": 0.8,
+        "populatedConfidence": 0.8,
+        "emptyFieldCount": 0,
+        "fields": [
+          {
+            "name": "description",
+            "value": "Client Lunch",
+            "previousValue": null,
+            "source": "Conversation",
+            "bound": true,
+            "bindingKind": "utterance-span",
+            "utteranceSpan": {
+              "offset": 21,
+              "length": 12,
+              "hash": "8cdd8a7d75d31e666ffe202ee1bca3fd5673d943783de1c22bfa27cb51848a9c"
+            }
+          }
+        ]
+      }
+    }
+  }
+}

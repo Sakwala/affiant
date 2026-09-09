@@ -85,7 +85,14 @@ public class ManualToolInvoker(
             // proposal, and gave two calls that differ only in their arguments the same id. These
             // are the arguments kernel.InvokeAsync ran the tool with, their values stringified
             // above; the tool has already returned, so nothing downstream can change what ran.
-            functionName, pluginName, arguments);
+            functionName, pluginName, arguments)
+        {
+            // The turn the completion stage grades against (PV-3), read exactly as the
+            // invocation-stage bridge reads it. TaskInferenceMergeFilter establishes presence from
+            // the person's own words, and a degraded path that withheld the history would grade the
+            // same tool result differently from the auto-invocation path.
+            History = SkMessageConversions.HistoryOf(kernel),
+        };
 
         var completed = await pipeline.RunAsync(
             completionRequest,

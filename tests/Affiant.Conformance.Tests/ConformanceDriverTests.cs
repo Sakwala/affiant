@@ -47,7 +47,7 @@ public sealed class ConformanceDriverTests(ITestOutputHelper output)
         new(() => ProtocolSuite.At(ProtocolRoot), LazyThreadSafetyMode.ExecutionAndPublication);
 
     /// <summary>
-    /// The one run for this process. Running 63 documents per assertion would say the same thing
+    /// The one run for this process. Running 68 documents per assertion would say the same thing
     /// several times over and take several times as long.
     /// </summary>
     private static ConformanceRun Run => LazyRun.Value;
@@ -370,13 +370,19 @@ public sealed class ConformanceDriverTests(ITestOutputHelper output)
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The oracle is a statement about a <em>named</em> release — every entry in the vendored suite
-    /// reads <c>dotnet@1.0.0-beta.1</c>. Running it against a different version answers a question
-    /// nobody asked: a release that fixes those rules is supposed to pass those fixtures, and
-    /// reporting that as a broken oracle would turn every correction into a red build. So on any
-    /// other version this reports itself skipped, with the reason, rather than failing or quietly
-    /// passing. xUnit 2.x has no dynamic skip, so the skip is a line in the run's own output and an
-    /// assertion that the versions really do differ.
+    /// The oracle is a statement about a <em>named</em> release, and the vendored suite names two:
+    /// <c>dotnet@1.0.0-beta.1</c> on nineteen fixtures, and <c>dotnet@1.0.0-beta.3</c> on five — the
+    /// four PV-3 gate fixtures the rulebook's <c>v0.1.3</c> presence amendment authored, and
+    /// <c>sequence-a/picker-external-binding</c>, which it amended. The amendment authored a fifth
+    /// gate fixture, <c>gate/inference-empty-value-is-nothing-reported</c>, which names no release
+    /// and carries no oracle entry. Each fixture speaks only about the release it names, so this
+    /// check asserts the set that names the version under test
+    /// and no other. Running it against a version no entry names answers a question nobody asked: a
+    /// release that fixes those rules is supposed to pass those fixtures, and reporting that as a
+    /// broken oracle would turn every correction into a red build. So on any such version this
+    /// reports itself skipped, with the reason, rather than failing or quietly passing. xUnit 2.x
+    /// has no dynamic skip, so the skip is a line in the run's own output and an assertion that the
+    /// running version really is none of the named ones.
     /// </para>
     /// </remarks>
     [Fact]

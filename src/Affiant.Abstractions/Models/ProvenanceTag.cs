@@ -263,8 +263,10 @@ public sealed record ProvenanceTag(
     /// The model's reported confidence. Clamped into <c>[0, 1]</c> by the tag itself.
     /// </param>
     /// <param name="binding">
-    /// An <see cref="ProvenanceBinding.UtteranceSpan"/> when the inference port supplied offsets
-    /// into the unmodified utterance; null otherwise.
+    /// An <see cref="ProvenanceBinding.UtteranceSpan"/> naming where the value was read, or null.
+    /// A caller holding the turn establishes that from the utterance itself and a port's report of
+    /// it is a hint, verified the same way; a caller with no turn passes on the offsets the port
+    /// reported, which is the only account of the span there is (PV-3).
     /// </param>
     public static ProvenanceTag FromInference(
         InferenceSource source,

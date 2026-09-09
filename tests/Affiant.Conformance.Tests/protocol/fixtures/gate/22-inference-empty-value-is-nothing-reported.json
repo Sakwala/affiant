@@ -1,0 +1,56 @@
+{
+  "id": "gate/inference-empty-value-is-nothing-reported",
+  "rules": ["GT-1", "PV-3", "AF-1", "GT-3"],
+  "title": "The port reports the empty string for the only proposed field. An empty string is not a value a field can carry, so the port reported nothing: nothing is merged, no tag is minted and the field stays Empty (PV-3, AF-1) — which leaves the proposal swearing to nothing, and GT-3 refuses it. A port's confidence is not a substitute for a value.",
+  "given": {
+    "clock": "2026-09-08T09:00:00.000Z",
+    "store": "memory",
+    "gate": {
+      "defaultTtlMs": 1800000,
+      "authorization": {
+        "allow": ["*"]
+      },
+      "inference": {
+        "note": {
+          "value": "",
+          "confidence": 0.9
+        }
+      }
+    },
+    "ctx": {
+      "tenantId": "tenant-a",
+      "conversationId": "conv-1",
+      "channel": "chat",
+      "principal": {
+        "kind": "member",
+        "id": "member-1"
+      },
+      "utterance": "Write up the left engine check",
+      "messageId": "msg-1"
+    },
+    "prior": [],
+    "step": {
+      "kind": "file",
+      "toolName": "relay_capture",
+      "operation": {
+        "kind": "create",
+        "entityType": "WorkOrder",
+        "entityId": null,
+        "fields": ["note"]
+      },
+      "schema": [
+        {
+          "name": "note",
+          "kind": "text",
+          "description": "What the technician should know"
+        }
+      ]
+    }
+  },
+  "expect": {
+    "error": {
+      "code": "substance-refused",
+      "messageContains": "no proposed field carries provenance other than Empty"
+    }
+  }
+}

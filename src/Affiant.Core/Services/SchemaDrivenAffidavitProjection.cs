@@ -218,9 +218,10 @@ public sealed class SchemaDrivenAffidavitProjection : IAffidavitProjection
 
         // Emit affidavit.projected span event with per-projection summary attributes.
         // DEPRECATED (1.0.0-beta.3): superseded by the registry's affidavit.filed, which ReviewGate
-        // emits when this Affidavit becomes a Docket entry. Still emitted for one release so an
-        // operator's existing alert keeps firing while they move it; removed in the release after.
-#pragma warning disable CS0618 // deliberate: the deprecated alias is emitted alongside the registry key for one release.
+        // emits when this Affidavit becomes a Docket entry. Still emitted through the 1.0.0-beta.3
+        // line, its point releases included, so an operator's existing alert keeps firing while they
+        // move it; removed at the next release that is not a point release of it.
+#pragma warning disable CS0618 // deliberate: the deprecated alias is emitted alongside the registry key for the whole 1.0.0-beta.3 line.
         Activity.Current?.AddEvent(new ActivityEvent(
             DeprecatedTelemetryKeys.AffidavitProjected,
             tags: new ActivityTagsCollection

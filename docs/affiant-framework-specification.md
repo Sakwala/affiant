@@ -1110,7 +1110,7 @@ The L2 inference orchestration layer centralizes two responsibilities that were 
 
 L2 introduces three new abstractions in `Affiant.Abstractions.Interfaces`, each with a default implementation in `Affiant.Core` or `Affiant.SemanticKernel`.
 
-**`IInferenceCompletionPort`** is the port through which the framework sends a structured-output inference request to an LLM. Its single method, `CompleteStructuredAsync(InferenceCompletionRequest) → JsonElement`, accepts a request bundle (conversation history, the active `ITaskInferenceStrategy`, the function name, and the current tool arguments) and returns a `JsonElement` whose schema matches the strategy's declared fields. The framework ships two implementations, one per interception backend: `SemanticKernelInferenceCompletionPort` in `Affiant.SemanticKernel` and `AgentFrameworkInferenceCompletionPort` in `Affiant.AgentFramework` (added 2026-07-05; see §3.12.3). Hosts that want to route inference through a different LLM provider — or stub it in tests — replace the port via DI without touching any other L2 component.
+**`IInferenceCompletionPort`** is the port through which the framework sends a structured-output inference request to an LLM. Its single method, `CompleteStructuredAsync(InferenceCompletionRequest) → JsonElement`, accepts a request bundle (conversation history, the active `ITaskInferenceStrategy`, the function name, and the current tool arguments) and returns a `JsonElement` whose schema matches the strategy's declared fields. The framework ships three implementations: `SemanticKernelInferenceCompletionPort` in `Affiant.SemanticKernel`, `AgentFrameworkInferenceCompletionPort` in `Affiant.AgentFramework` (added 2026-07-05; see §3.12.3), and `ExtensionsAIInferenceCompletionPort` in `Affiant.Extensions.AI` (added 2026-08-20; see the package mapping under §4). Hosts that want to route inference through a different LLM provider — or stub it in tests — replace the port via DI without touching any other L2 component.
 
 **`IInferenceTrigger`** decides, per tool invocation, whether inference should run. Its single method, `ShouldRun(InferenceTriggerContext) → bool`, receives the function name, plugin name, current tool arguments, the active `ContextFabric`, and the invocation phase (`PreTool`). The framework registers one default trigger: `WriteIntentInferenceTrigger`, which returns `true` for any tool whose `AffiantToolDescriptor` has `Operation.Kind` equal to `"WriteCreate"` or `"WriteUpdate"`. Hosts may register additional triggers via DI; `InferenceTriggerFilter` short-circuits on the first trigger that returns `true`.
 
@@ -1124,7 +1124,7 @@ L2 introduces three new abstractions in `Affiant.Abstractions.Interfaces`, each 
 
 Three default service implementations ship with the framework. Hosts that accept the defaults need only call `AddAffiantInferenceOrchestration()` (§3.12.3) during DI setup.
 
-**`TaskInferenceRunner`** (in `Affiant.Core.Services`) is the stateless orchestrator that bridges `IInferenceCompletionPort` and the merge step. It builds an `InferenceCompletionRequest`, calls the port, forwards the resulting `JsonElement` to `TaskInferenceStep` for confidence-based merge into the `ContextFabric`, and emits the `inference.completed` span event. On any exception other than the caller's own cancellation it emits `inference.failed`, logs a warning at `LogWarning` level, and returns an empty `TaskInferenceResult` — the fail-safe contract (§3.12.7).
+**`TaskInferenceRunner`** (in `Affiant.Core.Services`) is the stateless orchestrator that bridges `IInferenceCompletionPort` and the merge step. It builds an `InferenceCompletionRequest`, calls the port, forwards the resulting `JsonElement` — together with the current turn, the `Content` of the last message in the history whose `Role` is the user role (a null `Content` is an empty turn, not a missing one), which is what PV-3's grade is established against — to `TaskInferenceStep` for confidence-based merge into the `ContextFabric`, and emits the `inference.completed` span event. On any exception other than the caller's own cancellation it emits `inference.failed`, logs a warning at `LogWarning` level, and returns an empty `TaskInferenceResult` — the fail-safe contract (§3.12.7).
 
 **`WriteIntentInferenceTrigger`** (in `Affiant.Core.Triggers`) is the default `IInferenceTrigger` registered by `AddAffiantInferenceOrchestration()`. It fires inference for any tool whose registered `AffiantToolDescriptor` has `Operation.Kind` of `"WriteCreate"` or `"WriteUpdate"`.
 
@@ -1293,7 +1293,7 @@ Post-tool (SK: IAutoFunctionInvocationFilter · MAF: same middleware seam, later
 
 **The step numbers above are *completion* order (the order in which each filter's work finishes), not onion *entry* order.** The distinction only matters for the two post-tool filters (6, 7): both do all their work *after* `await next()`, so on the onion unwind the filter entered *last* (innermost) runs its post-work *first*. Steps 1–5 do their work *before* `await next()`, so for them entry order and completion order coincide and the numbering reads directly as onion entry order.
 
-Steps 4 and 5 are the L2 additions. `ToolArgumentCaptureFilter` (step 4) must precede `InferenceTriggerFilter` (step 5) so that captured arguments are available to `ITaskInferenceStrategy` implementations during inference. `TaskInferenceMergeFilter` (step 6) merges deferred inference results from the `ContextFabric` into the final Affidavit via `IAffidavitProjection`; its merge must **complete** before `ReviewGateFilter` (step 7) files the review, so the reviewer sees a fully-merged Affidavit. Because both are post-tool filters, achieving "merge completes before review files" requires `ReviewGateFilter` to be the **outer** (earlier-entered) of the two and `TaskInferenceMergeFilter` the **inner** (later-entered, so its post-work runs first on the unwind). This ordering is fixed in one place — `AddAffiantCompletionFilters()` in `Affiant.Core` — which both backends' registration calls, so the SK bridge and the MAF adapter cannot drift on it. On SK, steps 1–5 fire at `IFunctionInvocationFilter` and steps 6–7 at `IAutoFunctionInvocationFilter` — two native seams. On MAF, all seven fire at MAF's single function-calling middleware seam, in the same relative order, because MAF has no equivalent two-position split (§3.12.3). Steps 1–3 and 7 were part of the L1 pipeline; see §3.10 Task Inference Strategy and §7 Tool Authoring Guide for their documentation.
+Steps 4 and 5 are the L2 additions. `ToolArgumentCaptureFilter` (step 4) must precede `InferenceTriggerFilter` (step 5) so that captured arguments are available to `ITaskInferenceStrategy` implementations during inference. `TaskInferenceMergeFilter` (step 6) merges deferred inference results from the `ContextFabric` into the final Affidavit via `IAffidavitProjection` — grading them against the same current turn `TaskInferenceRunner` uses, through the one shared reading of the history (PV-3); its merge must **complete** before `ReviewGateFilter` (step 7) files the review, so the reviewer sees a fully-merged Affidavit. Because both are post-tool filters, achieving "merge completes before review files" requires `ReviewGateFilter` to be the **outer** (earlier-entered) of the two and `TaskInferenceMergeFilter` the **inner** (later-entered, so its post-work runs first on the unwind). This ordering is fixed in one place — `AddAffiantCompletionFilters()` in `Affiant.Core` — which both backends' registration calls, so the SK bridge and the MAF adapter cannot drift on it. On SK, steps 1–5 fire at `IFunctionInvocationFilter` and steps 6–7 at `IAutoFunctionInvocationFilter` — two native seams. On MAF, all seven fire at MAF's single function-calling middleware seam, in the same relative order, because MAF has no equivalent two-position split (§3.12.3). Steps 1–3 and 7 were part of the L1 pipeline; see §3.10 Task Inference Strategy and §7 Tool Authoring Guide for their documentation.
 
 **SK completion-stage failure contract (2026-08-03, area-3 P2 ruling 1).** Before this fix, steps
 6–7 above ran, on SK, in a *second, separate* `ToolInvocationPipeline.RunAsync` call
@@ -1330,9 +1330,10 @@ All 12 attribute key strings are constants in `Affiant.Core.Observability.L2Tele
 
 > **`affidavit.projected` is deprecated as of `1.0.0-beta.3`** in favour of the telemetry-key
 > registry's `affidavit.filed` (§8), with the hollow-Affidavit case moving to
-> `affidavit.refused.substance`, emitted from this same projection seam. It keeps being emitted for
-> one release so an existing alert does not go dark on upgrade, and is removed in the release after
-> `1.0.0-beta.3`. The `inference.*` events above are **not** deprecated — the registry does not
+> `affidavit.refused.substance`, emitted from this same projection seam. It keeps being emitted
+> through the `1.0.0-beta.3` line, its point releases included, so an existing alert does not go dark
+> on upgrade, and is removed at the next release that is not a point release of `1.0.0-beta.3`. The
+> `inference.*` events above are **not** deprecated — the registry does not
 > cover the inference step's own progress, and they keep their names.
 
 **Typed event publication.** After projection, `SchemaDrivenAffidavitProjection` publishes a typed `AffidavitEmittedEvent` record through `IObservabilityEventStream<AffidavitEmittedEvent>`. The event carries `ConversationId`, `AffidavitId`, `OperationType`, `EntityType`, `PopulatedFieldCount`, `AggregateConfidence`, and `EmptyProvenanceFieldCount`. The Phase 3.5 Validator subscribes to this stream to perform quality audits without coupling to OTel infrastructure; hosts that want dashboard-level monitoring subscribe to the OTel span events instead.
@@ -1960,9 +1961,10 @@ chain), and `execution`, `decision.kind` where no decision drove the transition,
 and `principal.kind` are absent because this release has no execution-outcome state, no attestation
 record and no principal on the decision surface.
 
-**Deprecated for one release.** `affidavit.projected` is superseded by `affidavit.filed` (and, for
-the hollow case, `affidavit.refused.substance`). It is still emitted through `1.0.0-beta.3` and is
-removed in the release after it. The framework's other event names — `affiant.tool_error`,
+**Deprecated through the `1.0.0-beta.3` line.** `affidavit.projected` is superseded by
+`affidavit.filed` (and, for the hollow case, `affidavit.refused.substance`). It is still emitted
+through that line, its point releases included, and is removed at the next release that is not a
+point release of `1.0.0-beta.3`. The framework's other event names — `affiant.tool_error`,
 `affiant.review.filing_failed`, `affiant.review.broadcast_failed`, `affiant.extractor.failed` and
 the `inference.*` family — are not deprecated: they name things the registry does not cover.
 

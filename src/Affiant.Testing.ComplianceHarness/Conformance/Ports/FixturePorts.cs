@@ -54,8 +54,10 @@ internal sealed class FixtureAuthorization(AuthorizationSpec spec)
 /// <summary>
 /// The inference port of <c>RUNNER.md</c> §7, built from <c>given.gate.inference</c>: it reports
 /// exactly the scripted fields, for every turn, unchanged — no invention, no filtering, no
-/// re-scoring — including whether the value was literally in the turn and which span of it was
-/// read (GT-1 step 3, PV-2). Absent or <c>null</c>: it reports nothing.
+/// re-scoring — including the presence and the span it reports, when the fixture states them (GT-1
+/// step 3, PV-2). Absent or <c>null</c>: it reports nothing. Whether the value really was in the
+/// turn is not the port's to settle: the framework establishes that from
+/// <c>given.ctx.utterance</c> (PV-3).
 /// </summary>
 /// <remarks>
 /// Bound to <see cref="IInferenceCompletionPort"/>, the seam <c>TaskInferenceRunner</c> calls, so
@@ -74,8 +76,13 @@ internal sealed class ScriptedInference(IReadOnlyDictionary<string, InferredFiel
             {
                 ["value"] = field.Value?.DeepClone(),
                 ["confidence"] = JsonValue.Create(field.Confidence),
-                ["presence"] = JsonValue.Create(field.Presence),
             };
+
+            // Reported only when the fixture states it. A port that says nothing about presence is
+            // the case every shipped port is in, and a driver that supplied a default would be
+            // answering the question PV-3 asks.
+            if (field.Presence is { } presence)
+                reported["presence"] = JsonValue.Create(presence);
 
             if (field.UtteranceSpan is { } span)
                 reported["utteranceSpan"] = span.DeepClone();

@@ -206,7 +206,15 @@ internal sealed class StepExecutor(GateHarness harness, GivenSpec given)
             var runner = services.GetRequiredService<TaskInferenceRunner>();
             var arguments = (step.Args ?? new Dictionary<string, JsonNode?>())
                 .ToDictionary(kv => kv.Key, kv => Values.ToClr(kv.Value), StringComparer.Ordinal);
-            await runner.RunAsync(strategy, [], toolName, arguments!, ct);
+
+            // PV-3: the runner grades the port's report against the turn, so the driver hands it
+            // the turn — `given.ctx.utterance`, as one user message, and the empty string when the
+            // fixture states none. A fixture always has a turn, so the no-turn path of the step is
+            // never what a fixture measures; a driver that passed no history at all would send
+            // every fixture down it and the finder would go unmeasured.
+            IReadOnlyList<AffiantChatMessage> history =
+                [new AffiantChatMessage("user", given.Ctx.Utterance ?? string.Empty)];
+            await runner.RunAsync(strategy, history, toolName, arguments!, ct);
         }
 
         var projection = new SchemaDrivenAffidavitProjection(

@@ -13,7 +13,56 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
 
 ## [Unreleased]
 
-### Fixed
+#### Fixed
+
+- **Presence is established from the utterance, not from the model's claim about it**
+  (`Sakwala/affiant#123`). PV-3 grades an inferred field `Conversation` when "the value is literally
+  present in the utterance", and until this release the framework asked the inference port to say so:
+  a field was graded `Conversation` only when the port's JSON carried `"presence": "literal"`, and
+  `Inferred` otherwise. None of the three shipped ports asks a model for that, so every value a person
+  typed in chat was sworn "AI suggested" — the framework hiding the one distinction the Evidence Card
+  exists to draw. Presence is a property of two strings, so the framework now establishes it: the step
+  locates the value's text in the turn itself and grades `Conversation` on a hit, bound to an
+  `utterance-span` whose offsets and length are in UTF-16 code units and whose hash is SHA-256 over
+  the UTF-8 bytes of the utterance at that span (PV-2). A hit is an occurrence under a case fold that
+  is **ASCII and nothing else** — two code points match when they are equal, or when both are ASCII
+  letters differing only in case — whose neighbouring code points are absent or are none of: a letter
+  (L\*), a mark (M\*), a decimal digit (Nd), connector punctuation (Pc). No runtime case table is
+  consulted, because no two runtimes agree on one: `STRAẞE` is not `Straße`, `BAKIM` is not `bakım`,
+  and an exact echo in any script still hits. A hit never starts or ends inside a surrogate pair. The
+  text looked for is the **canonical rendering of the value the step files** — a string is itself, a
+  boolean `true`/`false`, an exact 64-bit integer its digits, any other number SR-1's form (shortest
+  round-trip decimal, positional) — so a port's `6.0` finds the `6` a person typed, a JavaScript
+  implementation that never saw the raw token grades it the same way, and a large integer is never
+  searched for as the rounded double it is not. A value the field cannot carry is **nothing reported**
+  for that field: JSON null, an object, an array, the empty string, and a number the runtime parses to
+  infinity or NaN, which SR-1 refuses a canonical form and which now leaves the step by the same door
+  rather than through the canonicaliser's exception. A whitespace-only string is a value and is filed
+  as reported. A port's `presence` and `utteranceSpan` are hints and are read in the rulebook's shapes
+  alone — `presence` exactly `"literal"`, a span exactly `{ start, end }` with integer-valued
+  coordinates (`4.0` is `4`; a fractional one discards the hint): a span is used only when it is
+  itself a hit, so a claim can never bind a value to a fragment of a longer token the finder would
+  refuse; a claimed `literal` the text cannot confirm is `Inferred`; and a value the port said nothing
+  about is `Conversation` when it is there to read. No port asks a model for presence or for offsets,
+  and none is changed here — a model's claim about its own literalness is itself an inference.
+  `TaskInferenceStep.ExecuteAsync` gains an overload taking the turn, and both shipped callers —
+  `TaskInferenceRunner` before the tool and `TaskInferenceMergeFilter` after it — pass the last user
+  message's text, through one shared reading of the history. A user message with no content is an
+  empty turn, in which nothing is found; only a history with no user message at all takes the no-turn
+  path, where the port's own report stands, and the step logs at `Debug` when it does.
+
+- **Semantic Kernel's completion stage now carries the turn.** `AffiantAutoFunctionInvocationBridge`
+  and `ManualToolInvoker` built their `ToolInvocationRequest` without a `History`, so on Semantic
+  Kernel `TaskInferenceMergeFilter` — the post-tool caller of the merge step — received no turn and
+  fell back to the port's own presence report, whatever the host had put on the kernel. Both now read
+  the history exactly as `AffiantFunctionInvocationBridge` does, so a tool result grades the same way
+  at the invocation stage and at the completion stage, and on all three backends. That reading is
+  `kernel.Data["ChatHistory"]`, which is a **host** contract — nothing in this framework writes it —
+  so a host that never adopted the convention would still have reached the merge filter with no turn.
+  Where the kernel carries no turn of a person's — the convention unadopted, or a history holding
+  only a system prompt — `AffiantAutoFunctionInvocationBridge` now falls back to the `ChatHistory`
+  Semantic Kernel itself hands the filter on every auto-invocation call, converted the same way;
+  `ManualToolInvoker`, which has no such context, keeps the kernel reading alone.
 
 - **The quickstart's hub writes the record the gate produced, not one it folded itself
   (Sakwala/affiant#99).** `ChatHub.ApproveEntry` handed the write executor the filed proposal plus the
@@ -116,7 +165,34 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
   own `CancellationToken` is signalled; every other one is a provider failure — a logged warning, an
   `inference.failed` event and an empty result, with the tool call proceeding.
 
-### Documentation
+#### Changed
+
+- **The no-turn path is narrower than `1.0.0-beta.3`.** A caller with no turn in hand still has the
+  port's report stand, but three readings on that path are tightened to the rulebook's shapes so the
+  two implementations cannot read one report two ways: a span hint is read as `{ start, end }` only
+  (`beta.3` also accepted `{ start, length }` and a bare `start`, falling back to the value's length,
+  and would mint a binding from either); `presence` is matched exactly against `"literal"` (`beta.3`
+  matched it case-insensitively, so `"Literal"` bought a `Conversation` grade); and the digest is over
+  the value's canonical text (`beta.3` digested the raw JSON token, so a port's `6.0` hashed `"6.0"`
+  and now hashes `"6"`).
+
+- **The conformance suite is pinned at the rulebook's `v0.1.3`** (`conformance/PROTOCOL_PIN`,
+  re-vendored by `conformance/sync.sh`), which is where PV-3's amended text and the five fixtures that
+  check it live. The driver passes `given.ctx.utterance` to the inference step — and the empty string
+  where a fixture states none — so the finder is what the suite measures rather than the no-turn path;
+  and `Affiant.Testing.ComplianceHarness` implements the field matcher's new `utteranceSpan` key
+  (`offset`, `length`, `hash`), so a fixture can pin which occurrence was found and that the digest is
+  the utterance's own. All 68 documents pass: `conformance/results/dotnet-1.0.0-beta.3.1.json`.
+
+- **The deprecation window for `affidavit.projected` survives a point release.** The
+  `DeprecatedTelemetryKeys` summary, its `[Obsolete]` message and the emitting site in
+  `SchemaDrivenAffidavitProjection` promised removal "in the release after `1.0.0-beta.3`" — a
+  sentence this release falsifies by being `1.0.0-beta.3.1` and still emitting the alias. They now
+  say what is true and what an operator can plan against: the name is emitted through the
+  `1.0.0-beta.3` line, its point releases included, and is removed at the next release that is not a
+  point release of it.
+
+#### Documentation
 
 - **The beta.3 docket section's breaking-change 8** now describes `ReviewGate.HandleDecisionAsync`
   and `ResubmitAsync`'s new `DecisionContext` parameter accurately: one declaration each, with the
@@ -168,7 +244,7 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
   `1.0.0-beta.3` `AffidavitConfidence.Compute` takes the minimum for both numbers, so the override
   changes nothing and the two comments contradicted each other. Both now state the shipped rule.
 
-### Upgrade note
+#### Upgrade note
 
 - **A host that byte-pins its wire assertions to the rulebook's `wire/` fixtures asserts the
   additions through an allow-list, not through envelope equality.** The fixtures under
