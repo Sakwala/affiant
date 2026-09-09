@@ -253,14 +253,14 @@ BASE_URL=http://localhost:5077 npm --prefix samples/quickstart-host run test:e2e
 No model key is needed for any of it. `BASE_URL` defaults to `http://localhost:5077`.
 
 **In CI** the deck runs in the `sample-quickstart-host` job: the sample's `dotnet test` suite
-first, then the deck against a host that job starts. That workflow is triggered by a push to `main`,
-by a pull request whose base is `main`, and on demand from the Actions tab
-(`.github/workflows/ci.yml`), so a commit that is green on `main` is one the deck passed. It ran on
-`workflow_dispatch` only until 1.0.0-beta.3.1, on the argument that two of its specs wait out a
-30-second background sweep and make a poor gate for an unrelated change. What that bought was a deck
-nobody ran — one spec had been failing since the docket stores began projecting expiry onto every
-read, and the release was tagged green anyway. Those two specs still wait out the sweep, which is
-why that job takes minutes rather than seconds.
+first, then the deck against a host that job starts. That workflow is triggered by a push to `main`
+or a `release/**` branch, by a pull request based on either, and on demand from the Actions tab
+(`.github/workflows/ci.yml`), so a commit that is green on a branch a release is cut from is one the
+deck passed. It ran on `workflow_dispatch` only until 1.0.0-beta.3.1, on the argument that two of
+its specs wait out a 30-second background sweep and make a poor gate for an unrelated change. What
+that bought was a deck nobody ran — one spec had been failing since the docket stores began
+projecting expiry onto every read, and the release was tagged green anyway. Those two specs still
+wait out the sweep, which is why that job takes minutes rather than seconds.
 
 ## The unit tests
 
