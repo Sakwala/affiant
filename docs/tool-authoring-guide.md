@@ -329,26 +329,28 @@ public class RequestLeavePlugin(HRPortalDbContext dbContext, ILogger<RequestLeav
             var requestedDays   = CalculateWorkingDays(startDate, endDate);
             var remainingAfter  = currentBalance - requestedDays;
 
-            // Build one AffidavitField per proposed field value.
-            // UserStated: value came directly from the tool's parameters.
-            // Computed: derived by deterministic business logic.
             // One AffidavitField per proposed value.
-            // UserStated = came from the tool's parameters (the user said it).
+            // Inferred = the model put it in this tool's parameters. It read the conversation and
+            //   filled them in; nobody typed them, so UserStated is not this path's to claim and
+            //   FromInference cannot name it (PV-3). A host that has established the value is
+            //   literally present in the turn passes InferenceSource.Conversation and an
+            //   utterance-span binding instead; UserStated belongs to a value a person supplied —
+            //   a form the host rendered, or a reviewer's amendment, which the gate tags itself.
             // Computed = derived by deterministic business logic (balance math).
             var fields = new AffidavitField[]
             {
                 new("StartDate",  startDate.ToString("yyyy-MM-dd"), null,
-                    ProvenanceChain.From(ProvenanceTag.FromUser(
-                        "StartDate", new ProvenanceBinding.FormInput(new FormInputRef("startDate"))))),
+                    ProvenanceChain.From(ProvenanceTag.FromInference(
+                        InferenceSource.Inferred, "StartDate", 0.6f))),
                 new("EndDate",    endDate.ToString("yyyy-MM-dd"), null,
-                    ProvenanceChain.From(ProvenanceTag.FromUser(
-                        "EndDate", new ProvenanceBinding.FormInput(new FormInputRef("endDate"))))),
+                    ProvenanceChain.From(ProvenanceTag.FromInference(
+                        InferenceSource.Inferred, "EndDate", 0.6f))),
                 new("LeaveType",  normalizedType, null,
-                    ProvenanceChain.From(ProvenanceTag.FromUser(
-                        "LeaveType", new ProvenanceBinding.FormInput(new FormInputRef("leaveType"))))),
+                    ProvenanceChain.From(ProvenanceTag.FromInference(
+                        InferenceSource.Inferred, "LeaveType", 0.6f))),
                 new("Reason",     reason, null,
-                    ProvenanceChain.From(ProvenanceTag.FromUser(
-                        "Reason", new ProvenanceBinding.FormInput(new FormInputRef("reason"))))),
+                    ProvenanceChain.From(ProvenanceTag.FromInference(
+                        InferenceSource.Inferred, "Reason", 0.6f))),
                 new("RemainingDaysAfter", remainingAfter.ToString(), null,
                     ProvenanceChain.From(new ProvenanceTag(
                         ProvenanceSource.Computed, 1.0f,
@@ -411,7 +413,7 @@ public class RequestLeavePlugin(HRPortalDbContext dbContext, ILogger<RequestLeav
 
 - *Updates vs. creates*: Set `EntityId` to the existing record's ID for updates; leave it `null` for creates
 - *Single-field updates*: An `Affidavit` can have one field; the review UI shows exactly what's changing
-- *Multiple provenance sources*: Mix `UserStated` (from parameters) and `Computed` (from business logic) in the same affidavit — each field carries its own chain
+- *Multiple provenance sources*: Mix `Inferred` (what the model put in the tool's parameters) and `Computed` (from business logic) in the same affidavit — each field carries its own chain
 
 ---
 
@@ -577,20 +579,27 @@ public class LeaveRequestFieldMapper(ILogger<LeaveRequestFieldMapper> logger) : 
     {
         ArgumentNullException.ThrowIfNull(entity);
 
+        // Every value here was read back out of the store, so the store is what it rests on:
+        // External, bound to the row it came from (PV-2). Whoever originally stated it said so on
+        // the affidavit that was approved; this record is a read of the row, not a re-hearing of
+        // the person. An entity that has not been persisted has no row to bind to — RequestId 0,
+        // the same case the entityId below tests — and a binding an auditor cannot re-fetch is not
+        // a binding (PV-2), so it gets none.
+        ProvenanceBinding? fromRecord = entity.RequestId == 0
+            ? null
+            : new ProvenanceBinding.ExternalRef(
+                new ExternalRecordRef("HrDb", $"LeaveRequest/{entity.RequestId}"));
+
+        AffidavitField FromRow(string name, string? value) =>
+            new(name, value, null, ProvenanceChain.From(new ProvenanceTag(
+                ProvenanceSource.External, 0.95f, null, null, fromRecord)));
+
         var fields = new AffidavitField[]
         {
-            new("StartDate", entity.StartDate.ToString("yyyy-MM-dd"), null,
-                ProvenanceChain.From(ProvenanceTag.FromUser(
-                    "StartDate", new ProvenanceBinding.FormInput(new FormInputRef("startDate"))))),
-            new("EndDate", entity.EndDate.ToString("yyyy-MM-dd"), null,
-                ProvenanceChain.From(ProvenanceTag.FromUser(
-                    "EndDate", new ProvenanceBinding.FormInput(new FormInputRef("endDate"))))),
-            new("LeaveType", entity.LeaveType.ToString(), null,
-                ProvenanceChain.From(ProvenanceTag.FromUser(
-                    "LeaveType", new ProvenanceBinding.FormInput(new FormInputRef("leaveType"))))),
-            new("Reason", entity.Reason, null,
-                ProvenanceChain.From(ProvenanceTag.FromUser(
-                    "Reason", new ProvenanceBinding.FormInput(new FormInputRef("reason"))))),
+            FromRow("StartDate", entity.StartDate.ToString("yyyy-MM-dd")),
+            FromRow("EndDate",   entity.EndDate.ToString("yyyy-MM-dd")),
+            FromRow("LeaveType", entity.LeaveType.ToString()),
+            FromRow("Reason",    entity.Reason),
         };
 
         return Affidavit.Create(
@@ -924,7 +933,7 @@ public class RequestLeavePluginTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task RequestLeaveAsync_FourFieldsUserStated_OneComputed()
+    public async Task RequestLeaveAsync_FourFieldsInferred_OneComputed()
     {
         var json = await _plugin.RequestLeaveAsync(FutureStart, FutureEnd, "Annual", "Team offsite");
         using var doc = JsonDocument.Parse(json);
@@ -934,11 +943,13 @@ public class RequestLeavePluginTests : IAsyncLifetime
                 f => f.GetProperty("name").GetString()!,
                 f => f.GetProperty("provenance").GetProperty("current").GetProperty("source").GetString()!);
 
-        Assert.Equal("UserStated", fields["StartDate"]);
-        Assert.Equal("UserStated", fields["EndDate"]);
-        Assert.Equal("UserStated", fields["LeaveType"]);
-        Assert.Equal("UserStated", fields["Reason"]);
-        Assert.Equal("Computed",   fields["RemainingDaysAfter"]);
+        // The four the model filled in are an inference; only the balance math is Computed. A
+        // test that expects "UserStated" here is asserting the over-grade, not catching it.
+        Assert.Equal("Inferred", fields["StartDate"]);
+        Assert.Equal("Inferred", fields["EndDate"]);
+        Assert.Equal("Inferred", fields["LeaveType"]);
+        Assert.Equal("Inferred", fields["Reason"]);
+        Assert.Equal("Computed", fields["RemainingDaysAfter"]);
     }
 
     [Fact]
@@ -977,7 +988,7 @@ public class RequestLeavePluginTests : IAsyncLifetime
 **Key assertions to include in every plugin test:**
 
 - `Assert.IsType<WriteProposal>()` or `Assert.IsType<ReadResult>()` — verify the envelope type
-- Provenance sources per field — verify `UserStated` vs `Computed` per field
+- Provenance sources per field — verify `Inferred` vs `Computed` per field, and that no field a model supplied is graded `UserStated`
 - Rule 3 compliance — count rows before and after; write plugins must not change the count
 - Error code checks — verify `ToolError.Code` and `Retryable` for each error path
 
@@ -1065,8 +1076,8 @@ public class MyWritePlugin
 
             var fields = new AffidavitField[]
             {
-                new("Name", name, null, ProvenanceChain.From(ProvenanceTag.FromUser(
-                    "Name", new ProvenanceBinding.FormInput(new FormInputRef("name"))))),
+                new("Name", name, null, ProvenanceChain.From(ProvenanceTag.FromInference(
+                    InferenceSource.Inferred, "Name", 0.6f))),
             };
 
             return new WriteProposal(toolName, DateTimeOffset.UtcNow,

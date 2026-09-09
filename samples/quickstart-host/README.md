@@ -84,8 +84,13 @@ not — and each field says whether it came from the caller or from the record.
 
 ### Nothing is skipped when there is no source
 
-Every field on the card carries a provenance tag. A field the caller stated is `UserStated`; a
-field read from the record is `External`, and the tag says which record it read; a field with
+Every field on the card carries a provenance tag, and the grade follows the path the value took. A
+value a person wrote into the development seam's request is `UserStated`, bound to that request; a
+value a model put in a write tool's arguments is `Inferred`, because a tool argument is what the
+model extracted from the conversation and not something anybody typed — `UserStated` is not a grade
+a write tool can reach (PV-3, and `ProvenanceTag.FromInference` cannot name it). A field read from
+the record is `External`, and the tag says which record it read; a value the host filled in itself
+because nobody stated one — the seam's canned defaults on a create — is `Default`; a field with
 nothing behind it is `Empty` — stated, not omitted. The seam's canned proposal leaves the employee
 blank on purpose so you can see what an unsourced field looks like, and what the reviewer has to do
 about it.
@@ -128,7 +133,10 @@ Anything else is a plain `404`, indistinguishable from an entry that does not ex
 Response: `{ "sessionId": "…", "docketId": "<guid>" }`.
 
 **`GET /api/dev/docket/{id}`** reads one entry's server-side state:
-`{ "status": "Pending | Approved | Rejected | Expired | Deferred", "expiresAt": "…", "amendments": … }`.
+`{ "status": "Pending | Approved | Rejected | Expired | Deferred", "expiresAt": "…", "amendments": …,
+"preservedAmendments": … }`. The two maps are two facts: `amendments` is what an approval accepted,
+`preservedAmendments` is what a decision the gate refused was carrying — a late one, whose edits the
+row keeps for a resubmission although nobody accepted them.
 `status` is the framework's own review status — there is no "expiring" value; "Expiring soon" on
 the page is derived from a still-pending entry's deadline.
 
@@ -244,15 +252,15 @@ BASE_URL=http://localhost:5077 npm --prefix samples/quickstart-host run test:e2e
 
 No model key is needed for any of it. `BASE_URL` defaults to `http://localhost:5077`.
 
-**In CI** the deck runs on `workflow_dispatch` only, not on every push. Two of its specs are timed
-against a 30-second background sweep, which is a real behaviour worth locking and a poor fit for a
-gate that must be fast and never flaky on an unrelated change. The sample's `dotnet test` suite —
-which covers the projection, the seam's filing path, the expiry transition and the gate — runs on
-every push.
-
-GitHub offers `workflow_dispatch` only for workflow files that already exist on the default branch,
-so the deck job cannot be dispatched from a branch that is adding it. Its first CI run is therefore
-a post-merge step; before that, the deck's evidence is a local run.
+**In CI** the deck runs in the `sample-quickstart-host` job: the sample's `dotnet test` suite
+first, then the deck against a host that job starts. That workflow is triggered by a push to `main`,
+by a pull request whose base is `main`, and on demand from the Actions tab
+(`.github/workflows/ci.yml`), so a commit that is green on `main` is one the deck passed. It ran on
+`workflow_dispatch` only until 1.0.0-beta.3.1, on the argument that two of its specs wait out a
+30-second background sweep and make a poor gate for an unrelated change. What that bought was a deck
+nobody ran — one spec had been failing since the docket stores began projecting expiry onto every
+read, and the release was tagged green anyway. Those two specs still wait out the sweep, which is
+why that job takes minutes rather than seconds.
 
 ## The unit tests
 
@@ -269,6 +277,10 @@ a post-merge step; before that, the deck's evidence is a local run.
 - an update-shaped proposal carries the entity id and previous values end to end;
 - an update swears only the fields the caller named and reads the rest off the row as `External`,
   so the row's own reason is not overwritten by the seam's canned one;
+- a write tool's own arguments are graded `Inferred`, because a model produced them; only the
+  values a person wrote into the seam's request are `UserStated`, bound to that request; and the
+  seam's canned defaults, which nobody typed, are `Default` and bind to nothing;
+- a decision the gate refuses reaches the page as a refusal rather than as "still pending";
 - the seam is a `404` outside Development, and inside Development with the flag off.
 
 ## Which rules this sample meets

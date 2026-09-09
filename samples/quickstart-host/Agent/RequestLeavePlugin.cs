@@ -29,15 +29,19 @@ public sealed class RequestLeavePlugin(LeaveProposalBuilder proposals)
         [Description("Working days this leave uses up.")] int days,
         [Description("Why the leave is being requested.")] string reason)
     {
-        var affidavit = proposals.BuildCreate(new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["Employee"] = employee,
-            ["StartDate"] = startDate,
-            ["EndDate"] = endDate,
-            ["LeaveType"] = leaveType,
-            ["Days"] = days.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            ["Reason"] = reason,
-        });
+        // A model filled these parameters from the conversation, so the proposal is graded as an
+        // inference and nothing on it is sworn UserStated (PV-3) — see LeaveProposalBuilder.Build.
+        var affidavit = proposals.BuildCreate(
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["Employee"] = employee,
+                ["StartDate"] = startDate,
+                ["EndDate"] = endDate,
+                ["LeaveType"] = leaveType,
+                ["Days"] = days.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["Reason"] = reason,
+            },
+            ProposalOrigin.ModelArguments);
 
         return Task.FromResult(
             new WriteProposal(FunctionName, DateTimeOffset.UtcNow, affidavit).ToJsonString());

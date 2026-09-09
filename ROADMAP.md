@@ -309,12 +309,13 @@ No delivery dates, ever: a solo-maintained project cannot promise one without it
   the sample's `e2e/` declares eight specs — approve, reject, typed inputs, a live-data picker,
   the mandatory-field gate, the expiry lifecycle, a late decision whose amendments survive into
   a resubmission, and a re-broadcast card absorbed rather than redrawn — which the sample's
-  README frames as seven review behaviours plus one page behaviour. Seven of the eight pass at
-  `1.0.0-beta.3`. The late-amendments spec is the one that does not, and it stops at its own
-  setup assertion rather than at the behaviour it was written for: it requires the entry to
-  still read `Pending` past the deadline, and this release projects expiry onto every read, so
-  the row already reads `Expired` before the late click lands. Tracked in
-  [affiant#111](https://github.com/Sakwala/affiant/issues/111). The
+  README frames as seven review behaviours plus one page behaviour. All eight pass. Seven did at
+  `1.0.0-beta.3`: the late-amendments spec stopped at its own setup assertion, which required the
+  entry to still read `Pending` past the deadline, and that release projects expiry onto every
+  read, so the row already read `Expired` before the late click landed. It was rewritten for those
+  semantics — it now waits for the projected expiry and drives the same late decision — and the
+  deck moved into the CI job that runs on every push, so a green tag means it passed
+  ([affiant#111](https://github.com/Sakwala/affiant/issues/111)). The
   [Quickstart](https://affiant.dev/start/quickstart/) is that sample's code step by step —
   including how a field gets its value, from the field schema a domain declares to the
   host-supplied projection that stamps an update-shaped write with its entity id and each
