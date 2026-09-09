@@ -29,11 +29,11 @@ Affiant.Transport.SignalR.SignalROptions.MaximumMessageSize.get -> int
 Affiant.Transport.SignalR.SignalROptions.MaximumMessageSize.set -> void
 Affiant.Transport.SignalR.SignalROptions.SignalROptions() -> void
 Affiant.Transport.SignalR.Transport.SignalRStreamingTransport<THub>
-Affiant.Transport.SignalR.Transport.SignalRStreamingTransport<THub>.AwaitEvidenceCardResponseAsync(string! sessionGroupId, System.Guid docketId, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Affiant.Abstractions.Transport.EvidenceCardResponse!>!
+Affiant.Transport.SignalR.Transport.SignalRStreamingTransport<THub>.AwaitEvidenceCardResponseAsync(string! sessionGroupId, System.Guid docketId, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Affiant.Abstractions.Transport.DecisionHandOff!>!
 Affiant.Transport.SignalR.Transport.SignalRStreamingTransport<THub>.BroadcastToGroupAsync(string! groupId, Affiant.Abstractions.Transport.TransportEvent eventType, object! payload, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
 Affiant.Transport.SignalR.Transport.SignalRStreamingTransport<THub>.SendAsync(string! connectionId, Affiant.Abstractions.Transport.TransportEvent eventType, object! payload, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
 Affiant.Transport.SignalR.Transport.SignalRStreamingTransport<THub>.SignalRStreamingTransport(Microsoft.AspNetCore.SignalR.IHubContext<THub!>! hubContext) -> void
-Affiant.Transport.SignalR.Transport.SignalRStreamingTransport<THub>.TryDeliverResponse(System.Guid docketId, Affiant.Abstractions.Transport.EvidenceCardResponse! response) -> bool
+Affiant.Transport.SignalR.Transport.SignalRStreamingTransport<THub>.TryDeliverResponse(System.Guid docketId, Affiant.Abstractions.Transport.DecisionHandOff! response) -> bool
 Affiant.Transport.SignalR.Transport.TransportEventExtensions
 override Affiant.Transport.SignalR.Hubs.AffiantHub.OnConnectedAsync() -> System.Threading.Tasks.Task!
 override Affiant.Transport.SignalR.Hubs.AffiantHub.OnDisconnectedAsync(System.Exception? exception) -> System.Threading.Tasks.Task!

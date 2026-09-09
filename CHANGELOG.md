@@ -13,6 +13,35 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
 
 ## [Unreleased]
 
+## [1.0.0-beta.3.1] — 2026-09-09
+
+### The grade a person's own words earn, and the seams that did not carry them
+
+A point release of `1.0.0-beta.3` is corrections: one added overload and no other new surface, and
+every entry below a place where the framework did not do what the release already claimed. Two
+things an upgrading host must read, both below: the *Upgrade note* (affiant#91) — a host that
+byte-pins its wire assertions to the rulebook's `wire/` fixtures asserts the envelope's additions
+through an allow-list rather than through envelope equality; and the entry id a Semantic Kernel host
+derives (affiant#114) — a row filed at `1.0.0-beta.3` derived its id with no arguments in the
+material, so the gate's replay lookup does not find it after the upgrade and a retried call files a
+second row for the same proposal. The largest is the grade a person's own words earn — PV-3 makes an
+inferred field `Conversation` when the value is literally present in the utterance, and the
+framework asked the inference port to say whether it was, a question no shipped port asks a model,
+so every value a person typed in chat was sworn "AI suggested", which is the one distinction an
+Evidence Card exists to draw; presence is a property of two strings, and the framework now
+establishes it from the turn itself and binds the grade to the span it found. Beneath that, three
+seams that carried less than they claimed: the review gate's empty-result early return ran *before*
+the registry was consulted, so a declared write tool that returned nothing filed no proposal and
+drew no refusal — a fail-open on the filter whose whole job is to refuse — and Semantic Kernel's
+two completion-stage seams reached the gate without the arguments an entry id derives from and
+without the turn a grade is established against, so the same tool call graded and identified itself
+differently there than on the other two backends. The rest is correction a reader can check: a
+provider's timeout that escaped the inference fail-safe, a `[KernelFunction]` walker that stripped a
+trailing `Async` from a synchronous method, an EntityFramework store that wrote Docket rows under
+serializer options of its own, a compliance harness that paired a fixture with whichever descriptor
+a dictionary yielded first, the quickstart sample and its browser deck brought back to what the
+framework does, and the documents and XML comments that described a shape the code does not have.
+
 #### Fixed
 
 - **Presence is established from the utterance, not from the model's claim about it**
@@ -64,6 +93,109 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
   Semantic Kernel itself hands the filter on every auto-invocation call, converted the same way;
   `ManualToolInvoker`, which has no such context, keeps the kernel reading alone.
 
+- **The quickstart's hub writes the record the gate produced, not one it folded itself
+  (Sakwala/affiant#99).** `ChatHub.ApproveEntry` handed the write executor the filed proposal plus the
+  reviewer's raw amendment map, and `LeaveWriteExecutor` merged the two field by field — a second
+  implementation of the fold `AffidavitAmendments.Apply` already performed when the decision was
+  recorded, which is exactly what the beta.3 migration note tells a host to stop doing. It now passes
+  `DocketEntry.AmendedAffidavit ?? DocketEntry.Envelope` and the executor reads values off that
+  record only, blanking a column for a field proposed with no value only when that field's current
+  tag carries the reviewer's act — a field nobody sourced leaves the row alone. The two folds disagree when the map names a field the Affidavit does not propose: the
+  gate then keeps no amended record and the old path still wrote the map's other values, so the row
+  held a value nothing on the Docket swore to.
+- **The quickstart's previous-value source is keyed the way a projection asks
+  (Sakwala/affiant#120).** `HrPreviousValueSource` answered with camelCase keys while
+  `SchemaDrivenAffidavitProjection` looks each field up by the strategy's declared
+  `TaskInferenceField.Name` on the ordinal dictionary the source returned, so every lookup missed in
+  silence and an
+  update-shaped Affidavit built with the shipped projection reached the reviewer with no before/after
+  at all. The sample's own projection supplies previous values itself and hid it; a host that copied
+  the source did not have that cover.
+- **The quickstart's vendored Evidence Card renders a provenance tag's note again
+  (Sakwala/affiant#113).** The vendored build read `tag.evidence`, the pre-beta.3 wire spelling;
+  `ProvenanceTag.Evidence` has serialised as `note` since `1.0.0-beta.3`, so the guard saw
+  `undefined` and every tag's sentence rendered as nothing. It now reads `note` with the older
+  spelling as a fallback, as the package's own source does, and the Playwright deck asserts a
+  rendered note so the next wire rename cannot pass in silence.
+- **The quickstart sample swore a model's tool arguments `UserStated`.**
+  `samples/quickstart-host/Agent/LeaveProposalBuilder.cs` tagged every value a proposal carried
+  `UserStated` at confidence 1.0, bound to a `form-input` control the sample does not have — so on
+  the model path, where the "caller's own arguments" are what the model extracted from the
+  conversation, a date nobody typed read "You said this" on the Evidence Card. The builder now
+  grades by the path the values took: a write tool's arguments are an inference and carry
+  `Inferred` with no binding, and only the development seam, where a person writes the values into
+  the request, mints `UserStated` — bound to that request rather than to a control. PV-3 makes
+  `UserStated` unreachable from an inference, and `ProvenanceTag.FromInference` cannot name it;
+  the sample now teaches that instead of working around it. The seam's own canned defaults are not
+  a person's act either — they are constants in the host, stated by nobody — so a create the caller
+  did not override files them `Default` rather than swearing five values a reviewer never typed. `docs/tool-authoring-guide.md` taught
+  the same over-grade in the code a host copies — its worked example, its skeleton, its entity
+  mapper and its plugin test all tagged a tool parameter `UserStated`, two hundred lines below the
+  rule saying not to — and now matches the rule it states, with a persisted value read back out of
+  the store graded `External` and bound to its row. Sample and documentation only; no framework
+  behaviour changed. (#110)
+- **The sample's browser deck failed one of its eight specs, and nothing ran it.** The
+  late-amendments spec asserted that an entry past its deadline still reads `Pending` in the store
+  until the sweep commits it — true before 1.0.0-beta.3, and false since the docket stores began
+  projecting expiry onto every read. The spec now waits for that projected expiry, which is also a
+  better signal than counting seconds against a deadline the server stamped, and then exercises the
+  behaviour it was written for: the still-armed card, the refused decision, the amendments kept and
+  the resubmission that carries them. Doing so surfaced a second stale expectation in the sample:
+  `ChatHub`'s `DecisionAck` still mapped only `ReviewOutcome.Expired`, so a late decision — a
+  `Refused` outcome carrying `decision-expired` since 1.0.0-beta.3 — acked as "pending" and the
+  reviewer was told nothing at all. The ack now reads the refusal and its `amendments-preserved`
+  detail, and the page says which of the two happened. The deck moves into the
+  `sample-quickstart-host` CI job, which the workflow runs on a push to `main` or a `release/**`
+  branch, on a pull request based on either, and on demand — so a commit green on a branch a release
+  is cut from is one the deck passed. It had been
+  `workflow_dispatch`-only, which is how a release was tagged with a failing spec. (#111)
+- **A declared write tool that returned nothing passed through unrefused** (affiant#119, closing
+  the fail-open branches inside the filter that affiant#75 opened). `ReviewGateFilter` refuses a
+  registry-declared write tool whose result is not a `WriteProposal`, but its empty-result early
+  return ran *before* the registry was consulted — so a
+  `void`/`Task`-returning `[KernelFunction]`, or a null-returning function on the Agent Framework or
+  Extensions.AI, filed no proposal, drew no refusal and left the model free to report the write as
+  done. The registry is now consulted first: nothing is a non-proposal result like any other. A read
+  tool's empty result still passes through untouched. The other half of affiant#75 — a tool that
+  performs the write inside its own body and returns a plain success string — is unchanged: the
+  filter runs after the tool body, and that boundary is stated in `ReviewGateFilter`'s own remarks
+  rather than enforced by it, so affiant#75 stays open, narrowed to that boundary — beside
+  affiant#73, which stays open narrowed to its unfixed redaction half. This release closes neither.
+- **`Affiant.SemanticKernel`'s `[KernelFunction]` walker stripped a trailing `Async` from
+  synchronous methods** (affiant#101). Semantic Kernel drops the suffix only from a method returning
+  `Task`, `ValueTask` or `IAsyncEnumerable`, so `[KernelFunction] string LookupThingAsync()` was
+  registered as the descriptor `LookupThing` while SK exposed `LookupThingAsync`, and
+  `AffiantStartupValidator` then refused the wiring at boot. The walker now applies SK's own
+  return-type condition, which is the condition `Affiant.AgentFramework`'s catalog already inherits
+  from `AIFunctionFactory` — the same trailing-`Async` rule on every backend.
+- `Sakwala/affiant#105` — the EF stores wrote the Docket's JSON columns under serializer options of
+  their own, so a stored row and the wire form of the same record were different bytes; both call
+  sites now go through `AffiantJson`.
+- `Sakwala/affiant#107` — `ComplianceHarness.Verify` paired a fixture with whichever descriptor the
+  registry's `ConcurrentDictionary` happened to yield first, so a strategy behind two write tools
+  was verified against a different tool from process to process; the pairing is now the first
+  descriptor by function name, then by plugin name.
+- **On Semantic Kernel a filed proposal now carries the arguments the model passed (#114).** The
+  completion-stage bridge built its neutral request with an empty argument set, so
+  `WriteProposal.Arguments` — part of the material an entry id derives from (GT-4) — was attached on
+  the Agent Framework and Microsoft.Extensions.AI backends and never on SK. The same logical proposal
+  derived a different id per backend, and two SK calls in one conversation that differed only in their
+  arguments derived the same id, so the second was treated as a replay of the first. The bridge reads
+  `AutoFunctionInvocationContext.Arguments`, guarding the `InvalidOperationException` Semantic Kernel
+  raises when the auto-invocation loop holds no `KernelArguments`; `ManualToolInvoker`, the fallback
+  invocation path for connectors without native auto-invocation, passes the arguments it invoked the
+  tool with. Upgrading changes the ids an SK host derives: a row filed at `1.0.0-beta.3` derived its
+  id with no arguments in the material, so the gate's replay lookup does not find it after the
+  upgrade and a retried call files a second row for the same proposal.
+- **A provider's timeout degrades like every other inference failure (#102).** An `HttpClient`
+  timeout arrives as a `TaskCanceledException`, which is an `OperationCanceledException` — and the
+  runner, the trigger filter and all three inference ports re-threw every one of those on the grounds
+  that cancellation is the caller's word. The commonest provider failure of all therefore escaped the
+  fail-safe: the tool never ran, no proposal was filed, and the model answered without the tool
+  instead of proceeding on an empty inference result. Cancellation is re-thrown only when the caller's
+  own `CancellationToken` is signalled; every other one is a provider failure — a logged warning, an
+  `inference.failed` event and an empty result, with the tool call proceeding.
+
 #### Changed
 
 - **The no-turn path is narrower than `1.0.0-beta.3`.** A caller with no turn in hand still has the
@@ -90,6 +222,80 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
   say what is true and what an operator can plan against: the name is emitted through the
   `1.0.0-beta.3` line, its point releases included, and is removed at the next release that is not a
   point release of it.
+
+#### Documentation
+
+- **The beta.3 docket section's breaking-change 8** now describes `ReviewGate.HandleDecisionAsync`
+  and `ResubmitAsync`'s new `DecisionContext` parameter accurately: one declaration each, with the
+  old signature removed and the new one added, not split into explicit overloads (affiant#89).
+- **`ReviewOutcome.Approved`'s XML remarks** now say the amended Affidavit is persisted on the
+  Docket row, as `DocketEntry.AmendedAffidavit`, and not only carried beside the outcome
+  (affiant#90).
+- **The beta.3 docket section's breaking-change 4** now names only the two decision cases that
+  actually stopped returning `Expired` — a missing entry and an already-decided entry — and states
+  the lost-race case separately, since it returned the winner's own outcome at `1.0.0-beta.1.1` and
+  returns `Refused` with `decision-lost-race` here. A decision on a blocked entry could not arise
+  before this release, since `BlockedMarker` did not exist (affiant#95).
+- **`Affidavit.AggregateConfidence`'s XML doc** no longer states that 0 is reachable only through an
+  unknown-provenance (`Empty`) field — a known-provenance field the inference port itself rated at 0
+  confidence also drives the minimum to 0 (affiant#100).
+- Quickstart sample XML docs describe 1.0.0-beta.3's fail-closed review wiring (`wireup-invalid`)
+  in place of the pre-beta.3 silent skip, and state where the scoped-plugin failure actually throws
+  (affiant#106).
+- `AffiantToolCatalog.ResolveTarget`'s exception guidance and the `Affiant.AgentFramework` /
+  `Affiant.Extensions.AI` READMEs now describe a wiring that runs under scope validation - the chat
+  client and agent built from a per-turn scope, not the application root (affiant#112).
+- `Affiant.Docket`'s README configures `ExpirySweepBatchesPerTick` and `SweepScope` by registering
+  `AffiantDocketOptions` ahead of `AddAffiantDocket` - a snippet that compiles against the shipped
+  types - and no longer contradicts itself on whether `AddAffiantDocket` is required for the expiry
+  sweep (affiant#116).
+- Seven source comments and the quickstart sample's README corrected to match the code beside them:
+  `AffidavitSubstance`'s actual two callers, the enum-as-string history that never regressed,
+  `ToolArgumentCaptureFilter`'s captured `EntityRef` (not a provenance chain), the quickstart
+  Docket's expiry-on-read behaviour, the run-time substance refusal `ReviewGate` already ships,
+  `IWriteExecutor`'s actual call path, and the re-entrancy guard's actual scope (affiant#118).
+- **The specification's `ReviewStep` section describes the record that ships.** §2.8 documented a
+  six-field `StepId`/`Description`/`Fields`/`Status`/`ReviewedBy`/`ReviewedAt` shape that was never
+  shipped, and said the ReviewGate "processes steps sequentially, sending one Evidence Card at a
+  time". The shipped record is four fields; no C# file under `src/`, `tests/` or `samples/` names
+  `ReviewStep` other than its own declaration, so nothing mints one and nothing persists one; and
+  sequential multi-step review does not exist at runtime. The section and the type's own summary now
+  say that, and point a host that needs several approvers at `DocketEntry.CompositeRef`, which is
+  where multi-party approval is composed today. (affiant#69)
+- **SR-4 is no longer cited for the Standing Order card broadcast.** SR-4 is "every envelope carries
+  `protocolVersion`" and says nothing about cards; no numbered v0.1 invariant states that an
+  auto-approval still shows one. The `1.0.0-beta.3` entry below, `ReviewGate`'s comment at the
+  Standing Order branch and the mutation table's M2 now cite the fixture that pins the behaviour,
+  `sequence-c/relay-auto-approve-bound-external`; M3, which is about the filing broadcast rather than
+  the Standing Order one, cites RUNNER §4.2 — the card facts a driver checks on every filing whether
+  a fixture states them or not. (affiant#92)
+- **The quickstart projection stops calling its aggregate stricter than the framework's
+  (Sakwala/affiant#96).** `LeaveAffidavitProjection` described its aggregate as stricter than the
+  default and the framework's `PopulatedConfidence` as a mean over the sourced fields. Since
+  `1.0.0-beta.3` `AffidavitConfidence.Compute` takes the minimum for both numbers, so the override
+  changes nothing and the two comments contradicted each other. Both now state the shipped rule.
+
+#### Upgrade note
+
+- **A host that byte-pins its wire assertions to the rulebook's `wire/` fixtures asserts the
+  additions through an allow-list, not through envelope equality.** The fixtures under
+  `conformance/fixtures/wire/` were derived from `1.0.0-beta.1` — `conformance/fixtures/MANIFEST.json`
+  says so under `derivedFrom.framework` — and an `EvidenceCardRequest` there carries four
+  properties: `docketId`, `affidavit`, `requiredBy` and `priorAmendments`. The envelope this tree
+  serialises carries those four and, on every card, `populatedConfidence`, `emptyFieldCount`,
+  `requiresConfirmation`, `blocked` and `protocolVersion`, plus `presentation` (computed from the
+  Affidavit's own per-field hints), `warnings` (lifted off `affidavit.Warnings`) and `hostOperation`
+  (the caller's own argument) — those three are omitted when null, the rest are written even when
+  null. An assertion that the emitted key set
+  *equals* a fixture's therefore fails the moment the framework carries a new property, and that is
+  expected rather than a regression: the fixtures pin the shape a beta.1 host had to produce, not a
+  ceiling on what a later envelope may carry. Assert that every key a fixture names is present with
+  the value it gives, and allow-list the rest — the framework's own
+  `SeedWireFixtureTests.AnEvidenceCardGainsTheEnvelopesNewPropertiesAndLosesNone` is that assertion
+  written down, asserting that none was removed and naming seven of the eight added keys — it does
+  not name `warnings`, so a host copying its list as an allow-list adds that key itself. The fixtures' own
+  staleness is filed on the rulebook as Sakwala/affiant-protocol#24 and closes when the wire set is
+  re-promoted at the next protocol tag. (affiant#91)
 
 ## [1.0.0-beta.3] — 2026-09-05
 
@@ -784,10 +990,15 @@ here. Nothing below changes what a conforming host already does; each is a chang
    relay, or a Standing Order — where `ReviewerUserId` can only name one id. Removed in the release
    after this one.
 4. **`ReviewGate.HandleDecisionAsync` returns `ReviewOutcome.Refused` where it used to return
-   `ReviewOutcome.Expired`** for a decision on a missing entry, a decision on an already-decided
-   entry, a decision that lost a race, and a decision on a blocked entry. A host that branched on
-   `Expired` for any of those adds a `Refused` arm and reads `Code`; `ReviewOutcome.Expired.
-   AmendmentsPreserved` is replaced by `Refused.Detail == "amendments-preserved"`.
+   `ReviewOutcome.Expired`** for a decision on a missing entry and a decision on an already-decided
+   entry. (A decision on a blocked entry could not arise before this release, since `BlockedMarker`
+   did not exist.) A host that branched on `Expired` for either surviving case adds a `Refused` arm
+   and reads `Code`; `ReviewOutcome.Expired.AmendmentsPreserved` is replaced by
+   `Refused.Detail == "amendments-preserved"`. **A decision that lost the transition race** never
+   returned `Expired`: at `1.0.0-beta.1.1` the losing caller received the winner's own outcome — an
+   `Approved` when the winner approved — and now receives `ReviewOutcome.Refused` with
+   `Code == DocketRefusalCodes.DecisionLostRace` (`"decision-lost-race"`). A host that read the
+   loser's outcome as its own decision's result reads `Code` instead.
 5. **A `MultiParty` or `ReferralRequired` verdict returns `ReviewOutcome.Refused`**, not
    `ReviewOutcome.Approved` (via a single reviewer) or `ReviewOutcome.Referral`. No entry is written
    `ReviewStatus.Deferred` any more. A host that treated `Referral` as an escalation hand-off should
@@ -801,8 +1012,11 @@ here. Nothing below changes what a conforming host already does; each is a chang
    `Amendments`: what an approval *accepted* and what a refused caller *typed* are different facts,
    and a resubmission that presented the second as the first would show a refused caller's
    corrections as an approval's.
-8. **`ReviewGate.HandleDecisionAsync`'s optional parameters are now explicit overloads.** Existing
-   call sites keep compiling; a call that relied on named arguments past `amendments` does not.
+8. **`ReviewGate.HandleDecisionAsync` and `ResubmitAsync` gained a required `DecisionContext context`
+   parameter.** Each keeps one declaration — `amendments`/`cancellationToken` on `HandleDecisionAsync`
+   and `cancellationToken` on `ResubmitAsync` stay optional — with the old signature removed and the
+   new one added, not split into overloads. No existing call site keeps compiling unchanged; each
+   must now pass a `DecisionContext`.
 9. **The store refuses what the gate refuses, on all three backends.** `FileDocketEntryAsync` takes
    a row that is `Pending` and nothing else: a decided row filed directly would put a state nobody
    agreed to in front of the host's executor without ever passing the guarded transition that checks
@@ -1061,8 +1275,8 @@ delivered its own `EvidenceCardResponse` unblocked the waiter and the row was wr
 - **An inference reports whether the value was literally in the turn, and which span it read**, so a
   value read verbatim is graded `Conversation` and carries an utterance-span binding.
 - **A Standing Order approval broadcasts its Evidence Card**, with `requiresConfirmation` false
-  (SR-4), and a blocked row's card carries the row's own marker and says in words why no decision will
-  be accepted.
+  (`sequence-c/relay-auto-approve-bound-external`), and a blocked row's card carries the row's own
+  marker and says in words why no decision will be accepted (AZ-4, CV-4).
 - **`standing-order.fired` is emitted by the gate**, where the write is actually approved with no
   person present and where the entry id exists to name.
 - **`ApprovalPolicyEvaluator` measures a review window against the injected `TimeProvider`** (GT-4),
@@ -2541,6 +2755,8 @@ pre-1.0 clean break, not a deprecation — there is no compatibility shim:
   Mapping), and §5 (Framework Boundary Contract, new Seam 4) corrected/rewritten to describe this
   architecture; see those sections for full detail.
 
-[1.0.0-beta.3]: https://github.com/Sakwala/affiant/compare/v1.0.0-beta.1.1...HEAD
+[Unreleased]: https://github.com/Sakwala/affiant/compare/v1.0.0-beta.3.1...HEAD
+[1.0.0-beta.3.1]: https://github.com/Sakwala/affiant/compare/v1.0.0-beta.3...v1.0.0-beta.3.1
+[1.0.0-beta.3]: https://github.com/Sakwala/affiant/compare/v1.0.0-beta.1.1...v1.0.0-beta.3
 [1.0.0-beta.1.1]: https://github.com/Sakwala/affiant/releases/tag/v1.0.0-beta.1.1
 [1.0.0-beta.1]: https://github.com/Sakwala/affiant/releases/tag/v1.0.0-beta.1
