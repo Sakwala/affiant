@@ -16,9 +16,15 @@ public static class ComplianceHarness
         var provider = services.BuildServiceProvider();
         var registry = provider.GetRequiredService<IAffiantToolRegistry>();
 
+        // The registry hands its descriptors back in a ConcurrentDictionary's enumeration order,
+        // which is unspecified and differs between processes. Ordering them here is what makes a
+        // verification run reproducible — the same registration produces the same report every
+        // time, and the pairing below picks the same descriptor every time (#107).
         var writeDescriptors = registry.All
             .Where(d => (d.Operation.Kind == "WriteCreate" || d.Operation.Kind == "WriteUpdate")
                      && d.InferenceStrategy is not null)
+            .OrderBy(d => d.FunctionName, StringComparer.Ordinal)
+            .ThenBy(d => d.PluginName, StringComparer.Ordinal)
             .ToList();
 
         var fixtures = provider.GetServices<ITaskInferenceComplianceFixture>().ToList();
@@ -41,7 +47,11 @@ public static class ComplianceHarness
 
         foreach (var fixture in fixtures.Where(f => pairedStrategies.Contains(f.Strategy)))
         {
-            // First matching descriptor supplies FunctionName and Operation.Kind for the projection call.
+            // Of the descriptors that name this strategy, the pairing is the first in the order
+            // above — by function name, then by plugin name, both ordinal. A strategy that backs
+            // two write tools is therefore verified against one of them, the same one in every
+            // process: a fixture whose cases do not fit that tool fails every run rather than
+            // some (#107).
             var descriptor = writeDescriptors.First(d => d.InferenceStrategy == fixture.Strategy);
 
             var producedAny = false;
