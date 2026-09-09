@@ -22,10 +22,9 @@ public abstract record ReviewOutcome(Guid DocketId)
     /// </para>
     ///
     /// <para>
-    /// Carried on the outcome rather than persisted on the Docket row: giving the row its own
-    /// column is a store change (a new column on every backend plus a migration) and is the
-    /// docket-and-store change's to make, not this one's. Until then, a host that wants the amended
-    /// record durable writes it in its own executor.
+    /// Carried beside the proposal on the outcome, and also persisted on the Docket row as
+    /// <see cref="DocketEntry.AmendedAffidavit"/> — every store backend writes it on the same
+    /// transition that decides the entry.
     /// </para>
     /// </param>
     public sealed record Approved(Guid DocketId, Affidavit? AmendedAffidavit = null)
