@@ -52,9 +52,10 @@ jobs:
   # specs wait out the framework's 30-second expiry sweep and are a poor gate for an unrelated push.
   # What that bought was a deck nobody ran: one spec had been failing since the docket stores began
   # projecting expiry onto every read, and the 1.0.0-beta.3 tag was green anyway (affiant#111). It
-  # runs in this job, on the triggers declared above — a push to main, a pull request based on main,
-  # and a manual dispatch — so a commit green on main is one the deck passed. The specs that wait on
-  # the sweep are why this job is minutes rather than seconds.
+  # runs in this job, on the triggers declared above — a push to main or a release/** branch, a pull
+  # request based on either, and a manual dispatch — so a commit green on a branch a release is cut
+  # from is one the deck passed. The specs that wait on the sweep are why this job is minutes rather
+  # than seconds.
   sample-quickstart-host:
     runs-on: ubuntu-latest
     timeout-minutes: 20

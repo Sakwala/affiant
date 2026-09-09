@@ -3,359 +3,359 @@
   "implementation": {
     "name": "dotnet",
     "version": "1.0.0-beta.3.1",
-    "commit": "4b5e944bbbed196ddf61ca11566289998a52fb05",
+    "commit": "486862bb14245d205d2431beee16de79085715e7",
     "runtime": "net10.0"
   },
   "protocolTag": "v0.1.3",
-  "producedAt": "2026-09-08T16:55:34.149Z",
+  "producedAt": "2026-09-09T01:25:56.539Z",
   "summary": {
     "total": 68,
     "passed": 68,
     "failed": 0,
     "errored": 0,
     "skipped": 0,
-    "durationMs": 1122.108
+    "durationMs": 1216.916
   },
   "results": [
     {
       "id": "gate/substance-hollow-refused",
       "outcome": "pass",
-      "durationMs": 324.015
+      "durationMs": 305.651
     },
     {
       "id": "gate/substance-zero-field-refused",
       "outcome": "pass",
-      "durationMs": 7.399
+      "durationMs": 11.281
     },
     {
       "id": "gate/ttl-from-verdict",
       "outcome": "pass",
-      "durationMs": 77.448
+      "durationMs": 101.577
     },
     {
       "id": "gate/ttl-from-policy-default",
       "outcome": "pass",
-      "durationMs": 13.053
+      "durationMs": 5.621
     },
     {
       "id": "gate/ttl-from-gate-default",
       "outcome": "pass",
-      "durationMs": 6.129
+      "durationMs": 2.579
     },
     {
       "id": "gate/standing-order-by-the-book",
       "outcome": "pass",
-      "durationMs": 23.655
+      "durationMs": 9.859
     },
     {
       "id": "gate/standing-order-threshold-under",
       "outcome": "pass",
-      "durationMs": 3.5
+      "durationMs": 3.83
     },
     {
       "id": "gate/standing-order-threshold-over",
       "outcome": "pass",
-      "durationMs": 6.218
+      "durationMs": 4.806
     },
     {
       "id": "gate/standing-order-unbound-input",
       "outcome": "pass",
-      "durationMs": 7.326
+      "durationMs": 8.824
     },
     {
       "id": "gate/standing-order-bound-input",
       "outcome": "pass",
-      "durationMs": 19.183
+      "durationMs": 38.534
     },
     {
       "id": "gate/multiparty-blocked",
       "outcome": "pass",
-      "durationMs": 5.646
+      "durationMs": 8.191
     },
     {
       "id": "gate/referral-blocked",
       "outcome": "pass",
-      "durationMs": 4.262
+      "durationMs": 4.622
     },
     {
       "id": "gate/coverage-refused-declared",
       "outcome": "pass",
-      "durationMs": 6.73
+      "durationMs": 6.526
     },
     {
       "id": "gate/update-previous-values",
       "outcome": "pass",
-      "durationMs": 6.597
+      "durationMs": 6.958
     },
     {
       "id": "gate/create-null-previous-values",
       "outcome": "pass",
-      "durationMs": 4.294
+      "durationMs": 2.661
     },
     {
       "id": "gate/inference-conversation-and-inferred",
       "outcome": "pass",
-      "durationMs": 39.607
+      "durationMs": 37.7
     },
     {
       "id": "gate/threshold-without-scorer",
       "outcome": "pass",
-      "durationMs": 4.263
+      "durationMs": 6.13
     },
     {
       "id": "gate/inference-presence-computed-from-the-utterance",
       "outcome": "pass",
-      "durationMs": 23.745
+      "durationMs": 15.844
     },
     {
       "id": "gate/inference-port-literal-unconfirmed",
       "outcome": "pass",
-      "durationMs": 12.215
+      "durationMs": 6.123
     },
     {
       "id": "gate/inference-port-span-fails-the-boundary",
       "outcome": "pass",
-      "durationMs": 8.347
+      "durationMs": 4.79
     },
     {
       "id": "gate/inference-case-folds-and-the-digest-is-the-utterances",
       "outcome": "pass",
-      "durationMs": 12.018
+      "durationMs": 5.696
     },
     {
       "id": "gate/inference-empty-value-is-nothing-reported",
       "outcome": "pass",
-      "durationMs": 3.838
+      "durationMs": 3.972
     },
     {
       "id": "decide/approve",
       "outcome": "pass",
-      "durationMs": 24.066
+      "durationMs": 34.015
     },
     {
       "id": "decide/reject",
       "outcome": "pass",
-      "durationMs": 8.362
+      "durationMs": 5.411
     },
     {
       "id": "decide/second-decision-refused",
       "outcome": "pass",
-      "durationMs": 9.589
+      "durationMs": 6.969
     },
     {
       "id": "decide/expired-amendments-preserved",
       "outcome": "pass",
-      "durationMs": 20.622
+      "durationMs": 16.336
     },
     {
       "id": "decide/blocked-refused",
       "outcome": "pass",
-      "durationMs": 8.02
+      "durationMs": 9.203
     },
     {
       "id": "decide/amend-recompute",
       "outcome": "pass",
-      "durationMs": 117.264
+      "durationMs": 148.604
     },
     {
       "id": "decide/unresolved-identity",
       "outcome": "pass",
-      "durationMs": 7.726
+      "durationMs": 4.849
     },
     {
       "id": "decide/wrong-tenant",
       "outcome": "pass",
-      "durationMs": 5.555
+      "durationMs": 8.603
     },
     {
       "id": "decide/authorization-declined",
       "outcome": "pass",
-      "durationMs": 6.027
+      "durationMs": 8.547
     },
     {
       "id": "decide/relay-member-via-relay",
       "outcome": "pass",
-      "durationMs": 6.789
+      "durationMs": 10.508
     },
     {
       "id": "decide/relay-without-assertion-refused",
       "outcome": "pass",
-      "durationMs": 9.998
+      "durationMs": 11.181
     },
     {
       "id": "decide/execution-executed",
       "outcome": "pass",
-      "durationMs": 15.52
+      "durationMs": 17.766
     },
     {
       "id": "decide/execution-failed",
       "outcome": "pass",
-      "durationMs": 13.67
+      "durationMs": 15.677
     },
     {
       "id": "decide/execution-on-pending-refused",
       "outcome": "pass",
-      "durationMs": 7.457
+      "durationMs": 11.884
     },
     {
       "id": "decide/resubmit-prefills",
       "outcome": "pass",
-      "durationMs": 21.678
+      "durationMs": 40.765
     },
     {
       "id": "decide/executed-only-through-a-report",
       "outcome": "pass",
-      "durationMs": 9.492
+      "durationMs": 8.242
     },
     {
       "id": "decide/authorization-throws",
       "outcome": "pass",
-      "durationMs": 8.346
+      "durationMs": 6.365
     },
     {
       "id": "decide/execution-recorded-once",
       "outcome": "pass",
-      "durationMs": 10.284
+      "durationMs": 11.595
     },
     {
       "id": "decide/execution-second-report-refused",
       "outcome": "pass",
-      "durationMs": 10.723
+      "durationMs": 14.666
     },
     {
       "id": "sequence-a/approve-round-trip",
       "outcome": "pass",
-      "durationMs": 19.221
+      "durationMs": 31.163
     },
     {
       "id": "sequence-a/reject-round-trip",
       "outcome": "pass",
-      "durationMs": 5.744
+      "durationMs": 9.878
     },
     {
       "id": "sequence-a/typed-inputs-on-the-card",
       "outcome": "pass",
-      "durationMs": 9.806
+      "durationMs": 15.331
     },
     {
       "id": "sequence-a/picker-external-binding",
       "outcome": "pass",
-      "durationMs": 5.388
+      "durationMs": 9.799
     },
     {
       "id": "sequence-a/mandatory-field-left-empty",
       "outcome": "pass",
-      "durationMs": 3.425
+      "durationMs": 7.875
     },
     {
       "id": "sequence-a/mandatory-field-reviewer-approves",
       "outcome": "pass",
-      "durationMs": 7.025
+      "durationMs": 7.284
     },
     {
       "id": "sequence-a/expiry-then-resubmit",
       "outcome": "pass",
-      "durationMs": 5.067
+      "durationMs": 6.135
     },
     {
       "id": "sequence-a/late-amendments-preserved",
       "outcome": "pass",
-      "durationMs": 4.812
+      "durationMs": 5.53
     },
     {
       "id": "sequence-a/interleaved-conversations",
       "outcome": "pass",
-      "durationMs": 4.492
+      "durationMs": 4.982
     },
     {
       "id": "sequence-a/replay-keeps-the-deadline",
       "outcome": "pass",
-      "durationMs": 6.924
+      "durationMs": 10.921
     },
     {
       "id": "sequence-a/sweep-pages",
       "outcome": "pass",
-      "durationMs": 24.714
+      "durationMs": 29.39
     },
     {
       "id": "sequence-a/rehydration-order",
       "outcome": "pass",
-      "durationMs": 15.976
+      "durationMs": 18.564
     },
     {
       "id": "sequence-a/coverage-refused-at-wire-up",
       "outcome": "pass",
-      "durationMs": 4.681
+      "durationMs": 4.077
     },
     {
       "id": "sequence-a/mandatory-field-empty-blocks-standing-order",
       "outcome": "pass",
-      "durationMs": 5.993
+      "durationMs": 3.579
     },
     {
       "id": "sequence-a/optional-field-empty-standing-order-fires",
       "outcome": "pass",
-      "durationMs": 6.269
+      "durationMs": 3.208
     },
     {
       "id": "sequence-c/relay-auto-approve-bound-external",
       "outcome": "pass",
-      "durationMs": 4.93
+      "durationMs": 4.79
     },
     {
       "id": "sequence-c/relayed-decision-member-via-relay",
       "outcome": "pass",
-      "durationMs": 7.248
+      "durationMs": 7.304
     },
     {
       "id": "sequence-c/unbound-external-asks-a-person",
       "outcome": "pass",
-      "durationMs": 4.218
+      "durationMs": 4.984
     },
     {
       "id": "sequence-c/relay-may-not-attest-member",
       "outcome": "pass",
-      "durationMs": 3.655
+      "durationMs": 7.245
     },
     {
       "id": "sequence-c/relay-decision-other-tenant-not-found",
       "outcome": "pass",
-      "durationMs": 3.945
+      "durationMs": 3.989
     },
     {
       "id": "canonical/create-shaped",
       "outcome": "pass",
-      "durationMs": 8.87
+      "durationMs": 10.1
     },
     {
       "id": "canonical/update-shaped",
       "outcome": "pass",
-      "durationMs": 1.088
+      "durationMs": 0.755
     },
     {
       "id": "canonical/wire-evidence-card-request",
       "outcome": "pass",
-      "durationMs": 0.694
+      "durationMs": 0.444
     },
     {
       "id": "canonical/wire-evidence-card-request-amended",
       "outcome": "pass",
-      "durationMs": 9.004
+      "durationMs": 5.663
     },
     {
       "id": "canonical/key-order-stress",
       "outcome": "pass",
-      "durationMs": 0.845
+      "durationMs": 1.649
     },
     {
       "id": "canonical/number-forms",
       "outcome": "pass",
-      "durationMs": 0.888
+      "durationMs": 1.213
     },
     {
       "id": "canonical/money-and-escapes",
       "outcome": "pass",
-      "durationMs": 1.147
+      "durationMs": 3.98
     }
   ]
 }

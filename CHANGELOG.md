@@ -13,6 +13,30 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
 
 ## [Unreleased]
 
+## [1.0.0-beta.3.1] — 2026-09-09
+
+### The grade a person's own words earn, and the seams that did not carry them
+
+A point release of `1.0.0-beta.3` carries corrections and nothing a host has to learn: one added
+overload, no other new surface, and every entry below a place where the framework did not do what
+the release already claimed. The largest is the grade a person's own words earn — PV-3 makes an
+inferred field `Conversation` when the value is literally present in the utterance, and the
+framework asked the inference port to say whether it was, a question no shipped port asks a model,
+so every value a person typed in chat was sworn "AI suggested", which is the one distinction an
+Evidence Card exists to draw; presence is a property of two strings, and the framework now
+establishes it from the turn itself and binds the grade to the span it found. Beneath that, three
+seams that carried less than they claimed: the review gate's empty-result early return ran *before*
+the registry was consulted, so a declared write tool that returned nothing filed no proposal and
+drew no refusal — a fail-open on the filter whose whole job is to refuse — and Semantic Kernel's
+two completion-stage seams reached the gate without the arguments an entry id derives from and
+without the turn a grade is established against, so the same tool call graded and identified itself
+differently there than on the other two backends. The rest is correction a reader can check: a
+provider's timeout that escaped the inference fail-safe, a `[KernelFunction]` walker that stripped a
+trailing `Async` from a synchronous method, an EntityFramework store that wrote Docket rows under
+serializer options of its own, a compliance harness that paired a fixture with whichever descriptor
+a dictionary yielded first, the quickstart sample and its browser deck brought back to what the
+framework does, and the documents and XML comments that described a shape the code does not have.
+
 #### Fixed
 
 - **Presence is established from the utterance, not from the model's claim about it**
@@ -116,8 +140,9 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
   `Refused` outcome carrying `decision-expired` since 1.0.0-beta.3 — acked as "pending" and the
   reviewer was told nothing at all. The ack now reads the refusal and its `amendments-preserved`
   detail, and the page says which of the two happened. The deck moves into the
-  `sample-quickstart-host` CI job, which the workflow runs on a push to `main`, on a pull request
-  based on `main`, and on demand — so a commit green on `main` is one the deck passed. It had been
+  `sample-quickstart-host` CI job, which the workflow runs on a push to `main` or a `release/**`
+  branch, on a pull request based on either, and on demand — so a commit green on a branch a release
+  is cut from is one the deck passed. It had been
   `workflow_dispatch`-only, which is how a release was tagged with a failing spec. (#111)
 - **A declared write tool that returned nothing passed through unrefused** (affiant#119, closing
   the fail-open branches inside the filter that affiant#75 opened). `ReviewGateFilter` refuses a
@@ -2724,7 +2749,8 @@ pre-1.0 clean break, not a deprecation — there is no compatibility shim:
   Mapping), and §5 (Framework Boundary Contract, new Seam 4) corrected/rewritten to describe this
   architecture; see those sections for full detail.
 
-[Unreleased]: https://github.com/Sakwala/affiant/compare/v1.0.0-beta.3...HEAD
+[Unreleased]: https://github.com/Sakwala/affiant/compare/v1.0.0-beta.3.1...HEAD
+[1.0.0-beta.3.1]: https://github.com/Sakwala/affiant/compare/v1.0.0-beta.3...v1.0.0-beta.3.1
 [1.0.0-beta.3]: https://github.com/Sakwala/affiant/compare/v1.0.0-beta.1.1...v1.0.0-beta.3
 [1.0.0-beta.1.1]: https://github.com/Sakwala/affiant/releases/tag/v1.0.0-beta.1.1
 [1.0.0-beta.1]: https://github.com/Sakwala/affiant/releases/tag/v1.0.0-beta.1
