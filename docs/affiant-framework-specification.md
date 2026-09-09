@@ -1124,7 +1124,7 @@ L2 introduces three new abstractions in `Affiant.Abstractions.Interfaces`, each 
 
 Three default service implementations ship with the framework. Hosts that accept the defaults need only call `AddAffiantInferenceOrchestration()` (§3.12.3) during DI setup.
 
-**`TaskInferenceRunner`** (in `Affiant.Core.Services`) is the stateless orchestrator that bridges `IInferenceCompletionPort` and the merge step. It builds an `InferenceCompletionRequest`, calls the port, forwards the resulting `JsonElement` — together with the current turn, the `Content` of the last message in the history whose `Role` is the user role (a null `Content` is an empty turn, not a missing one), which is what PV-3's grade is established against — to `TaskInferenceStep` for confidence-based merge into the `ContextFabric`, and emits the `inference.completed` span event. On any non-cancellation exception it emits `inference.failed`, logs a warning at `LogWarning` level, and returns an empty `TaskInferenceResult` — the fail-safe contract (§3.12.7).
+**`TaskInferenceRunner`** (in `Affiant.Core.Services`) is the stateless orchestrator that bridges `IInferenceCompletionPort` and the merge step. It builds an `InferenceCompletionRequest`, calls the port, forwards the resulting `JsonElement` — together with the current turn, the `Content` of the last message in the history whose `Role` is the user role (a null `Content` is an empty turn, not a missing one), which is what PV-3's grade is established against — to `TaskInferenceStep` for confidence-based merge into the `ContextFabric`, and emits the `inference.completed` span event. On any exception other than the caller's own cancellation it emits `inference.failed`, logs a warning at `LogWarning` level, and returns an empty `TaskInferenceResult` — the fail-safe contract (§3.12.7).
 
 **`WriteIntentInferenceTrigger`** (in `Affiant.Core.Triggers`) is the default `IInferenceTrigger` registered by `AddAffiantInferenceOrchestration()`. It fires inference for any tool whose registered `AffiantToolDescriptor` has `Operation.Kind` of `"WriteCreate"` or `"WriteUpdate"`.
 
@@ -1356,9 +1356,9 @@ The contrast with the pre-L2 pattern is significant: before L2, each write tool 
 
 #### 3.12.7 Fail-Safe Semantics
 
-Inference failure never breaks the agent turn. The fail-safe contract, enforced jointly by `InferenceTriggerFilter` and `TaskInferenceRunner`, is: any `Exception` other than `OperationCanceledException` thrown during inference is caught, an `inference.failed` span event is emitted with `affiant.error.kind` populated, a warning is logged at `LogWarning` level, and the tool call proceeds via `next(context)`. The agent receives a tool return and produces a non-null response.
+Inference failure never breaks the agent turn. The fail-safe contract, enforced jointly by `InferenceTriggerFilter` and `TaskInferenceRunner`, is: any `Exception` thrown during inference other than a cancellation the caller asked for is caught, an `inference.failed` span event is emitted with `affiant.error.kind` populated, a warning is logged at `LogWarning` level, and the tool call proceeds via `next(context)`. The agent receives a tool return and produces a non-null response.
 
-`OperationCanceledException` is deliberately re-thrown — cancellation is user- or host-initiated and must propagate normally.
+An `OperationCanceledException` is re-thrown only when the caller's own `CancellationToken` is signalled — a cancellation the caller asked for must propagate normally. A provider's timeout also arrives as an `OperationCanceledException` (`HttpClient` raises `TaskCanceledException`) with that token unsignalled: it is a provider failure, and degrades like the rest (affiant#102).
 
 The fail-safe contract is asserted end-to-end by `InferenceFailSafeIntegrationTests` (`tests/Affiant.SemanticKernel.Tests/Integration/InferenceFailSafeIntegrationTests.cs`, landed in Story 16.6).
 

@@ -20,7 +20,8 @@ using Microsoft.Extensions.Logging;
 ///   2. Idempotency check — once per (ConversationId, FunctionName, TurnNumber).
 ///      Bookkeeping anchored on IContextFabric via reserved entity key "inference_idempotency".
 ///   3. Strategy resolution — from IAffiantToolRegistry + the per-invocation service scope.
-///   4. Run inference — fail-safe: any non-cancellation exception logs a warning + continues.
+///   4. Run inference — fail-safe: every exception but the caller's own cancellation logs a
+///      warning + continues.
 ///   5. Tool call — next(context) always fires in every path.
 /// </summary>
 public sealed class InferenceTriggerFilter : IToolInvocationFilter
@@ -148,7 +149,11 @@ public sealed class InferenceTriggerFilter : IToolInvocationFilter
         {
             strategy = context.Services.GetRequiredService(descriptor.InferenceStrategy) as ITaskInferenceStrategy;
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        // affiant#102 again: resolving the strategy can reach the provider (a factory that hands the
+        // strategy a warmed client), and a timeout there arrives as a TaskCanceledException with the
+        // caller's token unsignalled. Only the caller's own cancellation breaks the turn; every other
+        // one is a resolution failure the filter skips inference for.
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
             _logger.LogWarning(ex,
                 "InferenceTriggerFilter: could not resolve strategy {Type} for {FunctionName}; skipping inference",
@@ -172,8 +177,10 @@ public sealed class InferenceTriggerFilter : IToolInvocationFilter
             await _runner.RunAsync(strategy, context.History, context.FunctionName, args, cancellationToken)
                 .ConfigureAwait(false);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            // The caller asked for this one — it propagates (affiant#102). A cancellation the
+            // caller did not ask for is a provider failure and falls to the fail-safe below.
             throw;
         }
         catch (Exception ex)

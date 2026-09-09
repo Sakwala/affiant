@@ -79,7 +79,13 @@ public class ManualToolInvoker(
         // and auto paths are mutually exclusive by design (manual runs only when the provider lacks
         // native auto-invocation), and kernel.InvokeAsync above never drives the completion stage.
         var completionRequest = new ToolInvocationRequest(
-            functionName, pluginName, new Dictionary<string, object?>())
+            // affiant#114 on this seam too: the review gate attaches the call's arguments to a
+            // WriteProposal, and they are part of the entry-id material (GT-4). An empty set here
+            // gave the fallback path a different id from every other backend for the same logical
+            // proposal, and gave two calls that differ only in their arguments the same id. These
+            // are the arguments kernel.InvokeAsync ran the tool with, their values stringified
+            // above; the tool has already returned, so nothing downstream can change what ran.
+            functionName, pluginName, arguments)
         {
             // The turn the completion stage grades against (PV-3), read exactly as the
             // invocation-stage bridge reads it. TaskInferenceMergeFilter establishes presence from
