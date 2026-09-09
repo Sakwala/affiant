@@ -51,6 +51,13 @@ function meter(confidence, label) {
     wrap.append(bar, element("span", "confidence-value", formatConfidence(confidence)));
     return wrap;
 }
+/** Reads a string under `key`, or `null` when it is absent or not a string. */
+function optionalString(source, key) {
+    if (typeof source !== "object" || source === null)
+        return null;
+    const value = source[key];
+    return typeof value === "string" ? value : null;
+}
 /** Reads a number a host may have added to the affidavit that the pinned schema does not define. */
 function optionalNumber(source, key) {
     if (typeof source !== "object" || source === null)
@@ -307,8 +314,12 @@ export class AffiantEvidenceCard extends HTMLElement {
                 : "Zero confidence in this value.";
             item.append(element("p", "flag", reason));
         }
-        if (tag.evidence !== null && tag.evidence !== "") {
-            item.append(element("p", "evidence", tag.evidence));
+        // `note` is the wire name for the sentence a person reads; `evidence` is the pre-beta.3
+        // spelling. Read wherever the tag actually carries it — a tag from 1.0.0-beta.3 or later
+        // has no `evidence` key at all, so the fallback costs nothing there.
+        const note = optionalString(tag, "note") ?? optionalString(tag, "evidence");
+        if (note !== null && note !== "") {
+            item.append(element("p", "evidence", note));
         }
         if (field.allowedValues !== null && field.allowedValues.length > 0) {
             item.append(element("p", "allowed", `One of: ${field.allowedValues.join(", ")}`));

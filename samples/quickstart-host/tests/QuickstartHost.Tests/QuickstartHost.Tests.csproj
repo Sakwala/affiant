@@ -13,6 +13,9 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.5" />
+    <!-- ChatHubApprovalTests drives ChatHub the way the page does: a real hub invocation over the
+         in-process test server, rather than calling the hub type directly. -->
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.5" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.4.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
