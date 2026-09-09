@@ -1,6 +1,6 @@
 # Affiant roadmap
 
-Last updated: 2026-09-05 · Current release: 1.0.0-beta.3 (2026-09-05)
+Last updated: 2026-09-09 · Current release: 1.0.0-beta.3.1 (2026-09-09)
 
 This file is canonical. It is mirrored at [affiant.dev/roadmap/](https://affiant.dev/roadmap/); if the two ever differ, this file wins.
 
