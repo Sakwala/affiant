@@ -31,13 +31,14 @@
     </PackageReference>
   </ItemGroup>
 
-  <!-- The vendored rulebook travels with the test binary: these tests read the v0.1 schemas and the
-       protocol's byte vectors at run time, and the run must not depend on the working directory or
-       on a network fetch. The ref it was copied from is named in the doc comment of the suite that
-       reads it (CanonicalVectorTests, V01SchemaValidation), beside the checksums in
-       tests/protocol/SHA256SUMS. -->
+  <!-- The vendored rulebook travels with the test binary: CanonicalVectorTests reads the protocol's
+       byte vectors at run time, and the run must not depend on the working directory or on a network
+       fetch. The files are the ones conformance/sync.sh vendors from the ref conformance/PROTOCOL_PIN
+       names, so the checksum verification CI runs (conformance/sync.sh with the verify flag) covers
+       what this project reads; only the vectors it reads are copied. -->
   <ItemGroup>
-    <Content Include="../protocol/**/*" LinkBase="protocol" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../Affiant.Conformance.Tests/protocol/fixtures/canonical/**/*"
+             LinkBase="protocol/fixtures/canonical" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

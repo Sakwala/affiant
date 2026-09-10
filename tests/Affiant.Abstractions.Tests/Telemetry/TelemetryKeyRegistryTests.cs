@@ -12,8 +12,10 @@ using Xunit;
 ///
 /// <para>
 /// The rulebook's schema, its <c>common.schema.json</c> companion, and its two conformance fixtures
-/// are vendored under <c>Telemetry/rulebook/</c>; that directory's <c>README.md</c> records the
-/// upstream repository and the exact commit they were copied from.
+/// are read from the one copy of the rulebook this repository keeps —
+/// <c>tests/Affiant.Conformance.Tests/protocol/</c>, vendored by <c>conformance/sync.sh</c> from the
+/// ref <c>conformance/PROTOCOL_PIN</c> names and re-checked against its <c>SHA256SUMS</c> by
+/// <c>conformance/sync.sh --verify</c> in CI.
 /// </para>
 /// </summary>
 public class TelemetryKeyRegistryTests
@@ -133,8 +135,8 @@ public class TelemetryKeyRegistryTests
     public void ShippedRegistry_ValidatesAgainstTheRulebookSchema()
     {
         using var registry = JsonDocument.Parse(ReadEmbeddedRegistry());
-        using var schema = JsonDocument.Parse(ReadRulebookFile("telemetry-key.schema.json"));
-        using var common = JsonDocument.Parse(ReadRulebookFile("common.schema.json"));
+        using var schema = JsonDocument.Parse(ReadSchema("telemetry-key.schema.json"));
+        using var common = JsonDocument.Parse(ReadSchema("common.schema.json"));
 
         var violations = JsonSchemaChecker.Validate(
             registry.RootElement,
@@ -150,13 +152,13 @@ public class TelemetryKeyRegistryTests
     /// violations for anything would make the test above pass forever.
     /// </summary>
     [Theory]
-    [InlineData("fixture-01-registry.json", true)]
-    [InlineData("fixture-90-key-without-attributes.json", false)]
+    [InlineData("01-registry.json", true)]
+    [InlineData("90-key-without-attributes.json", false)]
     public void SchemaChecker_AgreesWithTheRulebooksOwnFixtures(string fixture, bool expectedValid)
     {
-        using var instance = JsonDocument.Parse(ReadRulebookFile(fixture));
-        using var schema = JsonDocument.Parse(ReadRulebookFile("telemetry-key.schema.json"));
-        using var common = JsonDocument.Parse(ReadRulebookFile("common.schema.json"));
+        using var instance = JsonDocument.Parse(ReadTelemetryKeyFixture(fixture));
+        using var schema = JsonDocument.Parse(ReadSchema("telemetry-key.schema.json"));
+        using var common = JsonDocument.Parse(ReadSchema("common.schema.json"));
 
         var violations = JsonSchemaChecker.Validate(
             instance.RootElement,
@@ -191,6 +193,10 @@ public class TelemetryKeyRegistryTests
         return buffer.ToArray();
     }
 
-    private static byte[] ReadRulebookFile(string fileName) =>
-        File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Telemetry", "rulebook", fileName));
+    private static byte[] ReadSchema(string fileName) =>
+        File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "protocol", "schemas", "0.1.0", fileName));
+
+    private static byte[] ReadTelemetryKeyFixture(string fileName) =>
+        File.ReadAllBytes(Path.Combine(
+            AppContext.BaseDirectory, "protocol", "fixtures", "v0.1", "telemetry-key", fileName));
 }
