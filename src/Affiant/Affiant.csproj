@@ -5,7 +5,7 @@
        deliberately not among them: it is a test-project package, and a host that installs this one
        must not get the harness and its assets in its runtime graph. The id is live on nuget.org
        today with two placeholder previews, 0.0.1-preview and 0.0.2-preview, which predate this
-       project and which the maintainer is unlisting. -->
+       project and are unlisted (verified 2026-09-10). -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <PackageId>Affiant</PackageId>
