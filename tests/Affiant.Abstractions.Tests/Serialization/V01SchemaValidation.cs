@@ -9,10 +9,13 @@ using Json.Schema;
 /// Loads the vendored v0.1 schemas once and evaluates an envelope against one of them.
 ///
 /// <para>
-/// The schemas are the rulebook's own files under <c>tests/protocol/schemas/0.1.0</c>, copied from
-/// <c>Sakwala/affiant-protocol</c> at the tag <c>v0.1.2</c> (commit <c>d803fb0</c>). They are
-/// unchanged from <c>v0.1.0</c>: the two releases since patched the conformance vectors, the fixture
-/// lint and two rule texts, not the wire. They <c>$ref</c> each other by absolute
+/// The schemas are the rulebook's own files, vendored under
+/// <c>tests/Affiant.Conformance.Tests/protocol/schemas/0.1.0</c> by <c>conformance/sync.sh</c> from
+/// the ref <c>conformance/PROTOCOL_PIN</c> names — the one copy of the rulebook this repository
+/// keeps, re-checked against its <c>SHA256SUMS</c> by <c>conformance/sync.sh --verify</c> in CI.
+/// They are unchanged since <c>v0.1.0</c> — <c>git diff v0.1.0 v0.1.3 -- schemas/0.1.0</c> in the
+/// rulebook is empty; the releases since amended the conformance suite and the prose, not the wire.
+/// They <c>$ref</c> each other by absolute
 /// <c>$id</c>, so every one of them is registered before any evaluation runs — a schema library that
 /// fetched an unregistered <c>$id</c> over the network would make this suite depend on the internet,
 /// and it does not.

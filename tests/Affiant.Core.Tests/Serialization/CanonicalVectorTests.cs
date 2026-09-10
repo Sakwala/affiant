@@ -12,10 +12,10 @@ using Xunit;
 ///
 /// <para>
 /// A vector is an input document, the exact UTF-8 bytes SR-1 produces for it, and the SHA-256 of
-/// those bytes. They are the rulebook's own files, vendored under <c>tests/protocol/</c> from
-/// <c>Sakwala/affiant-protocol</c> at the tag <c>v0.1.2</c> (commit <c>d803fb0</c>) — never
-/// re-derived here, because a test that computed its own expectation would prove only that this
-/// implementation agrees with itself.
+/// those bytes. They are the rulebook's own files, vendored under
+/// <c>tests/Affiant.Conformance.Tests/protocol/</c> by <c>conformance/sync.sh</c> from the ref
+/// <c>conformance/PROTOCOL_PIN</c> names — never re-derived here, because a test that computed its
+/// own expectation would prove only that this implementation agrees with itself.
 /// </para>
 ///
 /// <para>
