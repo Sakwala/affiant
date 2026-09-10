@@ -29,7 +29,7 @@ Only non-owner activity counts. "Owner" means the GitHub account `seevali`.
 | Non-owner pull requests | Pull requests opened by anyone other than `seevali` | same endpoint as above — not separable from issues without a second, PR-only query, which will be added once the combined count is non-zero |
 | Non-owner Discussion posts | Discussion threads or replies authored by anyone other than `seevali` | `gh api graphql -f query='{ repository(owner:"Sakwala", name:"<repo>"){ discussions(first:100){ totalCount nodes{ author{login} } } } }'`, filtered to `author.login != "seevali"` |
 | NuGet downloads | Total downloads per package (CI/test installs are not separable from real ones on NuGet — the total is reported honestly as a total, not as a proxy for adoption) | `curl -s "https://azuresearch-usnc.nuget.org/query?q=packageid:<id>&prerelease=true&semVerLevel=2.0.0" \| jq '.data[0].totalDownloads'` for each of the ten package IDs |
-| npm downloads | Weekly download count once a package is live | none published yet — see snapshot below |
+| npm downloads | Total downloads per published `@affiant/*` package | `curl -s "https://api.npmjs.org/downloads/range/<start>:<end>/<package>" \| jq -r '[.downloads[].downloads] \| add'` for each published package ID — live from snapshot #2 (2026-09-10); see snapshot below |
 | Talk / podcast acceptances | Accepted conference talks or podcast appearances about Affiant | tracked manually against submission and acceptance emails; no API exists for this |
 | External-issue replies | Replies from accounts other than `seevali` in the four issues where the problem Affiant solves was written down in public, before Affiant existed | `gh api --paginate repos/<owner>/<repo>/issues/<n>/comments --jq '.[] \| select(.user.login != "seevali") \| .id'` piped to `wc -l`, summed across pages, for `openai/openai-agents-js#1097`, `mastra-ai/mastra#20757`, `vercel/ai#19979`, `vercel/ai#13215` |
 
@@ -136,16 +136,147 @@ snapshot corrects.
 
 </details>
 
+### Snapshot #2 — 2026-09-10
+
+| Date | Stars (affiant) | Stars (affiant-ts) | Stars (protocol) | Forks | Watchers | Dependents | Non-owner issues | Non-owner PRs | Non-owner discussions | NuGet total downloads | npm total downloads | Talks | External-issue replies | Notes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-09-10 | 0 | 0 | 0 | 0 | 0 | 0³ | 0¹ | 0¹ | 0 | 6,592 | 439⁴ | 0 | 81² | `1.0.0-beta.3.1` shipped 2026-09-09 (nuget.org, ten packages) and both demo hosts (Meridian, HR Portal) were redeployed the same day at that pin (02:46–02:48 UTC). |
+
+¹ GitHub's issues API returns issues and pull requests as one combined list; the combined
+non-owner count is 0 across all three repos. `Sakwala/affiant` now carries 141 issues+PRs total
+(over the API's `per_page=100` cap the un-paginated command silently truncates at) — this
+snapshot reruns that one repo's count with `--paginate` and still gets 0 non-owner; `affiant-ts`
+(31 total) and `affiant-protocol` (30 total) stay under the cap and needed no pagination.
+² Sum of non-owner comments across the four external issues: 4 + 3 + 3 + 71 = 81 — unchanged from
+snapshot #1; the maintainer has still not replied in any of them.
+³ GitHub's dependency graph now lists one dependent each for `Sakwala/affiant` (package
+`Affiant.Abstractions`) and `Sakwala/affiant-ts` (package `@affiant/core`) — in both cases the
+sole listed dependent is the repository itself, i.e. each repo's own samples or workspace
+referencing its own published package. That is not an *other* repository, so the criterion in the
+table above (non-owner, other-repository dependents) reads 0; `affiant-protocol` shows 0 with no
+such self-listing.
+⁴ `@affiant/core`, `@affiant/contract` and `@affiant/evidence-card` are the three packages
+published to npm (at `0.1.0-alpha.0`; `@affiant/conformance-driver` is not published). Totals are
+summed downloads over the npm download-counts API's full available range as measured on
+2026-09-10, which returns data only through 2026-09-06 — npm does not separate CI/test installs
+from real ones, so this is reported as an honest total, the same caveat snapshot #1 applies to
+NuGet.
+
+**NuGet downloads by package (2026-09-10):**
+
+| Package | Total downloads |
+|---|---|
+| Affiant.Abstractions | 872 |
+| Affiant.Core | 859 |
+| Affiant.SemanticKernel | 662 |
+| Affiant.AgentFramework | 488 |
+| Affiant.Transport.SignalR | 668 |
+| Affiant.EntityFramework | 658 |
+| Affiant.Docket | 749 |
+| Affiant.Policies | 648 |
+| Affiant.Testing.ComplianceHarness | 514 |
+| Affiant.Extensions.AI | 474 |
+| **Sum** | **6,592** |
+
+The bare `Affiant` package id (166 downloads at query time) is excluded from this sum: it carries
+only the unlisted `0.0.1-preview`/`0.0.2-preview` placeholder releases named in the roadmap, not
+one of the ten shipped framework packages.
+
+**npm downloads by package (2026-09-10, cumulative to date):**
+
+| Package | Total downloads |
+|---|---|
+| @affiant/core | 136 |
+| @affiant/contract | 162 |
+| @affiant/evidence-card | 141 |
+| **Sum** | **439** |
+
+<details>
+<summary>Raw command output — snapshot #2, 2026-09-10</summary>
+
+```
+$ gh api repos/Sakwala/affiant --jq '{stargazers_count,forks_count,subscribers_count}'
+{"forks_count":0,"stargazers_count":0,"subscribers_count":0}
+
+$ gh api repos/Sakwala/affiant-ts --jq '{stargazers_count,forks_count,subscribers_count}'
+{"forks_count":0,"stargazers_count":0,"subscribers_count":0}
+
+$ gh api repos/Sakwala/affiant-protocol --jq '{stargazers_count,forks_count,subscribers_count}'
+{"forks_count":0,"stargazers_count":0,"subscribers_count":0}
+
+$ gh api --paginate "repos/Sakwala/affiant/issues?state=all&per_page=100" --jq '[.[] | select(.user.login != "seevali")] | length' | awk '{s+=$1} END {print s}'
+0   (141 total issues+PRs across pages, all opened by seevali)
+
+$ gh api "repos/Sakwala/affiant-ts/issues?state=all&per_page=100" --jq '[.[] | select(.user.login != "seevali")] | length'
+0   (31 total)
+
+$ gh api "repos/Sakwala/affiant-protocol/issues?state=all&per_page=100" --jq '[.[] | select(.user.login != "seevali")] | length'
+0   (30 total)
+
+$ gh api graphql -f query='{ repository(owner:"Sakwala", name:"affiant"){ discussions(first:100){ totalCount nodes{ author{login} } } } }'
+{"data":{"repository":{"discussions":{"totalCount":0,"nodes":[]}}}}
+
+$ gh api graphql -f query='{ repository(owner:"Sakwala", name:"affiant-ts"){ discussions(first:100){ totalCount nodes{ author{login} } } } }'
+{"data":{"repository":{"discussions":{"totalCount":0,"nodes":[]}}}}
+
+$ gh api graphql -f query='{ repository(owner:"Sakwala", name:"affiant-protocol"){ discussions(first:100){ totalCount nodes{ author{login} } } } }'
+{"data":{"repository":{"discussions":{"totalCount":0,"nodes":[]}}}}
+
+$ curl -s https://github.com/Sakwala/affiant/network/dependents | tr -s '\n\t ' ' ' | grep -oE '[0-9][0-9,]*[[:space:]]*Repositor(y|ies)' | head -2
+1 Repositories
+  (the one listed dependent is Sakwala/affiant itself, against package Affiant.Abstractions — a self-reference, not an external repository)
+
+$ curl -s https://github.com/Sakwala/affiant-ts/network/dependents | tr -s '\n\t ' ' ' | grep -oE '[0-9][0-9,]*[[:space:]]*Repositor(y|ies)' | head -2
+1 Repositories
+  (the one listed dependent is Sakwala/affiant-ts itself, against package @affiant/core — a self-reference, not an external repository)
+
+$ curl -s https://github.com/Sakwala/affiant-protocol/network/dependents | tr -s '\n\t ' ' ' | grep -oE '[0-9][0-9,]*[[:space:]]*Repositor(y|ies)' | head -2
+0 Repositories
+
+$ for id in Affiant.Abstractions Affiant.Core Affiant.SemanticKernel Affiant.AgentFramework \
+            Affiant.Transport.SignalR Affiant.EntityFramework Affiant.Docket Affiant.Policies \
+            Affiant.Testing.ComplianceHarness Affiant.Extensions.AI; do
+    curl -s "https://azuresearch-usnc.nuget.org/query?q=packageid:${id}&prerelease=true&semVerLevel=2.0.0" \
+      | jq '.data[0].totalDownloads'
+  done
+872  859  662  488  668  658  749  648  514  474
+
+$ for pkg in "@affiant/core" "@affiant/contract" "@affiant/evidence-card"; do
+    curl -s "https://api.npmjs.org/downloads/range/2026-08-01:2026-09-10/$pkg" | jq -r '[.downloads[].downloads] | add'
+  done
+136  162  141
+
+$ gh api --paginate repos/openai/openai-agents-js/issues/1097/comments --jq '.[] | select(.user.login != "seevali") | .id' | wc -l
+4
+
+$ gh api --paginate repos/mastra-ai/mastra/issues/20757/comments --jq '.[] | select(.user.login != "seevali") | .id' | wc -l
+3
+
+$ gh api --paginate repos/vercel/ai/issues/19979/comments --jq '.[] | select(.user.login != "seevali") | .id' | wc -l
+3
+
+$ gh api --paginate repos/vercel/ai/issues/13215/comments --jq '.[] | select(.user.login != "seevali") | .id' | wc -l
+71
+```
+
+Talk / podcast acceptances: 0. Per the tracker (`docs/affiant-build/tracker.md`, row B-09), the
+KubeCon EU 2027 and QCon London 2027 submissions drafted in `drafts/launch/submissions/` were
+still unsent as of this snapshot; no acceptance record exists.
+
+</details>
+
 ## How to add a snapshot
 
 1. `gh api repos/Sakwala/<repo> --jq '{stargazers_count,forks_count,subscribers_count}'` for
    `affiant`, `affiant-ts`, `affiant-protocol`.
-2. `gh api "repos/Sakwala/<repo>/issues?state=all&per_page=100" --jq '[.[] | select(.user.login != "seevali")] | length'` for each of the three repos.
+2. `gh api "repos/Sakwala/<repo>/issues?state=all&per_page=100" --jq '[.[] | select(.user.login != "seevali")] | length'` for each of the three repos — add `--paginate` for any repo whose total is at or above 100 (the command silently caps at one page otherwise).
 3. `gh api graphql -f query='{ repository(owner:"Sakwala", name:"<repo>"){ discussions(first:100){ totalCount nodes{ author{login} } } } }'` for each repo; count authors that aren't `seevali`.
-4. `curl -s https://github.com/Sakwala/<repo>/network/dependents | grep -oE '[0-9,]+\s+Repositor(y|ies)' | head -2` for each repo.
+4. `curl -s https://github.com/Sakwala/<repo>/network/dependents | tr -s '\n\t ' ' ' | grep -oE '[0-9][0-9,]*[[:space:]]*Repositor(y|ies)' | head -2` for each repo (the number and the word can land on separate lines in the raw HTML, so whitespace is collapsed first). Check the listed dependent by name — the repository itself listed as its own dependent (a sample or workspace package referencing the repo's own published package) is not an *other* repository and does not count.
 5. Loop the ten NuGet package IDs through `curl -s "https://azuresearch-usnc.nuget.org/query?q=packageid:<id>&prerelease=true&semVerLevel=2.0.0" | jq '.data[0].totalDownloads'` and sum them.
-6. Once `@affiant/core` is on npm, record its weekly download count; until then write "not
-   published yet".
+6. For each published `@affiant/*` package (check `https://registry.npmjs.org/<package>` for a
+   `dist-tags` entry), sum `curl -s "https://api.npmjs.org/downloads/range/<start>:<end>/<package>" | jq -r '[.downloads[].downloads] | add'`
+   over the available range and sum across packages; write "not published yet" only for a package
+   with no `dist-tags` entry.
 7. Update talk/podcast acceptances manually from submission and acceptance records.
 8. `gh api --paginate repos/<owner>/<repo>/issues/<n>/comments --jq '.[] | select(.user.login != "seevali") | .id'` piped to `wc -l` for each of the four external issues, and sum the four totals. Omitting `--paginate` silently caps the count at GitHub's default `per_page=30`.
 9. Append one wide row to the Snapshots table with today's date. Never edit a previous row —
