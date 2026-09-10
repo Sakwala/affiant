@@ -587,8 +587,9 @@ convention — depend only on what you need.
 
 ## Why trust this
 
-The strongest argument for field-level provenance is a mistake this framework's own history
-records.
+Field-level provenance is older than this framework: it shipped on 6 April 2026 as a feature of the
+prototype Affiant was later extracted from. The strongest argument for it arrived twenty-four days
+after that, as a mistake this framework's own history records.
 
 The review lifecycle this trust rests on — approve, reject, amend, expire, resubmit — is not just
 asserted in the abstract: [`samples/meridian-f0-deck/`](samples/meridian-f0-deck/) is a runnable,
@@ -598,16 +599,18 @@ handlers, no LLM key required.
 On 30 April 2026, during the extraction of the framework out of its first host application, a
 refactoring commit (`b72c1fa`) began shipping **empty Affidavits** — every proposed write reached
 the Docket with no fields at all, and every slot the review card rendered read
-`ProvenanceSource.Empty`. The test suite stayed green, because no test exercised the path from a
-chat message to a proposed write, and the parity check that closed the extraction two days later
-(330 tests, all green) compared the *shape* of what two host applications produced without asking
-whether either had produced anything. The regression surfaced on 5 May 2026, when the maintainer
-typed a message into the chat and the review card came up empty.
+`ProvenanceSource.Empty`. The suite of that day said nothing about it — 41 tests, three of them
+already failing on unrelated telemetry assertions, and none exercising the path from a chat message
+to a proposed write — and the parity check that closed the extraction two days later (330 tests,
+all green) compared the *shape* of what two host applications produced without asking whether
+either had produced anything. The regression surfaced on 5 May 2026, when the maintainer typed a
+message into the chat and the review card came up empty.
 
 Fixing it took six weeks and an architectural change: inference moved into the framework, the
 host-side form layer that had produced the hollow Affidavit was deleted, and the extraction was
-audited commit by commit. Out of that came the lesson the framework is now built to enforce: **a
-test suite can be 100% green and 0% truthful if it asserts structure, not meaning.** `Affiant.Testing.ComplianceHarness`
+audited to a written closure — whose own commit table never listed the commit that caused this. Out
+of that came the lesson the framework is now built to enforce: **a test suite can be 100% green and
+0% truthful if it asserts structure, not meaning.** `Affiant.Testing.ComplianceHarness`
 exists so that provenance-substance is a CI gate — an unpaired or shape-only write strategy
 fails the build, in your project as well as ours. This is why the seventh rule ("every field
 carries provenance, no exceptions") is a hard invariant and not a guideline.
