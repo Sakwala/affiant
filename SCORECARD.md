@@ -29,7 +29,7 @@ Only non-owner activity counts. "Owner" means the GitHub account `seevali`.
 | Non-owner pull requests | Pull requests opened by anyone other than `seevali` | same endpoint as above — not separable from issues without a second, PR-only query, which will be added once the combined count is non-zero |
 | Non-owner Discussion posts | Discussion threads or replies authored by anyone other than `seevali` | `gh api graphql -f query='{ repository(owner:"Sakwala", name:"<repo>"){ discussions(first:100){ totalCount nodes{ author{login} } } } }'`, filtered to `author.login != "seevali"` |
 | NuGet downloads | Total downloads per package (CI/test installs are not separable from real ones on NuGet — the total is reported honestly as a total, not as a proxy for adoption) | `curl -s "https://azuresearch-usnc.nuget.org/query?q=packageid:<id>&prerelease=true&semVerLevel=2.0.0" \| jq '.data[0].totalDownloads'` for each of the ten package IDs |
-| npm downloads | Total downloads per published `@affiant/*` package | `curl -s "https://api.npmjs.org/downloads/range/<start>:<end>/<package>" \| jq -r '[.downloads[].downloads] \| add'` for each published package ID — live from snapshot #2 (2026-09-10); see snapshot below |
+| npm downloads | Total downloads per published `@affiant/*` package (criterion changed 2026-09-10 from snapshot #1's "weekly download count once a package is live" — this is the first reading taken since a package went live, so no earlier snapshot used the old unit) | `curl -s "https://api.npmjs.org/downloads/range/<start>:<end>/<package>" \| jq -r '[.downloads[].downloads] \| add'` for each published package ID — live from snapshot #2 (2026-09-10); see snapshot below |
 | Talk / podcast acceptances | Accepted conference talks or podcast appearances about Affiant | tracked manually against submission and acceptance emails; no API exists for this |
 | External-issue replies | Replies from accounts other than `seevali` in the four issues where the problem Affiant solves was written down in public, before Affiant existed | `gh api --paginate repos/<owner>/<repo>/issues/<n>/comments --jq '.[] \| select(.user.login != "seevali") \| .id'` piped to `wc -l`, summed across pages, for `openai/openai-agents-js#1097`, `mastra-ai/mastra#20757`, `vercel/ai#19979`, `vercel/ai#13215` |
 
@@ -157,10 +157,12 @@ table above (non-owner, other-repository dependents) reads 0; `affiant-protocol`
 such self-listing.
 ⁴ `@affiant/core`, `@affiant/contract` and `@affiant/evidence-card` are the three packages
 published to npm (at `0.1.0-alpha.0`; `@affiant/conformance-driver` is not published). Totals are
-summed downloads over the npm download-counts API's full available range as measured on
-2026-09-10, which returns data only through 2026-09-06 — npm does not separate CI/test installs
-from real ones, so this is reported as an honest total, the same caveat snapshot #1 applies to
-NuGet.
+summed downloads over the range `2026-08-01:2026-09-10`; the API returns a zero-count entry for
+every day up to the requested end date, and 2026-09-06 is simply the last day with a non-zero
+count (`curl -s "https://api.npmjs.org/downloads/range/2026-09-04:2026-09-10/@affiant/core"`
+returns entries through 2026-09-10, all zero after the 6th) — npm does not separate CI/test
+installs from real ones, so this is reported as an honest total, the same caveat snapshot #1
+applies to NuGet.
 
 **NuGet downloads by package (2026-09-10):**
 
@@ -178,9 +180,16 @@ NuGet.
 | Affiant.Extensions.AI | 474 |
 | **Sum** | **6,592** |
 
-The bare `Affiant` package id (166 downloads at query time) is excluded from this sum: it carries
-only the unlisted `0.0.1-preview`/`0.0.2-preview` placeholder releases named in the roadmap, not
-one of the ten shipped framework packages.
+The bare `Affiant` package id is excluded from this sum: the flat-container index
+(`curl -s https://api.nuget.org/v3-flatcontainer/affiant/index.json` →
+`{"versions":["0.0.1-preview","0.0.2-preview"]}`) shows it carries only two unlisted placeholder
+releases, not one of the ten shipped framework packages. The id's reservation is recorded in
+CHANGELOG.md's header block, not the roadmap (`git grep -n "bare .Affiant. meta-ID" CHANGELOG.md`).
+nuget.org's search API returns no hit for an unlisted package
+(`curl -s "https://azuresearch-usnc.nuget.org/query?q=packageid:Affiant&prerelease=true&semVerLevel=2.0.0"`
+→ `{"totalHits":0,"data":[]}`), and neither the flat-container index nor the registration API
+(`curl -s https://api.nuget.org/v3/registration5-semver1/affiant/index.json`) carries a download
+count, so no NuGet API reproduces the website's own total — it is not cited here.
 
 **npm downloads by package (2026-09-10, cumulative to date):**
 
@@ -259,8 +268,7 @@ $ gh api --paginate repos/vercel/ai/issues/13215/comments --jq '.[] | select(.us
 71
 ```
 
-Talk / podcast acceptances: 0. Per the tracker (`docs/affiant-build/tracker.md`, row B-09), the
-KubeCon EU 2027 and QCon London 2027 submissions drafted in `drafts/launch/submissions/` were
+Talk / podcast acceptances: 0. Abstracts for KubeCon EU 2027 and QCon London 2027 are drafted and
 still unsent as of this snapshot; no acceptance record exists.
 
 </details>
