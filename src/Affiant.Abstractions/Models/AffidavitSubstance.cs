@@ -4,10 +4,10 @@ namespace Affiant.Abstractions.Models;
 /// The substance rule (protocol rule GT-3) as one predicate: does this Affidavit swear to anything?
 ///
 /// <para>
-/// The founding incident this exists for: an implementation can pass every structural test — the
-/// Affidavit has the right shape, the right field names, the right envelope — while every field it
-/// carries swears to nothing, so a proposal that knows nothing reaches a reviewer looking exactly
-/// like one that knows everything. Three signatures say it happened:
+/// The 2026-04-30 empty-Affidavit regression this exists for: an implementation can pass every
+/// structural test — the Affidavit has the right shape, the right field names, the right envelope
+/// — while every field it carries swears to nothing, so a proposal that knows nothing reaches a
+/// reviewer looking exactly like one that knows everything. Three signatures say it happened:
 /// </para>
 /// <list type="number">
 /// <item>A field asserts a value while its provenance reads <see cref="ProvenanceSource.Empty"/> —
