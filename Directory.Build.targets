@@ -18,8 +18,9 @@
     able to distinguish "new API this release" from "API we already promised".
 
     This lives in Directory.Build.targets, not .props, because the condition reads $(IsPackable):
-    .props is imported BEFORE the csproj sets it, .targets after. IsPackable is true for the ten
-    src/ packages and false for every test project.
+    .props is imported BEFORE the csproj sets it, .targets after. IsPackable is true for the eleven
+    src/ packages — the ten framework packages and the `Affiant` meta-package — and false for every
+    test project.
   -->
   <ItemGroup Condition="'$(IsPackable)' == 'true'">
     <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="5.6.0">

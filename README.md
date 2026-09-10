@@ -522,9 +522,14 @@ dotnet add package Affiant.Transport.SignalR --prerelease
 
 Ten granular packages, install only what your scenario needs (the same shape as
 `Microsoft.Extensions.*` or Duende IdentityServer's core-plus-adapters split). A meta-package on the
-bare `Affiant` id — `dotnet add package Affiant --prerelease`, no code of its own, a dependency on
-each of the ten — is in the tree and ships with the next release; it is not on nuget.org yet. The ten
-remain the fine-grained choice, and no row below needs all ten.
+bare `Affiant` id — no code of its own, a dependency on each of the nine runtime packages (not on
+`Affiant.Testing.ComplianceHarness`, which belongs in a test project) — is in this tree and ships
+with the next release. It is not yet what the id resolves to: today `Affiant` on nuget.org holds only
+the placeholder versions `0.0.1-preview` and `0.0.2-preview`, which predate the framework and are
+being unlisted, so `dotnet add package Affiant --prerelease` would install a placeholder carrying
+none of this. From the release that publishes it, that one command installs the nine. Until then,
+install the packages your row below names — and they remain the fine-grained choice afterwards, since
+no row needs all ten.
 
 | Your situation | Install |
 |---|---|

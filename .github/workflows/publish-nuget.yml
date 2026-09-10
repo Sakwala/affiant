@@ -63,8 +63,16 @@ jobs:
       # from src/Affiant, which carries no lib/ folder.
       #
       # NOTE before the next tag: the Trusted Publishing policy exchanged for the temporary key
-      # below must cover the bare `Affiant` package id as well as the ten `Affiant.*` ids, or the
-      # push of the meta-package is rejected while the ten succeed.
+      # below must cover the bare `Affiant` package id as well as the ten `Affiant.*` ids. If it
+      # does not, this release publishes NOTHING — not ten of eleven. The push below is a single
+      # `dotnet nuget push` over `./nupkgs/*.nupkg`, the shell expands that glob in sort order, and
+      # `Affiant.<version>.nupkg` sorts ahead of every `Affiant.*.<version>.nupkg` (after the shared
+      # `Affiant.` prefix, the version's leading digit precedes any letter), so the meta-package is
+      # the first package pushed. `--skip-duplicate` is the only failure this command tolerates and
+      # it covers exactly one case — "if a package and version already exists, skip it and continue
+      # with the next package in the push" (`dotnet nuget push --help`). A rejection for an id the
+      # exchanged key does not cover is not a duplicate, so the command ends there and the ten
+      # behind it are never pushed.
       - name: Pack packages
         run: dotnet pack Affiant.slnx -c Release -o ./nupkgs
 
