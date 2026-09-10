@@ -13,6 +13,21 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
 
 ## [Unreleased]
 
+### Changed
+
+- **One vendored rulebook, and the checksum check covers all of it** (`Sakwala/affiant#137`). Two
+  copies of rulebook material sat outside the tree `conformance/PROTOCOL_PIN` names —
+  `tests/protocol/` and `tests/Affiant.Abstractions.Tests/Telemetry/rulebook/` — and nothing in CI
+  re-checked either against the pin, so `tests/protocol/INVARIANTS.md` still stated PV-3 as "the
+  value is literally present in the utterance; with an `utterance-span` binding when the inference
+  port supplies offsets" — the sentence `v0.1.3` replaced — while the pin beside it named `v0.1.3`.
+  `conformance/sync.sh` now vendors the rulebook's `schemas/0.1.0` into the pinned copy alongside the
+  conformance suite, the two test projects that read the wire schemas, the byte vectors, the wire
+  fixtures and the telemetry-key fixtures read all of them from there, and both duplicates are
+  deleted. Every rulebook file a test opens is now under the one pin and inside the `SHA256SUMS` the
+  verify pass compares, so a drifted copy fails the build instead of going unnoticed. Test-only: no
+  shipped file changed and no package changed.
+
 ## [1.0.0-beta.3.1] — 2026-09-09
 
 ### The grade a person's own words earn, and the seams that did not carry them

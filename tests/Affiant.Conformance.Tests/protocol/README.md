@@ -1,6 +1,6 @@
 # Vendored — do not edit
 
-The conformance suite, copied from
+The conformance suite and the v0.1 wire schemas, copied from
 [`Sakwala/affiant-protocol`](https://github.com/Sakwala/affiant-protocol) at the ref
 `../../../conformance/PROTOCOL_PIN` names (v0.1.3).
 

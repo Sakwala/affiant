@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Vendor the conformance suite from the pinned affiant-protocol ref, or verify the copy.
+# Vendor the rulebook material this repository reads from the pinned affiant-protocol ref,
+# or verify the copy.
 #
 #   conformance/sync.sh            vendor from the pin (needs the protocol repository)
 #   conformance/sync.sh --verify   re-check the vendored copy against SHA256SUMS (offline)
@@ -37,6 +38,16 @@ paths=(
   parity/MANIFEST.schema.json
 )
 
+# Rulebook material this repository's unit tests read that does not live under conformance/
+# in the protocol repository. It is vendored into the same copy so one pin and one
+# `--verify` cover every rulebook file a test opens: `Affiant.Abstractions.Tests` evaluates
+# the wire envelopes against schemas/0.1.0 and validates the shipped telemetry-key registry
+# against telemetry-key.schema.json there. Paths are relative to the repository root and
+# keep their shape under the vendored root.
+root_paths=(
+  schemas/0.1.0
+)
+
 sums() {
   # Deterministic, path-sorted, relative to the vendored root.
   ( cd "$vendored" && find . -type f ! -name SHA256SUMS -print0 \
@@ -68,24 +79,35 @@ fi
 
 git -C "$src" cat-file -e "$ref^{commit}" 2>/dev/null || git -C "$src" fetch --quiet origin "$ref"
 
-echo "sync.sh: vendoring conformance/{$(IFS=,; echo "${paths[*]}")} from $ref"
+# copy <path in the protocol repository> <leading components to drop>
+# A conformance/ path drops that one component, so the suite keeps its shape under the
+# vendored root; a repository-root path drops none and keeps its own.
+copy() {
+  local path=$1 strip=$2
+  mkdir -p "$vendored/$(dirname "${path#conformance/}")"
+  if git -C "$src" cat-file -e "$ref:$path" 2>/dev/null; then
+    git -C "$src" archive "$ref" "$path" | tar -x -C "$vendored" --strip-components="$strip"
+  else
+    echo "sync.sh: $path is not in $ref" >&2
+    exit 1
+  fi
+}
+
+echo "sync.sh: vendoring conformance/{$(IFS=,; echo "${paths[*]}")} and {$(IFS=,; echo "${root_paths[*]}")} from $ref"
 rm -rf "$vendored"
 mkdir -p "$vendored"
 for p in "${paths[@]}"; do
-  mkdir -p "$vendored/$(dirname "$p")"
-  if git -C "$src" cat-file -e "$ref:conformance/$p" 2>/dev/null; then
-    git -C "$src" archive "$ref" "conformance/$p" | tar -x -C "$vendored" --strip-components=1
-  else
-    echo "sync.sh: $p is not in $ref" >&2
-    exit 1
-  fi
+  copy "conformance/$p" 1
+done
+for p in "${root_paths[@]}"; do
+  copy "$p" 0
 done
 
 sums > "$vendored/SHA256SUMS"
 cat > "$vendored/README.md" <<EOF
 # Vendored — do not edit
 
-The conformance suite, copied from
+The conformance suite and the v0.1 wire schemas, copied from
 [\`Sakwala/affiant-protocol\`](https://github.com/Sakwala/affiant-protocol) at the ref
 \`../../../conformance/PROTOCOL_PIN\` names ($ref).
 

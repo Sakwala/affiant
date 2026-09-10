@@ -12,15 +12,6 @@
     <ProjectReference Include="..\..\src\Affiant.Abstractions\Affiant.Abstractions.csproj" />
   </ItemGroup>
 
-  <!-- Byte-identical copies of the protocol rulebook's telemetry schema and its two conformance
-       fixtures, so TelemetryKeyRegistryTests can validate the shipped registry against the schema
-       that governs it with no network fetch and no submodule. Telemetry/rulebook/README.md records
-       the upstream repository and the commit. -->
-  <ItemGroup>
-    <Content Include="Telemetry\rulebook\*.json" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="Telemetry\rulebook\README.md" />
-  </ItemGroup>
-
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.4.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
@@ -38,12 +29,22 @@
   </ItemGroup>
 
   <!-- The vendored rulebook travels with the test binary: these tests read the v0.1 schemas and the
-       protocol's byte vectors at run time, and the run must not depend on the working directory or
-       on a network fetch. The ref it was copied from is named in the doc comment of the suite that
-       reads it (CanonicalVectorTests, V01SchemaValidation), beside the checksums in
-       tests/protocol/SHA256SUMS. -->
+       protocol's wire fixtures at run time, and the run must not depend on the working directory or
+       on a network fetch. The files are the ones conformance/sync.sh vendors from the ref
+       conformance/PROTOCOL_PIN names, so the checksum verification CI runs (conformance/sync.sh
+       with the verify flag) covers what this project reads; only the parts it reads are copied. -->
   <ItemGroup>
-    <Content Include="../protocol/**/*" LinkBase="protocol" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../Affiant.Conformance.Tests/protocol/schemas/**/*"
+             LinkBase="protocol/schemas" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../Affiant.Conformance.Tests/protocol/fixtures/wire/**/*"
+             LinkBase="protocol/fixtures/wire" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../Affiant.Conformance.Tests/protocol/fixtures/enum-values.json"
+             LinkBase="protocol/fixtures" CopyToOutputDirectory="PreserveNewest" />
+    <!-- TelemetryKeyRegistryTests validates the shipped registry against telemetry-key.schema.json
+         above, and checks its own validator against the rulebook's positive and negative fixtures
+         for that schema. -->
+    <Content Include="../Affiant.Conformance.Tests/protocol/fixtures/v0.1/telemetry-key/**/*"
+             LinkBase="protocol/fixtures/v0.1/telemetry-key" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
