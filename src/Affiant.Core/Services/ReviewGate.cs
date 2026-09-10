@@ -1591,10 +1591,11 @@ public sealed class ReviewGate(
     /// result becomes the error arm carrying <c>substance-refused</c>.
     ///
     /// <para>
-    /// <b>Why at run time and not only in a test harness.</b> The founding incident this rule exists
-    /// for is a system whose structural tests were entirely green — right shape, right field names,
-    /// right envelope — while every Affidavit it produced swore to nothing, so a proposal that knew
-    /// nothing reached a reviewer looking exactly like one that knew everything. Until
+    /// <b>Why at run time and not only in a test harness.</b> The 2026-04-30 empty-Affidavit
+    /// regression this rule exists for is a system whose structural tests were entirely green —
+    /// right shape, right field names, right envelope — while every Affidavit it produced swore to
+    /// nothing, so a proposal that knew nothing reached a reviewer looking exactly like one that
+    /// knew everything. Until
     /// <c>1.0.0-beta.1</c> the framework's answer was
     /// <c>ComplianceHarness.AssertProvenanceIsSubstantive</c>, which runs in an adopter's own test
     /// suite and never in production, plus a telemetry event at the projection that reported the
