@@ -626,10 +626,13 @@ document, not chain the log.)
 
 Approval lives in the Docket, not in the conversation. A write is executed only after its
 Docket entry is Approved — a durable row the host reads, never a message replayed from a
-client's history, a chat transcript or a framework checkpoint. beta.1 records the decision;
-recording who or what decided on the row itself (the attestation record) belongs to the
-conformance release on the roadmap — the one that makes the .NET packages pass the shared
-fixture suite.
+client's history, a chat transcript or a framework checkpoint. `1.0.0-beta.3` shipped the
+attestation record: `HandleDecisionAsync` writes `DocketEntry.Attestation` from the
+`DecisionContext`'s principal alone — a human-verified session attests `member`, a machine
+attests `member-via-relay` only by naming both the person it speaks for and the relay that
+carried them, and is otherwise refused. A Standing Order's approval is attested in the same
+operation that files the entry approved, naming the policy and the version that fired, so no
+approved write is unattributed.
 
 ---
 
