@@ -524,12 +524,14 @@ Ten granular packages, install only what your scenario needs (the same shape as
 `Microsoft.Extensions.*` or Duende IdentityServer's core-plus-adapters split). A meta-package on the
 bare `Affiant` id — no code of its own, a dependency on each of the nine runtime packages (not on
 `Affiant.Testing.ComplianceHarness`, which belongs in a test project) — is in this tree and ships
-with the next release. It is not yet what the id resolves to: today `Affiant` on nuget.org holds only
+with the next release. It is not yet what the id resolves to: `Affiant` on nuget.org holds only
 the placeholder versions `0.0.1-preview` and `0.0.2-preview`, which predate the framework and are
-being unlisted, so `dotnet add package Affiant --prerelease` would install a placeholder carrying
-none of this. From the release that publishes it, that one command installs the nine. Until then,
-install the packages your row below names — and they remain the fine-grained choice afterwards, since
-no row needs all ten.
+unlisted (measured 2026-09-10 against the registration index). An unlisted version still resolves
+when named explicitly, but not through a version-less request: `dotnet add package Affiant
+--prerelease` fails outright — `error: There are no versions available for the package 'Affiant'.`
+— rather than installing a placeholder. From the release that publishes it, that one command
+installs the nine. Until then, install the packages your row below names — and they remain the
+fine-grained choice afterwards, since no row needs all ten.
 
 | Your situation | Install |
 |---|---|

@@ -31,7 +31,8 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
   meta-package first (`Affiant.<version>.nupkg` sorts ahead of every `Affiant.*.<version>.nupkg`),
   and `--skip-duplicate` covers only a version that already exists, not a rejected id. The id itself
   is live on nuget.org today with two placeholder previews, `0.0.1-preview` and `0.0.2-preview`,
-  which predate the framework and are being unlisted.
+  which predate the framework and are unlisted (verified 2026-09-10 against the registration
+  index — both show `listed: false`).
 
 ## [1.0.0-beta.3.1] — 2026-09-09
 
