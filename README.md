@@ -520,8 +520,11 @@ dotnet add package Affiant.Transport.SignalR --prerelease
 
 ## Which of the 10 packages do I need?
 
-Affiant has no meta-package — ten granular packages, install only what your scenario needs
-(the same shape as `Microsoft.Extensions.*` or Duende IdentityServer's core-plus-adapters split).
+Ten granular packages, install only what your scenario needs (the same shape as
+`Microsoft.Extensions.*` or Duende IdentityServer's core-plus-adapters split). A meta-package on the
+bare `Affiant` id — `dotnet add package Affiant --prerelease`, no code of its own, a dependency on
+each of the ten — is in the tree and ships with the next release; it is not on nuget.org yet. The ten
+remain the fine-grained choice, and no row below needs all ten.
 
 | Your situation | Install |
 |---|---|

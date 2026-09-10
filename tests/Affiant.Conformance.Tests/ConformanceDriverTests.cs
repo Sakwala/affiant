@@ -169,8 +169,8 @@ public sealed class ConformanceDriverTests(ITestOutputHelper output)
 
     /// <summary>
     /// The ten assemblies this repository ships, by path — and the assertion that the list IS the
-    /// release: every packable project under <c>src/</c> appears here, so a package added later
-    /// cannot quietly fall outside a check that says "any shipped assembly".
+    /// release: every project under <c>src/</c> that ships an assembly appears here, so a package
+    /// added later cannot quietly fall outside a check that says "any shipped assembly".
     /// </summary>
     private static IReadOnlyList<string> ShippedAssemblies()
     {
@@ -191,6 +191,12 @@ public sealed class ConformanceDriverTests(ITestOutputHelper output)
         var src = Path.Combine(RepositoryRoot(), "src");
         var packable = Directory
             .EnumerateFiles(src, "*.csproj", SearchOption.AllDirectories)
+            // A project that declares IncludeBuildOutput=false ships no assembly, so there is
+            // nothing here to read: src/Affiant is the meta-package, whose nupkg carries the ten
+            // dependencies and no lib/ folder. A project that does ship an assembly still cannot
+            // fall outside this check without failing the assertion below.
+            .Where(path => !File.ReadAllText(path)
+                .Contains("<IncludeBuildOutput>false</IncludeBuildOutput>", StringComparison.Ordinal))
             .Select(Path.GetFileNameWithoutExtension)
             .Where(name => name is not null)
             .Select(name => name!)
