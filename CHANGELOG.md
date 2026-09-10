@@ -13,6 +13,19 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
 
 ## [Unreleased]
 
+### Added
+
+- **The bare `Affiant` id becomes a meta-package** (`src/Affiant/Affiant.csproj`). It carries no code
+  — `IncludeBuildOutput=false`, so the nupkg has no `lib/` folder — and depends on all ten framework
+  packages at the solution's own version, so `dotnet add package Affiant --prerelease` installs the
+  whole framework in one command. The ten remain the fine-grained choice, and no scenario in the
+  README's install table needs all ten. The dependencies are `ProjectReference`s rather than
+  `PackageReference Version="$(Version)"`: this tree builds a version that is not on nuget.org, so a
+  package reference to it could not restore. The project is in `Affiant.slnx`, which is what
+  `.github/workflows/publish-nuget.yml` packs and pushes, so the tag that publishes the ten publishes
+  the meta-package too — **once nuget.org holds a Trusted Publishing policy covering the bare id**,
+  which it does not yet.
+
 ## [1.0.0-beta.3.1] — 2026-09-09
 
 ### The grade a person's own words earn, and the seams that did not carry them

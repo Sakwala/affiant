@@ -56,6 +56,15 @@ jobs:
       - name: Run framework tests
         run: dotnet test Affiant.slnx -c Release --no-build
 
+      # The packages are enumerated by the solution, not by a list here: every project in
+      # Affiant.slnx with IsPackable=true (the default from Directory.Build.props; test projects
+      # set it false) packs into ./nupkgs and is pushed below. As of the `Affiant` meta-package
+      # that is eleven nupkgs — the ten framework packages plus the dependency-only meta-package
+      # from src/Affiant, which carries no lib/ folder.
+      #
+      # NOTE before the next tag: the Trusted Publishing policy exchanged for the temporary key
+      # below must cover the bare `Affiant` package id as well as the ten `Affiant.*` ids, or the
+      # push of the meta-package is rejected while the ten succeed.
       - name: Pack packages
         run: dotnet pack Affiant.slnx -c Release -o ./nupkgs
 

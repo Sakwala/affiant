@@ -1,0 +1,56 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The bare `Affiant` NuGet id: a meta-package that carries no code and exists only to install
+       the ten co-versioned framework packages in one command. The id is reserved on nuget.org (see
+       CHANGELOG.md's header) and currently holds two placeholder versions, 0.0.1-preview and
+       0.0.2-preview, which predate this project. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <PackageId>Affiant</PackageId>
+    <Description>Affiant Framework — meta-package. Installs all ten co-versioned Affiant packages (Abstractions, Core, SemanticKernel, AgentFramework, Extensions.AI, Docket, EntityFramework, Policies, Transport.SignalR, Testing.ComplianceHarness). Carries no code of its own. Install the individual packages instead when you want only what your scenario needs.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryType>git</RepositoryType>
+
+    <!-- No code: the package ships dependencies only, no lib/ folder. -->
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+
+    <!-- NU5128 is the pack warning raised when a package declares dependency groups for target
+         frameworks it has no lib/ or ref/ folder for. That is exactly the shape of a dependency-only
+         meta-package, and the repo sets TreatWarningsAsErrors, so pack would fail without this. -->
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+
+    <!-- Directory.Build.props turns package validation on for every packable project and pins the
+         baseline to 1.0.0-beta.1.1, the latest published version of the ten. This id has no such
+         version on nuget.org — its only published versions are the two 0.0.1/0.0.2 previews — so the
+         baseline download would fail the build. There is also no assembly here to compare. Turn the
+         validators back on for this project once a 1.0.0-* version of the id is published. -->
+    <EnablePackageValidation>false</EnablePackageValidation>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <!-- ProjectReference, not PackageReference, on purpose. A PackageReference Version="$(Version)"
+       would have to restore 1.0.0-beta.3.1 of each id from nuget.org, and this tree builds a version
+       that is not published (README §"Beta status": "nothing carrying 1.0.0-beta.3.1 is published
+       yet"), so restore would fail on every build before the tag. ProjectReference resolves inside
+       the solution and packs each one as a dependency at the same $(Version) the referenced project
+       carries, which Directory.Build.targets' ValidatePackagingNfrs gate already holds equal to
+       $(AffiantCanonicalVersion) for all ten. PrivateAssets="none" keeps every asset flowing to a
+       consumer: the packed nuspec lists each dependency with include="All" rather than excluding the
+       build and analyzer assets a ProjectReference makes private by default. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Affiant.Abstractions\Affiant.Abstractions.csproj" PrivateAssets="none" />
+    <ProjectReference Include="..\Affiant.Core\Affiant.Core.csproj" PrivateAssets="none" />
+    <ProjectReference Include="..\Affiant.SemanticKernel\Affiant.SemanticKernel.csproj" PrivateAssets="none" />
+    <ProjectReference Include="..\Affiant.AgentFramework\Affiant.AgentFramework.csproj" PrivateAssets="none" />
+    <ProjectReference Include="..\Affiant.Extensions.AI\Affiant.Extensions.AI.csproj" PrivateAssets="none" />
+    <ProjectReference Include="..\Affiant.Docket\Affiant.Docket.csproj" PrivateAssets="none" />
+    <ProjectReference Include="..\Affiant.EntityFramework\Affiant.EntityFramework.csproj" PrivateAssets="none" />
+    <ProjectReference Include="..\Affiant.Policies\Affiant.Policies.csproj" PrivateAssets="none" />
+    <ProjectReference Include="..\Affiant.Transport.SignalR\Affiant.Transport.SignalR.csproj" PrivateAssets="none" />
+    <ProjectReference Include="..\Affiant.Testing.ComplianceHarness\Affiant.Testing.ComplianceHarness.csproj" PrivateAssets="none" />
+  </ItemGroup>
+
+</Project>
