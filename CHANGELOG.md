@@ -16,15 +16,22 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
 ### Added
 
 - **The bare `Affiant` id becomes a meta-package** (`src/Affiant/Affiant.csproj`). It carries no code
-  — `IncludeBuildOutput=false`, so the nupkg has no `lib/` folder — and depends on all ten framework
-  packages at the solution's own version, so `dotnet add package Affiant --prerelease` installs the
-  whole framework in one command. The ten remain the fine-grained choice, and no scenario in the
-  README's install table needs all ten. The dependencies are `ProjectReference`s rather than
-  `PackageReference Version="$(Version)"`: this tree builds a version that is not on nuget.org, so a
-  package reference to it could not restore. The project is in `Affiant.slnx`, which is what
-  `.github/workflows/publish-nuget.yml` packs and pushes, so the tag that publishes the ten publishes
-  the meta-package too — **once nuget.org holds a Trusted Publishing policy covering the bare id**,
-  which it does not yet.
+  — `IncludeBuildOutput=false`, so the nupkg has no `lib/` folder — and depends on the nine runtime
+  packages at the solution's own version, so from the release that publishes it,
+  `dotnet add package Affiant --prerelease` installs the runtime framework in one command. It does
+  **not** depend on `Affiant.Testing.ComplianceHarness`: that package belongs in a test project, and
+  a host installing this one must not get the harness in its runtime graph. The nine remain the
+  fine-grained choice, and no scenario in the README's install table needs all of them. The
+  dependencies are `ProjectReference`s rather than `PackageReference Version="$(Version)"`: this tree
+  builds a version that is not on nuget.org, so a package reference to it could not restore. The
+  project is in `Affiant.slnx`, which is what `.github/workflows/publish-nuget.yml` packs and pushes,
+  so the tag that publishes the ten publishes the meta-package too — but only once nuget.org holds a
+  Trusted Publishing policy covering the bare id, which it does not yet. Until that policy exists a
+  tag publishes **nothing**: the workflow's single `dotnet nuget push ./nupkgs/*.nupkg` receives the
+  meta-package first (`Affiant.<version>.nupkg` sorts ahead of every `Affiant.*.<version>.nupkg`),
+  and `--skip-duplicate` covers only a version that already exists, not a rejected id. The id itself
+  is live on nuget.org today with two placeholder previews, `0.0.1-preview` and `0.0.2-preview`,
+  which predate the framework and are being unlisted.
 
 ## [1.0.0-beta.3.1] — 2026-09-09
 

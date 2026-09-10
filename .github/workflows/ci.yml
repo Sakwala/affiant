@@ -35,12 +35,14 @@ jobs:
         run: dotnet pack Affiant.slnx -c Release -o ./nupkgs
 
       # The sample host and its test project are in the solution but marked IsPackable=false, so
-      # this count is still the ten framework packages and nothing else.
-      - name: Check 10 packages produced
+      # this count is the ten framework packages plus the dependency-only `Affiant` meta-package
+      # from src/Affiant, and nothing else. The number is written out rather than derived so that
+      # adding or removing a package is a deliberate edit a reviewer sees in the diff.
+      - name: Check 11 packages produced
         run: |
           count=$(ls ./nupkgs/*.nupkg | wc -l)
           echo "Produced $count packages"
-          [ "$count" -eq 10 ] || (echo "Expected 10 packages, got $count" && exit 1)
+          [ "$count" -eq 11 ] || (echo "Expected 11 packages, got $count" && exit 1)
 
   # The quickstart sample's own tests and its browser deck: the affidavit projection, the
   # development seam's filing path, the expiry transition, the seam's environment gate, how a

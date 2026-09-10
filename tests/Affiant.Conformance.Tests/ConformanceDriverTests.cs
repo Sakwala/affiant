@@ -188,18 +188,23 @@ public sealed class ConformanceDriverTests(ITestOutputHelper output)
             "Affiant.Testing.ComplianceHarness",
         ];
 
+        // The one project under src/ that ships no assembly, named rather than detected: `Affiant`
+        // is the meta-package, whose nupkg carries dependencies and no lib/ folder, so there is no
+        // assembly here to read. It is named because the alternative — recognising the csproj by a
+        // literal <IncludeBuildOutput>false</IncludeBuildOutput> — cuts both ways: a future
+        // code-less project spelling the property with other whitespace or casing would not be
+        // recognised and would fail this assertion as a missing assembly, while any project that
+        // does ship one could drop that literal into its csproj and leave the check silently. A
+        // name in this list is a deliberate edit a reviewer sees.
+        string[] shipsNoAssembly = ["Affiant"];
+
         var src = Path.Combine(RepositoryRoot(), "src");
         var packable = Directory
             .EnumerateFiles(src, "*.csproj", SearchOption.AllDirectories)
-            // A project that declares IncludeBuildOutput=false ships no assembly, so there is
-            // nothing here to read: src/Affiant is the meta-package, whose nupkg carries the ten
-            // dependencies and no lib/ folder. A project that does ship an assembly still cannot
-            // fall outside this check without failing the assertion below.
-            .Where(path => !File.ReadAllText(path)
-                .Contains("<IncludeBuildOutput>false</IncludeBuildOutput>", StringComparison.Ordinal))
             .Select(Path.GetFileNameWithoutExtension)
             .Where(name => name is not null)
             .Select(name => name!)
+            .Where(name => !shipsNoAssembly.Contains(name, StringComparer.Ordinal))
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
 
