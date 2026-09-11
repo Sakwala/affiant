@@ -1,6 +1,6 @@
 # Affiant roadmap
 
-Last updated: 2026-09-09 · Current release: 1.0.0-beta.3.1 (2026-09-09)
+Last updated: 2026-09-11 · Current release: 1.0.0-beta.3.1 (2026-09-09)
 
 This file is canonical. It is mirrored at [affiant.dev/roadmap/](https://affiant.dev/roadmap/); if the two ever differ, this file wins.
 
@@ -66,10 +66,10 @@ No delivery dates, ever: a solo-maintained project cannot promise one without it
   parity manifest) — versioned by git tags that every implementation pins, so "which rules
   does this build satisfy" has an exact answer.
   [`affiant-ts`](https://github.com/Sakwala/affiant-ts) is the TypeScript implementation.
-  `@affiant/contract` and the Web Component above were its first artifacts; `@affiant/core`
-  exists alongside them, at `0.1.0-alpha.0` and published to npm, built and tested on
-  Node, Cloudflare workerd and Bun from its first commit rather than made portable
-  afterwards. The rulebook's fixture suite was promoted out of that package byte for byte —
+  `@affiant/contract` and the Web Component above were its first artifacts;
+  `@affiant/core` exists alongside them, published to npm, built and tested on Node,
+  Cloudflare workerd and Bun from its first commit rather than made portable afterwards.
+  The rulebook's fixture suite was promoted out of that package byte for byte —
   the fixtures every implementation is now measured against are the ones the TypeScript
   package already ran, and the rulebook records the package version and commit they came
   from, so a renamed fixture cannot silently change what a published parity manifest refers
@@ -83,7 +83,10 @@ No delivery dates, ever: a solo-maintained project cannot promise one without it
   driver on all three runtimes in a CI job named `conformance`, which is a required status
   check on `main`: a red run cannot merge. So neither gate stood in the way, and on 2026-09-06
   `@affiant/core`, `@affiant/contract` and `@affiant/evidence-card` were published to npm at
-  `0.1.0-alpha.0` under the `alpha` dist-tag, with SLSA provenance.
+  `0.1.0-alpha.0` under the `alpha` dist-tag, with SLSA provenance. A second alpha followed
+  on 2026-09-10: the same three packages at `0.1.0-alpha.1`, under the `alpha` dist-tag
+  and with SLSA provenance. The `latest` tag still points at `0.1.0-alpha.0`, so an untagged
+  `npm install` gets the first alpha and the `alpha` tag points at the second.
   State: in progress. Links: issue: to be filed;
   [affiant-protocol](https://github.com/Sakwala/affiant-protocol),
   [affiant-ts](https://github.com/Sakwala/affiant-ts).
