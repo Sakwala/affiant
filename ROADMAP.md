@@ -85,8 +85,7 @@ No delivery dates, ever: a solo-maintained project cannot promise one without it
   `@affiant/core`, `@affiant/contract` and `@affiant/evidence-card` were published to npm at
   `0.1.0-alpha.0` under the `alpha` dist-tag, with SLSA provenance. A second alpha followed
   on 2026-09-10: the same three packages at `0.1.0-alpha.1`, under the `alpha` dist-tag
-  and with SLSA provenance. The `latest` tag still points at `0.1.0-alpha.0`, so an untagged
-  `npm install` gets the first alpha and the `alpha` tag points at the second.
+  and with SLSA provenance. `latest` and `alpha` both point at `0.1.0-alpha.1`.
   State: in progress. Links: issue: to be filed;
   [affiant-protocol](https://github.com/Sakwala/affiant-protocol),
   [affiant-ts](https://github.com/Sakwala/affiant-ts).
