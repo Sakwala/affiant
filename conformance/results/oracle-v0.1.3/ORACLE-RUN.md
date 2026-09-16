@@ -30,7 +30,7 @@ protocol tag from the `PROTOCOL_PIN` an implementation vendors, and the rulebook
 The other half of the assertion is this tree: the same 68 documents against the branch that fixes
 [Sakwala/affiant#123](https://github.com/Sakwala/affiant/issues/123) — **68 passed, 0 failed** —
 recorded in [`../dotnet-1.0.0-beta.3.1.json`](../dotnet-1.0.0-beta.3.1.json) and claimed in
-`conformance/parity/dotnet-v0.1.json`. A fixture that failed on the release and passes on the fix is
+`conformance/parity/dotnet-v0.2.json`. A fixture that failed on the release and passes on the fix is
 the whole of what a negative oracle is for.
 
 ## The five the oracle lists

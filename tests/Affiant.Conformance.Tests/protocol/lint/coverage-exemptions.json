@@ -1,26 +1,11 @@
 {
-  "$note": "Rules exempt from the coverage lint's fixture requirement (INVARIANTS.md, 'Coverage lint'). Each entry names the rule, the version the exemption holds for, and the reason. The lint that reads this file arrives with the v0.1 conformance suite.",
-  "protocolVersion": "0.1.0",
+  "$note": "Rules exempt from the coverage lint's fixture requirement (INVARIANTS.md, 'Coverage lint'). Each entry names the rule, the version the exemption holds for, and the reason. An implementation copies these entries into its own parity manifest and adds what it checks instead; it may not invent one. At v0.2.0 the three rows that read `until: 0.2.0` — CV-2, CV-3 and CV-5 — were removed, because the first adapter arrived with them: CV-2 and CV-3 are checked by the adapter fixtures, and CV-5 by conformance/lint/adapter-claims.mjs, which the coverage lint accepts as coverage because the script is in this repository.",
+  "protocolVersion": "0.2.0",
   "exemptions": [
     {
       "rule": "SR-5",
       "until": "always",
       "reason": "exempt by construction: the transport is not the protocol; the negative case is the set of host-shaped seed examples no rule cites as a check"
-    },
-    {
-      "rule": "CV-2",
-      "until": "0.2.0",
-      "reason": "text complete at v0.1; the call-site fixtures arrive with the first adapter"
-    },
-    {
-      "rule": "CV-3",
-      "until": "0.2.0",
-      "reason": "text complete at v0.1; the delegation fixtures arrive with the first adapter"
-    },
-    {
-      "rule": "CV-5",
-      "until": "0.2.0",
-      "reason": "text complete at v0.1; an adapter documentation lint arrives with the first adapter"
     },
     {
       "rule": "AF-5",

@@ -36,6 +36,24 @@ and `Affiant.Extensions.AI`, verified live 2026-07-31 and 2026-08-20 respectivel
 
 ### Changed
 
+- **The protocol pin moves to the rulebook's `v0.2.0` tag, and the parity report becomes
+  `conformance/parity/dotnet-v0.2.json`.** Nothing this driver runs changed: `v0.2.0` adds no wire
+  shape, no schema under `schemas/0.1.0`, no canonical vector and no conformance fixture, and
+  `protocolVersion` stays `0.1.0`, so the run is the same sixty-eight documents and it is still
+  **68 of 68 with an empty failing list**. What the tag adds is a second fixture section,
+  `adapter`, scoped at the section level: a driver runs it once for every adapter its
+  implementation ships and *declares to the rulebook*, and one that declares none runs none of it
+  and says so with `adapters: []`, which this report now does — the declaration the rulebook reads
+  is an npm package's `affiant.adapter` block, and no package here has one. The three exemptions
+  that read `until: 0.2.0` — CV-2, CV-3 and CV-5 — were lifted at that tag when the first adapter
+  arrived, so this report inherits eight rulebook exemptions where the `v0.1` readings inherited
+  eleven; a manifest read at `v0.2.0` or later must carry an `exemptions[]` equal to the rulebook's
+  own list as of its tag, and the driver's own suite asserts that copy is complete. The report is
+  renamed because the rulebook names a `v0.2` manifest `parity/<implementation>-v0.2.json`; the
+  `v0.1` readings stay published in the rulebook, correct about the ref each was made against.
+  The vendored copy grows by the twelve adapter fixtures the tag carries, which this driver reads
+  none of. Test-only: no shipped file changed and no package changed.
+
 - **One vendored rulebook, and the checksum check covers all of it** (`Sakwala/affiant#137`). Two
   copies of rulebook material sat outside the tree `conformance/PROTOCOL_PIN` names —
   `tests/protocol/` and `tests/Affiant.Abstractions.Tests/Telemetry/rulebook/` — and nothing in CI

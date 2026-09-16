@@ -1,0 +1,78 @@
+{
+  "id": "adapter/cv2-gate-absent-throws",
+  "rules": [
+    "CV-2"
+  ],
+  "title": "The same write tool, built against a gate that cannot be reached, throws when it is called and hands the framework nothing: a seam whose gate is unreachable never returns the raw proposal as the tool's result.",
+  "given": {
+    "clock": "2026-09-15T09:00:00.000Z",
+    "store": "memory",
+    "gate": {
+      "defaultTtlMs": 3600000,
+      "authorization": {
+        "allow": [
+          "*"
+        ]
+      },
+      "inference": {
+        "priority": {
+          "value": "High",
+          "confidence": 0.9
+        }
+      }
+    },
+    "ctx": {
+      "tenantId": "tenant-a",
+      "conversationId": "conv-1",
+      "channel": "chat",
+      "principal": {
+        "kind": "member",
+        "id": "member-1"
+      },
+      "utterance": "Set the ticket priority to High",
+      "messageId": "msg-1"
+    },
+    "prior": [
+      {
+        "kind": "adapter-build",
+        "definitions": [
+          {
+            "name": "update_ticket",
+            "description": "Update a ticket.",
+            "entityType": "Ticket",
+            "entityId": "ticket-1",
+            "writeCapable": true,
+            "operationLabel": "WriteUpdate",
+            "fields": [
+              {
+                "name": "priority",
+                "kind": "text",
+                "description": "How urgent the ticket is",
+                "required": false,
+                "allowedValues": null,
+                "pattern": null
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "step": {
+      "kind": "adapter-call",
+      "tool": "update_ticket",
+      "args": {
+        "priority": "High"
+      },
+      "context": "turn",
+      "gate": "absent"
+    }
+  },
+  "expect": {
+    "outcome": {
+      "kind": "thrown"
+    },
+    "entries": 0,
+    "modelOutput": null,
+    "hostExecuteRan": false
+  }
+}

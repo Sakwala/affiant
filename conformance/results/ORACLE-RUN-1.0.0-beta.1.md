@@ -34,8 +34,9 @@ make anything fail.
 - Whole suite at `v0.1.1`: **0 passed, 63 failed, 0 errored, 0 skipped** of 63
 - Oracle fixtures: **19 listed, 19 failed, 0 passed** — the same at both tags
 
-Read `conformance/parity/dotnet-v0.1.json` beside this: it is the published claim, and this is part of
-the evidence for it.
+Read the parity manifest this release was claimed in beside this — the `v0.1` reading, published at
+the rulebook's [`v0.1.2`](https://github.com/Sakwala/affiant-protocol/blob/v0.1.2/conformance/parity/dotnet-v0.1.json)
+tag: it is the published claim, and this is part of the evidence for it.
 
 ### What changed in the rulebook after this reading
 

@@ -36,7 +36,7 @@ No delivery dates, ever: a solo-maintained project cannot promise one without it
 
 ## What will not change
 
-1. **The invariant.** Every Affidavit field carries provenance, no exceptions; nothing commits without evidence, nothing writes without approval. Enforced by two things at once: the [ComplianceHarness](https://affiant.dev/guides/compliance-harness/) — the test harness every .NET adapter must pass — and the conformance suite in [affiant-protocol](https://github.com/Sakwala/affiant-protocol), which has shipped and which every implementation runs. Its sixty-eight documents — sixty-one declarative fixtures and seven canonical byte vectors — are what each implementation's parity manifest is read against: this tree's .NET build passes 68 of 68 at the rulebook's [`v0.1.3`](https://github.com/Sakwala/affiant-protocol/releases/tag/v0.1.3) tag with eleven declared exemptions, recorded in [`conformance/parity/dotnet-v0.1.json`](conformance/parity/dotnet-v0.1.json). The parity manifests published on the rulebook are still the `v0.1.2` readings until the `v0.1.3` ones are published: the .NET line at 63 of 63 with those same eleven exemptions, and the TypeScript line at 63 of 63, exempting the same eleven rules on its own grounds and asserting the identical result on Node, Bun and workerd. Those two readings are the ones on the rulebook's default branch; the parity snapshots frozen inside the `v0.1.2` tag itself were cut before that republish and still name the tag before it.
+1. **The invariant.** Every Affidavit field carries provenance, no exceptions; nothing commits without evidence, nothing writes without approval. Enforced by two things at once: the [ComplianceHarness](https://affiant.dev/guides/compliance-harness/) — the test harness every .NET adapter must pass — and the conformance suite in [affiant-protocol](https://github.com/Sakwala/affiant-protocol), which has shipped and which every implementation runs. Its sixty-eight documents — sixty-one declarative fixtures and seven canonical byte vectors — are what each implementation's parity manifest is read against: this tree's .NET build passes 68 of 68 at the rulebook's [`v0.2.0`](https://github.com/Sakwala/affiant-protocol/releases/tag/v0.2.0) tag with eight declared exemptions, recorded in [`conformance/parity/dotnet-v0.2.json`](conformance/parity/dotnet-v0.2.json), which also states `adapters: []` — this implementation declares no adapter to the rulebook, so it runs none of the `adapter` fixture section v0.2.0 added. The parity manifests published on the rulebook are still the `v0.1.2` readings until the `v0.1.3` ones are published: the .NET line at 63 of 63 with those same eleven exemptions, and the TypeScript line at 63 of 63, exempting the same eleven rules on its own grounds and asserting the identical result on Node, Bun and workerd. Those two readings are the ones on the rulebook's default branch; the parity snapshots frozen inside the `v0.1.2` tag itself were cut before that republish and still name the tag before it.
 2. **Field-level, not call-level.** Approval of a whole tool call is commodity; Affiant's unit is the field and its provenance chain.
 3. **The honest boundary.** Affiant only swears to writes it can intercept in-process. It will not claim otherwise.
 4. **Library, not service.** Affiant runs inside the adopter's process. There is no hosted component, no licence server, and no phone-home.
@@ -223,12 +223,12 @@ No delivery dates, ever: a solo-maintained project cannot promise one without it
   (2026-09-05) made the shipped projection compute that minimum in place of the mean it computed
   before. It is tested on both sides: ten unit facts over the three numbers in
   `Affiant.Abstractions.Tests`, and seven conformance fixtures that assert AF-2 across the gate,
-  sequence and canonical suites — AF-2 is not among the eleven rules the .NET parity manifest
+  sequence and canonical suites — AF-2 is not among the eight rules the .NET parity manifest
   exempts, so those fixtures are run rather than waived. What stays undefined is deliberate
   rather than pending: neither the rulebook nor a core package sets a threshold on any of the
   three numbers. A host policy floor predicates on `PopulatedConfidence` and `EmptyFieldCount`,
   never on the aggregate, which is the safety number a fixture pins. Links: issue: to be filed;
-  [`conformance/parity/dotnet-v0.1.json`](conformance/parity/dotnet-v0.1.json),
+  [`conformance/parity/dotnet-v0.2.json`](conformance/parity/dotnet-v0.2.json),
   [CHANGELOG](CHANGELOG.md).
 - **Provider failover in the framework, for all three adapters** `[stability]` — Normative
   [Rule 5](https://affiant.dev/rules/seven-normative-rules/) promises graceful degradation
@@ -282,10 +282,12 @@ No delivery dates, ever: a solo-maintained project cannot promise one without it
   [`v0.1.2`](https://github.com/Sakwala/affiant-protocol/releases/tag/v0.1.2) tag, so the
   parity manifest declares an empty failing list. Eleven rulebook rules are exempted rather
   than fixture-checked — SR-5, CV-2, CV-3, CV-5, AF-5, SR-3, RT-1, RT-2, RT-3, TL-1 and
-  TL-2 — each recorded in
-  [`conformance/parity/dotnet-v0.1.json`](conformance/parity/dotnet-v0.1.json) with its
-  reason and, where there is one, what is checked in its place; five of the eleven say
-  plainly that no substitute check exists yet. RT-1 is the rule that a core package be
+  TL-2 — each recorded in that release's parity manifest, published at the rulebook's
+  [`v0.1.3`](https://github.com/Sakwala/affiant-protocol/blob/v0.1.3/conformance/parity/dotnet-v0.1.json)
+  tag, with its reason and, where there is one, what is checked in its place; five of the eleven
+  say plainly that no substitute check exists yet. Three of them — CV-2, CV-3 and CV-5 — read
+  `until: 0.2.0` and the rulebook lifted them at that tag, so the manifest this tree now publishes
+  inherits eight. RT-1 is the rule that a core package be
   runtime-neutral, and the exemption for it says in as many words that this implementation
   claims one runtime — `net10.0` — and that the manifest names that one. The release also
   ships the compliance harness's fixture runner

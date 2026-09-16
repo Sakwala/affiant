@@ -3,15 +3,11 @@
   "$id": "https://affiant.dev/conformance/0.1.0/fixture.schema.json",
   "title": "ConformanceFixture",
   "description": "One declarative conformance fixture: a wiring, a sequence of acts, and what must then be true. Written out from the reference runner's own key tables (Sakwala/affiant-ts, packages/core/src/testing.ts — FIXTURE_KEYS and STEP_KEYS), so that a document this schema accepts is a document that runner will run rather than reject. The allowed key sets are the same in both places and every object here is additionalProperties:false, deliberately: a misspelled expectation key is a key the checker never reads, so the fixture asserts nothing about that fact and every implementation passes it, including a broken one. Adding a clause to the format means adding it in both places in the same change. This schema describes the FIXTURE FORMAT and refers to nothing outside itself; the wire shapes a fixture's matchers are about live in schemas/0.1.0/. The seven canonical/*.json byte vectors are a different document shape and are not described here — see conformance/RUNNER.md, 'The canonical vectors'.",
-  "type": "object",
-  "additionalProperties": false,
-  "required": ["id", "rules", "title", "given", "expect"],
-  "properties": {
-    "id": {
-      "description": "A stable id, unique across the set, prefixed by the set it lives in. Never renamed: a parity manifest cites it by name, so a rename silently changes what a published document refers to.",
-      "type": "string",
-      "pattern": "^(gate|decide|sequence-a|sequence-c)/[a-z0-9]+(-[a-z0-9]+)*$"
-    },
+  "oneOf": [
+    { "$ref": "#/$defs/conformanceFixture" },
+    { "$ref": "#/$defs/adapterFixture" }
+  ],
+  "$defs": {
     "rules": {
       "description": "The rulebook ids this fixture checks. At least one, and each must be a rule INVARIANTS.md defines — the coverage lint checks both directions.",
       "type": "array",
@@ -23,10 +19,43 @@
       "type": "string",
       "minLength": 1
     },
-    "given": { "$ref": "#/$defs/given" },
-    "expect": { "$ref": "#/$defs/expect" }
-  },
-  "$defs": {
+
+    "conformanceFixture": {
+      "description": "A document of the `conformance` section: the eight step kinds of RUNNER.md and its matchers, and nothing an adapter driver adds. The two variants are separate so that a conformance fixture stating an adapter step or an adapter clause is REFUSED rather than quietly accepted — a clause the reference runner does not read is a clause nobody checks, which is the whole reason this schema closes its key sets.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "rules", "title", "given", "expect"],
+      "properties": {
+        "id": {
+          "description": "A stable id, unique across the set, prefixed by the set it lives in. Never renamed: a parity manifest cites it by name, so a rename silently changes what a published document refers to.",
+          "type": "string",
+          "pattern": "^(gate|decide|sequence-a|sequence-c)/[a-z0-9]+(-[a-z0-9]+)*$"
+        },
+        "rules": { "$ref": "#/$defs/rules" },
+        "title": { "$ref": "#/$defs/title" },
+        "given": { "$ref": "#/$defs/conformanceGiven" },
+        "expect": { "$ref": "#/$defs/conformanceExpect" }
+      }
+    },
+
+    "adapterFixture": {
+      "description": "A document of the `adapter` section (conformance/ADAPTER-RUNNER.md), run only by an implementation that ships and declares an adapter. Everything a conformance fixture may say, plus two step kinds — `adapter-build` and `adapter-call` — and five matchers over what the call did and what the host framework was handed.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "rules", "title", "given", "expect"],
+      "properties": {
+        "id": {
+          "description": "A stable id, unique across the set, prefixed by `adapter/`. Never renamed, for the reason every other id is never renamed.",
+          "type": "string",
+          "pattern": "^adapter/[a-z0-9]+(-[a-z0-9]+)*$"
+        },
+        "rules": { "$ref": "#/$defs/rules" },
+        "title": { "$ref": "#/$defs/title" },
+        "given": { "$ref": "#/$defs/adapterGiven" },
+        "expect": { "$ref": "#/$defs/adapterExpect" }
+      }
+    },
+
     "jsonValue": {
       "description": "Any JSON value. Field values are the host's domain data; the protocol does not constrain them.",
       "$comment": "No type constraint on purpose."
@@ -131,11 +160,10 @@
       ]
     },
 
-    "given": {
-      "description": "The wiring, the acts, and the turn they happen in.",
+    "commonGiven": {
+      "description": "The wiring and the turn, which both variants state the same way. What differs is which step kinds `prior` and `step` admit — and `required` is stated on each variant rather than here, because `step` is defined there.",
       "type": "object",
-      "additionalProperties": false,
-      "required": ["gate", "clock", "ctx", "step"],
+      "required": ["gate", "clock", "ctx"],
       "properties": {
         "gate": { "$ref": "#/$defs/gate" },
         "store": {
@@ -147,7 +175,17 @@
           "description": "The instant the clock starts at. Every step may move it forward with `at`.",
           "$ref": "#/$defs/isoInstant"
         },
-        "ctx": { "$ref": "#/$defs/ctx" },
+        "ctx": { "$ref": "#/$defs/ctx" }
+      }
+    },
+
+    "conformanceGiven": {
+      "description": "The wiring, the acts and the turn, where every act is one of RUNNER.md's eight step kinds.",
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/commonGiven" }],
+      "unevaluatedProperties": false,
+      "required": ["step"],
+      "properties": {
         "prior": {
           "description": "The acts that set the scene. Each may declare the refusal it is expected to produce, so a reader sees the refusal beside the act that caused it.",
           "type": "array",
@@ -156,6 +194,25 @@
         "step": {
           "description": "The act under test. expect.error is about this one.",
           "$ref": "#/$defs/step"
+        }
+      }
+    },
+
+    "adapterGiven": {
+      "description": "The same wiring, where an act may also be one of the two step kinds reserved for adapters.",
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/commonGiven" }],
+      "unevaluatedProperties": false,
+      "required": ["step"],
+      "properties": {
+        "prior": {
+          "description": "The acts that set the scene, each of the same shape as `step`.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/adapterStep" }
+        },
+        "step": {
+          "description": "The act under test.",
+          "$ref": "#/$defs/adapterStep"
         }
       }
     },
@@ -433,6 +490,94 @@
       }
     },
 
+    "adapterDefinition": {
+      "description": "A tool definition an `adapter-build` step hands the adapter, plus the one fact the SDK knows and a ToolDefinition has no place for. The same shape as a wrap-execute step's `tool`, because it is the same thing seen from the other side of the seam: the driver supplies an `execute` that fails the fixture if a write-capable definition's own function is ever reached (GT-6), and a read definition's function records that it ran so a fixture can state that it did not (CV-2).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "entityType", "fields"],
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "entityType": { "type": "string" },
+        "entityId": { "description": "null for a create-shaped tool.", "type": ["string", "null"] },
+        "writeCapable": { "type": "boolean" },
+        "executedBy": { "type": "string", "enum": ["host", "provider"] },
+        "hostedMcp": { "type": "boolean" },
+        "omitExecute": { "description": "Whether the definition carries no execute at all - the no-execute category (CV-4).", "type": "boolean" },
+        "sdkKind": {
+          "description": "Which kind of the host framework's tool the definition is exposed as, where the framework has kinds. A fact about the framework rather than about the tool, which is why it is stated here and not on a conformance fixture's `tool`.",
+          "type": "string",
+          "enum": ["function", "dynamic", "provider"]
+        },
+        "readResult": {
+          "description": "What the host function of a READ definition returns, stated by the fixture. Without it `expect.outcome.result` could not be compared: the driver would be choosing the value and then checking its own choice. Stating it makes a read's result a fact the document pins. Meaningless on a write-capable definition, whose own function is a tripwire that must never run (GT-6).",
+          "$ref": "#/$defs/jsonValue"
+        },
+        "operationLabel": { "type": "string" },
+        "fields": { "$ref": "#/$defs/toolFields" }
+      }
+    },
+
+    "adapterCallContext": {
+      "description": "The context an `adapter-call` step passes through the framework's own per-call channel (GT-2). Four forms: `\"turn\"` for the fixture's own `given.ctx` with this step's overrides applied; a context stated in full; `null` — the call that arrives with none, which CV-2 says a seam refuses rather than defaults; and `{ \"malformed\": … }`, whose value is passed as the context exactly as written. The fourth exists because GT-2 is about a context of the WRONG SHAPE as much as a missing one, and a schema that could only say `null` could not state that case at all.",
+      "oneOf": [
+        { "type": "string", "const": "turn" },
+        { "$ref": "#/$defs/ctx" },
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["malformed"],
+          "properties": {
+            "malformed": {
+              "description": "Whatever the host passed instead of a turn context. Any JSON value, including one that looks nearly right.",
+              "$ref": "#/$defs/jsonValue"
+            }
+          }
+        }
+      ]
+    },
+
+    "outcomeMatcher": {
+      "description": "What the call under test did, as the caller saw it (conformance/ADAPTER-RUNNER.md). `filed` - it returned a write result and a row is on the Docket; `read` - it returned a read result; `refused` - it produced an Affiant refusal carrying one of the rulebook's codes, whether the seam threw it or returned it; `thrown` - it raised something that is not a refusal, which is what CV-2 requires of a seam whose gate is unreachable. The row a `filed` call produced is stated through `expect.entry`, the same matcher every other fixture uses.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["filed", "read", "refused", "thrown"] },
+        "code": { "description": "The refusal code, on `refused` only. Compared as a string, exactly.", "type": "string" },
+        "messageContains": { "description": "A substring of the refusal or the error message.", "type": "string" },
+        "result": { "description": "What a `read` call returned, compared for structural equality.", "$ref": "#/$defs/jsonValue" }
+      }
+    },
+
+    "modelOutputMatcher": {
+      "description": "What the host framework was handed to put in its own history — the model-facing output of the call, not the result the host received (CV-3, AZ-5).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "keys": {
+          "description": "The WHOLE key set of that output, sorted by Unicode code point. Stating it states all of them: an output carrying a key nobody asked for is what this clause is for.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "fields": {
+          "description": "The field names the output lists, in order.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "status": {
+          "description": "The status the output tells the model the row reads at. It must be the row's own: a seam that read an approval out of the framework's history and told the model `approved` over a `pending` row is what AZ-5 closes, and nothing else in this matcher would see it.",
+          "type": "string",
+          "enum": ["pending", "approved", "rejected", "expired"]
+        },
+        "carriesNoFieldValues": {
+          "description": "The derived check the rule is about, and it is a check over TEXT rather than over structure: no key anywhere in the output is the name of a sworn field, and no serialisation of any sworn field's value appears as a substring of the output's own JSON serialisation. A STRING value's serialisation is its JSON-escaped body without the surrounding quotes, so a value sitting inside a longer sentence is found; every other value's is its whole JSON form. Structural equality is not enough — a summary whose note reads `filed for review: priority=High` has put a sworn value in the framework's history just as surely as one carrying it as a value. A serialisation shorter than three characters is compared as a whole JSON token instead, because a one-character value would otherwise match almost any output.",
+          "type": "boolean"
+        }
+      }
+    },
+
     "stepCommon": {
       "description": "What every step may say about when it happens and who performs it. These keys are legal on every kind; the kind adds its own.",
       "type": "object",
@@ -578,11 +723,85 @@
       ]
     },
 
-    "expect": {
-      "description": "What must be true after the step under test. Every clause is optional and every matcher is PARTIAL: a fixture states the facts its rule is about and says nothing about the rest, so an unrelated addition to a Docket row does not break thirty documents. What a fixture may NOT do is state nothing at all — minProperties here is the schema's half of the runner's vacuity check, which counts leaf facts and rejects `{}`, `{ \"entry\": {} }` and `{ \"telemetryAbsent\": [] }` alike.",
+    "adapterStep": {
+      "description": "One act in the adapter section: any of RUNNER.md's eight kinds, or one of the two reserved for adapters.",
+      "type": "object",
+      "oneOf": [
+        { "$ref": "#/$defs/step" },
+        { "$ref": "#/$defs/adapterBuildStep" },
+        { "$ref": "#/$defs/adapterCallStep" }
+      ]
+    },
+
+    "adapterBuildStep": {
+      "title": "adapter-build",
+      "description": "An adapter is handed the host's tool definitions and builds the framework's own tool set from them. Reserved for the adapter section (conformance/ADAPTER-RUNNER.md): a fixture in any other section that used it would be describing a seam its own driver has not got, which is why it is not in the shared `step` union.",
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/stepCommon" }],
+      "unevaluatedProperties": false,
+      "required": ["kind", "definitions"],
+      "properties": {
+        "kind": { "const": "adapter-build" },
+        "definitions": {
+          "description": "The definitions handed to the adapter, in order. The tool set built from them is what a later adapter-call names a tool in.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/adapterDefinition" }
+        },
+        "declared": {
+          "description": "Tools the host declared it cannot intercept, applied through the gate's own declaration entry point BEFORE the set is built (CV-4). The same shape as given.gate.uncovered, stated here because a declaration made at wire-up is part of how a host wires an adapter, and the order matters: a declaration made after the build would not have been there when the adapter classified the tool.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["tool", "category"],
+            "properties": {
+              "tool": { "type": "string" },
+              "category": { "type": "string", "enum": ["no-execute", "provider-executed", "hosted-mcp"] }
+            }
+          }
+        }
+      }
+    },
+
+    "adapterCallStep": {
+      "title": "adapter-call",
+      "description": "The framework calls one tool of the built set, with the context it carries for this call (GT-2, CV-2). Reserved for the adapter section.",
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/stepCommon" }],
+      "unevaluatedProperties": false,
+      "required": ["kind", "tool", "args", "context"],
+      "properties": {
+        "kind": { "const": "adapter-call" },
+        "tool": { "description": "The name of the tool in the built set.", "type": "string" },
+        "args": { "description": "The input the model produced for the call.", "type": "object" },
+        "context": { "$ref": "#/$defs/adapterCallContext" },
+        "gate": {
+          "description": "Whether the tool set this call runs against was built against a reachable gate. `\"absent\"` builds it against a gate that cannot be reached, which is the case CV-2 is about; the default is `\"present\"`.",
+          "type": "string",
+          "enum": ["present", "absent"]
+        },
+        "messages": {
+          "description": "The framework's own message history for this call, where the fixture is about what a host framework carries (CV-3). A fixture states the artefact ABSTRACTLY and a driver maps it to its own framework's shape — see conformance/ADAPTER-RUNNER.md section 4.3, which also says what a framework with no such channel does instead.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/frameworkMessage" }
+        }
+      }
+    },
+
+    "frameworkMessage": {
+      "description": "One artefact of the host framework's own history, stated abstractly so the fixture names no framework. `framework-approval` is an approval the framework reconstructed from a client's reply — the path AZ-5 closes. A driver maps it to its framework's own shape (for the AI SDK, a `tool-approval-response` part); an adapter reads no approval, no Affidavit and no entry state out of it.",
       "type": "object",
       "additionalProperties": false,
-      "minProperties": 1,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["framework-approval"] },
+        "approved": { "type": "boolean" }
+      }
+    },
+
+    "expect": {
+      "description": "The clauses both sections share. Every clause is optional and every matcher is PARTIAL: a fixture states the facts its rule is about and says nothing about the rest, so an unrelated addition to a Docket row does not break thirty documents. What a fixture may NOT do is state nothing at all — the `minProperties` on each variant is the schema's half of the runner's vacuity check, which counts leaf facts and rejects `{}`, `{ \"entry\": {} }` and `{ \"telemetryAbsent\": [] }` alike. The key set is closed on the variants rather than here, so that the five adapter clauses can be added to one of them and refused on the other.",
+      "type": "object",
       "properties": {
         "error": {
           "description": "The refusal the step under test must produce, or null/absent for none.",
@@ -662,6 +881,61 @@
           "description": "The row's canonical hash (SR-1): the Affidavit and its accepted amendments, taken through the implementation's own exported helper — the value a host's execution grant binds to, as 64 lowercase hex characters.",
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+
+    "conformanceExpect": {
+      "description": "What must be true after the step under test, in the conformance section. An adapter clause here is REFUSED: the reference runner does not read one, so a conformance fixture stating it would assert nothing about that fact and every implementation would pass it.",
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/expect" }],
+      "unevaluatedProperties": false,
+      "minProperties": 1
+    },
+
+    "adapterExpect": {
+      "description": "What must be true after the step under test, in the adapter section: the six clauses an adapter driver can answer about the Docket and the refusal, plus the five of its own. `card` and `canonicalHash` are NOT among them and are refused here — an Evidence Card and a canonical hash are the gate's own artefacts, reached through the gate's own entry points, and a fixture that stated one would be stating a fact the adapter section's runner has no way to produce. The conformance section is where a document about either belongs.",
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/sharedExpect" }, { "$ref": "#/$defs/adapterExpectClauses" }],
+      "unevaluatedProperties": false,
+      "minProperties": 1
+    },
+
+    "sharedExpect": {
+      "description": "The clauses BOTH sections answer, by reference to the conformance format's own definitions of them so there is one statement of each and not two.",
+      "type": "object",
+      "properties": {
+        "error": { "$ref": "#/$defs/expect/properties/error" },
+        "entry": { "$ref": "#/$defs/expect/properties/entry" },
+        "found": { "$ref": "#/$defs/expect/properties/found" },
+        "store": { "$ref": "#/$defs/expect/properties/store" },
+        "telemetry": { "$ref": "#/$defs/expect/properties/telemetry" },
+        "telemetryAbsent": { "$ref": "#/$defs/expect/properties/telemetryAbsent" }
+      }
+    },
+
+    "adapterExpectClauses": {
+      "description": "The five clauses only an adapter driver can answer (conformance/ADAPTER-RUNNER.md section 5).",
+      "type": "object",
+      "properties": {
+        "outcome": { "$ref": "#/$defs/outcomeMatcher" },
+        "entries": {
+          "description": "How many rows the Docket holds in the step's own tenant afterwards — the tenant's whole list, never narrowed by conversation. `0` is the statement a refused call makes: nothing was filed.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "modelOutput": {
+          "description": "What the host framework was handed to put in its own history, or `null` — the statement that it was handed NOTHING, which is what a call that raised leaves behind (CV-2: a seam that returned the raw proposal instead of raising would be refused here).",
+          "oneOf": [{ "$ref": "#/$defs/modelOutputMatcher" }, { "type": "null" }]
+        },
+        "frameworkCarries": {
+          "description": "Every path in the model-facing output whose value is the filed entry's id, stated as the whole list, sorted, and dotted for a nested match — `entryId`, `result.entryId`, `items[0].entryId` (CV-3: a framework checkpoint may carry an entryId and nothing else).",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "hostExecuteRan": {
+          "description": "Whether any host function the definitions carry ran during the step under test. A write definition's own function is a tripwire that fails the fixture if it is reached at all (GT-6); a read definition's records that it ran, so a fixture can state that a refused call never reached it (CV-2).",
+          "type": "boolean"
         }
       }
     },

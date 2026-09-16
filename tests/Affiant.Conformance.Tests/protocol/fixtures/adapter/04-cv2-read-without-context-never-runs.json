@@ -1,0 +1,90 @@
+{
+  "id": "adapter/cv2-read-without-context-never-runs",
+  "rules": [
+    "CV-2",
+    "GT-2"
+  ],
+  "title": "A read tool that answers when it is called with a context is refused when it is called without one, and the host's own read function is never reached: the refusal happens at the seam, before anything the host wrote runs.",
+  "given": {
+    "clock": "2026-09-15T09:00:00.000Z",
+    "store": "memory",
+    "gate": {
+      "defaultTtlMs": 3600000,
+      "authorization": {
+        "allow": [
+          "*"
+        ]
+      },
+      "inference": {
+        "priority": {
+          "value": "High",
+          "confidence": 0.9
+        }
+      }
+    },
+    "ctx": {
+      "tenantId": "tenant-a",
+      "conversationId": "conv-1",
+      "channel": "chat",
+      "principal": {
+        "kind": "member",
+        "id": "member-1"
+      },
+      "utterance": "Set the ticket priority to High",
+      "messageId": "msg-1"
+    },
+    "prior": [
+      {
+        "kind": "adapter-build",
+        "definitions": [
+          {
+            "name": "find_ticket",
+            "description": "Find a ticket.",
+            "entityType": "Ticket",
+            "writeCapable": false,
+            "readResult": {
+              "ticketId": "ticket-1",
+              "summary": "Left engine oil pressure"
+            },
+            "fields": [
+              {
+                "name": "query",
+                "kind": "text",
+                "description": "What to search for",
+                "required": false,
+                "allowedValues": null,
+                "pattern": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "adapter-call",
+        "tool": "find_ticket",
+        "args": {
+          "query": "left engine"
+        },
+        "context": "turn",
+        "refusal": null
+      }
+    ],
+    "step": {
+      "kind": "adapter-call",
+      "tool": "find_ticket",
+      "args": {
+        "query": "left engine"
+      },
+      "context": null
+    }
+  },
+  "expect": {
+    "outcome": {
+      "kind": "refused",
+      "code": "wireup-invalid"
+    },
+    "entries": 0,
+    "modelOutput": null,
+    "hostExecuteRan": false
+  }
+}

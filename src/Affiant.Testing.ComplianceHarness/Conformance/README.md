@@ -2,7 +2,7 @@
 
 Runs the rulebook's fixture suite (`protocol/`, vendored at the ref `conformance/PROTOCOL_PIN`
 names) against the shipped packages, and writes the run to
-`conformance/results/dotnet-<version>.json` — the evidence `conformance/parity/dotnet-v0.1.json`
+`conformance/results/dotnet-<version>.json` — the evidence `conformance/parity/dotnet-v0.2.json`
 rests on. The version is read off `Affiant.Core`'s own informational version, so the log is named
 after what the tree builds.
 
