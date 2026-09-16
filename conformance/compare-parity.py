@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Assert the failing set from a conformance run equals the parity manifest, exactly.
 
-    conformance/compare-parity.py [results.json] [parity/dotnet-v0.1.json]
+    conformance/compare-parity.py [results.json] [parity/dotnet-v0.2.json]
 
 The set of fixture ids a run reports as `fail` or `error` must equal `failing[].id` in the
 manifest. Any difference fails, in EITHER direction:
@@ -45,7 +45,7 @@ def run_log():
 
 
 RESULTS = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else run_log()
-MANIFEST = pathlib.Path(sys.argv[2]) if len(sys.argv) > 2 else HERE / "parity" / "dotnet-v0.1.json"
+MANIFEST = pathlib.Path(sys.argv[2]) if len(sys.argv) > 2 else HERE / "parity" / "dotnet-v0.2.json"
 
 
 def die(message):

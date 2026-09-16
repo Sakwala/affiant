@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate conformance/parity/dotnet-v0.1.json from the latest run.
+"""Regenerate conformance/parity/dotnet-v0.2.json from the latest run.
 
     conformance/regenerate-parity.py
 
@@ -29,7 +29,7 @@ import re
 import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
-MANIFEST = HERE / "parity" / "dotnet-v0.1.json"
+MANIFEST = HERE / "parity" / "dotnet-v0.2.json"
 FIXTURE_INDEX = HERE.parent / "tests" / "Affiant.Conformance.Tests" / "protocol" / "fixtures" / "MANIFEST.json"
 EXEMPTIONS = HERE.parent / "tests" / "Affiant.Conformance.Tests" / "protocol" / "lint" / "coverage-exemptions.json"
 
@@ -134,6 +134,12 @@ def main():
         "producedAt": run["producedAt"],
         "runLog": f"conformance/results/{results.name} (Sakwala/affiant)",
         "failing": failing,
+        # This implementation declares no Affiant adapter to the rulebook, so it runs none of
+        # the `adapter` fixture section -- the scoping is at the SECTION level (affiant-protocol
+        # conformance/DRIVER.md section 7). `[]` is the positive statement that it ran none;
+        # PARITY.md requires the key of every manifest read at v0.2.0 or later, because silence is
+        # not the same statement.
+        "adapters": [],
         "runtimes": [
             {
                 "name": "net10.0",
@@ -168,9 +174,6 @@ def main():
 
 CHECKED_INSTEAD = {
     "SR-5": "the wire-shape suites in Sakwala/affiant-host-apps, which compare each host payload's key set against the shipped serializer",
-    "CV-2": "no substitute yet: the adapter call-site fixtures arrive with the rulebook's v0.2",
-    "CV-3": "no substitute yet: the delegation fixtures arrive with the rulebook's v0.2",
-    "CV-5": "no substitute yet: the adapter documentation lint arrives with the rulebook's v0.2",
     "AF-5": "the Affiant.Abstractions.Tests suite over the tool-result envelope types",
     "SR-3": "the fixture lint in the rulebook, run over every vendored fixture by conformance/sync.sh --verify",
     "RT-1": "not claimed beyond one runtime: this implementation targets net10.0 only, and the manifest names that one runtime",
@@ -182,10 +185,22 @@ CHECKED_INSTEAD = {
 
 NOTES = (
     "The .NET conformance driver, run by this repository's own test suite against the packages this "
-    "tree builds, read at the rulebook's v0.1.3. ALL SIXTY-EIGHT DOCUMENTS PASS -- the sixty-one "
+    "tree builds, read at the rulebook's v0.2.0. ALL SIXTY-EIGHT DOCUMENTS PASS -- the sixty-one "
     "declarative fixtures and the seven canonical byte vectors -- so the failing list is empty, "
     "which is what this release's acceptance asks for. "
-    "Four things a reader of this document alone should know. "
+    "Five things a reader of this document alone should know. "
+    "(0) WHAT THE PIN MOVING TO v0.2.0 CHANGED HERE, AND WHAT IT DID NOT. Nothing this driver runs "
+    "changed: v0.2.0 adds no wire shape, no schema under schemas/0.1.0, no canonical vector and no "
+    "conformance fixture, so the sixty-eight documents are the sixty-eight read at v0.1.3, and no "
+    "code in this repository moved with the pin. What it adds is a SECOND fixture section, "
+    "`adapter`, scoped at the section level: a driver runs it once for every adapter its "
+    "implementation ships and declares to the rulebook, and one that declares none runs none of it "
+    "and says so with `adapters: []` -- which is what this manifest does. The declaration the "
+    "rulebook reads is an npm package's `affiant.adapter` block, and no package here has one. The "
+    "three exemptions that read `until: 0.2.0` -- CV-2, CV-3 and CV-5 -- were lifted at that tag "
+    "when the first adapter arrived, so this manifest inherits eight rulebook exemptions where the "
+    "v0.1 readings inherited eleven; those readings are correct about their own ref and are not "
+    "restated here. "
     "(1) WHAT THIS RUN IS. It is a BRANCH BUILD of the 1.0.0-beta.3.1 candidate, not a shipped "
     "release: the version here names what the tree builds, and nothing carrying it has been "
     "published. The five fixtures the rulebook's negative oracle lists against the SHIPPED "

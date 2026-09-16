@@ -135,6 +135,44 @@
         }
       }
     },
+    "adapters": {
+      "description": "Every Affiant adapter this implementation ships and declares, and what the adapter fixture section said about it (conformance/ADAPTER-RUNNER.md). An implementation that ships none states `[]`, which is the positive statement that it runs none of that section — not silence. Optional in this schema because the manifests published against earlier tags predate the key; the rulebook's lint REQUIRES it of every manifest whose protocolTag is v0.2.0 or later, where the adapter section exists at all. The fixtures an adapter run covered are counted here and their failures, if any, are in `failing[]` with every other section's: the assertion CI makes is over the union of the sections the run covered.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["package", "version", "runtime", "runtimeVersion", "fixtures", "claimsLint"],
+        "properties": {
+          "package": {
+            "description": "The adapter package, by the name a reader installs it under.",
+            "type": "string"
+          },
+          "version": {
+            "description": "The version of that package the run exercised — a version a reader can install and reproduce this against.",
+            "type": "string"
+          },
+          "runtime": {
+            "description": "The host framework the adapter is for, by the name its own registry knows it by — the `affiant.adapter.runtime` of the adapter's package.json (conformance/ADAPTER-CLAIMS.md).",
+            "type": "string"
+          },
+          "runtimeVersion": {
+            "description": "The version of that framework the run resolved and ran against. Required: CV-5 is about a claim resting on a version pinned at build time, so a row that named no version would be a claim about an adapter nobody can reproduce — the range a package declares is not the version a run used.",
+            "type": "string"
+          },
+          "fixtures": {
+            "description": "How many documents of the adapter section this adapter's run covered. A number lower than the section's length is a run that did not cover it, which the failing set has to account for.",
+            "type": "integer",
+            "minimum": 0
+          },
+          "claimsLint": {
+            "description": "What conformance/lint/adapter-claims.mjs said about this package, run in the adapter's own CI where the registry is reachable (CV-5). Required: an adapter row that answered nothing about CV-5 would leave a reader to assume it passed. \"skipped\" is the honest answer for a run made with --offline, which verifies the declaration and the README but checks no claim against a published dist-tag.",
+            "type": "string",
+            "enum": ["pass", "fail", "skipped"]
+          },
+          "note": { "type": "string" }
+        }
+      }
+    },
     "exemptions": {
       "description": "The rulebook exemptions this implementation inherits — the rules conformance/lint/coverage-exemptions.json excuses from carrying a fixture, restated here so a reader of this document alone knows which rules no fixture in the run covers. Copied, never invented: an implementation cannot exempt itself from a rule.",
       "type": "array",

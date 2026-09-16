@@ -6,7 +6,9 @@ the measurement is published.
 The protocol lives in [`Sakwala/affiant-protocol`](https://github.com/Sakwala/affiant-protocol): the
 numbered invariants in prose (`INVARIANTS.md`), the JSON Schemas for the wire, and a suite of
 **declarative conformance fixtures** — 61 documents that each state a wiring, a sequence of acts and
-what must then be true, plus 7 canonical byte vectors. The fixtures name no class, no file and no
+what must then be true, plus 7 canonical byte vectors. From `v0.2.0` the rulebook carries a second
+section, `adapter`, run only by an implementation that ships and declares an adapter to it; this one
+declares none, runs none of that section, and states `adapters: []` in its report. The fixtures name no class, no file and no
 language. The thing that binds them to this implementation is the **driver**,
 `tests/Affiant.Conformance.Tests`, and the thing the driver produces is a **parity report** naming
 exactly which fixtures this implementation does not pass and why.
@@ -17,7 +19,7 @@ exactly which fixtures this implementation does not pass and why.
 |---|---|
 | `PROTOCOL_PIN` | The protocol ref this repository is pinned to. Bumping it is a reviewable diff in this repository's own history, so a format change never arrives as a silent upstream shift under a running build. |
 | `sync.sh` | Vendors the pinned suite, and the rulebook's `schemas/0.1.0`, into `tests/Affiant.Conformance.Tests/protocol/` with a `SHA256SUMS`. That directory is this repository's **only** copy of rulebook material: the driver reads it, and so do `Affiant.Abstractions.Tests` (the v0.1 wire schemas, the `wire/` fixtures, `enum-values.json`, the telemetry-key fixtures) and `Affiant.Core.Tests` (the canonical byte vectors). `sync.sh --verify` re-checks the copy and is what CI runs, so a local edit to a vendored fixture cannot pass unnoticed. |
-| `parity/dotnet-v0.1.json` | **The parity report.** Every fixture this implementation does not pass, with the rule, what it does instead, and its disposition. The published copy lives in the rulebook repository beside the fixtures; this is the copy CI asserts against. |
+| `parity/dotnet-v0.2.json` | **The parity report.** Every fixture this implementation does not pass, with the rule, what it does instead, and its disposition. The published copy lives in the rulebook repository beside the fixtures; this is the copy CI asserts against. |
 | `results/dotnet-<version>.json` | The run the report's claim rests on — one entry per fixture, including the ones that passed. Named after the version the tree builds, and rewritten every time the suite runs on that version. A run for a version already published stays as it was: it is the record of that release. |
 | `results/ORACLE-RUN-1.0.0-beta.1.md` | That run read against the rulebook's negative oracle: for each fixture the oracle says must fail on this release, whether it did and whether it failed for the recorded reason. |
 | `compare-parity.py` | The CI gate: the set of ids a run reports as `fail` or `error` must equal `failing[].id` in the report, exactly. |

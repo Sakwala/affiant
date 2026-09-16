@@ -503,7 +503,7 @@ public sealed class ConformanceDriverTests(ITestOutputHelper output)
 internal sealed class ParityManifest(JsonObject document)
 {
     /// <summary>Where the manifest lives in this repository.</summary>
-    public const string RelativePath = "conformance/parity/dotnet-v0.1.json";
+    public const string RelativePath = "conformance/parity/dotnet-v0.2.json";
 
     /// <summary>The manifest as it stands on disk.</summary>
     public JsonObject Document => document;

@@ -199,7 +199,7 @@ jobs:
 
   # The conformance driver's own gate. It runs the rulebook's promoted fixture suite against the
   # shipped packages and asserts that the set of fixtures that FAIL is exactly the set
-  # conformance/parity/dotnet-v0.1.json declares -- failing in either direction, because a check
+  # conformance/parity/dotnet-v0.2.json declares -- failing in either direction, because a check
   # that caught only new failures would let a fix rot unrecorded and the published parity claim
   # would become a document nobody trusts. See Sakwala/affiant-protocol conformance/DRIVER.md §5.
   #

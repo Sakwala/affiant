@@ -2,7 +2,7 @@
 
 The conformance suite and the v0.1 wire schemas, copied from
 [`Sakwala/affiant-protocol`](https://github.com/Sakwala/affiant-protocol) at the ref
-`../../../conformance/PROTOCOL_PIN` names (v0.1.3).
+`../../../conformance/PROTOCOL_PIN` names (v0.2.0).
 
 Every file here is a copy. Editing one changes what this repository's published parity
 claim is about, so `conformance/sync.sh --verify` (which CI runs) fails on any change

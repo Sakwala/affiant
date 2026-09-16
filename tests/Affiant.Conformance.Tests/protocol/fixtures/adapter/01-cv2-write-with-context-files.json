@@ -1,0 +1,91 @@
+{
+  "id": "adapter/cv2-write-with-context-files",
+  "rules": [
+    "CV-2",
+    "GT-2",
+    "AZ-5"
+  ],
+  "title": "A write tool the adapter built is called with an explicit turn context: the seam calls the gate itself, the proposal is filed pending on the Docket, and the tool's own execute is never reached.",
+  "given": {
+    "clock": "2026-09-15T09:00:00.000Z",
+    "store": "memory",
+    "gate": {
+      "defaultTtlMs": 3600000,
+      "authorization": {
+        "allow": [
+          "*"
+        ]
+      },
+      "inference": {
+        "priority": {
+          "value": "High",
+          "confidence": 0.9
+        }
+      }
+    },
+    "ctx": {
+      "tenantId": "tenant-a",
+      "conversationId": "conv-1",
+      "channel": "chat",
+      "principal": {
+        "kind": "member",
+        "id": "member-1"
+      },
+      "utterance": "Set the ticket priority to High",
+      "messageId": "msg-1"
+    },
+    "prior": [
+      {
+        "kind": "adapter-build",
+        "definitions": [
+          {
+            "name": "update_ticket",
+            "description": "Update a ticket.",
+            "entityType": "Ticket",
+            "entityId": "ticket-1",
+            "writeCapable": true,
+            "operationLabel": "WriteUpdate",
+            "fields": [
+              {
+                "name": "priority",
+                "kind": "text",
+                "description": "How urgent the ticket is",
+                "required": false,
+                "allowedValues": null,
+                "pattern": null
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "step": {
+      "kind": "adapter-call",
+      "tool": "update_ticket",
+      "args": {
+        "priority": "High"
+      },
+      "context": "turn",
+      "refusal": null
+    }
+  },
+  "expect": {
+    "outcome": {
+      "kind": "filed"
+    },
+    "entry": {
+      "status": "pending",
+      "execution": null,
+      "requirement": "ReviewerConfirmation",
+      "blocked": null,
+      "toolName": "update_ticket",
+      "channel": "chat",
+      "tenantId": "tenant-a",
+      "conversationId": "conv-1",
+      "attestation": null,
+      "decision": null
+    },
+    "entries": 1,
+    "hostExecuteRan": false
+  }
+}

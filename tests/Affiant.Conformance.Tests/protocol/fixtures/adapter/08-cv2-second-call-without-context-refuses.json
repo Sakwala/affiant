@@ -1,0 +1,88 @@
+{
+  "id": "adapter/cv2-second-call-without-context-refuses",
+  "rules": [
+    "CV-2",
+    "GT-2"
+  ],
+  "title": "A second call on the same built tool set, this one with no turn context, is refused and files nothing: a seam that remembered the first call's context would have a default to fall back to, which is the thing CV-2 forbids.",
+  "given": {
+    "clock": "2026-09-15T09:00:00.000Z",
+    "store": "memory",
+    "gate": {
+      "defaultTtlMs": 3600000,
+      "authorization": {
+        "allow": [
+          "*"
+        ]
+      },
+      "inference": {
+        "priority": {
+          "value": "High",
+          "confidence": 0.9
+        }
+      }
+    },
+    "ctx": {
+      "tenantId": "tenant-a",
+      "conversationId": "conv-1",
+      "channel": "chat",
+      "principal": {
+        "kind": "member",
+        "id": "member-1"
+      },
+      "utterance": "Set the ticket priority to High",
+      "messageId": "msg-1"
+    },
+    "prior": [
+      {
+        "kind": "adapter-build",
+        "definitions": [
+          {
+            "name": "update_ticket",
+            "description": "Update a ticket.",
+            "entityType": "Ticket",
+            "entityId": "ticket-1",
+            "writeCapable": true,
+            "operationLabel": "WriteUpdate",
+            "fields": [
+              {
+                "name": "priority",
+                "kind": "text",
+                "description": "How urgent the ticket is",
+                "required": false,
+                "allowedValues": null,
+                "pattern": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "adapter-call",
+        "tool": "update_ticket",
+        "args": {
+          "priority": "High"
+        },
+        "context": "turn",
+        "refusal": null
+      }
+    ],
+    "step": {
+      "kind": "adapter-call",
+      "tool": "update_ticket",
+      "args": {
+        "priority": "Low"
+      },
+      "context": null
+    }
+  },
+  "expect": {
+    "outcome": {
+      "kind": "refused",
+      "code": "wireup-invalid"
+    },
+    "entries": 1,
+    "modelOutput": null,
+    "hostExecuteRan": false
+  }
+}

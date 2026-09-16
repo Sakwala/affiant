@@ -1525,5 +1525,148 @@
         "acceptedOnReview": true
       }
     ]
+  },
+  "adapter": {
+    "protocolVersion": "0.2.0",
+    "$note": "The adapter section, authored here at v0.2.0 with the first adapter. A fixture here has the shape of a conformance fixture and two step kinds of its own — `adapter-build` and `adapter-call` — described in conformance/ADAPTER-RUNNER.md, and five matchers of its own. The two shapes are separate variants of conformance/fixture.schema.json: a conformance fixture stating an adapter step or an adapter clause is refused, and an adapter fixture stating `card` or `canonicalHash` is refused too, because an Evidence Card and a canonical hash are the gate's own artefacts and this section's runner has no way to produce one. A clause a section's own runner does not read is a clause nobody checks. This section is run only by an implementation that ships and declares an adapter — conformance/DRIVER.md says a driver runs it once for every adapter its implementation ships, and an implementation that ships none runs none and declares `adapters: []` in its parity manifest. Every fixture here is model-free and network-free — the call is made the way the framework makes it, with a scripted context and the arguments a model would have produced — so a driver needs no provider credential and no network to run the set. `oracle` is null on every row: these fixtures were authored with the first adapter, so there is no earlier release of one whose defect they refute, and they are accepted on review the way the canonical vectors are. CV-5 has no fixture here at all: it is a statement about documentation and packaging that no fixture can observe, and it is checked by conformance/lint/adapter-claims.mjs (conformance/ADAPTER-CLAIMS.md).",
+    "authoredHere": "All twelve were authored in this repository at v0.2.0, against @affiant/adapter-ai-sdk (Sakwala/affiant-ts, packages/adapter-ai-sdk) — the first adapter, and the reason the three coverage exemptions CV-2, CV-3 and CV-5 that carried `until: 0.2.0` are lifted at this version. None is promoted: the adapter's own suites drive a built tool set's execute with a scripted context, which is the mapping a driver implements, but the documents here were written to the rules rather than copied from a test file. Five of the twelve were added after refutation rounds found seams the earlier set passed: a second call with no context (a per-gate context cache), a read against an unreachable gate, a malformed context, a malformed context that is a COMPLETE turn context in the wrong shape (a seam that repaired it by wrapping it would file), and a read with a context that answers (without which `outcome.result` was a matcher no document used).",
+    "sets": {
+      "adapter": "the first adapter's seam: the fail-closed call site (CV-2) and the delegation clause (CV-3)"
+    },
+    "fixtures": [
+      {
+        "id": "adapter/cv2-write-with-context-files",
+        "file": "adapter/01-cv2-write-with-context-files.json",
+        "rules": [
+          "CV-2",
+          "GT-2",
+          "AZ-5"
+        ],
+        "set": "adapter",
+        "oracle": null,
+        "acceptedOnReview": true
+      },
+      {
+        "id": "adapter/cv2-write-without-context-refuses",
+        "file": "adapter/02-cv2-write-without-context-refuses.json",
+        "rules": [
+          "CV-2",
+          "GT-2"
+        ],
+        "set": "adapter",
+        "oracle": null,
+        "acceptedOnReview": true
+      },
+      {
+        "id": "adapter/cv2-gate-absent-throws",
+        "file": "adapter/03-cv2-gate-absent-throws.json",
+        "rules": [
+          "CV-2"
+        ],
+        "set": "adapter",
+        "oracle": null,
+        "acceptedOnReview": true
+      },
+      {
+        "id": "adapter/cv2-read-without-context-never-runs",
+        "file": "adapter/04-cv2-read-without-context-never-runs.json",
+        "rules": [
+          "CV-2",
+          "GT-2"
+        ],
+        "set": "adapter",
+        "oracle": null,
+        "acceptedOnReview": true
+      },
+      {
+        "id": "adapter/cv3-model-output-carries-no-values",
+        "file": "adapter/05-cv3-model-output-carries-no-values.json",
+        "rules": [
+          "CV-3",
+          "AZ-5"
+        ],
+        "set": "adapter",
+        "oracle": null,
+        "acceptedOnReview": true
+      },
+      {
+        "id": "adapter/cv3-docket-row-survives-history",
+        "file": "adapter/06-cv3-docket-row-survives-history.json",
+        "rules": [
+          "CV-3",
+          "AZ-5",
+          "DK-1"
+        ],
+        "set": "adapter",
+        "oracle": null,
+        "acceptedOnReview": true
+      },
+      {
+        "id": "adapter/cv3-replayed-approval-changes-nothing",
+        "file": "adapter/07-cv3-replayed-approval-changes-nothing.json",
+        "rules": [
+          "CV-3",
+          "AZ-5",
+          "DK-1"
+        ],
+        "set": "adapter",
+        "oracle": null,
+        "acceptedOnReview": true
+      },
+      {
+        "id": "adapter/cv2-second-call-without-context-refuses",
+        "file": "adapter/08-cv2-second-call-without-context-refuses.json",
+        "rules": [
+          "CV-2",
+          "GT-2"
+        ],
+        "set": "adapter",
+        "oracle": null,
+        "acceptedOnReview": true
+      },
+      {
+        "id": "adapter/cv2-read-gate-absent-throws",
+        "file": "adapter/09-cv2-read-gate-absent-throws.json",
+        "rules": [
+          "CV-2"
+        ],
+        "set": "adapter",
+        "oracle": null,
+        "acceptedOnReview": true
+      },
+      {
+        "id": "adapter/cv2-malformed-context-refuses",
+        "file": "adapter/10-cv2-malformed-context-refuses.json",
+        "rules": [
+          "CV-2",
+          "GT-2"
+        ],
+        "set": "adapter",
+        "oracle": null,
+        "acceptedOnReview": true
+      },
+      {
+        "id": "adapter/cv2-read-with-context-answers",
+        "file": "adapter/11-cv2-read-with-context-answers.json",
+        "rules": [
+          "CV-2",
+          "GT-2"
+        ],
+        "set": "adapter",
+        "oracle": null,
+        "acceptedOnReview": true
+      },
+      {
+        "id": "adapter/cv2-malformed-context-is-not-repaired",
+        "file": "adapter/12-cv2-malformed-context-is-not-repaired.json",
+        "rules": [
+          "CV-2",
+          "GT-2"
+        ],
+        "set": "adapter",
+        "oracle": null,
+        "acceptedOnReview": true
+      }
+    ]
   }
 }
