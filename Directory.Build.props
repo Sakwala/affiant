@@ -92,9 +92,18 @@
        check nuget.org for a patched Testcontainers/SSH.NET chain (same limitation the area-8
        evidence pack recorded for its own nuget.org checks). Suppressed here, same pattern as
        above, so the pre-existing build isn't broken by unrelated environment drift.
-       RE-VERIFY against nuget.org and bump Testcontainers.PostgreSql when a fix is available. -->
+       RE-VERIFY against nuget.org and bump Testcontainers.PostgreSql when a fix is available.
+
+       GHSA-mggc-4xg6-vcxf: a second SSH.NET advisory (affects < 2026.0.0, patched in 2026.0.0;
+       listed in the GitHub Advisory Database 2026-09-17), same transitive Testcontainers.PostgreSql
+       chain, same test-only scope. It broke every cold restore from that date on. Suppressed on
+       the same terms as GHSA-q939-rpr3-3284: the fix is a major-version SSH.NET bump underneath
+       Testcontainers, which belongs with the Testcontainers upgrade above, not forced in on its
+       own. REMOVE both SSH.NET suppressions together when Testcontainers.PostgreSql is bumped to a
+       release that depends on SSH.NET >= 2026.0.0. -->
   <ItemGroup>
     <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-2m69-gcr7-jv3q" />
     <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-q939-rpr3-3284" />
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-mggc-4xg6-vcxf" />
   </ItemGroup>
 </Project>
