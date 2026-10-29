@@ -20,7 +20,7 @@ env.IsDevelopment() AND configuration["DevSeam:Enabled"] == true
 If either condition is false, the filter short-circuits with a plain `404 Not Found` before either
 handler runs. In Meridian, `DevSeam:Enabled` is `true` only in `appsettings.Development.json` — it
 is absent from the production configuration that serves the public demo at
-[meridian.affiant.dev](https://meridian.affiant.dev), so the seam is unreachable there regardless
+[meridian.affiant.tech](https://meridian.affiant.tech), so the seam is unreachable there regardless
 of environment. Both routes are mapped unconditionally (not only when the gate is open) precisely
 so that hitting them with the gate closed returns this clean 404, rather than being silently
 absorbed by the host's SPA catch-all route (which only distinguishes "matched" from "didn't

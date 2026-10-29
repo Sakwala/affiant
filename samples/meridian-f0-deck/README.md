@@ -7,7 +7,7 @@ with no LLM key.
 
 This deck (`f0-deck.spec.ts`) and its config (`playwright.config.ts`) are copied from the host
 with private tracking references removed from comments; the test code is unchanged. They come
-from the regression suite that ships in [Meridian](https://meridian.affiant.dev), the
+from the regression suite that ships in [Meridian](https://meridian.affiant.tech), the
 aircraft-maintenance host application built on this framework. "F0" ("flight zero") is that
 project's internal name for the review-lifecycle hardening pass the deck locks; it is kept in the
 file's own header comment because renaming it would make the two copies diverge for no benefit —
@@ -55,7 +55,7 @@ endpoints, request/response shapes, and the exact canned `Affidavit` it files �
 ## Scope: Meridian only
 
 This deck exercises Meridian, the aircraft-maintenance host application. The framework's other
-first-party reference host, HR Portal (`hrportal.affiant.dev`), has no equivalent deck as of
+first-party reference host, HR Portal (`hrportal.affiant.tech`), has no equivalent deck as of
 2026-09-04 — its review-lifecycle behaviour is not covered by a published Playwright suite in
 either the private host-application repository or this one.
 
@@ -65,7 +65,7 @@ Being direct about this, as of 2026-09-04: **you cannot run this deck yet, strai
 repository.** It runs against Meridian's own web and API projects (`meridian-web`, a React SPA,
 and `Meridian.Api`, the ASP.NET Core host that implements the dev seam) — and Meridian's source is
 private, living in a separate repository this framework does not publish. The deck also can't run
-against the public demo at [meridian.affiant.dev](https://meridian.affiant.dev): that deployment
+against the public demo at [meridian.affiant.tech](https://meridian.affiant.tech): that deployment
 runs in a mode meant for public visitors, and the dev seam these specs depend on is deliberately
 unreachable there (see the double gate in [`dev-seam-contract.md`](dev-seam-contract.md) — it 404s
 outside local development).
