@@ -10,8 +10,8 @@ reaches the database until a human has seen that evidence and approved it.
 
 Nothing commits without evidence. Nothing writes without approval.
 
-> **See it live.** Two first-party hosts built on Affiant run in public: [Meridian](https://meridian.affiant.dev),
-> an aircraft-maintenance desk on the Microsoft Agent Framework, and [HR Portal](https://hrportal.affiant.dev),
+> **See it live.** Two first-party hosts built on Affiant run in public: [Meridian](https://meridian.affiant.tech),
+> an aircraft-maintenance desk on the Microsoft Agent Framework, and [HR Portal](https://hrportal.affiant.tech),
 > an HR department on Microsoft.Extensions.AI. Any email works, five messages a day, and the data resets
 > nightly. What to try and what you are looking at:
 > [affiant.tech/start/live-demo](https://affiant.tech/start/live-demo/).
