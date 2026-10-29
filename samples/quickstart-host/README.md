@@ -1,6 +1,6 @@
 # Quickstart host
 
-The [Quickstart](https://affiant.dev/start/quickstart/)'s code, as a program you can run. One
+The [Quickstart](https://affiant.tech/start/quickstart/)'s code, as a program you can run. One
 domain — leave requests — one model turn, one Evidence Card, one human decision, and a row that
 only exists because somebody approved it.
 
