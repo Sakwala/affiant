@@ -14,7 +14,7 @@ Nothing commits without evidence. Nothing writes without approval.
 > an aircraft-maintenance desk on the Microsoft Agent Framework, and [HR Portal](https://hrportal.affiant.dev),
 > an HR department on Microsoft.Extensions.AI. Any email works, five messages a day, and the data resets
 > nightly. What to try and what you are looking at:
-> [affiant.dev/start/live-demo](https://affiant.dev/start/live-demo/).
+> [affiant.tech/start/live-demo](https://affiant.tech/start/live-demo/).
 
 > **Beta.** `1.0.0-beta.3.1` is the current version in this tree — all ten packages, co-versioned;
 > `1.0.0-beta.3` is the latest one published to nuget.org. This tree's build passes the protocol's

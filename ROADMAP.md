@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-11 · Current release: 1.0.0-beta.3.1 (2026-09-09)
 
-This file is canonical. It is mirrored at [affiant.dev/roadmap/](https://affiant.dev/roadmap/); if the two ever differ, this file wins.
+This file is canonical. It is mirrored at [affiant.tech/roadmap/](https://affiant.tech/roadmap/); if the two ever differ, this file wins.
 
 > This roadmap is a statement of direction, not a commitment. No Now, Next or Later item
 > carries a delivery date. The dates this page does carry are facts, not forecasts: when it
@@ -14,7 +14,7 @@ This file is canonical. It is mirrored at [affiant.dev/roadmap/](https://affiant
 
 ## What Affiant is
 
-Affiant is a .NET framework that turns every AI-proposed database write into an **Evidence Card** — a per-write review record placed on a **Docket**, the queue of cards awaiting a human decision — carrying an **Affidavit**, a per-field record of where each value came from and how confident the framework is in it. It attaches to an agent framework through an **adapter** — [Semantic Kernel, Microsoft Agent Framework or Microsoft.Extensions.AI](https://affiant.dev/concepts/interception-backends/) — and two first-party host applications, Meridian and HR Portal (both live public demos), exercise it end to end. See the [README](README.md) and [affiant.dev](https://affiant.dev) for the full picture.
+Affiant is a .NET framework that turns every AI-proposed database write into an **Evidence Card** — a per-write review record placed on a **Docket**, the queue of cards awaiting a human decision — carrying an **Affidavit**, a per-field record of where each value came from and how confident the framework is in it. It attaches to an agent framework through an **adapter** — [Semantic Kernel, Microsoft Agent Framework or Microsoft.Extensions.AI](https://affiant.tech/concepts/interception-backends/) — and two first-party host applications, Meridian and HR Portal (both live public demos), exercise it end to end. See the [README](README.md) and [affiant.tech](https://affiant.tech) for the full picture.
 
 ## How this roadmap works
 
@@ -36,7 +36,7 @@ No delivery dates, ever: a solo-maintained project cannot promise one without it
 
 ## What will not change
 
-1. **The invariant.** Every Affidavit field carries provenance, no exceptions; nothing commits without evidence, nothing writes without approval. Enforced by two things at once: the [ComplianceHarness](https://affiant.dev/guides/compliance-harness/) — the test harness every .NET adapter must pass — and the conformance suite in [affiant-protocol](https://github.com/Sakwala/affiant-protocol), which has shipped and which every implementation runs. Its sixty-eight documents — sixty-one declarative fixtures and seven canonical byte vectors — are what each implementation's parity manifest is read against: this tree's .NET build passes 68 of 68 at the rulebook's [`v0.2.0`](https://github.com/Sakwala/affiant-protocol/releases/tag/v0.2.0) tag with eight declared exemptions, recorded in [`conformance/parity/dotnet-v0.2.json`](conformance/parity/dotnet-v0.2.json), which also states `adapters: []` — this implementation declares no adapter to the rulebook, so it runs none of the `adapter` fixture section v0.2.0 added. The readings published on the rulebook's default branch moved to `v0.1.3` on 2026-09-09 — both lines at 68 of 68 over the 61 declarative fixtures and the 7 canonical byte vectors, with those same eleven exemptions — and the `v0.2` readings arrive with the pull request this pin bump is published by: the .NET line above, and the TypeScript line at 80 of 80, which is the 68 plus the 12 documents of the `adapter` section it runs and this implementation does not. Each tag keeps the snapshot cut inside it, so a manifest frozen in an older tag still names the ref it was a claim about rather than a later one.
+1. **The invariant.** Every Affidavit field carries provenance, no exceptions; nothing commits without evidence, nothing writes without approval. Enforced by two things at once: the [ComplianceHarness](https://affiant.tech/guides/compliance-harness/) — the test harness every .NET adapter must pass — and the conformance suite in [affiant-protocol](https://github.com/Sakwala/affiant-protocol), which has shipped and which every implementation runs. Its sixty-eight documents — sixty-one declarative fixtures and seven canonical byte vectors — are what each implementation's parity manifest is read against: this tree's .NET build passes 68 of 68 at the rulebook's [`v0.2.0`](https://github.com/Sakwala/affiant-protocol/releases/tag/v0.2.0) tag with eight declared exemptions, recorded in [`conformance/parity/dotnet-v0.2.json`](conformance/parity/dotnet-v0.2.json), which also states `adapters: []` — this implementation declares no adapter to the rulebook, so it runs none of the `adapter` fixture section v0.2.0 added. The readings published on the rulebook's default branch moved to `v0.1.3` on 2026-09-09 — both lines at 68 of 68 over the 61 declarative fixtures and the 7 canonical byte vectors, with those same eleven exemptions — and the `v0.2` readings arrive with the pull request this pin bump is published by: the .NET line above, and the TypeScript line at 80 of 80, which is the 68 plus the 12 documents of the `adapter` section it runs and this implementation does not. Each tag keeps the snapshot cut inside it, so a manifest frozen in an older tag still names the ref it was a claim about rather than a later one.
 2. **Field-level, not call-level.** Approval of a whole tool call is commodity; Affiant's unit is the field and its provenance chain.
 3. **The honest boundary.** Affiant only swears to writes it can intercept in-process. It will not claim otherwise.
 4. **Library, not service.** Affiant runs inside the adopter's process. There is no hosted component, no licence server, and no phone-home.
@@ -55,8 +55,8 @@ No delivery dates, ever: a solo-maintained project cannot promise one without it
   alongside it. The .NET packages still take no UI dependency; this is a separate,
   optional surface. State: in progress — these are the first artifacts of the TypeScript
   work below. Links: issue: to be filed; [Docket & Evidence
-  Cards](https://affiant.dev/concepts/docket-and-evidence-cards/), [Transport & Wire
-  Contract](https://affiant.dev/concepts/transport-and-wire-contract/).
+  Cards](https://affiant.tech/concepts/docket-and-evidence-cards/), [Transport & Wire
+  Contract](https://affiant.tech/concepts/transport-and-wire-contract/).
 - **A TypeScript implementation, and the rulebook that holds it equivalent**
   `[typescript]` — Two public repositories.
   [`affiant-protocol`](https://github.com/Sakwala/affiant-protocol) is the rulebook every
@@ -97,7 +97,7 @@ No delivery dates, ever: a solo-maintained project cannot promise one without it
   that list is clear. What "stable" will mean is already defined in
   [Versioning & compatibility](README.md#versioning--compatibility). `1.0.0-beta.1.1`
   raised one floor and nothing else: with the stock defaults, a [Standing
-  Order](https://affiant.dev/concepts/review-gate-and-write-executors/) written by the
+  Order](https://affiant.tech/concepts/review-gate-and-write-executors/) written by the
   book could never auto-approve, because the default risk calculator never returned `Low`
   while the default threshold was `Low`. The fix removed the stock formula — the risk
   scorer is now host-supplied, and the framework keeps only the comparison.
@@ -169,8 +169,8 @@ No delivery dates, ever: a solo-maintained project cannot promise one without it
   `Affiant.AgentFramework` onto `Affiant.Extensions.AI` so there is one interception
   surface is a decision pending, not scheduled. Links:
   [affiant#39](https://github.com/Sakwala/affiant/issues/39); [Interception
-  Backends](https://affiant.dev/concepts/interception-backends/), [The Compliance
-  Harness](https://affiant.dev/guides/compliance-harness/).
+  Backends](https://affiant.tech/concepts/interception-backends/), [The Compliance
+  Harness](https://affiant.tech/guides/compliance-harness/).
 
 ## Later
 
@@ -198,7 +198,7 @@ No delivery dates, ever: a solo-maintained project cannot promise one without it
   be filed.
 - **Review policies: multi-step and multi-party review** `[review]` — Two review shapes run
   today: a person's decision on a card, and a [Standing
-  Order](https://affiant.dev/concepts/review-gate-and-write-executors/) — an auto-approval rule
+  Order](https://affiant.tech/concepts/review-gate-and-write-executors/) — an auto-approval rule
   a host wrote in advance — which approves with nobody present and is attested as
   `Attestor.StandingOrder`, naming the policy and its version on the record. Two further
   requirement levels are declared and deliberately not run: `MultiParty` (more than one
@@ -209,14 +209,14 @@ No delivery dates, ever: a solo-maintained project cannot promise one without it
   real semantics for each of the three, then code. Links: issue: to be filed.
 - **Synchronous (blocking) review mode** `[review]` — A mode where the agent waits for the
   decision inside the tool call. The naive version deadlocks over a single
-  [SignalR](https://affiant.dev/concepts/transport-and-wire-contract/) connection (the
+  [SignalR](https://affiant.tech/concepts/transport-and-wire-contract/) connection (the
   real-time transport Affiant ships); the sound design needs a decision channel separate
   from the blocked connection, and no implementation is planned until the design settles.
   Links: [affiant#29](https://github.com/Sakwala/affiant/issues/29).
 - **Provenance integrity** `[stability]` — Harden source attribution so a field can never be
   attributed to the wrong tool. This sharpens the core claim ("sworn"); it is not a defect being
   fixed. What an Affidavit's
-  [`AggregateConfidence`](https://affiant.dev/concepts/affidavits-and-provenance/) measures is
+  [`AggregateConfidence`](https://affiant.tech/concepts/affidavits-and-provenance/) measures is
   settled and no longer on this list: rule AF-2 of the rulebook defines it normatively — the
   minimum over every proposed field's current provenance tag, an `Empty` field counting as 0, so
   it reads 0 exactly when some proposed field has unknown provenance — and `1.0.0-beta.3`
@@ -231,7 +231,7 @@ No delivery dates, ever: a solo-maintained project cannot promise one without it
   [`conformance/parity/dotnet-v0.2.json`](conformance/parity/dotnet-v0.2.json),
   [CHANGELOG](CHANGELOG.md).
 - **Provider failover in the framework, for all three adapters** `[stability]` — Normative
-  [Rule 5](https://affiant.dev/rules/seven-normative-rules/) promises graceful degradation
+  [Rule 5](https://affiant.tech/rules/seven-normative-rules/) promises graceful degradation
   when a provider fails. Today the framework ships the configuration shape for a
   primary/secondary provider pair and a degraded-mode telemetry counter, for the Semantic
   Kernel adapter, and leaves the failover itself to the host application; the Agent
@@ -251,7 +251,7 @@ No delivery dates, ever: a solo-maintained project cannot promise one without it
   process (hosted MCP, code interpreter, web search) never enter the function-invocation
   pipeline, so no middleware fires and Affiant cannot swear to writes it never sees. This
   is a boundary, not a backlog item — see [The Honest
-  Boundary](https://affiant.dev/reference/honest-boundary/). Keep such writes read-only,
+  Boundary](https://affiant.tech/reference/honest-boundary/). Keep such writes read-only,
   or route them through a reviewed path.
 - **A LangChain (tryAGI) adapter** — Researched: there is no pre-execution interception
   seam in that stack. Would be revisited only if the stack gains a seam.
@@ -320,7 +320,7 @@ No delivery dates, ever: a solo-maintained project cannot promise one without it
   semantics — it now waits for the projected expiry and drives the same late decision — and the
   deck moved into the CI job that runs on every push, so a green tag means it passed
   ([affiant#111](https://github.com/Sakwala/affiant/issues/111)). The
-  [Quickstart](https://affiant.dev/start/quickstart/) is that sample's code step by step —
+  [Quickstart](https://affiant.tech/start/quickstart/) is that sample's code step by step —
   including how a field gets its value, from the field schema a domain declares to the
   host-supplied projection that stamps an update-shaped write with its entity id and each
   field's current value — and it ends at that card.
@@ -338,9 +338,9 @@ No delivery dates, ever: a solo-maintained project cannot promise one without it
   issues](https://github.com/Sakwala/affiant/issues?q=is%3Aissue+state%3Aopen+label%3Aroadmap).
 - 2026-08-27 — HR Portal public demo went live at hrportal.affiant.dev — a second adapter
   (Microsoft.Extensions.AI), a second domain, the same guarantees. [Try it
-  live](https://affiant.dev/start/live-demo/#hr-portal).
+  live](https://affiant.tech/start/live-demo/#hr-portal).
 - 2026-08-26 — Meridian public demo went live at meridian.affiant.dev. [Try it
-  live](https://affiant.dev/start/live-demo/).
+  live](https://affiant.tech/start/live-demo/).
 - 2026-08-23 — `1.0.0-beta.1`: first public release, ten co-versioned packages, three
   adapters.
   [Release](https://github.com/Sakwala/affiant/releases/tag/v1.0.0-beta.1),
@@ -348,7 +348,7 @@ No delivery dates, ever: a solo-maintained project cannot promise one without it
 - 2026-08-20 — `Affiant.Extensions.AI`: the Microsoft.Extensions.AI adapter joined the set.
   [CHANGELOG](CHANGELOG.md).
 - 2026-07-05 — `Affiant.AgentFramework`: the Microsoft Agent Framework adapter joined the
-  package set. [FAQ](https://affiant.dev/reference/faq/).
+  package set. [FAQ](https://affiant.tech/reference/faq/).
 
 ## Themes
 
