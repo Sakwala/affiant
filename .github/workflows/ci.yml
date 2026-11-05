@@ -72,7 +72,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 26
 
       - name: Test the quickstart sample host
         run: dotnet test samples/quickstart-host/tests/QuickstartHost.Tests/QuickstartHost.Tests.csproj -c Release
