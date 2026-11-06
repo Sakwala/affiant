@@ -24,9 +24,17 @@
     <ProjectReference Include="..\..\src\Affiant.Core\Affiant.Core.csproj" />
   </ItemGroup>
 
+  <!-- Package mode exists for consumers that build this project against the PACKED framework
+       (affiant-host-apps' PackageReference CI leg packs this tree into a local feed and then
+       builds its hosts, which reference this project, with UseAffiantPackages=true). The version
+       must therefore be the one this tree packs — Directory.Build.props' canonical value — and
+       never a literal: the literal this used to carry (1.0.0-alpha.1) outlived its package on
+       nuget.org, NuGet resolved the lowest version it could still find (1.0.0-beta.1) and NU1603
+       failed the restore under TreatWarningsAsErrors; had it passed, this project would have
+       compiled against beta.1 while the host built against the current release. -->
   <ItemGroup Condition="'$(UseAffiantPackages)' == 'true'">
-    <PackageReference Include="Affiant.Abstractions" Version="1.0.0-alpha.1" />
-    <PackageReference Include="Affiant.Core" Version="1.0.0-alpha.1" />
+    <PackageReference Include="Affiant.Abstractions" Version="$(AffiantCanonicalVersion)" />
+    <PackageReference Include="Affiant.Core" Version="$(AffiantCanonicalVersion)" />
   </ItemGroup>
 
 </Project>
